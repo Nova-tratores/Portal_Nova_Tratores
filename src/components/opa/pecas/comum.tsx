@@ -20,7 +20,8 @@ import dynamic from 'next/dynamic'
 const ImprimirTodas = dynamic(() => import('./ImprimirTodas'), { ssr: false })
 import { COR_STATUS, ROTULO_QUALIDADE, ROTULO_STATUS, type Destino, type Local, type Lookup, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
 
-export const LARANJA = '#ea580c'
+// Cor do Opa inteiro = a do setor Adicionais (lib/dashboard/setores.ts) — José, 19/11/2026
+export const COR_OPA = '#64748B'
 
 /** Avisa a barra do Opa que algo mudou (para os contadores recarregarem). */
 export function avisarMudanca() {
@@ -93,9 +94,10 @@ function useVoltar(pathname: string) {
   }
 }
 
+
 /**
- * Cabeçalho do Opa: faixa em degradê na cor da frente ativa (vermelho =
- * Ocorrências, laranja = Peças), com as duas frentes como GUIAS estilo Chrome
+ * Cabeçalho do Opa: faixa em degradê na cor do setor Adicionais (a mesma em
+ * todas as abas), com as duas frentes como GUIAS estilo Chrome
  * (a ativa branca, "colada" no conteúdo — mesmo padrão das faixas de Frota e
  * Serviços). À direita, só os atalhos do dia a dia; em Peças: Etapas ▾, Ler
  * código e Novo produto. Ocupa a largura toda (margens negativas = padding da
@@ -122,9 +124,8 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
   // celular: com número ímpar de botões, o "Novo produto" ocupa a linha inteira
   const qtdBotoes = (temVoltar ? 1 : 0) + 1 + (podeGerir ? 1 : 0) + 1 + 1
   const btn = isMobile ? BTN_FAIXA_MOVEL : BTN_FAIXA
-  const faixa = emGuardar ? 'linear-gradient(135deg, #2dd4bf 0%, #0d9488 55%, #115e59 100%)'
-    : emPatrimonio ? 'linear-gradient(135deg, #818cf8 0%, #4f46e5 55%, #3730a3 100%)'
-    : emPecas ? 'linear-gradient(135deg, #fb923c 0%, #ea580c 55%, #c2410c 100%)' : 'linear-gradient(135deg, #f87171 0%, #dc2626 55%, #991b1b 100%)'
+  // Uma cor só para o Opa inteiro: a do setor Adicionais (José, 19/11/2026)
+  const faixa = 'linear-gradient(135deg, #94a3b8 0%, #64748b 55%, #475569 100%)'
 
   return (
     <div style={{
@@ -133,18 +134,18 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
       background: faixa, boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
     }}>
       <div role="tablist" style={{ display: 'flex', alignItems: 'flex-end', gap: isMobile ? 3 : 4, overflowX: 'auto', flexShrink: 0, maxWidth: '100%', width: isMobile ? '100%' : undefined, WebkitOverflowScrolling: 'touch' }}>
-        <GuiaChrome href="/opa" ativo={!emPecas && !emPatrimonio && !emGuardar && !emMapa} cor="#dc2626" icone={<AlertCircle size={16} />} titulo="Ocorrências"
+        <GuiaChrome href="/opa" ativo={!emPecas && !emPatrimonio && !emGuardar && !emMapa} cor={COR_OPA} icone={<AlertCircle size={16} />} titulo="Ocorrências"
           conta={c?.opasAbertos ?? null} dica={c ? (c.opasAbertos === 1 ? '1 aberta' : `${c.opasAbertos} abertas`) : ''} mobile={isMobile} />
-        <GuiaChrome href="/opa/mapa" ativo={emMapa} cor="#dc2626" icone={<MapaIcone size={16} />} titulo="Mapa"
+        <GuiaChrome href="/opa/mapa" ativo={emMapa} cor={COR_OPA} icone={<MapaIcone size={16} />} titulo="Mapa"
           conta={null} dica="A planta da loja por andar: onde fica cada lugar, de qual departamento é e os Opas abertos" mobile={isMobile} />
-        <GuiaChrome href="/opa/pecas" ativo={emPecas} cor={LARANJA} icone={<Package size={16} />} titulo="Peças S/Estoque" curto="Peças"
+        <GuiaChrome href="/opa/pecas" ativo={emPecas} cor={COR_OPA} icone={<Package size={16} />} titulo="Peças S/Estoque" curto="Peças"
           conta={c?.emAberto ?? null} dica={c ? `${c.emAberto} em andamento` : ''} mobile={isMobile} />
         {(veGuardar || emGuardar) && (
-          <GuiaChrome href="/opa/guardar" ativo={emGuardar} cor="#0d9488" icone={<PackageOpen size={16} />} titulo="Guardar peças" curto="Guardar"
+          <GuiaChrome href="/opa/guardar" ativo={emGuardar} cor={COR_OPA} icone={<PackageOpen size={16} />} titulo="Guardar peças" curto="Guardar"
             conta={paraGuardar} dica={paraGuardar != null ? `${paraGuardar} peça(s) recebida(s) sem prateleira / andar / caixa` : 'Peças recebidas para guardar'} mobile={isMobile} />
         )}
         {(vePatrimonio || emPatrimonio) && (
-          <GuiaChrome href="/opa/patrimonio" ativo={emPatrimonio} cor="#4f46e5" icone={<Landmark size={16} />} titulo="Patrimônio Loja" curto="Patrimônio"
+          <GuiaChrome href="/opa/patrimonio" ativo={emPatrimonio} cor={COR_OPA} icone={<Landmark size={16} />} titulo="Patrimônio Loja" curto="Patrimônio"
             conta={null} dica="O que a loja tem: ferramentas, informática, móveis, equipamentos" mobile={isMobile} />
         )}
       </div>
@@ -244,7 +245,7 @@ function MenuEtapas({ podeGerir, c, mobile = false }: { podeGerir: boolean; c: C
       <button ref={botaoRef} type="button" onClick={abrir} aria-haspopup="menu" aria-expanded={aberto}
         style={{ ...(mobile ? BTN_FAIXA_MOVEL : BTN_FAIXA), ...(atual ? { background: '#fefefe', color: '#111111', border: '1px solid #fefefe' } : {}) }}>
         <LayoutList size={16} /> {atual ? `${atual.n}. ${atual.titulo}` : 'Etapas'}
-        {pendentes > 0 && <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 7px', borderRadius: 9, background: atual ? LARANJA : '#fefefe', color: atual ? '#fefefe' : '#111111' }}>{pendentes}</span>}
+        {pendentes > 0 && <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 7px', borderRadius: 9, background: atual ? COR_OPA : '#fefefe', color: atual ? '#fefefe' : '#111111' }}>{pendentes}</span>}
         <ChevronDown size={15} style={{ transition: 'transform 0.15s', transform: aberto ? 'rotate(180deg)' : 'none' }} />
       </button>
       {aberto && (
@@ -254,13 +255,13 @@ function MenuEtapas({ podeGerir, c, mobile = false }: { podeGerir: boolean; c: C
             {etapas.map((e) => {
               const ativo = pathname.startsWith(e.href)
               return (
-                <Link key={e.href} href={e.href} role="menuitem" onClick={() => setAberto(false)} style={{ ...item, background: ativo ? '#FFF7ED' : 'transparent' }}>
-                  <span style={{ width: 26, height: 26, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, flexShrink: 0, background: ativo ? LARANJA : 'var(--portal-bg-secondary)', color: ativo ? '#fff' : 'var(--portal-text-secondary)' }}>{e.n}</span>
+                <Link key={e.href} href={e.href} role="menuitem" onClick={() => setAberto(false)} style={{ ...item, background: ativo ? '#F1F5F9' : 'transparent' }}>
+                  <span style={{ width: 26, height: 26, borderRadius: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, flexShrink: 0, background: ativo ? COR_OPA : 'var(--portal-bg-secondary)', color: ativo ? '#fff' : 'var(--portal-text-secondary)' }}>{e.n}</span>
                   <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, color: ativo ? '#9A3412' : 'var(--portal-text)' }}>{e.titulo}</span>
+                    <span style={{ display: 'block', fontSize: 13.5, fontWeight: 800, color: ativo ? '#334155' : 'var(--portal-text)' }}>{e.titulo}</span>
                     <span style={{ display: 'block', fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{e.detalhe}</span>
                   </span>
-                  {e.conta != null && e.conta > 0 && <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 7px', borderRadius: 9, background: LARANJA, color: '#fff' }}>{e.conta}</span>}
+                  {e.conta != null && e.conta > 0 && <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 7px', borderRadius: 9, background: COR_OPA, color: '#fff' }}>{e.conta}</span>}
                 </Link>
               )
             })}
@@ -404,7 +405,7 @@ export function Miniatura({ url, tamanho = 56 }: { url?: string; tamanho?: numbe
 }
 
 export function Aviso({ tipo = 'erro', children, acao }: { tipo?: 'erro' | 'ok' | 'info'; children: React.ReactNode; acao?: React.ReactNode }) {
-  const cores = { erro: ['#FEF2F2', '#FECACA', '#991B1B'], ok: ['#ECFDF5', '#A7F3D0', '#065F46'], info: ['#FFF7ED', '#FED7AA', '#9A3412'] }[tipo]
+  const cores = { erro: ['#FEF2F2', '#FECACA', '#991B1B'], ok: ['#ECFDF5', '#A7F3D0', '#065F46'], info: ['#F1F5F9', '#CBD5E1', '#334155'] }[tipo]
   return (
     <div role={tipo === 'erro' ? 'alert' : 'status'} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 12, background: cores[0], border: `1px solid ${cores[1]}`, color: cores[2], fontSize: 14, fontWeight: 400, marginBottom: 14 }}>
       <div style={{ flex: 1, minWidth: 180, whiteSpace: 'pre-wrap' }}>{children}</div>
@@ -439,7 +440,7 @@ export const TITULO_SECAO: React.CSSProperties = {
 }
 
 /** Título de seção no estilo POS NewPortal: ícone em quadradinho + texto 16 px sem negrito. */
-export function TituloSecao({ icone, cor = LARANJA, children }: { icone: React.ReactNode; cor?: string; children: React.ReactNode }) {
+export function TituloSecao({ icone, cor = COR_OPA, children }: { icone: React.ReactNode; cor?: string; children: React.ReactNode }) {
   return (
     <h2 className="opa-tit" style={{ ...TITULO_SECAO, ['--c' as string]: cor } as React.CSSProperties}>
       <span className="opa-tit-ico">{icone}</span>

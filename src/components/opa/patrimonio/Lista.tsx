@@ -134,7 +134,7 @@ export default function Lista({ base }: { base: BasePat }) {
                   {i.responsavel && <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><UserRound size={12} /> {i.responsavel}</div>}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
                     {(i.valor_atual ?? i.valor_compra) != null && <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text)' }}>{fmtReal(i.valor_atual ?? i.valor_compra)}</span>}
-                    {i.tags.slice(0, 3).map((tg) => <span key={tg} style={{ fontSize: 11, fontWeight: 700, color: COR_PAT, background: '#EEF2FF', borderRadius: 999, padding: '1px 7px' }}>#{tg}</span>)}
+                    {i.tags.slice(0, 3).map((tg) => <span key={tg} style={{ fontSize: 11, fontWeight: 700, color: COR_PAT, background: '#F1F5F9', borderRadius: 999, padding: '1px 7px' }}>#{tg}</span>)}
                   </div>
                 </div>
               </Link>
@@ -197,7 +197,7 @@ function useColunasPat(base: BasePat, minis: Record<string, string>): ColunaTabe
       render: (i) => <span style={{ whiteSpace: 'nowrap', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{(i.valor_atual ?? i.valor_compra) != null ? fmtReal(i.valor_atual ?? i.valor_compra) : vazio('')}</span> },
     { chave: 'tags', titulo: 'Tags', ordem: (i) => i.tags.join(', '), valores: (i) => i.tags.map((tg) => `#${tg}`),
       render: (i) => (i.tags.length
-        ? <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>{i.tags.slice(0, 3).map((tg) => <span key={tg} style={{ fontSize: 11, fontWeight: 700, color: COR_PAT, background: '#EEF2FF', borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>#{tg}</span>)}{i.tags.length > 3 && <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>+{i.tags.length - 3}</span>}</span>
+        ? <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>{i.tags.slice(0, 3).map((tg) => <span key={tg} style={{ fontSize: 11, fontWeight: 700, color: COR_PAT, background: '#F1F5F9', borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>#{tg}</span>)}{i.tags.length > 3 && <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>+{i.tags.length - 3}</span>}</span>
         : vazio('')) },
     { chave: 'etiqueta', titulo: 'Etiqueta', ordem: (i) => i.etiqueta_impressa_em || '', valores: (i) => [i.etiqueta_impressa_em ? 'Impressa' : 'Falta'],
       render: (i) => (i.etiqueta_impressa_em

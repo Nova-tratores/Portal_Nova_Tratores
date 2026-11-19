@@ -5,7 +5,7 @@
 // Quem não é do setor de peças vê tudo só para leitura.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRightLeft, AlertTriangle, Camera, ChevronLeft, ChevronRight, History, Loader2, MapPin, Printer, RefreshCw, RotateCcw, Save, Trash2, X, ZoomIn, ZoomOut, BadgeDollarSign, Warehouse, FileText } from 'lucide-react'
+import { ArrowRightLeft, AlertTriangle, ChevronLeft, ChevronRight, History, Loader2, MapPin, Printer, RefreshCw, RotateCcw, Save, Trash2, X, ZoomIn, ZoomOut, BadgeDollarSign, Warehouse, FileText } from 'lucide-react'
 import QRCode from 'qrcode'
 import {
   adicionarFotos, atualizarItem, buscarItem, definirAplicacoes, excluirItem, finalizar, listarHistorico,
@@ -22,11 +22,12 @@ import { ChipsEtiquetas } from './ListaPecas'
 import { EditorEtiquetas, esquecerSugestoesEtiquetas, SecaoLocacao } from './LocacaoEtiquetas'
 import { esquecerSku } from './useProdutosSku'
 import Impressao from './Impressao'
+import Galeria from '../Galeria'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
-import { CodigoPeca, Aviso, botao, INP, LARANJA, ROTULO, SECAO, SeloQualidade, SeloStatus, TITULO_SECAO, TituloSecao, useMiniaturas, useTelaLarga, type Base } from './comum'
+import { CodigoPeca, Aviso, botao, INP, COR_OPA, ROTULO, SECAO, SeloQualidade, SeloStatus, TITULO_SECAO, TituloSecao, useMiniaturas, useTelaLarga, type Base } from './comum'
 
 interface Form {
   descricao: string
@@ -84,7 +85,7 @@ function diferencas(i: Item, f: Form): { dados: CamposEditaveis; erro?: string }
 
 const COLUNA: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }
 /** Subtítulo dos grupos dentro de "Dados da peça". */
-const SUBTITULO: React.CSSProperties = { fontSize: 11, fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', color: '#9A3412', marginTop: 4, paddingBottom: 6, borderBottom: '1px solid var(--portal-border)' }
+const SUBTITULO: React.CSSProperties = { fontSize: 11, fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', color: '#334155', marginTop: 4, paddingBottom: 6, borderBottom: '1px solid var(--portal-border)' }
 
 export default function DetalheItem({ item: inicial, base, onMudou }: {
   item: Item
@@ -233,7 +234,7 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
               <span style={{ color: 'var(--portal-text-muted)' }}>·</span>
               <SeloQualidade qualidade={item.qualidade} />
               {item.local_id && <><span style={{ color: 'var(--portal-text-muted)' }}>·</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, color: '#9A3412' }}><MapPin size={12} /> {textoLocal(item, base.nomesLocais)}</span></>}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, color: '#334155' }}><MapPin size={12} /> {textoLocal(item, base.nomesLocais)}</span></>}
               {item.nao_identificavel && <><span style={{ color: 'var(--portal-text-muted)' }}>·</span><span style={{ fontWeight: 700, color: '#4B5563' }}>não identificável</span></>}
             </div>
             {!!item.etiquetas?.length && <ChipsEtiquetas etiquetas={item.etiquetas} max={8} />}
@@ -241,6 +242,13 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
               Captada por {usuarios[item.criado_por] || '…'} em {fmtDataHora(item.criado_em)}
               {item.atualizado_por && item.atualizado_em !== item.criado_em && <> · alterada por {usuarios[item.atualizado_por] || '…'} em {fmtDataHora(item.atualizado_em)}</>}
             </div>
+            {/* Foi cadastrada como peça mas é coisa da loja: um clique leva para o Patrimônio (José, 19/11/2026 — antes ficava escondido no rodapé) */}
+            {podeTransferir && (
+              <button type="button" onClick={transferir} disabled={!!ocupado} title="Leva esta peça para o Patrimônio Loja, com as mesmas fotos, quantidade e lugar"
+                style={{ ...botao('#64748B', { contorno: true, desab: !!ocupado }), alignSelf: 'flex-start', padding: '7px 12px', fontSize: 12.5 }}>
+                {ocupado === 'transferir' ? <Loader2 size={14} className="spin" /> : <ArrowRightLeft size={14} />} Isto é patrimônio, não peça
+              </button>
+            )}
           </div>
 
           {/* Código + QR + etiqueta: em QUALQUER fase (José, 15/10/2026 — antes só concluída).
@@ -284,38 +292,23 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
         </section>
       )}
 
-      {/* 2 colunas no PC (fotos + localização | dados), 1 no celular */}
-      <div style={larga ? { display: 'grid', gridTemplateColumns: 'minmax(0, 5fr) minmax(0, 7fr)', gap: 14, alignItems: 'start' } : COLUNA}>
-      <div style={COLUNA}>
+      {/* Foto grande logo de cara, largura toda (José, 19/11/2026): setas / deslizar; clique = tela cheia */}
       <section style={SECAO}>
-      <TituloSecao icone={<Camera size={16} />}>Fotos ({item.fotos.length})</TituloSecao>
-      <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 96 : 84}px, 1fr))`, gap: 8 }}>
-        {item.fotos.map((f, i) => (
-          <div key={f.id} style={{ position: 'relative', aspectRatio: '1', width: '100%' }}>
-            <button type="button" onClick={() => setVisor(i)} aria-label={`Ampliar foto ${i + 1}`} style={{ width: '100%', height: '100%', padding: 0, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', cursor: 'zoom-in', display: 'block' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              {(minis[f.storage_path] || urls[f.storage_path]) && <img src={minis[f.storage_path] || urls[f.storage_path]} alt={`Foto ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: ocupado === 'foto:' + f.id ? 0.5 : 1 }} />}
-            </button>
-            {podeFotos && (
-              <button type="button" disabled={!!ocupado} title="Trocar esta foto"
-                onClick={() => { setFotoTrocando(f.id); trocaRef.current?.click() }}
-                style={{ position: 'absolute', left: 4, right: 4, bottom: 4, height: 24, borderRadius: 6, border: 'none', background: 'rgba(0,0,0,.62)', color: '#fefefe', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontFamily: 'inherit' }}>
-                {ocupado === 'foto:' + f.id ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={12} />} Trocar
-              </button>
-            )}
-          </div>
-        ))}
+        <Galeria larga={larga} onAmpliar={setVisor}
+          fotos={item.fotos.map((f) => ({ id: f.id, src: urls[f.storage_path], mini: minis[f.storage_path] }))}
+          acao={podeFotos ? { rotulo: 'Trocar foto', icone: <RefreshCw size={13} />, onClick: (id) => { setFotoTrocando(id); trocaRef.current?.click() }, ocupadoId: ocupado?.startsWith('foto:') ? ocupado.slice(5) : null } : undefined}
+          onAdicionar={podeFotos ? () => fotoRef.current?.click() : undefined} adicionando={ocupado === 'fotos'} desabilitado={!!ocupado} />
         {podeFotos && (
           <>
             <input ref={trocaRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { trocarFoto(e.target.files); e.target.value = '' }} />
             <input ref={fotoRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { enviarNovasFotos(e.target.files); e.target.value = '' }} />
-            <button type="button" onClick={() => fotoRef.current?.click()} disabled={!!ocupado} style={{ aspectRatio: '1', width: '100%', borderRadius: 10, border: `2px dashed ${LARANJA}`, background: '#FFF7ED', color: '#9A3412', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, fontFamily: 'inherit' }}>
-              {ocupado === 'fotos' ? <Loader2 size={22} style={{ animation: 'spin 1s linear infinite' }} /> : <Camera size={22} />} Mais foto
-            </button>
           </>
         )}
-      </div>
       </section>
+
+      {/* 2 colunas no PC (localização | dados), 1 no celular — as informações embaixo da foto */}
+      <div style={larga ? { display: 'grid', gridTemplateColumns: 'minmax(0, 5fr) minmax(0, 7fr)', gap: 14, alignItems: 'start' } : COLUNA}>
+      <div style={COLUNA}>
 
       <section style={SECAO}>
         <TituloSecao icone={<MapPin size={16} />}>Onde a peça está</TituloSecao>
@@ -393,7 +386,7 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
 
       {gerir && sujo && (
         <div style={{ display: 'flex', gap: 8, position: 'sticky', bottom: 0, zIndex: 2, padding: '10px 0', background: 'var(--portal-bg-card)' }}>
-          <button onClick={salvarForm} disabled={!!ocupado} style={botao(LARANJA, { desab: !!ocupado })}>
+          <button onClick={salvarForm} disabled={!!ocupado} style={botao(COR_OPA, { desab: !!ocupado })}>
             {ocupado === 'salvar' ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={15} />} Salvar alterações
           </button>
           <button onClick={() => setForm(formDe(item))} style={botao('#52525B', { contorno: true })}><RotateCcw size={14} /> Desfazer</button>
@@ -412,7 +405,6 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid var(--portal-border)' }}>
         <button onClick={() => (historico ? setHistorico(null) : abrirHistorico())} style={botao('#52525B', { contorno: true })}><History size={15} /> Histórico</button>
         <div style={{ flex: 1 }} />
-        {podeTransferir && <button onClick={transferir} disabled={!!ocupado} title="Leva esta peça para o Patrimônio Loja (com fotos, quantidade e lugar)" style={botao('#4f46e5', { contorno: true, desab: !!ocupado })}>{ocupado === 'transferir' ? <Loader2 size={14} className="spin" /> : <ArrowRightLeft size={14} />} Transferir para o Patrimônio</button>}
         {gerir && <button onClick={excluir} disabled={!!ocupado} style={botao('#DC2626', { contorno: true, desab: !!ocupado })}><Trash2 size={14} /> Excluir</button>}
       </div>
 

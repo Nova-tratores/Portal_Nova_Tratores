@@ -5,7 +5,7 @@ import { fmtPreco } from './regras'
 import { ROTULO_MOTIVO, textoCaracteristicas, type ItemRelacao, type Relacao } from './relacao'
 import { ROTULO_QUALIDADE, ROTULO_STATUS } from './tipos'
 
-const LARANJA: [number, number, number] = [234, 88, 12]
+const LARANJA: [number, number, number] = [100, 116, 139] // cinza do Opa (setor Adicionais)
 
 export async function gerarPdfRelacao(r: Relacao, local: (i: ItemRelacao) => string, filtro?: string) {
   const [{ default: JsPDF }, { default: autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')])

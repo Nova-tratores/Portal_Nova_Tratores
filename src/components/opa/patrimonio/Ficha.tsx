@@ -5,7 +5,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowRight, ArrowRightLeft, Camera, History, Loader2, MapPin, Pencil, Printer, Trash2, Truck, UserRound, X } from 'lucide-react'
+import { ArrowRight, ArrowRightLeft, History, Loader2, MapPin, Pencil, Printer, Trash2, Truck, UserRound, X } from 'lucide-react'
 import { comprimir, enviarFoto, urlsAssinadas } from '@/lib/opa-pecas/fotos'
 import { BUCKET_PATRIMONIO } from '@/lib/patrimonio/fotos-regra'
 import { formDoItem, ROTULO_SITUACAO, SITUACOES, textoOnde, type ItemPat, type Movimentacao, type Situacao } from '@/lib/patrimonio/tipos'
@@ -15,6 +15,7 @@ import { Visualizador } from '../pecas/DetalheItem'
 import { api, COR_PAT, fmtData, fmtReal, SeloEstado, type BasePat } from './comum'
 import Formulario from './Formulario'
 import EtiquetasPat from './Etiquetas'
+import Galeria from '../Galeria'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 
@@ -85,12 +86,22 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
     )
   }
 
-  const dado = (r: string, v: React.ReactNode) => v ? (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      <span style={{ fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--portal-text-muted)' }}>{r}</span>
-      <span style={{ fontSize: 14, color: 'var(--portal-text)', overflowWrap: 'anywhere' }}>{v}</span>
+  // Mostra o campo SEMPRE (José, 19/11/2026: "por que não aparece valor, tags, observações, situação, com quem
+  // está…") — vazio aparece como "não informado", para ficar claro o que falta preencher.
+  const dado = (r: string, v: React.ReactNode) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)' }}>{r}</span>
+      {v ? <span style={{ fontSize: 15, color: 'var(--portal-text)', overflowWrap: 'anywhere' }}>{v}</span>
+        : <span style={{ fontSize: 14, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>não informado</span>}
     </div>
-  ) : null
+  )
+  const grupo = (titulo: string, filhos: React.ReactNode) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '14px 16px', borderRadius: 16, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)' }}>
+      <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{titulo}</span>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>{filhos}</div>
+    </div>
+  )
+  const qtd = item.quantidade || 1
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -103,54 +114,65 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
             <button type="button" onClick={() => setEtiqueta(true)} style={botao('#111827')}><Printer size={15} /> {item.etiqueta_impressa_em ? 'Reimprimir etiqueta' : 'Imprimir etiqueta'}</button>
             <button type="button" onClick={() => setMovendo(true)} style={botao(COR_PAT)}><Truck size={15} /> Mudar de lugar</button>
             <button type="button" onClick={() => setEditando(true)} style={botao('#52525B', { contorno: true })}><Pencil size={14} /> Editar</button>
-            {podeTransferir && item.situacao !== 'baixado' && <button type="button" onClick={transferir} disabled={ocupado} title="Leva este item para as Peças S/Estoque (entra na verificação)" style={botao('#EA580C', { contorno: true, desab: ocupado })}><ArrowRightLeft size={14} /> Transferir para as Peças</button>}
+            {podeTransferir && item.situacao !== 'baixado' && <button type="button" onClick={transferir} disabled={ocupado} title="Leva este item para as Peças S/Estoque (entra na verificação)" style={botao('#64748B', { contorno: true, desab: ocupado })}><ArrowRightLeft size={14} /> Transferir para as Peças</button>}
             <button type="button" onClick={excluir} disabled={ocupado} style={botao('#B91C1C', { contorno: true, desab: ocupado })}><Trash2 size={14} /> Excluir</button>
           </div>
         </div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--portal-text)' }}>
+        <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: '-.01em', color: 'var(--portal-text)' }}>
           {item.descricao}
-          {(item.quantidade || 1) > 1 && <span style={{ marginLeft: 8, fontSize: 14, fontWeight: 800, color: COR_PAT }}>× {item.quantidade} unidades</span>}
+          {qtd > 1 && <span style={{ marginLeft: 8, fontSize: 15, color: 'var(--portal-text-secondary)' }}>× {qtd} unidades</span>}
         </div>
-        {item.etiqueta_impressa_em && <div style={{ fontSize: 12, fontWeight: 700, color: '#047857' }}>Etiqueta impressa em {fmtData(item.etiqueta_impressa_em)}</div>}
+        {item.etiqueta_impressa_em && <div style={{ fontSize: 12.5, color: '#047857' }}>Etiqueta impressa em {fmtData(item.etiqueta_impressa_em)}</div>}
 
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 110 : 84}px, 1fr))`, gap: 6 }}>
-          {item.fotos.map((f, i) => (
-            <div key={f.id} style={{ position: 'relative', aspectRatio: '1' }}>
-              <button type="button" onClick={() => setVisor(i)} aria-label={`Ampliar foto ${i + 1}`} style={{ width: '100%', height: '100%', padding: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', cursor: 'zoom-in' }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                {urls[f.storage_path] && <img src={urls[f.storage_path]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-              </button>
-              <button type="button" aria-label="Tirar foto" onClick={() => tirarFoto(f.id)} style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 11, border: 'none', background: 'rgba(0,0,0,.6)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={12} /></button>
-            </div>
-          ))}
-          <button type="button" onClick={() => fotoRef.current?.click()} disabled={ocupado} style={{ aspectRatio: '1', borderRadius: 8, border: '1.5px dashed var(--portal-border)', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 12, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer' }}>
-            {ocupado ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <Camera size={18} />} Foto
-          </button>
-          <input ref={fotoRef} type="file" accept="image/*" multiple hidden onChange={(e) => { porFotos(e.target.files); e.target.value = '' }} />
-        </div>
+        {/* Foto grande logo de cara (José, 19/11/2026): setas / deslizar para trocar; clique = tela cheia */}
+        <Galeria fotos={item.fotos.map((f) => ({ id: f.id, src: urls[f.storage_path] }))} larga={larga} onAmpliar={setVisor}
+          acao={{ rotulo: 'Tirar foto', icone: <X size={13} />, onClick: tirarFoto }}
+          onAdicionar={() => fotoRef.current?.click()} adicionando={ocupado} desabilitado={ocupado} />
+        <input ref={fotoRef} type="file" accept="image/*" multiple hidden onChange={(e) => { porFotos(e.target.files); e.target.value = '' }} />
+      </section>
 
-        <div style={{ display: 'grid', gridTemplateColumns: larga ? 'repeat(3, minmax(0, 1fr))' : 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
-          {dado('Onde está', <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><MapPin size={13} /> {textoOnde(item.local_id, item.local_tecnico, base.nomeLocal)}</span>)}
-          {dado('Com quem', item.responsavel && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><UserRound size={13} /> {item.responsavel}</span>)}
-          {dado('Categoria', item.categoria)}
-          {dado('Marca', item.marca)}
-          {dado('Modelo', item.modelo)}
-          {dado('Nº de série', item.numero_serie)}
-          {dado('Quantidade', String(item.quantidade || 1))}
-          {dado((item.quantidade || 1) > 1 ? 'Valor hoje (cada)' : 'Valor hoje', item.valor_atual != null && fmtReal(item.valor_atual))}
-          {dado('Valor total', (item.quantidade || 1) > 1 && (item.valor_atual ?? item.valor_compra) != null && fmtReal((item.valor_atual ?? item.valor_compra)! * (item.quantidade || 1)))}
+      {/* As informações, sempre todas, em grupos */}
+      <div style={{ display: 'grid', gridTemplateColumns: larga ? 'repeat(3, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 14 }}>
+        {grupo('Onde e com quem', <>
+          {dado('Situação', ROTULO_SITUACAO[item.situacao])}
+          {dado('Estado', <SeloEstado estado={item.estado} />)}
+          {dado('Onde está', (item.local_id || item.local_tecnico) && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><MapPin size={13} /> {textoOnde(item.local_id, item.local_tecnico, base.nomeLocal)}</span>)}
+          {dado('Com quem está', item.responsavel && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><UserRound size={13} /> {item.responsavel}</span>)}
+        </>)}
+        {grupo('Valor', <>
+          {dado(qtd > 1 ? 'Valor hoje (cada)' : 'Valor hoje', item.valor_atual != null && fmtReal(item.valor_atual))}
           {dado('Valor pago', item.valor_compra != null && fmtReal(item.valor_compra))}
+          {qtd > 1 && dado('Valor total', (item.valor_atual ?? item.valor_compra) != null && fmtReal((item.valor_atual ?? item.valor_compra)! * qtd))}
           {dado('Comprado em', item.data_compra && fmtData(item.data_compra))}
           {dado('Fornecedor', item.fornecedor)}
           {dado('Nota fiscal', item.nota_fiscal)}
           {dado('Garantia até', item.garantia_ate && fmtData(item.garantia_ate))}
+        </>)}
+        {grupo('Sobre o item', <>
+          {dado('Categoria', item.categoria)}
+          {dado('Marca', item.marca)}
+          {dado('Modelo', item.modelo)}
+          {dado('Nº de série', item.numero_serie)}
+          {dado('Quantidade', String(qtd))}
+          {dado('Cadastrado em', fmtData(item.criado_em))}
+        </>)}
+      </div>
+
+      <section style={SECAO}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)' }}>Tags</span>
+          {item.tags.length > 0 ? (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {item.tags.map((t) => <span key={t} style={{ fontSize: 13, color: '#334155', background: '#F1F5F9', border: '1px solid #E2E8F0', borderRadius: 999, padding: '2px 10px' }}>#{t}</span>)}
+            </div>
+          ) : <span style={{ fontSize: 14, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>nenhuma tag</span>}
         </div>
-        {item.tags.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {item.tags.map((t) => <span key={t} style={{ fontSize: 12, fontWeight: 700, color: COR_PAT, background: '#EEF2FF', borderRadius: 999, padding: '2px 9px' }}>#{t}</span>)}
-          </div>
-        )}
-        {item.observacoes && <div style={{ fontSize: 13.5, color: 'var(--portal-text-secondary)', whiteSpace: 'pre-wrap' }}>{item.observacoes}</div>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)' }}>Observações</span>
+          {item.observacoes ? <div style={{ fontSize: 14.5, color: 'var(--portal-text)', whiteSpace: 'pre-wrap' }}>{item.observacoes}</div>
+            : <span style={{ fontSize: 14, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>nenhuma observação</span>}
+        </div>
+        <button type="button" onClick={() => setEditando(true)} style={{ ...botao('#52525B', { contorno: true }), alignSelf: 'flex-start' }}><Pencil size={14} /> Preencher o que falta</button>
       </section>
 
       {erro && <Aviso>{erro}</Aviso>}

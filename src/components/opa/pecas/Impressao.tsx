@@ -17,7 +17,7 @@ import {
   guardarAjusteTermica, guardarModo, lerAjusteTermica, lerModo, type AjusteTermica, type ModoEtiqueta,
 } from '@/lib/opa-pecas/etiqueta-termica'
 import { imprimirOuEnviar } from '@/lib/etiquetas/estacao-client'
-import { Aviso, botao, LARANJA } from './comum'
+import { Aviso, botao, COR_OPA } from './comum'
 import AjustesTermica from './AjustesTermica'
 import { Janela } from './Moldura'
 
@@ -101,8 +101,8 @@ export default function Impressao({ itens, onFechar, onImpresso }: {
           return (
             <button key={p} type="button" onClick={() => setInicio(p)} title={`Posição ${p + 1}`} style={{
               height: 26, borderRadius: 4, cursor: 'pointer', fontSize: 10.5, fontWeight: 700, fontFamily: 'inherit',
-              border: `1px solid ${vai ? LARANJA : 'var(--portal-border)'}`,
-              background: usada ? 'repeating-linear-gradient(45deg, #e5e7eb 0 4px, #f3f4f6 4px 8px)' : vai ? LARANJA : 'var(--portal-bg-card)',
+              border: `1px solid ${vai ? COR_OPA : 'var(--portal-border)'}`,
+              background: usada ? 'repeating-linear-gradient(45deg, #e5e7eb 0 4px, #f3f4f6 4px 8px)' : vai ? COR_OPA : 'var(--portal-bg-card)',
               color: vai ? '#fff' : 'var(--portal-text-muted)',
             }}>{p + 1}</button>
           )
@@ -110,18 +110,18 @@ export default function Impressao({ itens, onFechar, onImpresso }: {
       </div>
       <div style={{ display: 'flex', justifyContent: 'center', gap: 14, fontSize: 12, color: 'var(--portal-text-muted)', margin: '8px 0 14px' }}>
         <Legenda fundo="repeating-linear-gradient(45deg, #e5e7eb 0 3px, #f3f4f6 3px 6px)">já usada</Legenda>
-        <Legenda fundo={LARANJA}>vai imprimir</Legenda>
+        <Legenda fundo={COR_OPA}>vai imprimir</Legenda>
         <Legenda fundo="var(--portal-bg-card)">livre</Legenda>
       </div>
       <div style={{ fontSize: 14, color: 'var(--portal-text)', textAlign: 'center', marginBottom: 14 }}>
         Começa na posição <b>{inicio + 1}</b> · {folhas} folha{folhas === 1 ? '' : 's'}
-        {inicio > 0 && <button type="button" onClick={() => setInicio(0)} style={{ marginLeft: 10, background: 'none', border: 'none', color: LARANJA, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13 }}>usar folha nova</button>}
+        {inicio > 0 && <button type="button" onClick={() => setInicio(0)} style={{ marginLeft: 10, background: 'none', border: 'none', color: COR_OPA, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13 }}>usar folha nova</button>}
       </div>
       <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', lineHeight: 1.5, padding: '8px 10px', borderRadius: 8, background: 'var(--portal-bg-secondary)', marginBottom: 12 }}>
         Folha Pimaco 6180 (66,7 × 25,4 mm) · papel da impressora: <b>{aj.papel === 'a4' ? 'A4' : 'Carta'}</b>
         {(aj.x !== 0 || aj.y !== 0) && <> · ajuste {aj.x} / {aj.y} mm</>}{aj.recorte && <> · papel comum com corte</>}.
         {' '}No diálogo de impressão: margens <b>Nenhuma</b> e escala <b>100%</b>.{' '}
-        <Link href="/ppv?tab=etiquetas" target="_blank" style={{ color: LARANJA, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+        <Link href="/ppv?tab=etiquetas" target="_blank" style={{ color: COR_OPA, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
           <SlidersHorizontal size={12} /> Ajustar na tela de Etiquetas
         </Link>
       </div>

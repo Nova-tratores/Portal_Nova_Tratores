@@ -13,7 +13,7 @@ import { fmtPreco, textoLocal } from '@/lib/opa-pecas/regras'
 import { gerarCsvRelacao, ROTULO_MOTIVO, type ItemRelacao, type LinhaRelacao, type Relacao as Dados } from '@/lib/opa-pecas/relacao'
 import { ROTULO_QUALIDADE } from '@/lib/opa-pecas/tipos'
 import { useIsMobile } from '@/hooks/useIsMobile'
-import { Aviso, botao, INP, LARANJA, SECAO, SeloStatus, type Base } from './comum'
+import { Aviso, botao, INP, COR_OPA, SECAO, SeloStatus, type Base } from './comum'
 
 type Fila = 'existentes' | 'soOpa'
 
@@ -90,7 +90,7 @@ export default function Relacao({ base }: { base: Base }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 }}>
         <BotaoFila mobile={isMobile} ativo={fila === 'existentes'} onClick={() => setFila('existentes')} cor="#047857" icone={<CheckCircle2 size={18} />}
           titulo={isMobile ? "Cadastrados" : "Já cadastrados"} n={filtrado.existentes.length} dica="O código existe no sistema" />
-        <BotaoFila mobile={isMobile} ativo={fila === 'soOpa'} onClick={() => setFila('soOpa')} cor={LARANJA} icone={<PackageX size={18} />}
+        <BotaoFila mobile={isMobile} ativo={fila === 'soOpa'} onClick={() => setFila('soOpa')} cor={COR_OPA} icone={<PackageX size={18} />}
           titulo="Só no Opa" n={filtrado.soOpa.length} dica="Sem código ou código não cadastrado" />
       </div>
 
@@ -146,9 +146,9 @@ function Cartao({ l, local, mobile }: { l: LinhaRelacao; local: string; mobile: 
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Link href={`/opa/pecas/${encodeURIComponent(i.codigo)}`} style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 14, color: LARANJA, textDecoration: 'none' }}>{i.codigo}</Link>
+            <Link href={`/opa/pecas/${encodeURIComponent(i.codigo)}`} style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 14, color: COR_OPA, textDecoration: 'none' }}>{i.codigo}</Link>
             <SeloStatus status={i.status} />
-            {l.motivo && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 999, background: '#FFF7ED', color: '#9A3412' }}>{ROTULO_MOTIVO[l.motivo]}</span>}
+            {l.motivo && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 999, background: '#F1F5F9', color: '#334155' }}>{ROTULO_MOTIVO[l.motivo]}</span>}
           </div>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', marginTop: 4 }}>{i.descricao || 'Sem descrição'}</div>
           <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)', marginTop: 2 }}>

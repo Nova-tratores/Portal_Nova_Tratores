@@ -11,7 +11,7 @@ import { mapaNomesLocais } from '@/lib/opa-pecas/regras'
 import type { Local } from '@/lib/opa-pecas/tipos'
 import { INFO_ESTADO, type Estado, type ItemPat } from '@/lib/patrimonio/tipos'
 
-export const COR_PAT = '#4F46E5'
+export const COR_PAT = '#64748B' // cor do Opa inteiro (setor Adicionais, 19/11/2026) — antes era roxo
 
 async function cabecalho(): Promise<Record<string, string>> {
   const { data } = await supabase.auth.getSession()

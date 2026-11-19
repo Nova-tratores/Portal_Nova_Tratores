@@ -14,7 +14,7 @@ import { listarItens } from '@/lib/opa-pecas/db'
 import { mensagemErro } from '@/lib/opa-pecas/fotos'
 import { fmtDataHora, nomeDoItem, ordenarFila, textoLocal } from '@/lib/opa-pecas/regras'
 import type { Item, Status } from '@/lib/opa-pecas/tipos'
-import { Aviso, botao, CodigoPeca, SeloEtiqueta, SeloStatus, LARANJA, Miniatura, SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
+import { Aviso, botao, CodigoPeca, SeloEtiqueta, SeloStatus, COR_OPA, Miniatura, SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
 import { Janela } from './Moldura'
 import Impressao, { type ItemParaEtiqueta } from './Impressao'
 import PainelEtapa, { ChipDecisao } from './PainelEtapa'
@@ -118,7 +118,7 @@ export default function Etapa({ etapa, base }: { etapa: EtapaLista; base: Base }
             )}
             <button type="button" onClick={() => setAbertoId(i.id)} aria-current={ativo ? 'true' : undefined} style={{
               display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', flex: 1, minWidth: 0,
-              background: ativo ? '#FFF7ED' : 'var(--portal-bg-card)', border: '1.5px solid ' + (ativo ? LARANJA : 'var(--portal-border)'),
+              background: ativo ? '#F1F5F9' : 'var(--portal-bg-card)', border: '1.5px solid ' + (ativo ? COR_OPA : 'var(--portal-border)'),
             }}>
               <Miniatura url={i.fotos[0] ? minis[i.fotos[0].storage_path] : undefined} tamanho={56} />
               <div style={{ flex: 1, minWidth: 0 }}>

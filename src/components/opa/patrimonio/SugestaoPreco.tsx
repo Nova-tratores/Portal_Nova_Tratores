@@ -54,7 +54,7 @@ export default function SugestaoPreco({ form, automatico, onUsar }: { form: Dado
   const desatualizada = !!res && !!consulta && res.consulta !== consulta
 
   return (
-    <div style={{ ...CAIXA, flexDirection: 'column', alignItems: 'stretch', gap: 8, borderColor: res ? '#C7D2FE' : 'var(--portal-border)', background: res ? '#EEF2FF' : 'var(--portal-bg-secondary)' }}>
+    <div style={{ ...CAIXA, flexDirection: 'column', alignItems: 'stretch', gap: 8, borderColor: res ? '#CBD5E1' : 'var(--portal-border)', background: res ? '#F1F5F9' : 'var(--portal-bg-secondary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <Sparkles size={16} style={{ color: COR_PAT }} />
         <b style={{ color: 'var(--portal-text)' }}>Preço na internet</b>

@@ -12,7 +12,7 @@ import { mensagemErro } from '@/lib/opa-pecas/fotos'
 import { gerarPdfCatalogo } from '@/lib/opa-pecas/pdf'
 import { skuDaPeca, calcularTotais, nomeDoItem, ehFinal, exigeMotivo, FILTROS_VAZIOS, filtrarItens, resumoFiltros, textoLocal, transicaoValida, type Filtros } from '@/lib/opa-pecas/regras'
 import { QUALIDADES, ROTULO_QUALIDADE, ROTULO_STATUS, STATUS, type Item, type Lookup, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
-import { Aviso, botao, INP, LARANJA, useMiniaturas, type Base } from './comum'
+import { Aviso, botao, INP, COR_OPA, useMiniaturas, type Base } from './comum'
 import { CampoPreco } from './Campos'
 import { CardPeca, useColunasPecas } from './ListaPecas'
 import TabelaFiltravel, { SeletorVisao, useListaFiltrada, useModoVisao } from './TabelaFiltravel'
@@ -131,12 +131,12 @@ export default function VisaoGeral({ base }: { base: Base }) {
       {/* Busca rápida + filtros (escondidos até pedir) — a lista aparece direto ao abrir */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         <input value={f.texto} onChange={(e) => setF((x) => ({ ...x, texto: e.target.value }))} placeholder="Buscar código, SKU, descrição, locação ou etiqueta" style={{ ...INP, fontSize: 14, flex: 1, minWidth: 220 }} />
-        <SeletorVisao modo={modo} onChange={setModo} cor={LARANJA} />
-        {!emLista && <button onClick={() => setVerFiltros((v) => !v)} style={{ ...botao(temFiltro ? LARANJA : '#52525B', { contorno: true }), whiteSpace: 'nowrap' }}>
+        <SeletorVisao modo={modo} onChange={setModo} cor={COR_OPA} />
+        {!emLista && <button onClick={() => setVerFiltros((v) => !v)} style={{ ...botao(temFiltro ? COR_OPA : '#52525B', { contorno: true }), whiteSpace: 'nowrap' }}>
           <SlidersHorizontal size={15} /> {verFiltros ? 'Esconder filtros' : 'Filtros'}{temFiltro ? ` (${filtrosTxt.length} ativo${filtrosTxt.length > 1 ? 's' : ''})` : ''}
         </button>}
         {!emLista && temFiltro && !verFiltros && <button onClick={() => setF(FILTROS_VAZIOS)} style={botao('#52525B', { contorno: true })}><X size={14} /> Limpar</button>}
-        {emLista && lista.ativos > 0 && <button onClick={lista.limpar} title="Tira os filtros das colunas (a ordem continua)" style={botao(LARANJA, { contorno: true })}><X size={14} /> Limpar filtros das colunas ({lista.ativos})</button>}
+        {emLista && lista.ativos > 0 && <button onClick={lista.limpar} title="Tira os filtros das colunas (a ordem continua)" style={botao(COR_OPA, { contorno: true })}><X size={14} /> Limpar filtros das colunas ({lista.ativos})</button>}
       </div>
       {!emLista && verFiltros && <div style={{ padding: 14, borderRadius: 12, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -184,7 +184,7 @@ export default function VisaoGeral({ base }: { base: Base }) {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
         <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)' }}>
           <b style={{ color: 'var(--portal-text)' }}>{filtrados.length}</b> {filtrados.length === 1 ? 'peça' : 'peças'} · {totais.unidades} un.
-          {selecionados.length > 0 && <> · <b style={{ color: LARANJA }}>{selecionados.length} marcada{selecionados.length > 1 ? 's' : ''}</b></>}
+          {selecionados.length > 0 && <> · <b style={{ color: COR_OPA }}>{selecionados.length} marcada{selecionados.length > 1 ? 's' : ''}</b></>}
         </span>
         <div style={{ flex: 1 }} />
         <button onClick={() => imprimirLote(selComCodigo)} disabled={!selComCodigo.length}
@@ -206,8 +206,8 @@ export default function VisaoGeral({ base }: { base: Base }) {
       </div>
 
       {base.podeGerir && selecionados.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '10px 14px', borderRadius: 12, background: '#FFF7ED', border: '1px solid #FED7AA', marginBottom: 12 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#9A3412' }}>Encerrar as {selecionados.length} marcadas como</span>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '10px 14px', borderRadius: 12, background: '#F1F5F9', border: '1px solid #CBD5E1', marginBottom: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#334155' }}>Encerrar as {selecionados.length} marcadas como</span>
           <select value={lote.para} onChange={(e) => setLote((l) => ({ ...l, para: e.target.value as Status | '' }))} style={{ ...INP, fontSize: 13.5, padding: '8px 10px', width: 'auto' }}>
             <option value="">escolha…</option>
             {destinosLote.map((s) => <option key={s} value={s}>{ROTULO_STATUS[s]}</option>)}
@@ -216,7 +216,7 @@ export default function VisaoGeral({ base }: { base: Base }) {
             <input value={lote.motivo} onChange={(e) => setLote((l) => ({ ...l, motivo: e.target.value }))}
               placeholder={exigeMotivo(lote.para) ? 'O que aconteceu (obrigatório)' : 'Detalhe (opcional)'} style={{ ...INP, fontSize: 13.5, padding: '8px 10px', width: 260, maxWidth: '100%' }} />
           )}
-          <button onClick={aplicarLote} disabled={!lote.para || ocupado === 'lote'} style={botao(LARANJA, { desab: !lote.para || ocupado === 'lote' })}>
+          <button onClick={aplicarLote} disabled={!lote.para || ocupado === 'lote'} style={botao(COR_OPA, { desab: !lote.para || ocupado === 'lote' })}>
             {ocupado === 'lote' && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />} Aplicar
           </button>
           <button onClick={() => setSel(new Set())} style={botao('#52525B', { contorno: true })}>Desmarcar</button>
@@ -250,11 +250,11 @@ export default function VisaoGeral({ base }: { base: Base }) {
         </div>
       )}
       {itens && emLista && (
-        <TabelaFiltravel colunas={colunas} todas={preFiltrados} lista={lista} chaveLinha={(i) => i.id} onAbrir={setAberto} cor={LARANJA}
+        <TabelaFiltravel colunas={colunas} todas={preFiltrados} lista={lista} chaveLinha={(i) => i.id} onAbrir={setAberto} cor={COR_OPA}
           linhaDestacada={(i) => sel.has(i.id)}
           antes={{
-            cabecalho: <input type="checkbox" checked={todosMarcados} onChange={alternarTodos} aria-label="Marcar todas" style={{ accentColor: LARANJA }} />,
-            celula: (i) => <input type="checkbox" checked={sel.has(i.id)} onChange={() => alternar(i.id)} aria-label={`Marcar ${nomeDoItem(i.codigo)}`} style={{ accentColor: LARANJA }} />,
+            cabecalho: <input type="checkbox" checked={todosMarcados} onChange={alternarTodos} aria-label="Marcar todas" style={{ accentColor: COR_OPA }} />,
+            celula: (i) => <input type="checkbox" checked={sel.has(i.id)} onChange={() => alternar(i.id)} aria-label={`Marcar ${nomeDoItem(i.codigo)}`} style={{ accentColor: COR_OPA }} />,
           }} />
       )}
 
@@ -289,13 +289,13 @@ function Cadastros({ base, onFechar }: { base: Base; onFechar: () => void }) {
   return (
     <Janela titulo="Tipos de máquina e marcas" onFechar={onFechar}>
       <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
-        <button onClick={() => setAba('tipos')} style={botao(LARANJA, { contorno: aba !== 'tipos' })}>Tipos de máquina</button>
-        <button onClick={() => setAba('marcas')} style={botao(LARANJA, { contorno: aba !== 'marcas' })}>Marcas</button>
+        <button onClick={() => setAba('tipos')} style={botao(COR_OPA, { contorno: aba !== 'tipos' })}>Tipos de máquina</button>
+        <button onClick={() => setAba('marcas')} style={botao(COR_OPA, { contorno: aba !== 'marcas' })}>Marcas</button>
       </div>
       {erro && <Aviso>{erro}</Aviso>}
       <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
         <input value={novo} onChange={(e) => setNovo(e.target.value)} placeholder={aba === 'tipos' ? 'Novo tipo (ex.: Grade aradora)' : 'Nova marca'} style={{ ...INP, fontSize: 14 }} />
-        <button disabled={!novo.trim() || ocupado} onClick={async () => { if (await executar(() => salvar(null, novo))) setNovo('') }} style={botao(LARANJA, { desab: !novo.trim() || ocupado })}>Incluir</button>
+        <button disabled={!novo.trim() || ocupado} onClick={async () => { if (await executar(() => salvar(null, novo))) setNovo('') }} style={botao(COR_OPA, { desab: !novo.trim() || ocupado })}>Incluir</button>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {lista.map((l) => (

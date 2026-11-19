@@ -7,7 +7,7 @@ import { useMemo } from 'react'
 import { AlertTriangle, Boxes, MapPin, Tag } from 'lucide-react'
 import { camposFaltando, fmtData, skuDaPeca, fmtPreco, locacaoDoItem, nomeDoItem, temLocacao, textoAplicacao, textoAplicacoes, textoLocacao, textoLocal } from '@/lib/opa-pecas/regras'
 import { ROTULO_QUALIDADE, ROTULO_STATUS, type Item, type Nomes, type ProdutoSku } from '@/lib/opa-pecas/tipos'
-import { CodigoPeca, LARANJA, Miniatura, SeloEtiqueta, SeloQualidade, SeloStatus } from './comum'
+import { CodigoPeca, COR_OPA, Miniatura, SeloEtiqueta, SeloQualidade, SeloStatus } from './comum'
 import type { ColunaTabela } from './TabelaFiltravel'
 import { chaveSku } from './useProdutosSku'
 
@@ -26,7 +26,7 @@ export function ChipsEtiquetas({ etiquetas, max = 4 }: { etiquetas?: string[] | 
   return (
     <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
       {lista.slice(0, max).map((t) => (
-        <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: '#EEF2FF', color: '#3730A3', border: '1px solid #C7D2FE', whiteSpace: 'nowrap' }}>
+        <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: '#F1F5F9', color: '#334155', border: '1px solid #CBD5E1', whiteSpace: 'nowrap' }}>
           <Tag size={10} /> {t}
         </span>
       ))}
@@ -59,7 +59,7 @@ export function CelulaLocacao({ item, skus }: { item: Item; skus: Record<string,
   return (
     <span title={l.doSku ? 'Locação do SKU no estoque — a peça ainda não foi destinada para lá' : 'Locação para onde a peça foi destinada'}
       style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', fontWeight: l.doSku ? 500 : 700, color: l.doSku ? 'var(--portal-text-muted)' : 'var(--portal-text)' }}>
-      <Boxes size={12} style={{ flexShrink: 0, color: l.doSku ? 'var(--portal-text-muted)' : LARANJA }} /> {l.texto}
+      <Boxes size={12} style={{ flexShrink: 0, color: l.doSku ? 'var(--portal-text-muted)' : COR_OPA }} /> {l.texto}
       {l.doSku && <span style={{ fontSize: 10.5, fontStyle: 'italic' }}>(do SKU)</span>}
     </span>
   )
@@ -126,7 +126,7 @@ export function CardPeca({ item: i, nomes, skus, mini, marcado, onAbrir, onMarca
 }) {
   const loc = locacaoExibida(i, skus)
   return (
-    <div onClick={onAbrir} style={{ display: 'flex', gap: 12, padding: 12, borderRadius: 14, cursor: 'pointer', background: marcado ? '#FFF7ED' : 'var(--portal-bg-card)', border: `1px solid ${marcado ? '#FED7AA' : 'var(--portal-border)'}`, boxShadow: '0 1px 2px rgba(16,24,40,0.04)', minWidth: 0 }}>
+    <div onClick={onAbrir} style={{ display: 'flex', gap: 12, padding: 12, borderRadius: 14, cursor: 'pointer', background: marcado ? '#F1F5F9' : 'var(--portal-bg-card)', border: `1px solid ${marcado ? '#CBD5E1' : 'var(--portal-border)'}`, boxShadow: '0 1px 2px rgba(16,24,40,0.04)', minWidth: 0 }}>
       <Miniatura url={mini} tamanho={64} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -147,7 +147,7 @@ export function CardPeca({ item: i, nomes, skus, mini, marcado, onAbrir, onMarca
         {!!i.etiquetas?.length && <div style={{ marginTop: 6 }}><ChipsEtiquetas etiquetas={i.etiquetas} /></div>}
       </div>
       <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
-        <input type="checkbox" checked={marcado} onChange={onMarcar} aria-label={`Marcar ${nomeDoItem(i.codigo)}`} style={{ width: 20, height: 20, accentColor: LARANJA }} />
+        <input type="checkbox" checked={marcado} onChange={onMarcar} aria-label={`Marcar ${nomeDoItem(i.codigo)}`} style={{ width: 20, height: 20, accentColor: COR_OPA }} />
       </div>
     </div>
   )

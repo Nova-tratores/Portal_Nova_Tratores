@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Keyboard, ScanBarcode, X } from 'lucide-react'
-import { botao, INP, LARANJA } from './comum'
+import { botao, INP, COR_OPA } from './comum'
 
 /** Texto lido/digitado → código da peça ("123", "pni-123", link do QR). */
 export function normalizarCodigo(texto: string): string | null {
@@ -92,7 +92,7 @@ function LeitorCodigo({ onFechar }: { onFechar: () => void }) {
         <div style={{ position: 'relative', width: '100%', maxWidth: 520, aspectRatio: '4 / 3', borderRadius: 14, overflow: 'hidden', background: '#000' }}>
           <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           {/* faixa-guia: código de barras é largo e baixo */}
-          <div style={{ position: 'absolute', left: '8%', right: '8%', top: '18%', height: '64%', border: `2px solid ${LARANJA}`, borderRadius: 8, boxShadow: '0 0 0 9999px rgba(0,0,0,.35)' }} />
+          <div style={{ position: 'absolute', left: '8%', right: '8%', top: '18%', height: '64%', border: `2px solid ${COR_OPA}`, borderRadius: 8, boxShadow: '0 0 0 9999px rgba(0,0,0,.35)' }} />
         </div>
       ) : (
         <div style={{ color: '#D1D5DB', fontSize: 13.5, textAlign: 'center', maxWidth: 420 }}>
@@ -105,7 +105,7 @@ function LeitorCodigo({ onFechar }: { onFechar: () => void }) {
           <input value={digitado} onChange={(e) => { setDigitado(e.target.value); setErro(null) }} autoFocus={semCamera}
             placeholder="PNI-000123 ou só 123" aria-label="Código da peça" style={{ ...INP, paddingLeft: 36 }} />
         </div>
-        <button type="submit" disabled={!digitado.trim()} style={botao(LARANJA, { desab: !digitado.trim() })}>Abrir</button>
+        <button type="submit" disabled={!digitado.trim()} style={botao(COR_OPA, { desab: !digitado.trim() })}>Abrir</button>
       </form>
       {erro && <div style={{ color: '#FCA5A5', fontSize: 13, fontWeight: 700 }}>{erro}</div>}
     </div>

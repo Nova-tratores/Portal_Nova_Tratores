@@ -269,5 +269,5 @@ const BOTAO_FOTO: React.CSSProperties = {
   color: 'var(--portal-text-secondary)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
   fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
 }
-const CHIP_ON: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, background: '#EEF2FF', color: COR_PAT, border: '1px solid #C7D2FE' }
+const CHIP_ON: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, background: '#F1F5F9', color: COR_PAT, border: '1px solid #CBD5E1' }
 const CHIP_OFF: React.CSSProperties = { padding: '4px 9px', borderRadius: 999, fontSize: 12, fontWeight: 600, background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', border: '1px dashed var(--portal-border)', cursor: 'pointer', fontFamily: 'inherit' }

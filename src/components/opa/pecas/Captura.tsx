@@ -14,7 +14,7 @@ import { comprimir, enviarFoto, mensagemErro } from '@/lib/opa-pecas/fotos'
 import { nomeDoItem, textoLocal } from '@/lib/opa-pecas/regras'
 import type { Qualidade } from '@/lib/opa-pecas/tipos'
 import { SeletorLocal, SeletorQualidade, SeletorQuantidade } from './Campos'
-import { Aviso, botao, INP, LARANJA, ROTULO, SECAO, TituloSecao, useTelaLarga, type Base } from './comum'
+import { Aviso, botao, INP, COR_OPA, ROTULO, SECAO, TituloSecao, useTelaLarga, type Base } from './comum'
 import ProdutoCadastro from './ProdutoCadastro'
 import Impressao, { type ItemParaEtiqueta } from './Impressao'
 
@@ -184,7 +184,7 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
         <button type="button" onClick={abrirEtiqueta} disabled={buscandoEt} style={{ ...botao('#111827', { grande: true, desab: buscandoEt }), width: '100%' }}>
           {buscandoEt ? <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> : <Printer size={20} />} Imprimir etiqueta
         </button>
-        <button type="button" onClick={proximoItem} style={{ ...botao(LARANJA, { grande: true }), width: '100%', padding: 18 }}>
+        <button type="button" onClick={proximoItem} style={{ ...botao(COR_OPA, { grande: true }), width: '100%', padding: 18 }}>
           <Camera size={22} /> Próximo item
         </button>
         {erro && <Aviso>{erro}</Aviso>}
@@ -222,7 +222,7 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
             </div>
           ))}
           {fotos.length < MAX_FOTOS && (
-            <button type="button" onClick={() => camRef.current?.click()} style={{ aspectRatio: '1', borderRadius: 10, border: `2px dashed ${LARANJA}`, background: '#FFF7ED', color: '#9A3412', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, fontFamily: 'inherit' }}>
+            <button type="button" onClick={() => camRef.current?.click()} style={{ aspectRatio: '1', borderRadius: 10, border: `2px dashed ${COR_OPA}`, background: '#F1F5F9', color: '#334155', fontWeight: 800, fontSize: 13, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, fontFamily: 'inherit' }}>
               <Camera size={26} /> {fotos.length < MIN_FOTOS ? `Foto ${fotos.length + 1}` : 'Mais uma'}
             </button>
           )}
@@ -283,7 +283,7 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
       )}
 
       <div style={larga ? {} : { position: 'sticky', bottom: 0, padding: '8px 0 12px', background: 'var(--portal-bg, transparent)', zIndex: 2 }}>
-        <button type="button" onClick={salvar} disabled={!podeSalvar} style={{ ...botao(LARANJA, { grande: true, desab: !podeSalvar }), width: '100%', padding: 17, fontSize: 17 }}>
+        <button type="button" onClick={salvar} disabled={!podeSalvar} style={{ ...botao(COR_OPA, { grande: true, desab: !podeSalvar }), width: '100%', padding: 17, fontSize: 17 }}>
           {salvando ? <><Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> Salvando…</>
             : enviando ? <><Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> Enviando fotos…</>
               : prontas.length < MIN_FOTOS ? <><Camera size={20} /> Faltam {MIN_FOTOS - prontas.length} foto{MIN_FOTOS - prontas.length > 1 ? 's' : ''}</>

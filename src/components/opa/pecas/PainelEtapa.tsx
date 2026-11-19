@@ -395,7 +395,7 @@ function OpcaoGuardar({ ativo, onClick, titulo, dica }: { ativo: boolean; onClic
 
 function corConcluir(etapa: EtapaTrabalho, d: Decisao | null): string {
   if (d === 'descartar') return '#B91C1C'
-  return etapa === 'verificacao' ? '#047857' : '#EA580C'
+  return etapa === 'verificacao' ? '#047857' : '#64748B'
 }
 
 function CartaoDecisao({ decisao, ativo, onClick }: { decisao: Decisao; ativo: boolean; onClick: () => void }) {

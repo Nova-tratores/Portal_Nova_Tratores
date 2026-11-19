@@ -1,7 +1,7 @@
 'use client'
 // As fases da peça (Captação → Verificação → Separação → Concluída — sql/pni-11)
 // em sequência. Cada fase mostra o que foi registrado nela e só "libera" quando
-// a peça chega lá: concluída = verde, atual = laranja, futura = cinza.
+// a peça chega lá: concluída = verde, atual = cinza-azulado, futura = cinza.
 
 import Link from 'next/link'
 import { Archive, ArrowRight, Check, CircleHelp, Minus, Tag, Trash2, Wrench } from 'lucide-react'
@@ -10,7 +10,7 @@ import { INFO_DECISAO, ROTULO_QUALIDADE, ROTULO_STATUS, type Decisao, type Etapa
 
 /** Rota da tela de cada etapa. */
 const ROTA: Record<Etapa, string> = { captacao: 'novo', verificacao: 'verificacao', separacao: 'separacao', concluida: 'concluidas' }
-import { botao, LARANJA, type Base, useTelaLarga } from './comum'
+import { botao, COR_OPA, type Base, useTelaLarga } from './comum'
 
 export const ICONE_DECISAO: Record<Decisao, React.ReactNode> = {
   vender: <Tag size={18} />, guardar: <Archive size={18} />, usar: <Wrench size={18} />,
@@ -118,7 +118,7 @@ export default function FasesPeca({ item, base, usuarios, ate, linkEtapa, compac
   }
 
   if (!fases.length) return null
-  const corDe = (s: Situacao) => (s === 'feita' ? VERDE : s === 'atual' ? LARANJA : 'var(--portal-text-muted)')
+  const corDe = (s: Situacao) => (s === 'feita' ? VERDE : s === 'atual' ? COR_OPA : 'var(--portal-text-muted)')
   const rotuloDe = (s: Situacao) => (s === 'feita' ? 'Concluída' : s === 'atual' ? 'Agora' : s === 'pulada' ? 'Não se aplica' : 'Aguardando')
   // cartões: fases já liberadas (concluídas) + a atual; as futuras ficam só nos passos
   const comCartao = fases.filter((e) => sit[e] === 'feita' || sit[e] === 'atual')
@@ -130,7 +130,7 @@ export default function FasesPeca({ item, base, usuarios, ate, linkEtapa, compac
             const cor = corDe(s)
             return (
               <div key={e} style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }}>
-                <div style={{ height: 5, borderRadius: 3, background: s === 'feita' ? VERDE : s === 'atual' ? LARANJA : 'var(--portal-border)' }} />
+                <div style={{ height: 5, borderRadius: 3, background: s === 'feita' ? VERDE : s === 'atual' ? COR_OPA : 'var(--portal-border)' }} />
                 <div style={{ display: 'flex', flexDirection: larga ? 'row' : 'column', alignItems: larga ? 'center' : 'flex-start', gap: larga ? 6 : 3, minWidth: 0 }}>
                   <span style={{
                     width: 20, height: 20, borderRadius: 10, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -155,14 +155,14 @@ export default function FasesPeca({ item, base, usuarios, ate, linkEtapa, compac
     return (
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }} aria-label="Fases da peça">
         {passos}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 10, background: concluida ? '#ECFDF5' : '#FFF7ED', border: `1px solid ${concluida ? '#A7F3D0' : '#FED7AA'}` }}>
-          <span style={{ flex: 1, minWidth: 200, fontSize: 13, fontWeight: 600, color: concluida ? '#065F46' : '#9A3412' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 10, background: concluida ? '#ECFDF5' : '#F1F5F9', border: `1px solid ${concluida ? '#A7F3D0' : '#CBD5E1'}` }}>
+          <span style={{ flex: 1, minWidth: 200, fontSize: 13, fontWeight: 600, color: concluida ? '#065F46' : '#334155' }}>
             {concluida
               ? <>Peça concluída{item.encerrado_em ? ` em ${fmtDataHora(item.encerrado_em)}` : ''}{item.desfecho ? ` — ${item.desfecho}` : ''}.</>
               : <><b>Agora: {TITULO[atual]}.</b> {ESPERA_ATUAL[atual]}</>}
           </span>
           {!concluida && linkEtapa && base.podeGerir && atual !== 'captacao' && (
-            <Link href={`/opa/pecas/${ROTA[atual]}?item=${item.id}`} style={{ ...botao(LARANJA), textDecoration: 'none', padding: '7px 13px', fontSize: 13 }}>
+            <Link href={`/opa/pecas/${ROTA[atual]}?item=${item.id}`} style={{ ...botao(COR_OPA), textDecoration: 'none', padding: '7px 13px', fontSize: 13 }}>
               <ArrowRight size={14} /> Abrir na {TITULO[atual].toLowerCase()}
             </Link>
           )}
@@ -193,7 +193,7 @@ export default function FasesPeca({ item, base, usuarios, ate, linkEtapa, compac
                 <>
                   <Vazio>{ESPERA_ATUAL[e]}</Vazio>
                   {linkEtapa && base.podeGerir && (
-                    <Link href={`/opa/pecas/${ROTA[e]}?item=${item.id}`} style={{ ...botao('#EA580C'), textDecoration: 'none', marginTop: 8, padding: '6px 12px', fontSize: 13 }}>
+                    <Link href={`/opa/pecas/${ROTA[e]}?item=${item.id}`} style={{ ...botao('#64748B'), textDecoration: 'none', marginTop: 8, padding: '6px 12px', fontSize: 13 }}>
                       <ArrowRight size={14} /> Abrir na {TITULO[e].toLowerCase()}
                     </Link>
                   )}

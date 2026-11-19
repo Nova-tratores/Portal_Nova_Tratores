@@ -8,7 +8,7 @@ import { criarLocal, listarTecnicos } from '@/lib/opa-pecas/db'
 import { mensagemErro } from '@/lib/opa-pecas/fotos'
 import { agruparLocais, mascaraMoeda, setoresDosLocais, textoAplicacao } from '@/lib/opa-pecas/regras'
 import { INFO_QUALIDADE, ROTULO_QUALIDADE, type Aplicacao, type Local, type Lookup, type Qualidade } from '@/lib/opa-pecas/tipos'
-import { botao, INP, LARANJA } from './comum'
+import { botao, INP, COR_OPA } from './comum'
 
 const NOVO_LOCAL = '__novo__'
 const SETOR_NOVO = '__setor_novo__'
@@ -83,7 +83,7 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled, onLoc
             if (e.target.value === NOVO_LOCAL) { setCriando(true); setErroNovo(null); return }
             const l = locais.find((x) => x.id === e.target.value); onChange(e.target.value, l?.exige_tecnico ? tecnico : '')
           }}
-          style={{ ...INP, borderColor: local ? LARANJA : 'var(--portal-border)' }}>
+          style={{ ...INP, borderColor: local ? COR_OPA : 'var(--portal-border)' }}>
           <option value="">Sem local</option>
           {grupos.map((g) => (
             <optgroup key={g.titulo} label={g.titulo}>
@@ -94,7 +94,7 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled, onLoc
         </select>
       </div>
       {criando && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 10, border: '1.5px dashed ' + LARANJA, background: 'var(--portal-bg-secondary)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 10, border: '1.5px dashed ' + COR_OPA, background: 'var(--portal-bg-secondary)' }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text)' }}>Local novo</div>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>
             Fica dentro de qual setor?
@@ -110,7 +110,7 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled, onLoc
           <input value={nomeNovo} autoFocus onChange={(e) => setNomeNovo(e.target.value.slice(0, 60))} placeholder={setorFinal ? 'Nome do lugar, ex.: Banheiro, Copa' : 'Ex.: Barracão 3, Prateleira da entrada'}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); salvarNovo() } if (e.key === 'Escape') setCriando(false) }} style={INP} />
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={boxNovo} onChange={(e) => setBoxNovo(e.target.checked)} style={{ width: 16, height: 16, accentColor: LARANJA }} />
+            <input type="checkbox" checked={boxNovo} onChange={(e) => setBoxNovo(e.target.checked)} style={{ width: 16, height: 16, accentColor: COR_OPA }} />
             É um box de técnico (pede o nome do técnico)
           </label>
           {nomeNovo.trim() && (
@@ -120,7 +120,7 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled, onLoc
           )}
           {erroNovo && <div style={{ fontSize: 12.5, color: '#B91C1C' }}>{erroNovo}</div>}
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" onClick={salvarNovo} disabled={!nomeNovo.trim() || salvandoNovo} style={botao(LARANJA, { desab: !nomeNovo.trim() || salvandoNovo })}>
+            <button type="button" onClick={salvarNovo} disabled={!nomeNovo.trim() || salvandoNovo} style={botao(COR_OPA, { desab: !nomeNovo.trim() || salvandoNovo })}>
               {salvandoNovo ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={15} />} Criar e usar
             </button>
             <button type="button" onClick={() => setCriando(false)} style={botao('#52525B', { contorno: true })}>Cancelar</button>
@@ -184,8 +184,8 @@ export function SeletorQuantidade({ valor, onChange, disabled }: { valor: number
         {[1, 2, 5, 10].map((n) => (
           <button key={n} type="button" disabled={disabled} onClick={() => ajustar(n)} style={{
             minWidth: 38, height: 32, borderRadius: 8, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', cursor: disabled ? 'default' : 'pointer',
-            border: '1.5px solid ' + (valor === n ? LARANJA : 'var(--portal-border)'),
-            background: valor === n ? '#FFF7ED' : 'var(--portal-bg-card)', color: valor === n ? '#9A3412' : 'var(--portal-text-secondary)',
+            border: '1.5px solid ' + (valor === n ? COR_OPA : 'var(--portal-border)'),
+            background: valor === n ? '#F1F5F9' : 'var(--portal-bg-card)', color: valor === n ? '#334155' : 'var(--portal-text-secondary)',
           }}>{n}</button>
         ))}
       </div>
