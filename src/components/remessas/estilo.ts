@@ -59,5 +59,6 @@ export const CSS_RM = `
   .rm-modal { width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; }
   .rm-faixa-dir .rm-txt-longo { display: none; }
   .rm-so-pc { display: none; }
+  .rm-chip, .rm-btn.peq, .rm-fcol { min-height: 40px; }
 }
 `;
