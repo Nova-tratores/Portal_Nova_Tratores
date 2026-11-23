@@ -86,7 +86,7 @@ export default function HorasEquipe({ mes }: { mes: string }) {
         <div className="he-tecs">
           <div className="he-leg">
             <span><i style={{ background: COR.faturadas }} /> faturadas</span><span><i style={{ background: COR_AGUARDANDO }} /> aguardando faturar</span>
-            <span><i style={{ background: COR.internas }} /> internas</span><span><i style={{ background: '#cbd5e1' }} /> ociosas</span><span className="he-leg-meta">│ meta do mês</span>
+            <span><i style={{ background: COR.internas }} /> internas</span><span><i style={{ background: 'var(--mx-bg2, #cbd5e1)' }} /> ociosas</span><span className="he-leg-meta">│ meta do mês</span>
           </div>
           {tecs.map(({ l, ant: la, p }, i) => {
             const escala = Math.max(l.meta, l.faturadas + l.aguardando + l.internas + l.ociosas, 1) * 1.08
@@ -99,10 +99,10 @@ export default function HorasEquipe({ mes }: { mes: string }) {
                   <i style={{ width: w(l.faturadas), background: COR.faturadas, animationDelay: `${i * 60}ms` }} />
                   <i style={{ width: w(l.aguardando), background: COR_AGUARDANDO, animationDelay: `${i * 60 + 80}ms` }} />
                   <i style={{ width: w(l.internas), background: COR.internas, animationDelay: `${i * 60 + 160}ms` }} />
-                  <i style={{ width: w(l.ociosas), background: '#cbd5e1', animationDelay: `${i * 60 + 240}ms` }} />
+                  <i style={{ width: w(l.ociosas), background: 'var(--mx-bg2, #cbd5e1)', animationDelay: `${i * 60 + 240}ms` }} />
                   <u style={{ left: w(l.meta) }} />
                 </div>
-                <div className="he-tec-p" style={{ color: p >= 80 ? '#047857' : p >= 50 ? '#b45309' : '#b91c1c' }}><b>{Math.round(p)}%</b><small>{pAnt != null ? `mês ant. ${pAnt}%` : 'da meta'}</small></div>
+                <div className="he-tec-p" style={{ color: p >= 80 ? 'var(--mx-fg-green, #047857)' : p >= 50 ? 'var(--mx-fg-orange, #b45309)' : 'var(--mx-fg-red, #b91c1c)' }}><b>{Math.round(p)}%</b><small>{pAnt != null ? `mês ant. ${pAnt}%` : 'da meta'}</small></div>
                 <div className="he-tec-nums">
                   <span title="faturadas"><i style={{ background: COR.faturadas }} />{horas(l.faturadas)}</span>
                   <span title="aguardando faturar"><i style={{ background: COR_AGUARDANDO }} />{horas(l.aguardando)}</span>
@@ -127,12 +127,12 @@ const ESTILO = `
 .he-itens { display: flex; gap: 10px 22px; flex-wrap: wrap; align-items: center; flex: 1 }
 .he-it { display: flex; gap: 10px; align-items: center; animation: cpvEntra .45s both }
 .he-it small { display: block; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: ${MUDO} } .he-it b { font-size: 18px; font-variant-numeric: tabular-nums; color: var(--portal-text, #0f172a); margin-right: 6px }
-.he-dif { font-style: normal; font-size: 11.5px; font-weight: 900; border-radius: 99px; padding: 0 7px; color: ${MUDO}; background: var(--portal-bg-secondary, #f1f5f9) } .he-dif.bom { color: #047857; background: #ecfdf5 } .he-dif.ruim { color: #b91c1c; background: #fef2f2 }
+.he-dif { font-style: normal; font-size: 11.5px; font-weight: 900; border-radius: 99px; padding: 0 7px; color: ${MUDO}; background: var(--portal-bg-secondary, #f1f5f9) } .he-dif.bom { color: var(--mx-fg-green, #047857); background: var(--mx-p-green, #ecfdf5) } .he-dif.ruim { color: var(--mx-fg-red, #b91c1c); background: var(--mx-p-red, #fef2f2) }
 .he-anel { width: 46px; height: 46px; flex-shrink: 0 }
 .he-km { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, ${COR.km} 12%, transparent); color: ${COR.km}; font-size: 17px }
-.he-abre { justify-self: start; border: none; background: transparent; color: #0369a1; font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; padding: 2px 0 }
+.he-abre { justify-self: start; border: none; background: transparent; color: var(--mx-fg-blue, #0369a1); font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; padding: 2px 0 }
 .he-tecs { display: grid; gap: 6px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; padding: 12px 14px; animation: cpvEntra .35s both }
-.he-leg { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: ${MUDO}; margin-bottom: 4px } .he-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px } .he-leg-meta { font-weight: 900; color: #0f172a }
+.he-leg { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: ${MUDO}; margin-bottom: 4px } .he-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px } .he-leg-meta { font-weight: 900; color: var(--mx-t, #0f172a) }
 .he-tec { display: grid; grid-template-columns: minmax(130px, 170px) minmax(0, 1fr) 80px minmax(0, 300px); gap: 12px; align-items: center; padding: 5px 0; border-top: 1px solid var(--portal-border, #f1f5f9); animation: cpvEntra .4s both }
 .he-tec-n b { display: block; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .he-tec-n small { font-size: 11.5px; color: ${MUDO} }
 .he-tec-barra { position: relative; display: flex; height: 14px; border-radius: 99px; background: var(--portal-bg-secondary, #f1f5f9) }
@@ -142,4 +142,7 @@ const ESTILO = `
 .he-tec-nums { display: flex; gap: 4px 12px; flex-wrap: wrap; font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--portal-text, #334155) } .he-tec-nums span { display: inline-flex; gap: 5px; align-items: center } .he-tec-nums i { width: 8px; height: 8px; border-radius: 2px; font-size: 11px }
 .he-tec-nums i.fas { width: auto; height: auto }
 @media (max-width: 900px) { .he-tec { grid-template-columns: 1fr 70px } .he-tec-barra { grid-column: 1 / -1; grid-row: 2 } .he-tec-nums { grid-column: 1 / -1 } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `

@@ -3167,8 +3167,8 @@ function ClientesPageInner() {
   // ============ LISTA DE CLIENTES ============
   const BTN_SEC: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '0 15px', height: 42, borderRadius: 11, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 1px 2px rgba(16,24,40,0.05)' }
   const corEmpresa = (emp: string) => /castro/i.test(emp)
-    ? { bg: '#EFF6FF', fg: '#1D4ED8', bd: '#BFDBFE' }
-    : { bg: '#FEF2F2', fg: '#B91C1C', bd: '#FECACA' }
+    ? { bg: '#EFF6FF', fg: 'var(--portal-blue-fg, #1D4ED8)', bd: '#BFDBFE' }
+    : { bg: '#FEF2F2', fg: 'var(--portal-red-fg, #B91C1C)', bd: '#FECACA' }
   const iniciaisCli = (c: Cliente) => (c.nome_fantasia || c.razao_social || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()
   // Faixa "achado por nº": o serviço/pedido que bateu com a busca, com atalho
   const faixaAchados = (cli: Cliente) => {

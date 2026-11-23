@@ -4,14 +4,14 @@
 import { useState } from 'react'
 import { Tag, X } from 'lucide-react'
 import { MAX_ETIQUETAS, normalizarEtiquetas } from '@/lib/pops/regras'
-import { COR_POPS, FUNDO_POPS } from './comum'
+import { COR_POPS, FUNDO_POPS, TEXTO_POPS } from './comum'
 
 export function ChipEtiqueta({ texto, onTirar, onClick, ativa }: { texto: string; onTirar?: () => void; onClick?: () => void; ativa?: boolean }) {
   return (
     // Na lista o chip fica dentro do link da linha: o clique filtra, não abre o POP.
     <span onClick={onClick ? (e) => { e.preventDefault(); e.stopPropagation(); onClick() } : undefined} style={{
       display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 9px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-      color: ativa ? '#fff' : COR_POPS, background: ativa ? COR_POPS : FUNDO_POPS, cursor: onClick ? 'pointer' : 'default',
+      color: ativa ? '#fff' : TEXTO_POPS, background: ativa ? COR_POPS : FUNDO_POPS, cursor: onClick ? 'pointer' : 'default',
     }}>
       <Tag size={11} /> {texto}
       {onTirar && (

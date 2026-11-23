@@ -4,6 +4,13 @@
 // (media queries) e usam !important para vencer o inline. Em telas >= 1280px
 // nada aqui muda o visual (exceto .est-scroll, que é neutro).
 const CSS = `
+/* tema escuro (23/11/2026): etiquetas de grupo do submenu (Estoque/Ajustes) viram chip escuro —
+   fundo = cor do grupo a 15%, texto = a cor clareada (vem em --tag-cor no estilo inline) */
+[data-theme="dark"] .est-nav-tag{color:color-mix(in srgb,var(--tag-cor,#94a3b8) 40%,#fefefe)!important;background:color-mix(in srgb,var(--tag-cor,#94a3b8) 15%,transparent)!important;border-color:color-mix(in srgb,var(--tag-cor,#94a3b8) 35%,transparent)!important;border-left-color:color-mix(in srgb,var(--tag-cor,#94a3b8) 60%,#fefefe)!important}
+[data-theme="dark"] .est-nav-funcao{color:color-mix(in srgb,var(--tag-cor,#94a3b8) 40%,#fefefe)!important}
+[data-theme="dark"] .est-btn-cinza{background:var(--portal-bg-secondary,#262626)!important;color:var(--portal-text,#f5f5f5)!important;border:1px solid var(--portal-border,#2a2a2a)!important}
+[data-theme="dark"] .est-nav-toggle{background:var(--portal-bg-secondary,#262626)!important;border-color:var(--portal-border,#2a2a2a)!important;color:var(--portal-text,#f5f5f5)!important}
+[data-theme="dark"] .est-nav-row{border-top-color:var(--portal-border,#2a2a2a)!important}
 .est-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
 .est-min0{min-width:0}
 @media (max-width:1024px){

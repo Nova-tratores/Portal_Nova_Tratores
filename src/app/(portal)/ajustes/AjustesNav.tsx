@@ -87,6 +87,7 @@ export default function AjustesNav() {
           .est-nav.ajn:not(.aberto) .est-nav-row { display: none !important }
           .ajn-botao { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 44px; padding: 0 14px; border: 1px solid var(--portal-border, #e2e8f0); border-radius: 10px; background: var(--portal-bg-secondary, #f8fafc); color: var(--portal-text, #0f172a); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer }
           .ajn-botao small { color: #64748b; font-weight: 400 }
+          [data-theme="dark"] .ajn-botao small { color: var(--portal-text-muted, #949494) }
         }
       `}</style>
       <button type="button" className="ajn-botao" aria-expanded={menuAberto} onClick={() => setAberto({ em: pathname, on: !menuAberto })}>
@@ -118,6 +119,7 @@ export default function AjustesNav() {
               textTransform: 'uppercase',
               letterSpacing: '.5px',
               color: dep.cor,
+              ['--tag-cor' as string]: dep.cor,
               background: dep.corBg,
               border: `1px solid ${dep.cor}22`,
               borderLeft: `3px solid ${dep.cor}`,
@@ -133,7 +135,7 @@ export default function AjustesNav() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 }}>
               {porFuncao(dep.key, itens).map(({ funcao, paginas }) => (
                 <div key={funcao} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-                  <span style={{ fontSize: '.66rem', fontWeight: 700, color: dep.cor, textTransform: 'uppercase', letterSpacing: '.4px', minWidth: 118 }}>
+                  <span className="est-nav-funcao" style={{ ['--tag-cor' as string]: dep.cor, fontSize: '.66rem', fontWeight: 700, color: dep.cor, textTransform: 'uppercase', letterSpacing: '.4px', minWidth: 118 }}>
                     {funcao}
                   </span>
                   {paginas.map(linkPagina)}

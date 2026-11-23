@@ -85,7 +85,7 @@ function Escritorio() {
           {d.pessoas.map((p, i) => p.funcao === 'garantista' ? (
             <article key={p.nome} className="s1 s1-capa abre" style={{ animationDelay: `${i * 110}ms` }} role="button" tabIndex={0}
               onClick={() => setAberto(p.nome)} onKeyDown={(e) => { if (e.key === 'Enter') setAberto(p.nome) }}>
-              <div className="s1c-topo"><span className="s1-sit" style={{ color: '#047857', background: '#ecfdf5' }}>● Garantista</span>{(() => { const sl = seloEnviada(au.pedidos, p.nome); return sl ? <span className="s1-enviada">{sl}</span> : null })()}</div>
+              <div className="s1c-topo"><span className="s1-sit" style={{ color: 'var(--mx-fg-green, #047857)', background: 'var(--mx-p-green, #ecfdf5)' }}>● Garantista</span>{(() => { const sl = seloEnviada(au.pedidos, p.nome); return sl ? <span className="s1-enviada">{sl}</span> : null })()}</div>
               <div className="s1c-nome"><b>{p.nome}</b></div>
               <div className="s1c-com">
                 <small>Comissão de {NOMES_MES[Number(mes.slice(5, 7)) - 1]}</small>
@@ -101,7 +101,7 @@ function Escritorio() {
             </article>
           ) : (
             <article key={p.nome} className="s1 s1-capa abre" style={{ animationDelay: `${i * 110}ms` }} role="button" tabIndex={0} onClick={() => setAberto(p.nome)} onKeyDown={(e) => { if (e.key === 'Enter') setAberto(p.nome) }}>
-              <div className="s1c-topo"><span className="s1-sit" style={{ color: '#1d4ed8', background: '#eff6ff' }}>● Escritório</span>{(() => { const sl = seloEnviada(au.pedidos, p.nome); return sl ? <span className="s1-enviada">{sl}</span> : null })()}</div>
+              <div className="s1c-topo"><span className="s1-sit" style={{ color: 'var(--mx-fg-blue, #1d4ed8)', background: 'var(--mx-bg1, #eff6ff)' }}>● Escritório</span>{(() => { const sl = seloEnviada(au.pedidos, p.nome); return sl ? <span className="s1-enviada">{sl}</span> : null })()}</div>
               <div className="s1c-nome"><b>{p.nome}</b></div>
               <div className="s1c-com">
                 <small>Comissão de {NOMES_MES[Number(mes.slice(5, 7)) - 1]}</small>
@@ -190,30 +190,33 @@ const ESTILO_CA = `
 .ca-seg { display: inline-flex; align-items: center; gap: 6px; justify-self: start; padding: 5px; border-radius: 99px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb) }
 .ca-seg > span { font-size: 13px; color: var(--portal-text-muted, #64748b); padding: 0 6px 0 10px }
 .ca-seg button { border: 0; background: transparent; font: inherit; font-size: 14px; padding: 8px 16px; border-radius: 99px; cursor: pointer; color: var(--portal-text, #0f172a); display: inline-flex; gap: 8px; align-items: center }
-.ca-seg button:hover { background: #ecfdf5 } .ca-seg button.on { background: #047857; color: #fefefe; font-weight: 600 }
+.ca-seg button:hover { background: var(--mx-p-green, #ecfdf5) } .ca-seg button.on { background: #047857; color: #fefefe; font-weight: 600 }
 .ca-corpo { display: grid; gap: 14px; animation: aaEntra .3s ease both }
-.ca-aviso { margin: 0; padding: 10px 14px; border-radius: 12px; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; font-size: 13.5px }
-.ca-erro { margin: 0; color: #b91c1c; font-size: 13px } .ca-mudo { margin: 0; color: var(--portal-text-muted, #64748b); font-size: 13px }
-.ca-mes { display: flex; gap: 8px; align-items: center } .ca-mes button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-card, #fefefe); cursor: pointer } .ca-mes button:disabled { opacity: .4 } .ca-mes span { font-weight: 600; padding: 0 6px } .ca-mes small { color: #64748b }
+.ca-aviso { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--mx-p-amber, #fffbeb); border: 1px solid var(--mx-pb-amber, #fde68a); color: var(--mx-fg-orange, #92400e); font-size: 13.5px }
+.ca-erro { margin: 0; color: var(--mx-fg-red, #b91c1c); font-size: 13px } .ca-mudo { margin: 0; color: var(--portal-text-muted, #64748b); font-size: 13px }
+.ca-mes { display: flex; gap: 8px; align-items: center } .ca-mes button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-card, #fefefe); cursor: pointer } .ca-mes button:disabled { opacity: .4 } .ca-mes span { font-weight: 600; padding: 0 6px } .ca-mes small { color: var(--mx-t3, #64748b) }
 .s1.ca-on { outline: 2px solid #047857; outline-offset: 2px }
 .ca-det { display: grid; gap: 14px }
 .ca-conta { display: flex; gap: 14px; align-items: center; flex-wrap: wrap } .ca-conta > i { font-style: normal; font-size: 22px; color: #94a3b8 }
-.ca-conta > div { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; background: #f8fafc; min-width: 200px } .ca-conta small { font-size: 12px; color: #64748b } .ca-conta > div > b { font-size: 22px }
-.ca-conta span { font-size: 13px; color: #334155; display: flex; gap: 6px; align-items: center; flex-wrap: wrap } .ca-conta em { font-style: normal; font-size: 11.5px; color: #64748b }
-.ca-conta input { width: 56px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 4px 6px; font: inherit; text-align: right } .ca-conta button { border: 0; border-radius: 99px; padding: 4px 10px; background: #047857; color: #fefefe; font: inherit; font-size: 12px; cursor: pointer } .ca-conta button:disabled { opacity: .45 }
-.ca-lapis { margin-left: 8px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid #a7f3d0; background: #fefefe; color: #047857; cursor: pointer; font-size: 11px } .ca-lapis:hover { background: #047857; color: #fefefe }
-.ca-modo { display: inline-flex; gap: 2px; padding: 2px; border-radius: 99px; background: #e2e8f0; margin-right: 4px } .ca-modo button { background: transparent !important; color: #475569 !important; padding: 3px 9px !important } .ca-modo button.on { background: #fefefe !important; color: #0f172a !important; font-weight: 600 }
+.ca-conta > div { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; background: var(--mx-bg1, #f8fafc); min-width: 200px } .ca-conta small { font-size: 12px; color: var(--mx-t3, #64748b) } .ca-conta > div > b { font-size: 22px }
+.ca-conta span { font-size: 13px; color: var(--mx-t2, #334155); display: flex; gap: 6px; align-items: center; flex-wrap: wrap } .ca-conta em { font-style: normal; font-size: 11.5px; color: var(--mx-t3, #64748b) }
+.ca-conta input { width: 56px; border: 1px solid var(--mx-bd, #cbd5e1); border-radius: 8px; padding: 4px 6px; font: inherit; text-align: right } .ca-conta button { border: 0; border-radius: 99px; padding: 4px 10px; background: #047857; color: #fefefe; font: inherit; font-size: 12px; cursor: pointer } .ca-conta button:disabled { opacity: .45 }
+.ca-lapis { margin-left: 8px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--mx-pb-green, #a7f3d0); background: var(--mx-bg0, #fefefe); color: var(--mx-fg-green, #047857); cursor: pointer; font-size: 11px } .ca-lapis:hover { background: #047857; color: #fefefe }
+.ca-modo { display: inline-flex; gap: 2px; padding: 2px; border-radius: 99px; background: var(--mx-bg2, #e2e8f0); margin-right: 4px } .ca-modo button { background: transparent !important; color: var(--mx-t2, #475569) !important; padding: 3px 9px !important } .ca-modo button.on { background: var(--mx-bg0, #fefefe) !important; color: var(--mx-t, #0f172a) !important; font-weight: 600 }
 .ca-det { margin-top: 4px } .ca-det .ca-conta + .ca-conta { padding-top: 12px; border-top: 1px dashed var(--portal-border, #e5e7eb) }
-.s1-enviada { font-size: 11.5px; font-weight: 600; color: #6d28d9; background: #ede9fe; padding: 3px 9px; border-radius: 99px; white-space: nowrap }
-.ca-conta .res { background: #ecfdf5 } .ca-conta .res b { color: #047857 }
-.ca-abas { display: flex; gap: 20px; border-bottom: 1px solid var(--portal-border, #e5e7eb) } .ca-abas button { border: 0; background: none; padding: 8px 0 10px; font: inherit; font-size: 14px; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px } .ca-abas button.on { color: #0f172a; font-weight: 600; border-bottom-color: #047857 }
-.ca-l.ca-os { grid-template-columns: 60px 1fr auto } .ca-os span small { display: block; font-size: 12px; color: #64748b }
+.s1-enviada { font-size: 11.5px; font-weight: 600; color: var(--mx-fg-violet, #6d28d9); background: var(--mx-p-violet, #ede9fe); padding: 3px 9px; border-radius: 99px; white-space: nowrap }
+.ca-conta .res { background: var(--mx-p-green, #ecfdf5) } .ca-conta .res b { color: var(--mx-fg-green, #047857) }
+.ca-abas { display: flex; gap: 20px; border-bottom: 1px solid var(--portal-border, #e5e7eb) } .ca-abas button { border: 0; background: none; padding: 8px 0 10px; font: inherit; font-size: 14px; color: var(--mx-t3, #64748b); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px } .ca-abas button.on { color: var(--mx-t, #0f172a); font-weight: 600; border-bottom-color: #047857 }
+.ca-l.ca-os { grid-template-columns: 60px 1fr auto } .ca-os span small { display: block; font-size: 12px; color: var(--mx-t3, #64748b) }
 .ca-pessoas { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px }
 .ca-p { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; padding: 14px; display: grid; gap: 10px }
 .ca-p-cab { display: flex; gap: 12px; align-items: center } .ca-p-cab div { display: grid } .ca-p-cab b { font-size: 15px } .ca-p-cab small { font-size: 12px; color: var(--portal-text-muted, #64748b) }
-.ca-ini { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: #ecfdf5; color: #047857; font-weight: 700 }
+.ca-ini { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: var(--mx-p-green, #ecfdf5); color: var(--mx-fg-green, #047857); font-weight: 700 }
 .ca-lista { display: grid; gap: 4px }
 .ca-l { display: grid; grid-template-columns: 60px 1fr auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--portal-border, #f1f5f9); font-size: 13.5px }
-.ca-l b { font-weight: 600 } .ca-l em { font-style: normal; font-size: 11.5px; padding: 2px 8px; border-radius: 99px; background: #f1f5f9; color: #475569 }
-.ca-l em.paga { background: #dcfce7; color: #166534 } .ca-l em.rascunho { background: #fef3c7; color: #92400e }
+.ca-l b { font-weight: 600 } .ca-l em { font-style: normal; font-size: 11.5px; padding: 2px 8px; border-radius: 99px; background: var(--mx-bg1, #f1f5f9); color: var(--mx-t2, #475569) }
+.ca-l em.paga { background: var(--mx-p-green, #dcfce7); color: var(--mx-fg-green, #166534) } .ca-l em.rascunho { background: var(--mx-p-amber, #fef3c7); color: var(--mx-fg-orange, #92400e) }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `

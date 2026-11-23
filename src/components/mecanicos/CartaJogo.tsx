@@ -110,7 +110,7 @@ export default function CartaJogo({ lista, inicio, onFechar }: { lista: DadosCar
               <div className="cj-nums">
                 <span><small>Faturou</small><b>{brl(d.l.bruto)}</b></span>
                 <span><small>Custou</small><b>{brl(custo)}</b></span>
-                <span><small>{resultado >= 0 ? 'Sobrou' : 'Faltou'}</small><b style={{ color: resultado >= 0 ? '#047857' : '#b91c1c' }}>{brl(resultado)}</b></span>
+                <span><small>{resultado >= 0 ? 'Sobrou' : 'Faltou'}</small><b style={{ color: resultado >= 0 ? 'var(--mx-fg-green, #047857)' : 'var(--mx-fg-red, #b91c1c)' }}>{brl(resultado)}</b></span>
               </div>
               <div className="cj-rodape">{porReal >= 0 ? `+R$ ${porReal.toFixed(2).replace('.', ',')} de lucro por R$ 1 que custa` : `−R$ ${Math.abs(porReal).toFixed(2).replace('.', ',')} por R$ 1 — não se pagou`}{d.parado > 0 ? ` · ${brl(d.parado)} parado` : ''}</div>
               <div className="cj-dica-virar"><i className="fas fa-rotate" /> clique para virar</div>
@@ -169,7 +169,7 @@ const ESTILO = `
 .cj-palco:hover .cj { transition: transform .08s linear }
 .cj.cj-virada { transform: rotateY(180deg) }
 .cj-face { position: absolute; inset: 0; border-radius: 24px; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow: hidden; box-shadow: 0 0 0 4px var(--cor), 0 0 0 8px rgba(255,255,255,.85), 0 30px 80px rgba(0,0,0,.5), 0 0 60px var(--cor) }
-.cj-frente { display: flex; flex-direction: column; align-items: center; padding: 18px 20px; color: #0f172a }
+.cj-frente { display: flex; flex-direction: column; align-items: center; padding: 18px 20px; color: var(--mx-t, #0f172a) }
 .cj-holo { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: color-dodge; opacity: .55; background: radial-gradient(circle at var(--hx) var(--hy), rgba(255,255,255,.9), transparent 35%), conic-gradient(from 0deg at var(--hx) var(--hy), rgba(255,0,128,.25), rgba(0,200,255,.25), rgba(140,255,0,.25), rgba(255,200,0,.25), rgba(255,0,128,.25)) }
 .cj-topo { width: 100%; display: flex; justify-content: space-between; align-items: flex-start; position: relative }
 .cj-geral { display: flex; flex-direction: column; align-items: center; line-height: 1; background: rgba(255,255,255,.75); border-radius: 14px; padding: 6px 10px; box-shadow: 0 4px 12px rgba(0,0,0,.15) }
@@ -181,7 +181,7 @@ const ESTILO = `
 .cj-ats { width: 100%; margin-top: 14px; display: grid; gap: 7px; background: rgba(255,255,255,.82); border-radius: 16px; padding: 10px 12px; position: relative }
 .cj-at { display: grid; grid-template-columns: 86px 1fr 26px; gap: 8px; align-items: center; font-size: 12.5px; font-weight: 800 }
 .cj-at b { text-align: right; font-size: 15px; font-variant-numeric: tabular-nums }
-.cj-barra { height: 9px; background: #e2e8f0; border-radius: 99px; overflow: hidden }
+.cj-barra { height: 9px; background: var(--mx-bg2, #e2e8f0); border-radius: 99px; overflow: hidden }
 .cj-barra i { display: block; height: 100%; border-radius: 99px }
 .cj-nums { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; position: relative }
 .cj-nums span { display: flex; flex-direction: column; align-items: center; background: rgba(255,255,255,.82); border-radius: 12px; padding: 6px 4px }
@@ -197,7 +197,9 @@ const ESTILO = `
 .cj-cli { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .cj-nav { width: 52px; height: 52px; border-radius: 50%; border: none; background: rgba(255,255,255,.14); color: #fefefe; font-size: 20px; cursor: pointer; transition: background .15s, transform .15s; flex-shrink: 0 }
 .cj-nav:hover { background: rgba(255,255,255,.28); transform: scale(1.08) }
-.cj-pos { display: flex; gap: 6px } .cj-pos i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.35); cursor: pointer } .cj-pos i.on { background: #fefefe; width: 22px; border-radius: 99px }
+.cj-pos { display: flex; gap: 6px } .cj-pos i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.35); cursor: pointer } .cj-pos i.on { background: var(--mx-bg0, #fefefe); width: 22px; border-radius: 99px }
 .cj-teclas { font-size: 12px; color: rgba(255,255,255,.65) }
 @media (max-width: 600px) { .cj { width: 300px; height: 520px } .cj-nav { position: absolute; bottom: 20px } .cj-esq { left: 20px } .cj-dir { right: 20px } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
 `

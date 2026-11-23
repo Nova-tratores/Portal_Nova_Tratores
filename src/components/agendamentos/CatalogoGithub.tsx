@@ -70,9 +70,9 @@ function StatusSync({ a, run }: { a: Agendamento; run?: RunInfo }) {
   } else if (run.status !== 'completed') {
     pill = <Badge texto="⏳ Rodando" cor="#1d4ed8" bg="#eff6ff" border="#bfdbfe" />
   } else if (run.conclusion === 'success') {
-    pill = <Badge texto="✅ Sucesso" cor="#047857" bg="#ecfdf5" border="#a7f3d0" />
+    pill = <Badge texto="✅ Sucesso" cor="var(--agd-ok, #047857)" bg="#ecfdf5" border="#a7f3d0" />
   } else if (run.conclusion === 'failure' || run.conclusion === 'cancelled') {
-    pill = <Badge texto={run.conclusion === 'cancelled' ? '⚠️ Cancelado' : '❌ Falhou'} cor="#b91c1c" bg="#fef2f2" border="#fecaca" />
+    pill = <Badge texto={run.conclusion === 'cancelled' ? '⚠️ Cancelado' : '❌ Falhou'} cor="var(--agd-err, #b91c1c)" bg="#fef2f2" border="#fecaca" />
   } else {
     pill = <Badge texto={run.conclusion || '—'} cor="#6b7280" bg="#f9fafb" border="#e5e7eb" />
   }
@@ -95,7 +95,7 @@ function Linha({ a, run }: { a: Agendamento; run?: RunInfo }) {
       }}
     >
       <div>
-        <div style={{ fontWeight: 600, fontSize: '.86rem', color: '#222' }}>{a.nome}</div>
+        <div style={{ fontWeight: 600, fontSize: '.86rem', color: 'var(--agd-tx, #222)' }}>{a.nome}</div>
         {(a.condicional || a.obs) && (
           <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {a.condicional && <Badge texto={a.condicional} cor="#92400e" bg="#fffbeb" border="#fde68a" />}
@@ -105,7 +105,7 @@ function Linha({ a, run }: { a: Agendamento; run?: RunInfo }) {
       </div>
       <div><StatusSync a={a} run={run} /></div>
       <div style={{ fontSize: '.8rem', color: '#444', fontWeight: 600 }}>{a.modulo}</div>
-      <div style={{ fontSize: '.82rem', color: '#222' }}>
+      <div style={{ fontSize: '.82rem', color: 'var(--agd-tx, #222)' }}>
         {a.frequencia}
         {a.cron && (
           <div style={{ fontSize: '.66rem', color: '#9ca3af', fontFamily: 'monospace', marginTop: 2 }}>
@@ -247,7 +247,7 @@ export default function CatalogoGithub() {
         </button>
       </div>
       {falhas.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', marginBottom: 16, borderRadius: 12, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: '.84rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', marginBottom: 16, borderRadius: 12, background: '#fef2f2', border: '1px solid #fecaca', color: 'var(--agd-err, #b91c1c)', fontSize: '.84rem' }}>
           <AlertTriangle size={18} />
           <span><strong>{falhas.length}</strong> {falhas.length === 1 ? 'falhou' : 'falharam'} na última execução: {falhas.map((a) => a.nome).join(', ')}.</span>
         </div>

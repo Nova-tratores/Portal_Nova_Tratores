@@ -55,6 +55,7 @@ import { GradeServicosOmie, AbaDepartamentos, AbaInfoAdicionais, AbaParcelas, Ab
 import { espelhoPadrao, normalizarEspelho, aplicarInterna, totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import type { DocAnterior } from "@/lib/pos/omie-anteriores";
 import PaliativosOS from "./PaliativosOS";
+import { ESTILO_POS_ESCURO } from "./VisualNovoPOS";
 import type { PaliativoOS } from "@/lib/pos/paliativos";
 
 // Previsão de faturamento vazia = hoje (José, 13/10/2026), no fuso de São Paulo, "aaaa-mm-dd".
@@ -1298,8 +1299,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // PPVs vinculados (o campo aceita vários separados por vírgula)
   const fmtBR = (n: unknown) => (Number(n) || 0).toFixed(2).replace(".", ",");
   // estilos do cabeçalho Omie — copiados do PPVDrawer pra ficar IGUAL
-  const L_OMIE: React.CSSProperties = { textTransform: "none", letterSpacing: 0, fontWeight: 500, color: "#64748b", fontSize: 12.5, display: "block", marginBottom: 5 };
-  const R_OMIE: React.CSSProperties = { fontSize: 12, color: "#6b6259", marginBottom: 4 };
+  const L_OMIE: React.CSSProperties = { textTransform: "none", letterSpacing: 0, fontWeight: 500, color: "var(--pos-c-rotulo, #64748b)", fontSize: 12.5, display: "block", marginBottom: 5 };
+  const R_OMIE: React.CSSProperties = { fontSize: 12, color: "var(--pos-c-rotulo, #6b6259)", marginBottom: 4 };
   const B_OMIE: React.CSSProperties = { background: "var(--surface, #fefefe)", border: "1px solid var(--border)", borderRadius: 8, height: 40, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 12px", fontSize: 14, color: "inherit", fontVariantNumeric: "tabular-nums" };
   // versão discreta (linha compacta dentro do card Descrição do Serviço)
   const L_DISC: React.CSSProperties = { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 500, marginBottom: 3, textTransform: "none", letterSpacing: 0 };
@@ -1449,6 +1450,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     <>
       <div className={`drawer-overlay active fs pos-osd${mode === "create" ? " criando" : ""}`}>
         {/* Responsivo (tablet/celular): abas roláveis, cabeçalho empilha, trilho de ações vira barra embaixo até 900px */}
+        <style>{ESTILO_POS_ESCURO}</style>
         <style>{`
           /* Abas: NUNCA encolhem (a coluna tem altura limitada; com overflow
              diferente de visible o min-height vira 0 e a faixa sumia). No PC
@@ -1710,10 +1712,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           <div style={R_OMIE}>
                             Valor do Desconto{" "}
                             <button type="button" onClick={() => setDescontoModoOS((m) => (m === "pct" ? "valor" : "pct"))} title="Alternar entre % e R$"
-                              style={{ border: "none", background: "transparent", cursor: "pointer", color: "#a79f92", fontSize: 10, padding: 0, marginLeft: 2 }}>
+                              style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--pos-c-muted, #a79f92)", fontSize: 10, padding: 0, marginLeft: 2 }}>
                               <i className="fas fa-pen" />
                             </button>{" "}
-                            <span style={{ fontSize: 10.5, color: "#b7b0a3" }}>({descontoModoOS === "pct" ? "%" : "R$"})</span>
+                            <span style={{ fontSize: 10.5, color: "var(--pos-c-muted, #b7b0a3)" }}>({descontoModoOS === "pct" ? "%" : "R$"})</span>
                             {descValor > 0 && esp.descontoMotivo?.texto && (
                               <IconeMotivoDesconto motivo={esp.descontoMotivo.texto} por={esp.descontoMotivo.por} onClick={() => setPedirMotivo(true)} />
                             )}
@@ -1747,7 +1749,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                      <div className="os-omie-totais" style={{ alignSelf: "stretch", justifyContent: "center" }}>
                        <div className="os-omie-totais-linha"><span>Serviços:</span><b>R$ {fmtBR(subtotalHoras)}</b></div>
                        <div className="os-omie-totais-linha"><span>Deslocamento:</span><b>R$ {fmtBR(subtotalKm)}</b></div>
-                       <div className="os-omie-totais-linha"><span>Descontos:</span><b style={{ color: totalDescontos > 0 ? "#0d9488" : "#b7b0a3" }}>R$ {fmtBR(totalDescontos)}</b></div>
+                       <div className="os-omie-totais-linha"><span>Descontos:</span><b style={{ color: totalDescontos > 0 ? "var(--pos-c-teal, #0d9488)" : "var(--pos-c-muted, #b7b0a3)" }}>R$ {fmtBR(totalDescontos)}</b></div>
                        <div className="os-omie-totais-linha"><span>Produtos (PPV):</span><b>R$ {fmtBR(totalPecas + totalRequisicoes)}</b></div>
                        <div className="os-omie-totais-total"><span>Valor Total:</span><span>R$ {fmtBR(total)}</span></div>
                      </div>
@@ -1882,7 +1884,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         <img src="/marcas/omie.png" alt="Omie" style={{ height: 16, width: "auto" }} /> Enviado ao Omie
                         {podeSubstituir && ordemOmie && (
                           <button type="button" onClick={() => setSubstituindo(true)} title="Trocar a OS ou um pedido de venda no Omie (o antigo é cancelado)"
-                            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 8, border: "1px solid var(--border, #e2e8f0)", background: "var(--surface, #fefefe)", color: "#0369A1", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textTransform: "none", letterSpacing: 0 }}>
+                            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 8, border: "1px solid var(--border, #e2e8f0)", background: "var(--surface, #fefefe)", color: "var(--pos-c-azul, #0369A1)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textTransform: "none", letterSpacing: 0 }}>
                             <i className="fas fa-right-left" /> Substituir OS ou pedido
                           </button>
                         )}

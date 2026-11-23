@@ -53,7 +53,7 @@ export default function AgendaSemana({ dias, reservas, eu, agora, pxPorHora = 48
         return (
           <div key={d} style={{ padding: '8px 4px', textAlign: 'center', borderBottom: '1px solid var(--portal-border,#e5e7eb)', borderLeft: '1px solid var(--portal-border,#f0f0f0)' }}>
             <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: hoje ? '#0891b2' : 'var(--portal-text-muted,#888)' }}>{SEMANA[new Date(d + 'T12:00:00Z').getUTCDay()]}</div>
-            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: '50%', marginTop: 2, fontSize: 16, fontWeight: 800, background: hoje ? '#0891b2' : 'transparent', color: hoje ? '#fff' : 'var(--portal-text,#111)' }}>{Number(d.slice(8, 10))}</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: '50%', marginTop: 2, fontSize: 16, fontWeight: 800, background: hoje ? 'var(--sala-cheio, #0891b2)' : 'transparent', color: hoje ? '#fff' : 'var(--portal-text,#111)' }}>{Number(d.slice(8, 10))}</div>
           </div>
         )
       })}

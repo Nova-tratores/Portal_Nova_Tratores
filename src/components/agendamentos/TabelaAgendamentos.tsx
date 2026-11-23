@@ -51,11 +51,11 @@ export default function TabelaAgendamentos({ agendamentos, podeAlterar, aoMudar 
     return (
       <div key={a.chave} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,1.4fr) 170px minmax(200px,1.3fr) 120px minmax(150px,1fr)' + (podeAlterar ? ' 230px' : ''), gap: 12, padding: '10px 14px', borderTop: '1px solid #f3f4f6', alignItems: 'center', opacity: a.ativo ? 1 : 0.75 }}>
         <div>
-          <div style={{ fontWeight: 700, fontSize: '.84rem', color: '#111111' }}>{a.nome}</div>
+          <div style={{ fontWeight: 700, fontSize: '.84rem', color: 'var(--agd-tx, #111111)' }}>{a.nome}</div>
           <div style={{ fontSize: '.68rem', color: '#6b7280' }}>{a.modulo}{a.usa_omie ? ' · usa a Omie' : ''}{a.grupo ? ` · grupo ${a.grupo}` : ''}</div>
-          {!a.tarefaExiste && <div style={{ fontSize: '.68rem', color: '#b91c1c', fontWeight: 700 }}>tarefa “{a.handler}” não existe no código</div>}
+          {!a.tarefaExiste && <div style={{ fontSize: '.68rem', color: 'var(--agd-err, #b91c1c)', fontWeight: 700 }}>tarefa “{a.handler}” não existe no código</div>}
         </div>
-        <div style={{ fontSize: '.78rem', color: '#111111' }}>{a.quando}</div>
+        <div style={{ fontSize: '.78rem', color: 'var(--agd-tx, #111111)' }}>{a.quando}</div>
         <div style={{ fontSize: '.74rem', color: '#374151' }}>
           {a.rodandoAgora ? (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#1d4ed8', fontWeight: 700 }}>
@@ -65,16 +65,16 @@ export default function TabelaAgendamentos({ agendamentos, podeAlterar, aoMudar 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span><Pill status={u.status} /> <span style={{ color: '#6b7280' }}>{horaSP(u.iniciado_em, true)} · {duracao(u.duracao_ms)}</span></span>
               <span style={{ fontSize: '.66rem', color: '#9ca3af' }}>{quemDisparou(u)}</span>
-              {u.detalhe && <span style={{ fontSize: '.66rem', color: u.status === 'erro' ? '#b91c1c' : '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 320 }} title={u.detalhe}>{u.detalhe}</span>}
+              {u.detalhe && <span style={{ fontSize: '.66rem', color: u.status === 'erro' ? 'var(--agd-err, #b91c1c)' : '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 320 }} title={u.detalhe}>{u.detalhe}</span>}
             </div>
           ) : <span style={{ color: '#9ca3af' }}>ainda não rodou</span>}
         </div>
-        <div style={{ fontSize: '.76rem', color: '#111111' }}>
+        <div style={{ fontSize: '.76rem', color: 'var(--agd-tx, #111111)' }}>
           {a.ativo ? (a.proxima ? <>{horaSP(a.proxima, true)}<div style={{ fontSize: '.66rem', color: '#9ca3af' }}>{tempoRelativo(a.proxima)}</div></> : <span style={{ color: '#9ca3af' }}>{a.tipo === 'uma_vez' ? 'já rodou' : '—'}</span>) : '—'}
         </div>
         <div style={{ fontSize: '.72rem' }}>
           {a.ativo
-            ? <span style={{ color: '#047857', fontWeight: 700 }}>● ligado</span>
+            ? <span style={{ color: 'var(--agd-ok, #047857)', fontWeight: 700 }}>● ligado</span>
             : <span style={{ color: '#92400e' }}><strong>○ pausado</strong>{a.pausado_por ? ` por ${a.pausado_por}` : ''}{a.pausado_motivo ? <div style={{ color: '#6b7280' }}>{a.pausado_motivo}</div> : null}</span>}
         </div>
         {podeAlterar && (
@@ -107,7 +107,7 @@ export default function TabelaAgendamentos({ agendamentos, podeAlterar, aoMudar 
   return (
     <div>
       {aviso && (
-        <div style={{ padding: '8px 12px', marginBottom: 10, borderRadius: 8, fontSize: '.8rem', background: aviso.tipo === 'ok' ? '#ecfdf5' : '#fef2f2', color: aviso.tipo === 'ok' ? '#047857' : '#b91c1c', border: `1px solid ${aviso.tipo === 'ok' ? '#a7f3d0' : '#fecaca'}` }}>
+        <div style={{ padding: '8px 12px', marginBottom: 10, borderRadius: 8, fontSize: '.8rem', background: aviso.tipo === 'ok' ? '#ecfdf5' : '#fef2f2', color: aviso.tipo === 'ok' ? 'var(--agd-ok, #047857)' : 'var(--agd-err, #b91c1c)', border: `1px solid ${aviso.tipo === 'ok' ? '#a7f3d0' : '#fecaca'}` }}>
           {aviso.texto}
         </div>
       )}
@@ -120,7 +120,7 @@ export default function TabelaAgendamentos({ agendamentos, podeAlterar, aoMudar 
       </div>
       {umaVez.length > 0 && (
         <>
-          <h4 style={{ fontSize: '.82rem', fontWeight: 800, margin: '18px 0 8px', color: '#111111' }}>Marcados para rodar uma vez</h4>
+          <h4 style={{ fontSize: '.82rem', fontWeight: 800, margin: '18px 0 8px', color: 'var(--agd-tx, #111111)' }}>Marcados para rodar uma vez</h4>
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflowX: 'auto' }}>
             <div style={{ minWidth: podeAlterar ? 1160 : 920 }}>{cabecalho}{umaVez.map(linha)}</div>
           </div>
@@ -142,7 +142,7 @@ function Janela({ titulo, fechar, children }: { titulo: string; fechar: () => vo
     <div onClick={fechar} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.35)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 18, width: 'min(460px, 100%)', boxShadow: '0 10px 40px rgba(0,0,0,.2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <strong style={{ fontSize: '.95rem', color: '#111111' }}>{titulo}</strong>
+          <strong style={{ fontSize: '.95rem', color: 'var(--agd-tx, #111111)' }}>{titulo}</strong>
           <button onClick={fechar} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#6b7280' }}><X size={18} /></button>
         </div>
         {children}
@@ -151,7 +151,7 @@ function Janela({ titulo, fechar, children }: { titulo: string; fechar: () => vo
   )
 }
 
-const campo: React.CSSProperties = { width: '100%', padding: '7px 9px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: '.84rem', background: '#fefefe', color: '#111111' }
+const campo: React.CSSProperties = { width: '100%', padding: '7px 9px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: '.84rem', background: 'var(--agd-campo, #fefefe)', color: 'var(--agd-tx, #111111)' }
 const rotulo: React.CSSProperties = { display: 'block', fontSize: '.72rem', fontWeight: 700, color: '#374151', margin: '10px 0 4px' }
 const confirmarBtn: React.CSSProperties = { marginTop: 14, width: '100%', padding: '9px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fefefe', fontWeight: 800, cursor: 'pointer' }
 
@@ -232,7 +232,7 @@ function ModalHorario({ ag, fechar, confirmar }: { ag: AgendamentoPainel; fechar
               const on = dias.includes(i)
               return (
                 <button key={d} type="button" onClick={() => setDias(on ? dias.filter((x) => x !== i) : [...dias, i].sort())}
-                  style={{ padding: '4px 9px', borderRadius: 6, border: `1px solid ${on ? '#dc2626' : '#d1d5db'}`, background: on ? '#fef2f2' : '#fefefe', color: on ? '#b91c1c' : '#6b7280', fontSize: '.74rem', fontWeight: 700, cursor: 'pointer' }}>
+                  style={{ padding: '4px 9px', borderRadius: 6, border: `1px solid ${on ? '#dc2626' : '#d1d5db'}`, background: on ? '#fef2f2' : '#fefefe', color: on ? 'var(--agd-err, #b91c1c)' : '#6b7280', fontSize: '.74rem', fontWeight: 700, cursor: 'pointer' }}>
                   {d}
                 </button>
               )

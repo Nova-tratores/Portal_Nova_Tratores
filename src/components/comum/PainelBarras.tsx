@@ -128,7 +128,11 @@ export function Painel({ tema, titulo, sub, itens, metrica, horizontal, corDe, a
       </text>
     );
   };
-  const botao = (ativo: boolean): React.CSSProperties => ({ padding: "3px 9px", fontSize: 11.5, fontWeight: 700, borderRadius: 3, border: `1px solid ${tema.border}`, background: ativo ? tema.primaryLight : "#fefefe", color: ativo ? tema.primaryText : "#5f574c", cursor: "pointer", fontFamily: "inherit" });
+  const botao = (ativo: boolean): React.CSSProperties => ({ padding: "3px 9px", fontSize: 11.5, fontWeight: 700, borderRadius: 3, border: `1px solid ${tema.border}`, cursor: "pointer", fontFamily: "inherit",
+    // escuro: ativo = chip da cor clara a 18% + texto claro; inativo = fundo secundário + texto secundário
+    ...(dark
+      ? { background: ativo ? `color-mix(in srgb, ${tema.accentDark} 18%, transparent)` : "var(--portal-bg-secondary, #262626)", color: ativo ? tema.accentDark : "var(--portal-text-secondary, #a3a3a3)" }
+      : { background: ativo ? tema.primaryLight : "#fefefe", color: ativo ? tema.primaryText : "#5f574c" }) });
 
   return (
     <div style={card}>

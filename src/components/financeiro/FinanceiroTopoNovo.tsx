@@ -69,6 +69,8 @@ const ESTILO = `
 .ftn-areas:not(.on) { background: rgba(255,255,255,0.25) }
 .ftn-sep { align-self: center; width: 1px; height: 26px; margin: 0 6px; background: rgba(17,17,17,.18); flex-shrink: 0 }
 .ftn-slot { align-self: center; display: flex; align-items: center; gap: 8px; flex-shrink: 0 }
+/* Modo escuro: a guia aberta encaixa no conteúdo escuro (cartão + faixa vermelha em cima) */
+[data-theme="dark"] .ftn-guia.on { background: var(--portal-bg-card, #1a1a1a); color: var(--portal-text, #f5f5f5); box-shadow: inset 0 3px 0 var(--portal-red-fg, #f87171), 0 -2px 6px rgba(0,0,0,0.3) }
 @media (max-width: 767px) {
   .ftn { padding: 0 12px }
   .ftn-lin { flex-wrap: wrap; gap: 6px; min-height: 48px }

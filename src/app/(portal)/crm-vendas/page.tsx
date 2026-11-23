@@ -30,6 +30,19 @@ export default function CrmVendasPage({ searchParams }: { searchParams: Promise<
   const [deuSinal, setDeuSinal] = useState(false)
   const [talvezNaoAbriu, setTalvezNaoAbriu] = useState(false)
   const [fechouAviso, setFechouAviso] = useState(false)
+  // Tema do portal repassado ao app de vendas (&theme=dark|light). Lê o data-theme do <html>
+  // e acompanha a troca de tema (o iframe recarrega com o tema novo).
+  const [tema, setTema] = useState<'dark' | 'light'>(() =>
+    typeof document !== 'undefined' && document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light')
+
+  useEffect(() => {
+    const html = document.documentElement
+    const ler = () => setTema(html.getAttribute('data-theme') === 'dark' ? 'dark' : 'light')
+    ler()
+    const obs = new MutationObserver(ler)
+    obs.observe(html, { attributes: true, attributeFilter: ['data-theme'] })
+    return () => obs.disconnect()
+  }, [])
 
   useEffect(() => {
     if (!podeVer) return
@@ -82,7 +95,7 @@ export default function CrmVendasPage({ searchParams }: { searchParams: Promise<
       {podeVer && (
         <iframe
           ref={iframeRef}
-          src={`${ORIGEM_VENDAS}/supervisor${tela}?embed=1`}
+          src={`${ORIGEM_VENDAS}/supervisor${tela}?embed=1&theme=${tema}`}
           title="CRM Vendas"
           // fullscreen: modo Showroom/TV do catálogo · geolocation: mapas
           allow="fullscreen; geolocation"

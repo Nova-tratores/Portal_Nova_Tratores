@@ -6,6 +6,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { ABAS_FROTA, PAGINAS_FROTA, paginaDaRota, slugDaPagina } from '@/app/(portal)/frota/paginas';
 import { podeTelaFrota } from '@/lib/permissoes/frota';
+import '@/components/abas-modulo.css';
 import AjudaTela from '@/components/dre-financeiro/AjudaTela';
 import { ajudaFrota } from '@/lib/frota/ajuda';
 
@@ -37,6 +38,7 @@ export default function FrotaNav() {
       {/* 1º nível: guias estilo Chrome na FAIXA AZUL do módulo */}
       <nav
         aria-label="Seções da Frota"
+        className="aba-faixa"
         style={{
           display: 'flex',
           alignItems: 'flex-end',
@@ -55,6 +57,7 @@ export default function FrotaNav() {
               key={a.id}
               href={a.paginas[0].href}
               aria-current={ehAtiva ? 'page' : undefined}
+              className={`aba-guia${ehAtiva ? ' aba-ativa' : ''}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',

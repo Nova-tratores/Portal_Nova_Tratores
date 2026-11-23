@@ -1210,7 +1210,7 @@ export default function PPVDrawer({
                        {/* Caixa de totais (igual à da OS) */}
                        <div className="os-omie-totais" style={{ alignSelf: "stretch", justifyContent: "center" }}>
                          <div className="os-omie-totais-linha"><span>Mercadorias:</span><b>{formatarMoeda(totalSemDesconto)}</b></div>
-                         <div className="os-omie-totais-linha"><span>Descontos:</span><b style={{ color: valorDesconto > 0 ? "#0d9488" : "#b7b0a3" }}>{formatarMoeda(valorDesconto)}</b></div>
+                         <div className="os-omie-totais-linha"><span>Descontos:</span><b style={{ color: valorDesconto > 0 ? "var(--pos-c-teal, #0d9488)" : "var(--pos-c-muted, #b7b0a3)" }}>{formatarMoeda(valorDesconto)}</b></div>
                          <div className="os-omie-totais-linha"><span>Custo (CMC):</span><b>{custoLoading ? "…" : custoCMC > 0 ? formatarMoeda(custoCMC) : "—"}</b></div>
                          <div className="os-omie-totais-total"><span>Valor Total:</span><span>{formatarMoeda(totalFinal)}</span></div>
                        </div>

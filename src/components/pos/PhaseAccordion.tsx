@@ -402,7 +402,7 @@ function PainelCobranca({ osId, onPhaseChange, onStatus }: { osId: string; onPha
                 </div>
               )}
               <button onClick={() => setBuscaAberta(true)}
-                style={{ marginTop: 6, border: "none", background: "transparent", color: "#0369A1", fontSize: 11.5, fontWeight: 700, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+                style={{ marginTop: 6, border: "none", background: "transparent", color: "var(--pos-c-azul, #0369A1)", fontSize: 11.5, fontWeight: 700, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
                 <i className="fas fa-search" style={{ marginRight: 4 }} />Buscar outro contato no NovaZap
               </button>
               {/* Preferência de faturamento: vem do chatwoot; preencher SALVA lá.
@@ -917,7 +917,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 {!SEM_CONTAGEM.has(phase) && <span className="phase-group-count">{items.length}</span>}
                 {/* Selo: esta fase é DIFERENTE — dinheiro na mesa */}
                 {phase === FASE_COBRANDO && (
-                  <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: 0.8, color: "#92400E", background: "#FDE68A", borderRadius: 999, padding: "2px 10px", textTransform: "uppercase" }}>
+                  <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: 0.8, color: "var(--pos-c-ambar, #92400E)", background: "var(--pos-c-chip-ambar-bg, #FDE68A)", borderRadius: 999, padding: "2px 10px", textTransform: "uppercase" }}>
                     <i className="fas fa-comment-dollar" style={{ marginRight: 4 }} />Cobrança
                   </span>
                 )}
@@ -939,7 +939,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                     style={{
                       marginLeft: 10, display: "inline-flex", alignItems: "center", gap: 6,
                       padding: "5px 12px", borderRadius: 7, border: "none",
-                      background: enviandoOmie === "__todas__" ? "#94A3B8" : "#0EA5E9", color: "#fff",
+                      background: enviandoOmie === "__todas__" ? "#94A3B8" : "var(--pos-c-omie, #0EA5E9)", color: "#fff",
                       fontSize: 12, fontWeight: 700, cursor: enviandoOmie ? "default" : "pointer",
                     }}>
                     <i className={enviandoOmie === "__todas__" ? "fas fa-spinner fa-spin" : "fas fa-paper-plane"} />

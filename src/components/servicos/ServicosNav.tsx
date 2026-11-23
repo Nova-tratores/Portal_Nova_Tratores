@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
+import '@/components/abas-modulo.css';
 
 const ABAS = [
   { modulo: 'pos', label: 'Pós-Vendas (OS)', href: '/pos' },
@@ -41,7 +42,7 @@ export default function ServicosNav() {
   return (
     <div
       ref={faixa}
-      className="print:hidden servicos-nav"
+      className="print:hidden servicos-nav aba-faixa aba-faixa--tom"
       style={{
         display: 'flex',
         alignItems: 'flex-end',
@@ -59,6 +60,7 @@ export default function ServicosNav() {
             key={a.href}
             href={a.href}
             aria-current={ativo ? 'page' : undefined}
+            className={`aba-guia${ativo ? ' aba-ativa' : ''}`}
             style={{
               display: 'flex',
               alignItems: 'center',

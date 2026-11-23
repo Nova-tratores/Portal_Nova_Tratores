@@ -84,7 +84,7 @@ export default function NovaDemonstracao({ onCriada }: { onCriada: (r: { conta: 
         {cliente ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <b>{cliente.nome}</b><span style={{ color: 'var(--text-light)', fontSize: 13 }}>{cliente.doc} · {cliente.cidade}</span>
-            <span className="rm-selo" style={{ background: '#ede9fe', color: '#5b21b6' }}>CFOP {cfopDemo(cliente.uf)}</span>
+            <span className="rm-selo" style={{ background: 'var(--mx-p-violet, #ede9fe)', color: 'var(--mx-fg-violet, #5b21b6)' }}>CFOP {cfopDemo(cliente.uf)}</span>
             <button className="rm-btn peq" onClick={() => { setCliente(null); setQCli(''); }}>Trocar</button>
           </div>
         ) : (
@@ -122,7 +122,7 @@ export default function NovaDemonstracao({ onCriada }: { onCriada: (r: { conta: 
                 setQProd(''); prod.limpar();
               }}>
                 <b>{p.descricao}</b>
-                <span style={{ fontSize: 12, color: p.estoque > 0 ? 'var(--text-light)' : '#dc2626' }}>{p.familia || ''} · estoque {p.estoque} · {brl(p.valor)}</span>
+                <span style={{ fontSize: 12, color: p.estoque > 0 ? 'var(--text-light)' : 'var(--mx-fg-red, #dc2626)' }}>{p.familia || ''} · estoque {p.estoque} · {brl(p.valor)}</span>
               </button>
             ))}
           </div>
@@ -134,7 +134,7 @@ export default function NovaDemonstracao({ onCriada }: { onCriada: (r: { conta: 
               <tbody>
                 {itens.map((i, k) => (
                   <tr key={i.nCodProd} style={{ cursor: 'default' }}>
-                    <td><Truck size={13} style={{ verticalAlign: -2 }} /> {i.descricao}{i.estoque <= 0 && <div style={{ fontSize: 11.5, color: '#dc2626' }}>sem estoque no portal — confira antes de emitir</div>}</td>
+                    <td><Truck size={13} style={{ verticalAlign: -2 }} /> {i.descricao}{i.estoque <= 0 && <div style={{ fontSize: 11.5, color: 'var(--mx-fg-red, #dc2626)' }}>sem estoque no portal — confira antes de emitir</div>}</td>
                     <td><input className="rm-input" type="number" min={1} step={1} value={i.qtd} onChange={(e) => setItens((l) => l.map((x, j) => j === k ? { ...x, qtd: Number(e.target.value) } : x))} /></td>
                     <td><input className="rm-input" type="number" min={0} step="0.01" value={i.valorUnit} onChange={(e) => setItens((l) => l.map((x, j) => j === k ? { ...x, valorUnit: Number(e.target.value) } : x))} /></td>
                     <td><button className="rm-btn peq perigo" aria-label="Tirar" onClick={() => setItens((l) => l.filter((_, j) => j !== k))}><Trash2 size={14} /></button></td>

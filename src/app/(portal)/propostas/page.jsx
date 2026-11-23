@@ -294,6 +294,13 @@ function PropostaComercialPageInner() {
         .chrome-tab-active::before { left: -12px; border-bottom-right-radius: 12px; box-shadow: 6px 6px 0 6px #ffffff; }
         .chrome-tab-active::after  { right: -12px; border-bottom-left-radius: 12px; box-shadow: -6px 6px 0 6px #ffffff; }
         .chrome-tabs-base { height: 10px; background: #ffffff; border-radius: 10px 10px 0 0; position: relative; z-index: 2; }
+        /* modo escuro: a faixa e a aba ativa viram cinza-escuro, as outras abas um tom abaixo */
+        :global([data-theme="dark"]) .chrome-tab { background: var(--portal-bg-card, #1a1a1a); color: var(--portal-text-secondary, #a3a3a3); }
+        :global([data-theme="dark"]) .chrome-tab:hover:not(.chrome-tab-active) { background: #202020; color: var(--portal-text, #f5f5f5); }
+        :global([data-theme="dark"]) .chrome-tab-active { background: var(--portal-bg-secondary, #262626); color: var(--portal-red-fg, #f87171); }
+        :global([data-theme="dark"]) .chrome-tab-active::before { box-shadow: 6px 6px 0 6px var(--portal-bg-secondary, #262626); }
+        :global([data-theme="dark"]) .chrome-tab-active::after { box-shadow: -6px 6px 0 6px var(--portal-bg-secondary, #262626); }
+        :global([data-theme="dark"]) .chrome-tabs-base { background: var(--portal-bg-secondary, #262626); }
         /* Responsivo: abaixo de 900px as guias rolam na horizontal dentro da faixa */
         @media (max-width: 900px) {
           .chrome-tabs { overflow-x: auto; overflow-y: hidden; flex-shrink: 0; padding: 0 12px; scrollbar-width: none; }

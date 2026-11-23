@@ -109,7 +109,7 @@ export default function TesteAutorizacaoDiretor() {
   const bt = (on: boolean): React.CSSProperties => ({ padding: '9px 16px', borderRadius: 99, border: on ? '1px solid #0f172a' : '1px solid #cbd5e1', background: on ? '#0f172a' : '#fefefe', color: on ? '#fefefe' : '#0f172a', font: 'inherit', fontSize: 14, cursor: 'pointer' })
   return (
     <div style={{ padding: 24, display: 'grid', gap: 16, color: 'var(--portal-text, #0f172a)' }}>
-      <div style={{ background: '#fff7ed', border: '2px dashed #ea580c', borderRadius: 14, padding: '14px 18px', display: 'grid', gap: 10, fontSize: 14.5, lineHeight: 1.5 }}>
+      <div style={{ background: 'var(--mx-p-orange, #fff7ed)', border: '2px dashed #ea580c', borderRadius: 14, padding: '14px 18px', display: 'grid', gap: 10, fontSize: 14.5, lineHeight: 1.5 }}>
         <b style={{ fontSize: 16 }}>Tela de teste: autorização de comissão pelo diretor</b>
         <span>Os valores e clientes são de <b>exemplo</b>. Pode clicar em tudo: nada é gravado, ninguém é avisado e o RH não é chamado.</span>
         <span>A assinatura salva que aparecer é a <b>sua</b>. Quem não tiver uma desenha na hora.</span>
@@ -121,7 +121,7 @@ export default function TesteAutorizacaoDiretor() {
         <small>Cada botão recomeça do aviso. Se tiver um pedido de verdade esperando, ele continua lá: feche esta tela para vê-lo.</small>
       </div>
       {noCliente && resultado && createPortal(
-        <div id="teste-resultado" role="status" style={{ position: 'fixed', left: '50%', bottom: 20, transform: 'translateX(-50%)', zIndex: 9600, width: 'min(720px, calc(100vw - 32px))', background: resultado.ok ? '#dcfce7' : '#fee2e2', color: resultado.ok ? '#14532d' : '#7f1d1d', border: `1px solid ${resultado.ok ? '#86efac' : '#fca5a5'}`, borderRadius: 12, padding: '12px 16px', fontSize: 14.5, fontWeight: 600, boxShadow: '0 8px 24px rgba(15,23,42,.25)' }}>
+        <div id="teste-resultado" role="status" style={{ position: 'fixed', left: '50%', bottom: 20, transform: 'translateX(-50%)', zIndex: 9600, width: 'min(720px, calc(100vw - 32px))', background: resultado.ok ? 'var(--mx-p-green, #dcfce7)' : 'var(--mx-p-red, #fee2e2)', color: resultado.ok ? 'var(--mx-fg-green, #14532d)' : 'var(--mx-fg-red, #7f1d1d)', border: `1px solid ${resultado.ok ? 'var(--mx-pb-green, #86efac)' : '#fca5a5'}`, borderRadius: 12, padding: '12px 16px', fontSize: 14.5, fontWeight: 600, boxShadow: '0 8px 24px rgba(15,23,42,.25)' }}>
           Só no teste, este quadro não existe no portal: {resultado.txt}
         </div>, document.body)}
     </div>

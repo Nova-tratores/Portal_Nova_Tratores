@@ -298,76 +298,76 @@ export function SimuladorHistoria({ c }: { c: Conta }) {
 }
 
 export const ESTILO_HX = `
-.hx { display: grid; gap: 16px; color: ${TXT}; font-variant-numeric: tabular-nums }
+.hx { display: grid; gap: 16px; color: var(--mx-t, #0f172a); font-variant-numeric: tabular-nums }
 .hx b { font-weight: 700 }
-.hx .bom { color: #15803d; font-style: normal } .hx .ruim { color: #b91c1c; font-style: normal }
-.hx-hero { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 20px; align-items: center; background: var(--portal-bg-card, #fefefe); border: 1px solid #e2e8f0; border-radius: 16px; padding: 22px 24px; animation: hxEntra .5s both }
-.hx-hero-txt { display: grid; gap: 10px } .hx-hero-txt > small { font-size: 13px; color: ${MUDO} }
-.hx-hero h2 { margin: 0; font-size: clamp(20px, 2.2vw, 28px); font-weight: 500; line-height: 1.3; color: ${TXT} } .hx-hero h2 b { font-size: 1.15em }
-.hx-hero p { margin: 0; font-size: 15px; line-height: 1.55; color: #1e293b; max-width: 620px }
+.hx .bom { color: var(--mx-fg-green, #15803d); font-style: normal } .hx .ruim { color: var(--mx-fg-red, #b91c1c); font-style: normal }
+.hx-hero { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr); gap: 20px; align-items: center; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--mx-bd, #e2e8f0); border-radius: 16px; padding: 22px 24px; animation: hxEntra .5s both }
+.hx-hero-txt { display: grid; gap: 10px } .hx-hero-txt > small { font-size: 13px; color: var(--mx-t2, #475569) }
+.hx-hero h2 { margin: 0; font-size: clamp(20px, 2.2vw, 28px); font-weight: 500; line-height: 1.3; color: var(--mx-t, #0f172a) } .hx-hero h2 b { font-size: 1.15em }
+.hx-hero p { margin: 0; font-size: 15px; line-height: 1.55; color: var(--mx-t, #1e293b); max-width: 620px }
 .hx-chips { display: flex; gap: 8px; flex-wrap: wrap }
-.hx-chip { font-size: 13px; border-radius: 99px; padding: 4px 12px; background: #f1f5f9; color: ${MUDO} } .hx-chip.bom { background: #dcfce7; color: #14532d } .hx-chip.ruim { background: #fee2e2; color: #7f1d1d }
+.hx-chip { font-size: 13px; border-radius: 99px; padding: 4px 12px; background: var(--mx-bg1, #f1f5f9); color: var(--mx-t2, #475569) } .hx-chip.bom { background: var(--mx-p-green, #dcfce7); color: var(--mx-fg-green, #14532d) } .hx-chip.ruim { background: var(--mx-p-red, #fee2e2); color: var(--mx-fg-red, #7f1d1d) }
 .hx-hero-rosca { position: relative; display: grid; grid-template-columns: 140px 1fr; gap: 16px; align-items: center }
 .hx-rosca { width: 140px; height: 140px }
-.hx-rosca-c { position: absolute; left: 0; top: 50%; width: 140px; transform: translateY(-50%); display: grid; justify-items: center; text-align: center; pointer-events: none } .hx-rosca-c b { font-size: 24px } .hx-rosca-c small { font-size: 11.5px; color: ${MUDO}; line-height: 1.25 }
+.hx-rosca-c { position: absolute; left: 0; top: 50%; width: 140px; transform: translateY(-50%); display: grid; justify-items: center; text-align: center; pointer-events: none } .hx-rosca-c b { font-size: 24px } .hx-rosca-c small { font-size: 11.5px; color: var(--mx-t2, #475569); line-height: 1.25 }
 .hx-rosca-leg { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px } .hx-rosca-leg li { display: flex; align-items: center; gap: 8px } .hx-rosca-leg li b { margin-left: auto } .hx-rosca-leg i { width: 12px; height: 12px; border-radius: 4px; flex: none }
 
-.hx-sec { background: var(--portal-bg-card, #fefefe); border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px 20px; display: grid; gap: 14px; animation: hxEntra .5s both }
-.hx-sec-t { display: flex; gap: 12px; align-items: center } .hx-sec-t > span { width: 28px; height: 28px; border-radius: 50%; background: ${TXT}; color: #fefefe; display: grid; place-items: center; font-size: 13px; font-weight: 700; flex: none }
-.hx-sec-t > div { display: grid } .hx-sec-t b { font-size: 16px } .hx-sec-t small { font-size: 13px; color: ${MUDO} }
+.hx-sec { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--mx-bd, #e2e8f0); border-radius: 16px; padding: 18px 20px; display: grid; gap: 14px; animation: hxEntra .5s both }
+.hx-sec-t { display: flex; gap: 12px; align-items: center } .hx-sec-t > span { width: 28px; height: 28px; border-radius: 50%; background: var(--mx-bg3, #0f172a); color: #fefefe; display: grid; place-items: center; font-size: 13px; font-weight: 700; flex: none }
+.hx-sec-t > div { display: grid } .hx-sec-t b { font-size: 16px } .hx-sec-t small { font-size: 13px; color: var(--mx-t2, #475569) }
 
 .hx-fluxo { position: relative; height: 320px; margin: 0 4px }
 .hx-fluxo svg { position: absolute; inset: 10px 0; width: 100%; height: calc(100% - 20px); overflow: visible }
 .hx-fita { opacity: .28; transition: opacity .25s, d .6s cubic-bezier(.2,.8,.2,1); cursor: pointer } .hx-fita:hover { opacity: .55 } .hx-fita.apaga { opacity: .08 }
 .hx-fluxo rect { transition: y .6s cubic-bezier(.2,.8,.2,1), height .6s cubic-bezier(.2,.8,.2,1) }
 .hx-rot { position: absolute; inset: 10px 0; pointer-events: none }
-.hx-rot button { pointer-events: auto; position: absolute; transform: translateY(-50%); display: grid; text-align: left; border: 0; background: rgba(255,255,255,.88); border-radius: 8px; padding: 3px 8px; font-family: inherit; cursor: pointer; color: ${TXT}; transition: top .6s cubic-bezier(.2,.8,.2,1), box-shadow .2s; border-left: 3px solid var(--c) }
+.hx-rot button { pointer-events: auto; position: absolute; transform: translateY(-50%); display: grid; text-align: left; border: 0; background: rgba(255,255,255,.88); border-radius: 8px; padding: 3px 8px; font-family: inherit; cursor: pointer; color: var(--mx-t, #0f172a); transition: top .6s cubic-bezier(.2,.8,.2,1), box-shadow .2s; border-left: 3px solid var(--c) }
 .hx-rot button:hover, .hx-rot button.on { box-shadow: 0 4px 14px rgba(15,23,42,.14) }
-.hx-rot button b { font-size: 13px; font-weight: 600 } .hx-rot button span { font-size: 12px; color: ${MUDO} }
+.hx-rot button b { font-size: 13px; font-weight: 600 } .hx-rot button span { font-size: 12px; color: var(--mx-t2, #475569) }
 .hx-rot.esq button { left: 22px } .hx-rot.dir button { right: 22px; text-align: right; border-left: 0; border-right: 3px solid var(--c) }
 .hx-rot.meio { position: absolute; inset: auto; transform: translate(10px, -50%); display: grid; background: #0f172a; color: #fefefe; border-radius: 10px; padding: 6px 12px; pointer-events: none; transition: top .6s } .hx-rot.meio b { font-size: 12px; font-weight: 500; color: #cbd5e1 } .hx-rot.meio span { font-size: 16px; font-weight: 700 }
 
-.hx-conta { display: grid; border-top: 1px solid #e2e8f0; padding-top: 6px }
-.hx-conta-l { display: grid; grid-template-columns: minmax(0, 1.2fr) 1fr 1fr 1fr; gap: 10px; padding: 7px 4px; font-size: 15px; border-top: 1px solid #f1f5f9 }
-.hx-conta-l > span:not(:first-child) { text-align: right } .hx-conta-l > span:first-child em { display: inline-block; width: 16px; font-style: normal; color: ${CLARO} }
-.hx-conta-l.cab { font-size: 12.5px; color: ${MUDO}; border-top: 0 } .hx-conta-l.tot { border-top: 1px solid #cbd5e1; font-weight: 700 } .hx-conta-l small { color: ${CLARO}; font-size: 12.5px }
+.hx-conta { display: grid; border-top: 1px solid var(--mx-bd, #e2e8f0); padding-top: 6px }
+.hx-conta-l { display: grid; grid-template-columns: minmax(0, 1.2fr) 1fr 1fr 1fr; gap: 10px; padding: 7px 4px; font-size: 15px; border-top: 1px solid var(--mx-bd, #f1f5f9) }
+.hx-conta-l > span:not(:first-child) { text-align: right } .hx-conta-l > span:first-child em { display: inline-block; width: 16px; font-style: normal; color: var(--mx-t3, #64748b) }
+.hx-conta-l.cab { font-size: 12.5px; color: var(--mx-t2, #475569); border-top: 0 } .hx-conta-l.tot { border-top: 1px solid var(--mx-bd, #cbd5e1); font-weight: 700 } .hx-conta-l small { color: var(--mx-t3, #64748b); font-size: 12.5px }
 
 .hx-atalhos { display: flex; gap: 8px; flex-wrap: wrap }
-.hx-atalhos button { border: 1px solid #e2e8f0; background: #fefefe; color: ${TXT}; border-radius: 99px; padding: 6px 14px; font-family: inherit; font-size: 13px; cursor: pointer; transition: all .2s } .hx-atalhos button:hover { border-color: #94a3b8 } .hx-atalhos button.on { background: ${TXT}; color: #fefefe; border-color: ${TXT} }
+.hx-atalhos button { border: 1px solid var(--mx-bd, #e2e8f0); background: var(--mx-bg0, #fefefe); color: var(--mx-t, #0f172a); border-radius: 99px; padding: 6px 14px; font-family: inherit; font-size: 13px; cursor: pointer; transition: all .2s } .hx-atalhos button:hover { border-color: #94a3b8 } .hx-atalhos button.on { background: var(--mx-bg3, #0f172a); color: #fefefe; border-color: var(--mx-t, #0f172a) }
 .hx-abas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
-.hx-abas button { display: grid; gap: 2px; text-align: left; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 12px; padding: 12px 14px; font-family: inherit; cursor: pointer; color: ${TXT}; transition: all .2s }
-.hx-abas button > span { font-size: 13.5px; color: ${MUDO} } .hx-abas button > span i { color: var(--c); margin-right: 4px } .hx-abas button > b { font-size: 20px } .hx-abas button > small { font-size: 12.5px; color: ${CLARO} } .hx-abas button > small em { font-weight: 600 }
-.hx-abas button:hover { border-color: var(--c) } .hx-abas button.on { background: #fefefe; border-color: var(--c); box-shadow: 0 0 0 1px var(--c), 0 8px 22px -12px rgba(15,23,42,.35) }
+.hx-abas button { display: grid; gap: 2px; text-align: left; border: 1px solid var(--mx-bd, #e2e8f0); background: var(--mx-bg1, #f8fafc); border-radius: 12px; padding: 12px 14px; font-family: inherit; cursor: pointer; color: var(--mx-t, #0f172a); transition: all .2s }
+.hx-abas button > span { font-size: 13.5px; color: var(--mx-t2, #475569) } .hx-abas button > span i { color: var(--c); margin-right: 4px } .hx-abas button > b { font-size: 20px } .hx-abas button > small { font-size: 12.5px; color: var(--mx-t3, #64748b) } .hx-abas button > small em { font-weight: 600 }
+.hx-abas button:hover { border-color: var(--c) } .hx-abas button.on { background: var(--mx-bg0, #fefefe); border-color: var(--c); box-shadow: 0 0 0 1px var(--c), 0 8px 22px -12px rgba(15,23,42,.35) }
 .hx-painel { display: grid; gap: 14px; animation: hxEntra .3s both }
-.hx-explica { margin: 0; font-size: 14px; color: #334155; line-height: 1.5 }
+.hx-explica { margin: 0; font-size: 14px; color: var(--mx-t2, #334155); line-height: 1.5 }
 .hx-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px 24px }
-.hx-tec { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center } .hx-tec > span { font-size: 14px; font-weight: 600 } .hx-tec > span i { color: ${CS.pessoal} } .hx-tec small { grid-column: 1 / -1; font-size: 12.5px; color: ${MUDO} }
-.hx-tec > div { display: flex; align-items: center; gap: 8px } .hx-tec button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid #cbd5e1; background: #fefefe; font-size: 16px; cursor: pointer; color: ${TXT} } .hx-tec button:hover { border-color: ${CS.pessoal} }
+.hx-tec { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center } .hx-tec > span { font-size: 14px; font-weight: 600 } .hx-tec > span i { color: ${CS.pessoal} } .hx-tec small { grid-column: 1 / -1; font-size: 12.5px; color: var(--mx-t2, #475569) }
+.hx-tec > div { display: flex; align-items: center; gap: 8px } .hx-tec button { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--mx-bd, #cbd5e1); background: var(--mx-bg0, #fefefe); font-size: 16px; cursor: pointer; color: var(--mx-t, #0f172a) } .hx-tec button:hover { border-color: ${CS.pessoal} }
 .hx-chk { display: flex; gap: 8px; align-items: center; font-size: 13.5px; cursor: pointer } .hx-chk input { width: 16px; height: 16px; accent-color: ${CS.pessoal} }
-.hx-desc { border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden }
-.hx-desc > button { width: 100%; display: flex; gap: 10px; align-items: center; text-align: left; border: 0; background: #f8fafc; padding: 12px 14px; font-family: inherit; font-size: 14px; color: ${TXT}; cursor: pointer } .hx-desc > button > span { flex: 1 } .hx-desc > button > i:first-child { color: ${MUDO} }
+.hx-desc { border: 1px solid var(--mx-bd, #e2e8f0); border-radius: 12px; overflow: hidden }
+.hx-desc > button { width: 100%; display: flex; gap: 10px; align-items: center; text-align: left; border: 0; background: var(--mx-bg1, #f8fafc); padding: 12px 14px; font-family: inherit; font-size: 14px; color: var(--mx-t, #0f172a); cursor: pointer } .hx-desc > button > span { flex: 1 } .hx-desc > button > i:first-child { color: var(--mx-t2, #475569) }
 .hx-desc-in, .hx-eq { padding: 14px; display: grid; gap: 12px }
-.hx-lista { display: grid; gap: 2px } .hx-lista > b { font-size: 14px; margin-bottom: 4px } .hx-lista > div { display: grid; grid-template-columns: 100px minmax(0, 1fr) auto; gap: 10px; font-size: 14px; padding: 4px 0; border-top: 1px solid #f1f5f9 } .hx-lista em { font-style: normal; color: ${MUDO}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.hx-lista { display: grid; gap: 2px } .hx-lista > b { font-size: 14px; margin-bottom: 4px } .hx-lista > div { display: grid; grid-template-columns: 100px minmax(0, 1fr) auto; gap: 10px; font-size: 14px; padding: 4px 0; border-top: 1px solid var(--mx-bd, #f1f5f9) } .hx-lista em { font-style: normal; color: var(--mx-t2, #475569); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .hx-eq { gap: 0 }
-.hx-eq-l { display: grid; grid-template-columns: 22px minmax(0, 1.8fr) 1fr 1fr 1fr 1fr; gap: 10px; align-items: center; padding: 8px 2px; font-size: 14px; border-top: 1px solid #f1f5f9; cursor: pointer }
-.hx-eq-l > span:not(:nth-child(2)), .hx-eq-l > strong { text-align: right } .hx-eq-l.cab { cursor: default; font-size: 12.5px; color: ${MUDO}; border-top: 0 }
-.hx-eq-l b { display: block; font-weight: 600 } .hx-eq-l em { font-style: normal; font-size: 12px; color: ${MUDO} } .hx-eq-l small { font-size: 12px; color: ${MUDO} } .hx-eq-l.off { opacity: .45 } .hx-eq-l.off b { text-decoration: line-through } .hx-eq-l input { width: 16px; height: 16px; accent-color: ${CS.pessoal} }
+.hx-eq-l { display: grid; grid-template-columns: 22px minmax(0, 1.8fr) 1fr 1fr 1fr 1fr; gap: 10px; align-items: center; padding: 8px 2px; font-size: 14px; border-top: 1px solid var(--mx-bd, #f1f5f9); cursor: pointer }
+.hx-eq-l > span:not(:nth-child(2)), .hx-eq-l > strong { text-align: right } .hx-eq-l.cab { cursor: default; font-size: 12.5px; color: var(--mx-t2, #475569); border-top: 0 }
+.hx-eq-l b { display: block; font-weight: 600 } .hx-eq-l em { font-style: normal; font-size: 12px; color: var(--mx-t2, #475569) } .hx-eq-l small { font-size: 12px; color: var(--mx-t2, #475569) } .hx-eq-l.off { opacity: .45 } .hx-eq-l.off b { text-decoration: line-through } .hx-eq-l input { width: 16px; height: 16px; accent-color: ${CS.pessoal} }
 
 .hx-duas { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 16px; align-items: start }
 .hx-duas > .hx-sec:last-child { position: sticky; top: 84px }
 .hx-duas .hx-abas button > b { font-size: 18px }
 .hx-pergs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px }
-.hx-perg { display: grid; gap: 6px; align-content: start; background: #f8fafc; border: 1px solid #eef2f6; border-radius: 12px; padding: 14px 16px }
-.hx-perg.larga { grid-column: span 2; background: #fefefe; border-color: #e2e8f0 }
-.hx-perg > small { font-size: 14px; color: #334155; line-height: 1.4 } .hx-perg > b { font-size: 26px; line-height: 1.15 } .hx-perg p { margin: 0; font-size: 13.5px; color: ${MUDO}; line-height: 1.45 } .hx-perg p b { color: ${TXT} }
-.hx-trilho { position: relative; height: 12px; border-radius: 99px; background: #e2e8f0; margin: 18px 0 4px } .hx-trilho i { display: block; height: 100%; border-radius: 99px; background: ${CS.ficou}; transition: width .5s } .hx-trilho em { position: absolute; top: -5px; width: 4px; height: 22px; background: ${TXT}; border-radius: 2px; box-shadow: 0 0 0 2px #fefefe; transition: left .5s } .hx-trilho em span { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 11.5px; font-style: normal; color: ${MUDO} }
-.hx-st { font-size: 14px; border-radius: 10px; padding: 8px 12px; background: #f1f5f9 } .hx-st.bom { background: #dcfce7; color: #14532d } .hx-st.ruim { background: #fee2e2; color: #7f1d1d }
-.hx-meta { display: inline-flex; align-items: center; gap: 4px } .hx-meta input { width: 56px; height: 30px; border: 1px solid #94a3b8; border-radius: 8px; text-align: center; font-family: inherit; font-size: 15px; font-weight: 700; color: ${TXT} } .hx-meta input:focus { outline: 2px solid ${CS.ficou}; border-color: ${CS.ficou} }
-.hx-eqn { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; background: #f1f5f9; border-radius: 10px; padding: 10px 14px } .hx-eqn span { display: grid } .hx-eqn small { font-size: 12.5px; color: ${MUDO} } .hx-eqn b { font-size: 16px } .hx-eqn em { font-style: normal; font-size: 16px; color: ${MUDO} } .hx-eqn .sobra b { color: ${CS.ficou} }
-.hx-bt { justify-self: start; border: 0; background: ${TXT}; color: #fefefe; border-radius: 99px; padding: 8px 16px; font-family: inherit; font-size: 13.5px; cursor: pointer }
+.hx-perg { display: grid; gap: 6px; align-content: start; background: var(--mx-bg1, #f8fafc); border: 1px solid var(--mx-bd, #eef2f6); border-radius: 12px; padding: 14px 16px }
+.hx-perg.larga { grid-column: span 2; background: var(--mx-bg0, #fefefe); border-color: var(--mx-bd, #e2e8f0) }
+.hx-perg > small { font-size: 14px; color: var(--mx-t2, #334155); line-height: 1.4 } .hx-perg > b { font-size: 26px; line-height: 1.15 } .hx-perg p { margin: 0; font-size: 13.5px; color: var(--mx-t2, #475569); line-height: 1.45 } .hx-perg p b { color: var(--mx-t, #0f172a) }
+.hx-trilho { position: relative; height: 12px; border-radius: 99px; background: var(--mx-bg2, #e2e8f0); margin: 18px 0 4px } .hx-trilho i { display: block; height: 100%; border-radius: 99px; background: ${CS.ficou}; transition: width .5s } .hx-trilho em { position: absolute; top: -5px; width: 4px; height: 22px; background: var(--mx-bg3, #0f172a); border-radius: 2px; box-shadow: 0 0 0 2px #fefefe; transition: left .5s } .hx-trilho em span { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 11.5px; font-style: normal; color: var(--mx-t2, #475569) }
+.hx-st { font-size: 14px; border-radius: 10px; padding: 8px 12px; background: var(--mx-bg1, #f1f5f9) } .hx-st.bom { background: var(--mx-p-green, #dcfce7); color: var(--mx-fg-green, #14532d) } .hx-st.ruim { background: var(--mx-p-red, #fee2e2); color: var(--mx-fg-red, #7f1d1d) }
+.hx-meta { display: inline-flex; align-items: center; gap: 4px } .hx-meta input { width: 56px; height: 30px; border: 1px solid #94a3b8; border-radius: 8px; text-align: center; font-family: inherit; font-size: 15px; font-weight: 700; color: var(--mx-t, #0f172a) } .hx-meta input:focus { outline: 2px solid ${CS.ficou}; border-color: ${CS.ficou} }
+.hx-eqn { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; background: var(--mx-bg1, #f1f5f9); border-radius: 10px; padding: 10px 14px } .hx-eqn span { display: grid } .hx-eqn small { font-size: 12.5px; color: var(--mx-t2, #475569) } .hx-eqn b { font-size: 16px } .hx-eqn em { font-style: normal; font-size: 16px; color: var(--mx-t2, #475569) } .hx-eqn .sobra b { color: ${CS.ficou} }
+.hx-bt { justify-self: start; border: 0; background: var(--mx-bg3, #0f172a); color: #fefefe; border-radius: 99px; padding: 8px 16px; font-family: inherit; font-size: 13.5px; cursor: pointer }
 
 .hx-barra { position: sticky; bottom: 14px; z-index: 20; display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; background: #0f172a; color: #e2e8f0; border-radius: 14px; padding: 10px 14px 10px 18px; box-shadow: 0 14px 34px -14px rgba(15,23,42,.6); animation: hxSobe .35s both }
-.hx-barra span { font-size: 14px } .hx-barra b { font-size: 16px } .hx-barra em { font-style: normal; color: #94a3b8 } .hx-barra button { border: 0; background: #fefefe; color: #0f172a; border-radius: 99px; padding: 7px 14px; font-family: inherit; font-size: 13px; cursor: pointer }
+.hx-barra span { font-size: 14px } .hx-barra b { font-size: 16px } .hx-barra em { font-style: normal; color: #94a3b8 } .hx-barra button { border: 0; background: var(--mx-bg0, #fefefe); color: var(--mx-t, #0f172a); border-radius: 99px; padding: 7px 14px; font-family: inherit; font-size: 13px; cursor: pointer }
 @keyframes hxEntra { from { opacity: 0; transform: translateY(8px) } }
 @keyframes hxSobe { from { opacity: 0; transform: translateY(16px) } }
 @media (max-width: 1100px) { .hx-duas { grid-template-columns: 1fr } .hx-duas > .hx-sec:last-child { position: static } }
@@ -376,4 +376,8 @@ export const ESTILO_HX = `
   .hx-fluxo { height: 380px } .hx-rot button span { display: none }
   .hx-eq-l { grid-template-columns: 22px minmax(0, 1fr) 90px } .hx-eq-l > span:nth-child(3), .hx-eq-l > span:nth-child(4), .hx-eq-l > span:nth-child(5) { display: none }
 }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.hx-abas button > span i) { color: color-mix(in srgb, var(--c) 60%, #fff) }
+
 `

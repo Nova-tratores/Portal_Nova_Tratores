@@ -1207,6 +1207,11 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
         audio::-webkit-media-controls-panel {
           background: #f5f5f5;
         }
+
+        /* Tema escuro (23/11/2026): o fundo bege #f5f5f0 da conversa ficava claro no escuro */
+        [data-theme="dark"] .chat-room, [data-theme="dark"] .chat-placeholder { background: var(--portal-bg, #0f0f0f) !important; }
+        [data-theme="dark"] .chat-sidebar::-webkit-scrollbar-thumb, [data-theme="dark"] .chat-room div::-webkit-scrollbar-thumb { background: #404040; }
+        [data-theme="dark"] audio::-webkit-media-controls-panel { background: #262626; }
       `}</style>
     </div>
   )

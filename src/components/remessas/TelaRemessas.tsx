@@ -165,7 +165,7 @@ export default function TelaRemessas() {
             <br /><b>Em aberto</b>: o que ainda está fora (demonstrações) ou sem nota emitida. <b>Demonstrações</b>: cada máquina na rua com o prazo de volta — padrão de 30 dias, verde em dia, âmbar a 5 dias, vermelho vencida.
             Na ficha dá para <b>renovar</b> (nota de volta + remessa nova, como já se fazia à mão), <b>registrar a volta</b> ou marcar que <b>virou venda</b>. <b>Histórico</b>: todas as remessas desde 2022, com filtro por período, tipo e situação.
             <br />As remessas vêm da Omie duas vezes por dia (03:15 e 13:15); o que é emitido aqui aparece na hora. O sino avisa quem acompanha a demonstração quando faltam 5 dias e quando vence.
-            Remessas de OS em aberto também podem ser devolvidas em lote em <a href="/ajustes/remessas" style={{ color: '#7c3aed' }}>Ajustes › Remessas em aberto</a>.
+            Remessas de OS em aberto também podem ser devolvidas em lote em <a href="/ajustes/remessas" style={{ color: 'var(--mx-fg-violet, #7c3aed)' }}>Ajustes › Remessas em aberto</a>.
           </div>
         )}
         {migracao && <div className="rm-aviso">O módulo ainda não foi ativado no banco: falta aplicar <b>sql/remessas-modulo.sql</b>. A lista funciona; prazo, histórico e emissão ficam travados.</div>}
@@ -269,7 +269,7 @@ export default function TelaRemessas() {
                     <tbody>
                       {tabela.slice(0, 600).map((l) => (
                         <tr key={`${l.conta}-${l.idRemessa}`} onClick={() => abrir(l)}>
-                          <td style={{ whiteSpace: 'nowrap' }}><b>{l.numero || '—'}</b> <span style={{ fontSize: 11, color: 'var(--text-light)' }}>{l.conta.toUpperCase()}</span>{l.origemPortal && <span className="rm-selo" style={{ marginLeft: 4, background: '#ede9fe', color: '#5b21b6' }}>portal</span>}</td>
+                          <td style={{ whiteSpace: 'nowrap' }}><b>{l.numero || '—'}</b> <span style={{ fontSize: 11, color: 'var(--text-light)' }}>{l.conta.toUpperCase()}</span>{l.origemPortal && <span className="rm-selo" style={{ marginLeft: 4, background: 'var(--mx-p-violet, #ede9fe)', color: 'var(--mx-fg-violet, #5b21b6)' }}>portal</span>}</td>
                           <td style={{ whiteSpace: 'nowrap' }}>{dataBR(l.emissao)}</td>
                           <td><span className="rm-selo" style={{ background: `${TIPOS[l.tipo].cor}1f`, color: TIPOS[l.tipo].cor }}>{TIPOS[l.tipo].rotulo}</span></td>
                           <td><span className="rm-selo" style={{ background: `${SITUACOES[l.situacao].cor}1f`, color: SITUACOES[l.situacao].cor }}>{SITUACOES[l.situacao].rotulo}</span></td>

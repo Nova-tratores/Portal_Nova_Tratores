@@ -72,6 +72,8 @@ export default function TopoOportunidades(p: {
         .to-cartao { transition: transform .2s, box-shadow .2s, background .2s } .to-cartao:hover { transform: translateY(-3px); box-shadow: 0 10px 24px rgba(15,23,42,.10) }
         .to-scroll { scroll-snap-type: x mandatory; scrollbar-width: thin } .to-scroll > * { scroll-snap-align: start }
         @media (prefers-reduced-motion: reduce) { .to-entra, .to-barra, .to-cresce { animation: none !important } }
+        /* modo escuro: textos na cor da regra (roxo, rosa, ardósia...) clareados para ler no fundo escuro */
+        [data-theme="dark"] .to-cor { color: color-mix(in srgb, var(--c) 50%, #ffffff) !important }
       `}</style>
 
       {/* frase de abertura */}
@@ -128,7 +130,7 @@ export default function TopoOportunidades(p: {
                     <div style={{ fontSize: 18, fontWeight: 800, color: TX }}>{g.nome}</div>
                     <div style={{ fontSize: 14, color: MU }}>{g.frase}</div>
                   </div>
-                  <span style={{ fontSize: 30, fontWeight: 800, color: g.cor }}><Num v={tot} /></span>
+                  <span className="to-cor" style={{ fontSize: 30, fontWeight: 800, color: g.cor, ['--c' as string]: g.cor }}><Num v={tot} /></span>
                 </div>
                 <div style={{ display: 'grid', gap: 6 }}>
                   {rs.map((r, i) => {
@@ -136,14 +138,14 @@ export default function TopoOportunidades(p: {
                     return (
                       <button key={r} type="button" onClick={() => escolher(r)} className="to-cartao" title={REGRAS[r].explicacao}
                         style={{ display: 'grid', gridTemplateColumns: '30px minmax(0, 1fr) auto', gap: 10, alignItems: 'center', border: on ? `2px solid ${cor}` : '2px solid transparent', background: on ? `${cor}10` : SUAVE, borderRadius: 14, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', color: TX }}>
-                        <i className={`fas ${ICONE[r]}`} style={{ color: cor, fontSize: 16, textAlign: 'center' }} />
+                        <i className={`fas ${ICONE[r]} to-cor`} style={{ color: cor, fontSize: 16, textAlign: 'center', ['--c' as string]: cor }} />
                         <span style={{ minWidth: 0 }}>
                           <span style={{ display: 'block', fontSize: 15, fontWeight: 700 }}>{REGRAS[r].rotulo}</span>
                           <span style={{ display: 'block', height: 6, borderRadius: 6, background: 'rgba(148,163,184,.25)', marginTop: 6, overflow: 'hidden' }}>
                             <span className="to-barra" style={{ display: 'block', height: '100%', width: `${(n / max) * 100}%`, background: cor, borderRadius: 6, animationDelay: `${gi * 100 + i * 80}ms` }} />
                           </span>
                         </span>
-                        <b style={{ fontSize: 20, color: cor }}><Num v={n} /></b>
+                        <b className="to-cor" style={{ fontSize: 20, color: cor, ['--c' as string]: cor }}><Num v={n} /></b>
                       </button>
                     );
                   })}
@@ -232,6 +234,7 @@ const ESTILO_BARRA = `
   .to-d-legenda button { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 6px 12px; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--portal-text, #0f172a); cursor: pointer; animation: toEntra .4s ease both; transition: background .2s, border-color .2s, color .2s }
   .to-d-legenda button i, .to-d-legenda button b { color: var(--k) } .to-d-legenda button small { color: var(--portal-text-muted, #64748b); font-weight: 600 }
   .to-d-legenda button:hover { border-color: var(--k) } .to-d-legenda button.on { background: var(--k); border-color: var(--k); color: #fefefe } .to-d-legenda button.on i, .to-d-legenda button.on b, .to-d-legenda button.on small { color: #fefefe }
+  [data-theme="dark"] .to-d-legenda button:not(.on) i, [data-theme="dark"] .to-d-legenda button:not(.on) b { color: color-mix(in srgb, var(--k) 50%, #ffffff) }
   .to-d-explica { display: flex; gap: 12px; align-items: center; border-radius: 16px; padding: 12px 14px; background: color-mix(in srgb, var(--k) 8%, var(--portal-bg-card, #fefefe)); border: 1px solid color-mix(in srgb, var(--k) 30%, transparent); animation: toEntra .35s ease both }
   .to-d-explica b { display: block; font-size: 15px; color: var(--portal-text, #0f172a) } .to-d-explica span { font-size: 13.5px; color: var(--portal-text-muted, #475569) }
   .to-d-explica button { margin-left: auto; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 5px 11px; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--portal-text-muted, #64748b); cursor: pointer; white-space: nowrap }

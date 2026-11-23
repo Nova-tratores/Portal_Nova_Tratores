@@ -94,7 +94,7 @@ export default function ConfirmarNotas({ sugestoes: todas, requisicoes, onConfir
                     <div style={{ fontSize: 14.5, fontWeight: 500 }}>NF {s.nota.numero}</div>
                     <div style={{ fontSize: 14, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nota.nome}</div>
                     <div className="rq-rot" style={{ marginTop: 4 }}>CNPJ {fmtCnpj(s.nota.cnpj)} · {dataBR(s.nota.data)}</div>
-                    <div className="rq-num" style={{ fontSize: 18, marginTop: 4, color: igual ? '#15803d' : 'var(--rq-txt)' }}>{brl(s.nota.valor)}</div>
+                    <div className="rq-num" style={{ fontSize: 18, marginTop: 4, color: igual ? 'var(--portal-green-fg, #15803d)' : 'var(--rq-txt)' }}>{brl(s.nota.valor)}</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 10 }}>

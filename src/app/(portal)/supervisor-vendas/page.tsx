@@ -180,19 +180,25 @@ export default function SupervisorVendasPage() {
           {/* VISÃO GERAL */}
           {tab === 'geral' && kpis && (
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, 1fr)', gap: isMobile ? 10 : 14 }}>
+              {/* modo escuro: cartão num tom mais fechado da mesma cor e textos sempre brancos (rótulo legível) */}
+              <style>{`
+                [data-theme="dark"] .sv-kpi.sv-kpi { background: var(--kpi-escuro) !important; color: #fff !important; }
+                [data-theme="dark"] .sv-kpi.sv-kpi * { color: #fff !important; }
+                [data-theme="dark"] .sv-kpi .sv-kpi-rot { opacity: .92 !important; }
+              `}</style>
               {[
-                { label: 'Visitas Hoje', value: kpis.visitasHoje, bg: '#1D4ED8' },
-                { label: 'Visitas Semana', value: kpis.visitasSemana, bg: '#2563EB' },
-                { label: 'Visitas Mês', value: kpis.visitasMes, bg: '#3B82F6' },
-                { label: 'Pipeline', value: fmtBRL(kpis.pipeline), bg: '#059669' },
-                { label: 'Fechados no Mês', value: kpis.negociosFechadosMes, bg: '#047857' },
-                { label: 'Retroativas', value: kpis.visitasRetroativas, bg: kpis.visitasRetroativas > 0 ? '#D97706' : '#94A3B8' },
-                { label: 'Pós Vendas Pendentes', value: kpis.posVendasPendentes, bg: kpis.posVendasPendentes > 0 ? '#EA580C' : '#94A3B8' },
-                { label: 'Total Negócios', value: kpis.totalNegocios, bg: '#475569' },
+                { label: 'Visitas Hoje', value: kpis.visitasHoje, bg: '#1D4ED8', escuro: '#1e40af' },
+                { label: 'Visitas Semana', value: kpis.visitasSemana, bg: '#2563EB', escuro: '#1d4ed8' },
+                { label: 'Visitas Mês', value: kpis.visitasMes, bg: '#3B82F6', escuro: '#2563eb' },
+                { label: 'Pipeline', value: fmtBRL(kpis.pipeline), bg: '#059669', escuro: '#047857' },
+                { label: 'Fechados no Mês', value: kpis.negociosFechadosMes, bg: '#047857', escuro: '#065f46' },
+                { label: 'Retroativas', value: kpis.visitasRetroativas, bg: kpis.visitasRetroativas > 0 ? '#D97706' : '#94A3B8', escuro: kpis.visitasRetroativas > 0 ? '#b45309' : '#334155' },
+                { label: 'Pós Vendas Pendentes', value: kpis.posVendasPendentes, bg: kpis.posVendasPendentes > 0 ? '#EA580C' : '#94A3B8', escuro: kpis.posVendasPendentes > 0 ? '#c2410c' : '#334155' },
+                { label: 'Total Negócios', value: kpis.totalNegocios, bg: '#475569', escuro: '#334155' },
               ].map(c => (
-                <div key={c.label} style={{ background: c.bg, color: '#fff', borderRadius: 14, padding: isMobile ? '14px 14px' : '20px 22px', minWidth: 0 }}>
+                <div key={c.label} className="sv-kpi" style={{ background: c.bg, color: '#fff', ['--kpi-escuro' as string]: c.escuro, borderRadius: 14, padding: isMobile ? '14px 14px' : '20px 22px', minWidth: 0 }}>
                   <div style={{ fontSize: isMobile ? 20 : 28, fontWeight: 800, overflowWrap: 'anywhere' }}>{c.value}</div>
-                  <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>{c.label}</div>
+                  <div className="sv-kpi-rot" style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>{c.label}</div>
                 </div>
               ))}
             </div>

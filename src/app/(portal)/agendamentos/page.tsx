@@ -84,7 +84,7 @@ export default function AgendamentosPage() {
             Sincronizações &amp; Agendamentos
           </h2>
           {painel && !painel.migracaoFaltando && (
-            <p style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, color: agendadorVivo ? '#047857' : '#b91c1c', fontWeight: 600 }}>
+            <p style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, color: agendadorVivo ? 'var(--agd-ok, #047857)' : 'var(--agd-err, #b91c1c)', fontWeight: 600 }}>
               {agendadorVivo ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
               {agendadorVivo
                 ? <>Agendador ligado · última volta {tempoRelativo(painel.batida!.batida_em)}{painel.batida?.versao ? ` · versão ${painel.batida.versao}` : ''}</>
@@ -102,7 +102,7 @@ export default function AgendamentosPage() {
       </div>
 
       {erro && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', marginBottom: 14, borderRadius: 12, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: '.84rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', marginBottom: 14, borderRadius: 12, background: '#fef2f2', border: '1px solid #fecaca', color: 'var(--agd-err, #b91c1c)', fontSize: '.84rem' }}>
           <AlertTriangle size={18} /> {erro}
         </div>
       )}
@@ -112,7 +112,7 @@ export default function AgendamentosPage() {
         </div>
       )}
       {falhas.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', marginBottom: 14, borderRadius: 12, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: '.82rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', marginBottom: 14, borderRadius: 12, background: '#fef2f2', border: '1px solid #fecaca', color: 'var(--agd-err, #b91c1c)', fontSize: '.82rem' }}>
           <AlertTriangle size={16} />
           <span><strong>{falhas.length}</strong> com problema na última execução: {falhas.map((a) => a.nome).join(', ')}.</span>
         </div>
@@ -134,7 +134,9 @@ export default function AgendamentosPage() {
       {aba === 'historico' && painel && <HistoricoExecucoes agendamentos={painel.agendamentos} />}
       {aba === 'github' && <CatalogoGithub />}
 
-      <style>{`@keyframes spin { from { transform: rotate(0) } to { transform: rotate(360deg) } }`}</style>
+      {/* tema escuro: nomes #111111, ok #047857 e erros #b91c1c sumiam no fundo escuro; no claro valem os hex de fallback */}
+      <style>{`@keyframes spin { from { transform: rotate(0) } to { transform: rotate(360deg) } }
+[data-theme="dark"] { --agd-tx: var(--portal-text, #f5f5f5); --agd-ok: var(--portal-green-fg, #34d399); --agd-err: var(--portal-red-fg, #f87171); --agd-campo: var(--portal-bg-secondary, #262626) }`}</style>
     </div>
   )
 }

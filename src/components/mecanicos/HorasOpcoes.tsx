@@ -313,10 +313,10 @@ export function H5({ d }: { d: DadosHoras }) {
 export const ESTILO_HO = `
 @keyframes hoEntra { from { opacity: 0; transform: translateY(8px) } } @keyframes hoLarga { from { transform: scaleX(0) } } @keyframes hoPula { from { transform: scale(.6); opacity: 0 } }
 .ho { display: grid; gap: 14px; background: var(--portal-bg-card, #fefefe); border-radius: 20px; padding: 18px 20px; box-shadow: 0 12px 30px rgba(15,23,42,.06); color: var(--portal-text, #0f172a) }
-.ho-foto { border-radius: 50%; object-fit: cover; flex: none; border: 2px solid #fefefe; box-shadow: 0 2px 8px rgba(15,23,42,.15) } .ho-foto.ini { display: grid; place-items: center; background: linear-gradient(135deg, #2563eb, #7c3aed); color: #fefefe; font-weight: 900 }
+.ho-foto { border-radius: 50%; object-fit: cover; flex: none; border: 2px solid var(--mx-bd, #fefefe); box-shadow: 0 2px 8px rgba(15,23,42,.15) } .ho-foto.ini { display: grid; place-items: center; background: linear-gradient(135deg, #2563eb, #7c3aed); color: #fefefe; font-weight: 900 }
 .ho-selo { display: inline-flex; gap: 5px; align-items: center; font-size: 11.5px; font-weight: 900; color: #fefefe; background: linear-gradient(135deg, #10b981, #047857); border-radius: 99px; padding: 3px 10px; white-space: nowrap; box-shadow: 0 4px 10px rgba(16,185,129,.3); animation: hoPula .5s cubic-bezier(.2,1.6,.4,1) both }
 .ho-selo.ideal { background: linear-gradient(135deg, #8b5cf6, #6d28d9); box-shadow: 0 4px 10px rgba(124,58,237,.3) }
-.ho-var { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; font-weight: 800; border-radius: 99px; padding: 2px 8px } .ho-var.bom { color: #047857; background: #ecfdf5 } .ho-var.ruim { color: #b91c1c; background: #fef2f2 } .ho-var-rot { font-size: 11px; font-weight: 500; opacity: .8 }
+.ho-var { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; font-weight: 800; border-radius: 99px; padding: 2px 8px } .ho-var.bom { color: var(--mx-fg-green, #047857); background: var(--mx-p-green, #ecfdf5) } .ho-var.ruim { color: var(--mx-fg-red, #b91c1c); background: var(--mx-p-red, #fef2f2) } .ho-var-rot { font-size: 11px; font-weight: 500; opacity: .8 }
 .ho-leg { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: ${MUDO} } .ho-leg span { display: inline-flex; gap: 6px; align-items: center } .ho-leg i { width: 10px; height: 10px; border-radius: 3px } .ho-leg u { width: 3px; height: 12px; border-radius: 2px }
 .ho-nota { margin: 0; font-size: 12px; color: ${MUDO} }
 /* H1 */
@@ -324,15 +324,15 @@ export const ESTILO_HO = `
 .h1-nums { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px } .h1-nums > div { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; background: var(--portal-bg, #f8fafc) }
 .h1-nums small { font-size: 12px; font-weight: 800; color: ${MUDO} } .h1-nums b { font-size: 28px; font-weight: 900; font-variant-numeric: tabular-nums } .h1-nums b.n { font-size: 18px } .h1-nums em { font-style: normal; font-size: 11.5px; color: ${MUDO} } .h1-nums .ho-var { justify-self: start }
 .h1-lin { display: grid; gap: 4px }
-.h1-tec { display: grid; grid-template-columns: 36px 200px 1fr 80px 130px; gap: 14px; align-items: center; padding: 8px 10px; border-radius: 14px; animation: hoEntra .4s both; transition: background .2s } .h1-tec:hover { background: var(--portal-bg, #f8fafc) } .h1-tec.ok { background: linear-gradient(90deg, #ecfdf5, transparent) }
+.h1-tec { display: grid; grid-template-columns: 36px 200px 1fr 80px 130px; gap: 14px; align-items: center; padding: 8px 10px; border-radius: 14px; animation: hoEntra .4s both; transition: background .2s } .h1-tec:hover { background: var(--portal-bg, #f8fafc) } .h1-tec.ok { background: linear-gradient(90deg, var(--mx-p-green, #ecfdf5), transparent) }
 .h1-n { display: grid } .h1-n b { font-size: 14px } .h1-n small { font-size: 12px; color: ${MUDO} }
-.h1-bar { position: relative; display: flex; height: 14px; border-radius: 99px; background: #f1f5f9 } .h1-bar i { height: 100%; transform-origin: left; animation: hoLarga .9s cubic-bezier(.2,.9,.3,1) both } .h1-bar i:first-child { border-radius: 99px 0 0 99px }
+.h1-bar { position: relative; display: flex; height: 14px; border-radius: 99px; background: var(--mx-bg1, #f1f5f9) } .h1-bar i { height: 100%; transform-origin: left; animation: hoLarga .9s cubic-bezier(.2,.9,.3,1) both } .h1-bar i:first-child { border-radius: 99px 0 0 99px }
 .h1-bar u { position: absolute; top: -4px; width: 3px; height: 22px; border-radius: 2px; transform: translateX(-50%) }
 .h1-p { display: grid; text-align: right } .h1-p b { font-size: 20px; font-weight: 900 } .h1-p small { font-size: 11px; color: ${MUDO} }
 /* H2 */
 .h2-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px }
 .h2-card { display: grid; gap: 10px; justify-items: center; padding: 16px; border-radius: 18px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg, #f8fafc); animation: hoEntra .45s both; transition: transform .2s, box-shadow .2s } .h2-card:hover { transform: translateY(-3px); box-shadow: 0 12px 26px rgba(15,23,42,.08) }
-.h2-card.ok { background: linear-gradient(160deg, #ecfdf5, #fefefe); border-color: #6ee7b7; box-shadow: 0 0 0 3px rgba(16,185,129,.15) } .h2-card.ideal { background: linear-gradient(160deg, #f5f3ff, #fefefe); border-color: #c4b5fd }
+.h2-card.ok { background: linear-gradient(160deg, var(--mx-p-green, #ecfdf5), var(--mx-bg0, #fefefe)); border-color: var(--mx-pb-green, #6ee7b7); box-shadow: 0 0 0 3px rgba(16,185,129,.15) } .h2-card.ideal { background: linear-gradient(160deg, var(--mx-p-violet, #f5f3ff), var(--mx-bg0, #fefefe)); border-color: #c4b5fd }
 .h2-cab { width: 100%; display: flex; gap: 10px; align-items: center } .h2-cab > div { flex: 1; display: grid; min-width: 0 } .h2-cab b { font-size: 14.5px } .h2-cab small { font-size: 12px; color: ${MUDO} }
 .h2-ros { width: 150px; height: 150px } .h2-fat { animation: hoEntra .8s both }
 .h2-nums { display: flex; gap: 12px; font-size: 12.5px; font-weight: 800 } .h2-nums span { display: inline-flex; gap: 5px; align-items: center } .h2-nums i { width: 9px; height: 9px; border-radius: 3px }
@@ -341,8 +341,8 @@ export const ESTILO_HO = `
 .h3-pista { position: relative; display: grid; gap: 10px; padding-top: 26px }
 .h3-marcos { position: absolute; top: 0; left: 150px; right: 220px; height: 20px } .h3-marcos span { position: absolute; transform: translateX(-50%); font-size: 11.5px; font-weight: 900; white-space: nowrap; color: ${COR_BAS} } .h3-marcos span:last-child { color: ${COR_IDE}; transform: translateX(-100%) }
 .h3-raia { display: grid; grid-template-columns: 130px 1fr 80px 120px; gap: 20px; align-items: center; animation: hoEntra .4s both } .h3-n { display: grid; text-align: right } .h3-n b { font-size: 14px } .h3-n small { font-size: 12px; color: ${MUDO} }
-.h3-trilho { position: relative; height: 40px; border-radius: 99px; background: repeating-linear-gradient(90deg, #f1f5f9 0 20px, #e9eef5 20px 40px) } .h3-trilho > u { position: absolute; top: -4px; bottom: -4px; width: 3px; background: ${COR_BAS}; border-radius: 2px; transform: translateX(-50%) }
-.h3-trilho::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 10px; border-radius: 0 99px 99px 0; background: repeating-linear-gradient(0deg, ${COR_IDE} 0 5px, #fefefe 5px 10px) }
+.h3-trilho { position: relative; height: 40px; border-radius: 99px; background: repeating-linear-gradient(90deg, var(--mx-bg1, #f1f5f9) 0 20px, var(--mx-bg1, #e9eef5) 20px 40px) } .h3-trilho > u { position: absolute; top: -4px; bottom: -4px; width: 3px; background: ${COR_BAS}; border-radius: 2px; transform: translateX(-50%) }
+.h3-trilho::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 10px; border-radius: 0 99px 99px 0; background: repeating-linear-gradient(0deg, ${COR_IDE} 0 5px, var(--mx-bg0, #fefefe) 5px 10px) }
 .h3-rastro { position: absolute; left: 0; top: 8px; bottom: 8px; border-radius: 99px; transform-origin: left; animation: hoLarga 1.4s cubic-bezier(.2,.9,.3,1) both }
 .h3-corredor { position: absolute; top: 50%; transform: translate(-50%, -50%); animation: h3Corre 1.4s cubic-bezier(.2,.9,.3,1) both; filter: drop-shadow(0 4px 8px rgba(15,23,42,.25)) } @keyframes h3Corre { from { left: 0 } }
 .h3-p { display: grid; text-align: right } .h3-p b { font-size: 20px; font-weight: 900 } .h3-p small { font-size: 11px; color: ${MUDO} }
@@ -352,18 +352,21 @@ export const ESTILO_HO = `
 .h4-n { display: flex; gap: 10px; align-items: center } .h4-n b { display: block; font-size: 14px } .h4-n small { font-size: 12px; color: ${MUDO} }
 .h4-cel { display: grid; gap: 4px; padding: 8px 10px; border-radius: 12px; background: var(--portal-bg, #f8fafc); border: 1px solid var(--portal-border, #e2e8f0); animation: hoEntra .35s both; text-align: center }
 .h4-cel b { font-size: 16px; font-weight: 900; font-variant-numeric: tabular-nums } .h4-cel small { font-size: 11px; color: ${MUDO} }
-.h4-cel.ok { background: linear-gradient(160deg, #d1fae5, #ecfdf5); border-color: #6ee7b7 } .h4-cel.ok b, .h4-cel.ok small { color: #047857 } .h4-cel.ideal { background: linear-gradient(160deg, #ede9fe, #f5f3ff); border-color: #c4b5fd } .h4-cel.ideal b, .h4-cel.ideal small { color: #6d28d9 }
-.h4-cel.baixo small { color: #b91c1c } .h4-cel.aberta { border-style: dashed }
-.h4-bar { position: relative; height: 6px; border-radius: 99px; background: #e2e8f0 } .h4-bar i { display: block; height: 100%; border-radius: 99px; background: #2563eb; transform-origin: left; animation: hoLarga .8s both } .h4-cel.ok .h4-bar i { background: #10b981 } .h4-cel.ideal .h4-bar i { background: #7c3aed }
+.h4-cel.ok { background: linear-gradient(160deg, var(--mx-p-green, #d1fae5), var(--mx-p-green, #ecfdf5)); border-color: var(--mx-pb-green, #6ee7b7) } .h4-cel.ok b, .h4-cel.ok small { color: var(--mx-fg-green, #047857) } .h4-cel.ideal { background: linear-gradient(160deg, var(--mx-p-violet, #ede9fe), var(--mx-p-violet, #f5f3ff)); border-color: #c4b5fd } .h4-cel.ideal b, .h4-cel.ideal small { color: var(--mx-fg-violet, #6d28d9) }
+.h4-cel.baixo small { color: var(--mx-fg-red, #b91c1c) } .h4-cel.aberta { border-style: dashed }
+.h4-bar { position: relative; height: 6px; border-radius: 99px; background: var(--mx-bg2, #e2e8f0) } .h4-bar i { display: block; height: 100%; border-radius: 99px; background: #2563eb; transform-origin: left; animation: hoLarga .8s both } .h4-cel.ok .h4-bar i { background: #10b981 } .h4-cel.ideal .h4-bar i { background: #7c3aed }
 .h4-bar u { position: absolute; left: 50%; top: -3px; width: 2px; height: 12px; background: ${COR_BAS} }
 .h4-tot { display: grid; justify-items: center; align-content: center; gap: 2px } .h4-tot b { font-size: 20px; font-weight: 900 } .h4-tot small { font-size: 11px; color: ${MUDO} }
 /* H5 */
 .h5-placar { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px } .h5-placar > div { display: grid; gap: 3px; padding: 14px 16px; border-radius: 16px; background: var(--portal-bg, #f8fafc); animation: hoEntra .4s both }
-.h5-placar > div.ok { background: linear-gradient(140deg, #ecfdf5, #d1fae5) } .h5-placar small { font-size: 12px; font-weight: 800; color: ${MUDO} } .h5-placar b { font-size: 26px; font-weight: 900; font-variant-numeric: tabular-nums } .h5-placar em { font-style: normal; font-size: 12.5px; color: ${MUDO} } .h5-placar em b { font-size: 14px } .h5-placar .ho-var { justify-self: start }
+.h5-placar > div.ok { background: linear-gradient(140deg, var(--mx-p-green, #ecfdf5), var(--mx-p-green, #d1fae5)) } .h5-placar small { font-size: 12px; font-weight: 800; color: ${MUDO} } .h5-placar b { font-size: 26px; font-weight: 900; font-variant-numeric: tabular-nums } .h5-placar em { font-style: normal; font-size: 12.5px; color: ${MUDO} } .h5-placar em b { font-size: 14px } .h5-placar .ho-var { justify-self: start }
 .h5-tab { width: 100%; border-collapse: collapse; font-size: 13.5px } .h5-tab th { text-align: left; font-size: 12px; font-weight: 800; color: ${MUDO}; padding: 8px 10px; border-bottom: 1px solid var(--portal-border, #e2e8f0) }
-.h5-tab td { padding: 10px; border-bottom: 1px solid var(--portal-border, #f1f5f9) } .h5-tab tr { animation: hoEntra .35s both } .h5-tab tr.ok { background: linear-gradient(90deg, #ecfdf5, transparent) } .h5-tab .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums } .h5-tab .mudo { color: ${MUDO} } .h5-tab td.n b { font-size: 16px }
-.h5-n { display: flex; gap: 10px; align-items: center } .h5-reg { width: 32% } .h5-reg span { position: relative; display: flex; height: 10px; border-radius: 99px; background: #f1f5f9 } .h5-reg i { height: 100%; transform-origin: left; animation: hoLarga .9s both } .h5-reg i:first-child { border-radius: 99px 0 0 99px } .h5-reg u { position: absolute; top: -4px; width: 3px; height: 18px; border-radius: 2px; transform: translateX(-50%) }
+.h5-tab td { padding: 10px; border-bottom: 1px solid var(--portal-border, #f1f5f9) } .h5-tab tr { animation: hoEntra .35s both } .h5-tab tr.ok { background: linear-gradient(90deg, var(--mx-p-green, #ecfdf5), transparent) } .h5-tab .n { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums } .h5-tab .mudo { color: ${MUDO} } .h5-tab td.n b { font-size: 16px }
+.h5-n { display: flex; gap: 10px; align-items: center } .h5-reg { width: 32% } .h5-reg span { position: relative; display: flex; height: 10px; border-radius: 99px; background: var(--mx-bg1, #f1f5f9) } .h5-reg i { height: 100%; transform-origin: left; animation: hoLarga .9s both } .h5-reg i:first-child { border-radius: 99px 0 0 99px } .h5-reg u { position: absolute; top: -4px; width: 3px; height: 18px; border-radius: 2px; transform: translateX(-50%) }
 @media (max-width: 900px) { .h1-topo { grid-template-columns: 1fr } .h1-nums, .h5-placar { grid-template-columns: 1fr 1fr } .h1-tec { grid-template-columns: 36px 1fr 70px; } .h1-bar { grid-column: 1 / -1 } .h3-raia { grid-template-columns: 70px 1fr 60px } .h3-raia .ho-selo { display: none } .h3-marcos { left: 90px; right: 80px } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `
 
 // ============================================================================ 2ª leva: variações do cartão (H2 escolhido, 20/10)
@@ -648,40 +651,40 @@ export function C6({ d }: { d: DadosHoras }) {
 }
 
 export const ESTILO_HC = `
-.me { display: grid; gap: 14px; background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px 20px; margin-top: 16px }
+.me { display: grid; gap: 14px; background: var(--mx-bg0, #fefefe); border: 1px solid var(--mx-bd, #e2e8f0); border-radius: 16px; padding: 18px 20px; margin-top: 16px }
 .me-cab { display: flex; gap: 12px; align-items: center; flex-wrap: wrap }
-.me-ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; color: #2563eb; background: #eff6ff; border: 1px solid #dbeafe; flex: none }
-.me-cab > div:nth-child(2) { display: grid; flex: 1; min-width: 240px } .me-cab b { font-size: 17px; font-weight: 500; color: #0f172a } .me-cab small { font-size: 13.5px; color: #475569 }
-.me-mes { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap } .me-mes small { font-size: 13.5px; color: #475569 } .me-mes b span { font-size: 14px; color: #475569; font-weight: 400 } .me-mes em { font-style: normal; font-size: 14px; font-weight: 500 }
+.me-ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; color: var(--mx-fg-blue, #2563eb); background: var(--mx-bg1, #eff6ff); border: 1px solid var(--mx-pb-blue, #dbeafe); flex: none }
+.me-cab > div:nth-child(2) { display: grid; flex: 1; min-width: 240px } .me-cab b { font-size: 17px; font-weight: 500; color: var(--mx-t, #0f172a) } .me-cab small { font-size: 13.5px; color: var(--mx-t2, #475569) }
+.me-mes { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap } .me-mes small { font-size: 13.5px; color: var(--mx-t2, #475569) } .me-mes b span { font-size: 14px; color: var(--mx-t2, #475569); font-weight: 400 } .me-mes em { font-style: normal; font-size: 14px; font-weight: 500 }
 .me-tab { display: grid }
-.me-l { display: grid; grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1fr) 210px; gap: 18px; align-items: center; padding: 10px 8px; border-top: 1px solid #f1f5f9; border-radius: 10px }
-.me-l.cab { font-size: 13px; color: #475569; border-top: 0; padding-top: 0 } .me-l.agora { background: #eff6ff } .me-l.futuro { opacity: .45 }
-.me-partes { display: flex; gap: 6px 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: #475569 }
-.me-partes button { border: 1px solid #e2e8f0; background: #fefefe; border-radius: 99px; padding: 5px 11px; font: inherit; font-size: 12.5px; color: #64748b; cursor: pointer; transition: all .15s } .me-partes button i { margin-right: 3px; opacity: .7 }
-.me-partes button.on { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; font-weight: 500 } .me-partes button.on i { opacity: 1 }
-.me-partes small { flex-basis: 100%; font-size: 12px; color: #64748b }
-.me-mesl { width: 100%; border: 0; border-top: 1px solid #f1f5f9; background: transparent; text-align: left; font: inherit; cursor: pointer; transition: background .15s } .me-mesl:hover { background: #f8fafc } .me-mesl.agora:hover { background: #e0edff }
-.me-sem { margin-left: 18px; border-left: 3px solid #e2e8f0; border-radius: 0 10px 10px 0 } .me-uteis { color: #64748b !important }
-.me-d { display: grid; font-size: 15px; color: #0f172a } .me-d em { font-style: normal; font-size: 12px; color: #2563eb }
-.me-c { display: grid; gap: 6px } .me-c > span { display: flex; align-items: baseline; justify-content: space-between; gap: 8px } .me-c b { font-size: 16px; font-weight: 500; color: #0f172a } .me-c small { font-size: 12.5px; color: #475569 }
-.me-bar { position: relative; display: block; height: 8px; border-radius: 99px; background: #eef2f6 } .me-bar u { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; transition: width .7s } .me-bar s { position: absolute; left: 50%; top: -3px; width: 2px; height: 14px; background: #0f172a; border-radius: 1px }
+.me-l { display: grid; grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1fr) 210px; gap: 18px; align-items: center; padding: 10px 8px; border-top: 1px solid var(--mx-bd, #f1f5f9); border-radius: 10px }
+.me-l.cab { font-size: 13px; color: var(--mx-t2, #475569); border-top: 0; padding-top: 0 } .me-l.agora { background: var(--mx-bg1, #eff6ff) } .me-l.futuro { opacity: .45 }
+.me-partes { display: flex; gap: 6px 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--mx-t2, #475569) }
+.me-partes button { border: 1px solid var(--mx-bd, #e2e8f0); background: var(--mx-bg0, #fefefe); border-radius: 99px; padding: 5px 11px; font: inherit; font-size: 12.5px; color: var(--mx-t3, #64748b); cursor: pointer; transition: all .15s } .me-partes button i { margin-right: 3px; opacity: .7 }
+.me-partes button.on { background: var(--mx-bg1, #eff6ff); border-color: #93c5fd; color: var(--mx-fg-blue, #1d4ed8); font-weight: 500 } .me-partes button.on i { opacity: 1 }
+.me-partes small { flex-basis: 100%; font-size: 12px; color: var(--mx-t3, #64748b) }
+.me-mesl { width: 100%; border: 0; border-top: 1px solid var(--mx-bd, #f1f5f9); background: transparent; text-align: left; font: inherit; cursor: pointer; transition: background .15s } .me-mesl:hover { background: var(--mx-bg1, #f8fafc) } .me-mesl.agora:hover { background: var(--mx-p-blue, #e0edff) }
+.me-sem { margin-left: 18px; border-left: 3px solid var(--mx-bd, #e2e8f0); border-radius: 0 10px 10px 0 } .me-uteis { color: var(--mx-t3, #64748b) !important }
+.me-d { display: grid; font-size: 15px; color: var(--mx-t, #0f172a) } .me-d em { font-style: normal; font-size: 12px; color: var(--mx-fg-blue, #2563eb) }
+.me-c { display: grid; gap: 6px } .me-c > span { display: flex; align-items: baseline; justify-content: space-between; gap: 8px } .me-c b { font-size: 16px; font-weight: 500; color: var(--mx-t, #0f172a) } .me-c small { font-size: 12.5px; color: var(--mx-t2, #475569) }
+.me-bar { position: relative; display: block; height: 8px; border-radius: 99px; background: var(--mx-bg1, #eef2f6) } .me-bar u { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; transition: width .7s } .me-bar s { position: absolute; left: 50%; top: -3px; width: 2px; height: 14px; background: #0f172a; border-radius: 1px }
 .me-st { font-style: normal; font-size: 13px; border-radius: 99px; padding: 4px 11px; white-space: nowrap }
-.me-st.ide { color: #5b21b6; background: #ede9fe } .me-st.ok { color: #14532d; background: #dcfce7 } .me-st.meio { color: #78350f; background: #fef3c7 } .me-st.bx { color: #7f1d1d; background: #fee2e2 } .me-st.and { color: #1e3a8a; background: #dbeafe } .me-st.fut { color: #475569; background: #f1f5f9 }
+.me-st.ide { color: var(--mx-fg-violet, #5b21b6); background: var(--mx-p-violet, #ede9fe) } .me-st.ok { color: var(--mx-fg-green, #14532d); background: var(--mx-p-green, #dcfce7) } .me-st.meio { color: var(--mx-fg-orange, #78350f); background: var(--mx-p-amber, #fef3c7) } .me-st.bx { color: var(--mx-fg-red, #7f1d1d); background: var(--mx-p-red, #fee2e2) } .me-st.and { color: var(--mx-fg-blue, #1e3a8a); background: var(--mx-p-blue, #dbeafe) } .me-st.fut { color: var(--mx-t2, #475569); background: var(--mx-bg1, #f1f5f9) }
 @media (max-width: 900px) { .me-l { grid-template-columns: 80px minmax(0, 1fr) minmax(0, 1fr); } .me-l > span:last-child { grid-column: 1 / -1 } }
 
 /* C6 — cartões de horas sem gráfico, no estilo dos cartões do Faturamento (21/10/2026) */
-.c6 .h2-card { background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; transition: transform .2s, box-shadow .2s } .c6 .h2-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -18px rgba(15,23,42,.5) }
+.c6 .h2-card { background: var(--mx-bg0, #fefefe); border: 1px solid var(--mx-bd, #e2e8f0); border-radius: 16px; transition: transform .2s, box-shadow .2s } .c6 .h2-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -18px rgba(15,23,42,.5) }
 .c6 .h2-cab b { font-weight: 500 !important }
-.c6-top { display: grid; gap: 10px; width: 100% } .c6-top > div:first-child { display: grid } .c6-top > div:first-child b { font-size: 36px; font-weight: 500; line-height: 1.1 } .c6-top > div:first-child small { font-size: 13.5px; color: #475569 }
+.c6-top { display: grid; gap: 10px; width: 100% } .c6-top > div:first-child { display: grid } .c6-top > div:first-child b { font-size: 36px; font-weight: 500; line-height: 1.1 } .c6-top > div:first-child small { font-size: 13.5px; color: var(--mx-t2, #475569) }
 .c6-metas { display: grid; gap: 6px }
-.c6-m { display: grid; grid-template-columns: 96px minmax(0, 1fr) 42px; gap: 8px; align-items: center; font-size: 13.5px } .c6-m span { color: #0f172a } .c6-m span small { color: #475569 }
-.c6-m i { height: 8px; border-radius: 99px; background: #eef2f6; overflow: hidden } .c6-m u { display: block; height: 100%; border-radius: 99px; background: var(--c); transition: width .7s }
+.c6-m { display: grid; grid-template-columns: 96px minmax(0, 1fr) 42px; gap: 8px; align-items: center; font-size: 13.5px } .c6-m span { color: var(--mx-t, #0f172a) } .c6-m span small { color: var(--mx-t2, #475569) }
+.c6-m i { height: 8px; border-radius: 99px; background: var(--mx-bg1, #eef2f6); overflow: hidden } .c6-m u { display: block; height: 100%; border-radius: 99px; background: var(--c); transition: width .7s }
 .c6-m em { font-style: normal; text-align: right; font-weight: 500 }
-.c6-sem { display: grid; gap: 4px; width: 100%; padding-top: 10px; border-top: 1px solid #f1f5f9 }
-.c6-s { display: grid; grid-template-columns: 86px minmax(0, 1fr) 52px; gap: 8px; align-items: center; font-size: 13px; padding: 2px 4px; border-radius: 8px } .c6-s.agora { background: #eff6ff } .c6-s.futuro { opacity: .45 }
-.c6-ver { border: 0; background: transparent; padding: 2px 4px; font: inherit; font-size: 12.5px; color: #2563eb; cursor: pointer; text-align: left } .c6-ver:hover { text-decoration: underline }
+.c6-sem { display: grid; gap: 4px; width: 100%; padding-top: 10px; border-top: 1px solid var(--mx-bd, #f1f5f9) }
+.c6-s { display: grid; grid-template-columns: 86px minmax(0, 1fr) 52px; gap: 8px; align-items: center; font-size: 13px; padding: 2px 4px; border-radius: 8px } .c6-s.agora { background: var(--mx-bg1, #eff6ff) } .c6-s.futuro { opacity: .45 }
+.c6-ver { border: 0; background: transparent; padding: 2px 4px; font: inherit; font-size: 12.5px; color: var(--mx-fg-blue, #2563eb); cursor: pointer; text-align: left } .c6-ver:hover { text-decoration: underline }
 .c6-s { grid-template-columns: 110px minmax(0, 1fr) 52px !important }
-.c6-s span { color: #475569 } .c6-s i { height: 6px; border-radius: 99px; background: #eef2f6; overflow: hidden } .c6-s u { display: block; height: 100% } .c6-s b { text-align: right; font-weight: 500 }
+.c6-s span { color: var(--mx-t2, #475569) } .c6-s i { height: 6px; border-radius: 99px; background: var(--mx-bg1, #eef2f6); overflow: hidden } .c6-s u { display: block; height: 100% } .c6-s b { text-align: right; font-weight: 500 }
 .c6 .h2-nums b, .c6 .hc-falta { font-weight: 500 !important }
 
 .ho-dica { position: relative; cursor: help } .ho-dica:hover::after { content: attr(data-dica); position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); width: max-content; max-width: 260px; white-space: normal; text-align: left; background: #0f172a; color: #fefefe; font-size: 12.5px; font-weight: 600; line-height: 1.35; padding: 8px 11px; border-radius: 10px; box-shadow: 0 10px 24px rgba(15,23,42,.25); z-index: 20; pointer-events: none; animation: hoEntra .15s both }
@@ -698,21 +701,21 @@ export const ESTILO_HC = `
 .hs { width: 100%; display: grid; gap: 3px; font-size: 12px }
 .hs-th { display: grid; grid-template-columns: 52px 1fr 1fr 18px; gap: 8px; font-size: 10.5px; font-weight: 800; color: ${MUDO}; padding: 0 4px } .hs-th em { display: block; font-style: normal; font-weight: 600; font-size: 9.5px }
 .hs-lin { display: grid; grid-template-columns: 52px 1fr 1fr 18px; gap: 8px; align-items: center; padding: 4px; border-radius: 8px; transition: background .2s }
-.hs-lin.ok { background: #ecfdf5 } .hs-lin.ideal { background: #f5f3ff } .hs-lin.agora { background: #eff6ff } .hs-lin.futuro { opacity: .45 }
-.hs-d { font-weight: 800; display: grid; line-height: 1.1 } .hs-d em { font-style: normal; font-size: 9.5px; color: #2563eb; font-weight: 800 }
-.hs-c { display: grid; gap: 2px } .hs-c b { font-size: 12px; font-variant-numeric: tabular-nums } .hs-c b.v { color: #047857 }
-.hs-bar { position: relative; display: block; height: 6px; border-radius: 99px; background: #e2e8f0 } .hs-bar i { display: block; height: 100%; border-radius: 99px; background: #60a5fa; transform-origin: left; animation: hoLarga .8s both }
+.hs-lin.ok { background: var(--mx-p-green, #ecfdf5) } .hs-lin.ideal { background: var(--mx-p-violet, #f5f3ff) } .hs-lin.agora { background: var(--mx-bg1, #eff6ff) } .hs-lin.futuro { opacity: .45 }
+.hs-d { font-weight: 800; display: grid; line-height: 1.1 } .hs-d em { font-style: normal; font-size: 9.5px; color: var(--mx-fg-blue, #2563eb); font-weight: 800 }
+.hs-c { display: grid; gap: 2px } .hs-c b { font-size: 12px; font-variant-numeric: tabular-nums } .hs-c b.v { color: var(--mx-fg-green, #047857) }
+.hs-bar { position: relative; display: block; height: 6px; border-radius: 99px; background: var(--mx-bg2, #e2e8f0) } .hs-bar i { display: block; height: 100%; border-radius: 99px; background: #60a5fa; transform-origin: left; animation: hoLarga .8s both }
 .hs-bar.ok i { background: #10b981 } .hs-bar.ideal i { background: #7c3aed } .hs-bar u { position: absolute; left: 50%; top: -3px; width: 2px; height: 12px; background: ${COR_BAS}; border-radius: 1px }
-.hs-st { font-size: 13px; text-align: center } .hs-lin.ok .hs-st { color: #059669 } .hs-lin.ideal .hs-st { color: #7c3aed } .hs-st .fa-circle-half-stroke { color: #d97706 } .hs-st .fa-circle { color: #cbd5e1 }
+.hs-st { font-size: 13px; text-align: center } .hs-lin.ok .hs-st { color: #059669 } .hs-lin.ideal .hs-st { color: var(--mx-fg-violet, #7c3aed) } .hs-st .fa-circle-half-stroke { color: #d97706 } .hs-st .fa-circle { color: #cbd5e1 }
 .hs.eq { font-size: 13px } .hs.eq .hs-th, .hs.eq .hs-lin { grid-template-columns: 90px 1fr 1fr 24px; gap: 14px } .hs.eq .hs-th { font-size: 11.5px } .hs.eq .hs-th em { font-size: 11px } .hs.eq .hs-c b { font-size: 14px } .hs.eq .hs-bar { height: 9px } .hs.eq .hs-st { font-size: 16px } .hs.eq .hs-lin { padding: 6px 8px }
 .hc-eq-cab { display: flex; gap: 8px 18px; align-items: baseline; flex-wrap: wrap; color: ${MUDO} } .hc-eq-cab > b { color: var(--portal-text, #0f172a); font-size: 14px } .hc-eq-cab b { color: var(--portal-text, #0f172a) } .hc-eq-mes { margin-left: auto; display: inline-flex; gap: 6px; align-items: center }
 
 .hc { gap: 12px } .hc-selo { min-height: 24px; display: flex; align-items: center } .hc-falta { font-size: 12px; font-weight: 700; color: ${MUDO} }
 .hc-sem { display: flex; gap: 8px; align-items: flex-end }
 .hc-sem > span { display: grid; justify-items: center; gap: 3px }
-.hc-sem-b { position: relative; width: 26px; height: 48px; border-radius: 6px; background: #eef2f7; display: flex; align-items: flex-end; overflow: visible }
+.hc-sem-b { position: relative; width: 26px; height: 48px; border-radius: 6px; background: var(--mx-bg1, #eef2f7); display: flex; align-items: flex-end; overflow: visible }
 .hc-sem-b i { display: block; width: 100%; border-radius: 6px 6px 3px 3px; background: linear-gradient(180deg, #93c5fd, #2563eb); transform-origin: bottom; animation: hoCresce .8s cubic-bezier(.2,.9,.3,1) both }
-.hc-sem span.ok .hc-sem-b i { background: linear-gradient(180deg, #6ee7b7, #059669) } .hc-sem span.ideal .hc-sem-b i { background: linear-gradient(180deg, #c4b5fd, #6d28d9) }
+.hc-sem span.ok .hc-sem-b i { background: linear-gradient(180deg, var(--mx-p-green, #6ee7b7), #059669) } .hc-sem span.ideal .hc-sem-b i { background: linear-gradient(180deg, #c4b5fd, #6d28d9) }
 .hc-sem-b u { position: absolute; left: -4px; right: -4px; bottom: 50%; height: 2px; background: ${COR_BAS} } .hc-sem small { font-size: 10px; color: ${MUDO}; font-weight: 700 }
 @keyframes hoCresce { from { transform: scaleY(0) } }
 .hc-sem-leg { font-size: 11px; color: ${MUDO}; margin-top: -6px }
@@ -721,7 +724,10 @@ export const ESTILO_HC = `
 .hc3-n { font-size: 15px } .hc3-p { display: grid; justify-items: center; margin-top: -6px } .hc3-p b { font-size: 30px; font-weight: 900; line-height: 1.1 } .hc3-p small { font-size: 12px; color: ${MUDO} }
 .hc5 { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap } .hc5 span { display: grid; justify-items: center; gap: 1px } .hc5 svg { width: 38px; height: 38px } .hc5 b { font-size: 11.5px } .hc5 small { font-size: 10px; color: ${MUDO} }
 .hc-eq { display: grid; gap: 10px; padding: 14px 16px; border-radius: 14px; background: var(--portal-bg, #f8fafc); font-size: 13px; color: ${MUDO} } .hc-eq > span:first-child b { color: var(--portal-text, #0f172a); margin-right: 4px }
-.hc-eq-bar { flex: 1; min-width: 160px; height: 8px; border-radius: 99px; background: #e2e8f0; overflow: hidden } .hc-eq-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #60a5fa, #2563eb); transform-origin: left; animation: hoLarga 1s both } .hc-eq > b { font-size: 16px }
+.hc-eq-bar { flex: 1; min-width: 160px; height: 8px; border-radius: 99px; background: var(--mx-bg2, #e2e8f0); overflow: hidden } .hc-eq-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #60a5fa, #2563eb); transform-origin: left; animation: hoLarga 1s both } .hc-eq > b { font-size: 16px }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `
 
 /** O bloco de horas que vai nas Ocorrências (C5 escolhida em 20/10/2026), com a caixinha das OS não faturadas. */
@@ -744,6 +750,9 @@ export function HorasEquipeCartoes({ mes, semTitulo }: { mes: string; semTitulo?
 const ESTILO_HEC = `
 .hec { display: grid; gap: 10px } .hec-topo { display: flex; gap: 10px 16px; align-items: center; flex-wrap: wrap } .hec-topo > b { font-size: 16px; font-weight: 900; color: var(--portal-text, #0f172a) } .hec-topo > b i { color: #0891b2 }
 .hec-ck { display: inline-flex; gap: 7px; align-items: center; font-size: 13.5px; font-weight: 800; color: var(--portal-text, #334155); background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 99px; padding: 6px 14px; cursor: pointer; transition: all .2s }
-.hec-ck small { font-weight: 600; color: ${MUDO} } .hec-ck input { width: 16px; height: 16px; accent-color: #f59e0b; cursor: pointer } .hec-ck.on { background: #fffbeb; border-color: #fcd34d }
+.hec-ck small { font-weight: 600; color: ${MUDO} } .hec-ck input { width: 16px; height: 16px; accent-color: #f59e0b; cursor: pointer } .hec-ck.on { background: var(--mx-p-amber, #fffbeb); border-color: var(--mx-pb-amber, #fcd34d) }
 .hec-carr { padding: 30px; text-align: center; color: ${MUDO} }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `

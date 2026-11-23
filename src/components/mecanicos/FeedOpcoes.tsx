@@ -84,7 +84,7 @@ function Numeros({ o, ex, onReq, compacto = false }: { o: OSFaturada; ex?: { req
   const totReq = reqs.reduce((s, r) => s + r.valor, 0), totAlm = almoco.reduce((s, r) => s + r.valor, 0)
   return (
     <div className={`fo-num ${compacto ? 'compacto' : ''}`}>
-      <span title="Mão de obra cobrada"><i className="fas fa-clock" style={{ color: '#2563eb' }} /><b>{brl(o.servico)}</b><small>{horas(o.horasCobradas)}</small></span>
+      <span title="Mão de obra cobrada"><i className="fas fa-clock" style={{ color: 'var(--mx-fg-blue, #2563eb)' }} /><b>{brl(o.servico)}</b><small>{horas(o.horasCobradas)}</small></span>
       <span title="Deslocamento cobrado"><i className="fas fa-road" style={{ color: '#10b981' }} /><b>{brl(o.kmValor)}</b><small>{kmFmt(o.km)}</small></span>
       <span title="Peças da OS"><i className="fas fa-gears" style={{ color: '#f59e0b' }} /><b>{brl(o.pecas)}</b><small>peças</small></span>
       {reqs.length > 0 && <span className="clicavel" title={reqs.map((r) => `#${r.id} ${r.tipo} ${brl(r.valor)}${r.cobrado > 0 ? ' (cobrada)' : ' (não cobrada)'}`).join('\n')} onClick={(e) => { e.stopPropagation(); onReq(reqs[0]) }}><i className="fas fa-receipt" style={{ color: '#ef4444' }} /><b>{brl(totReq)}</b><small>{reqs.length} requisição{reqs.length > 1 ? 'ões' : ''}</small></span>}
@@ -193,13 +193,13 @@ const ESTILO_FO = `
 .fo-num > span { display: inline-flex; align-items: center; gap: 4px; background: var(--portal-bg-secondary, #f1f5f9); border-radius: 8px; padding: 3px 7px; font-size: 11.5px; line-height: 1.2 }
 .fo-num i { font-size: 11px } .fo-num b { font-variant-numeric: tabular-nums } .fo-num small { color: ${MUDO}; font-size: 10.5px }
 .fo-num.compacto > span { padding: 2px 6px; font-size: 11px }
-.fo-num .clicavel { cursor: pointer; transition: background .15s, transform .15s } .fo-num .clicavel:hover { background: #fee2e2; transform: translateY(-1px) }
+.fo-num .clicavel { cursor: pointer; transition: background .15s, transform .15s } .fo-num .clicavel:hover { background: var(--mx-p-red, #fee2e2); transform: translateY(-1px) }
 .fo-doc { position: fixed; inset: 0; z-index: 100080; animation: foDoc .4s cubic-bezier(.2,1.1,.3,1) both } @keyframes foDoc { from { opacity: 0; transform: scale(.94) } }
 .fo-req-fundo { position: fixed; inset: 0; z-index: 100080; background: rgba(15,23,42,.55); display: flex; align-items: center; justify-content: center; padding: 16px; animation: foFade .2s both } @keyframes foFade { from { opacity: 0 } }
 .fo-req-jan { width: min(1100px, 100%); height: 92vh; display: flex; flex-direction: column; background: var(--portal-bg-card, #fefefe); border-radius: 18px; overflow: hidden; animation: foDoc .45s cubic-bezier(.2,1.15,.3,1) both }
 .fo-req-cab { display: flex; gap: 10px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--portal-border, #e5e7eb); flex-wrap: wrap } .fo-req-cab b { font-size: 16px } .fo-req-cab span { flex: 1; font-size: 13px; color: ${MUDO} }
 .fo-req-cab button { border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-secondary, #f1f5f9); border-radius: 10px; padding: 6px 10px; font-family: inherit; font-weight: 800; cursor: pointer }
-.fo-req-jan iframe { flex: 1; width: 100%; border: none; background: #fefefe }
+.fo-req-jan iframe { flex: 1; width: 100%; border: none; background: var(--mx-bg0, #fefefe) }
 /* F1 */
 .fo-tl { position: relative; overflow-y: auto; display: grid; gap: 2px; padding-left: 10px }
 .fo-tl::before { content: ''; position: absolute; left: 14px; top: 6px; bottom: 6px; width: 2px; background: linear-gradient(180deg, #2563eb, transparent) }
@@ -226,4 +226,7 @@ const ESTILO_FO = `
 .fo-rc { --c: #2563eb; display: grid; gap: 3px; border: 1px solid var(--portal-border, #e5e7eb); border-left: 4px solid var(--c); background: var(--portal-bg-card, #fefefe); border-radius: 12px; padding: 9px 11px; cursor: pointer; transition: transform .2s, box-shadow .2s } .fo-rc:hover { transform: scale(1.02); box-shadow: 0 6px 16px rgba(15,23,42,.1) }
 .fo-rc-l1 { display: flex; align-items: center; gap: 8px } .fo-rc-l1 b { font-size: 13.5px } .fo-rc-l1 > small { font-size: 10.5px; color: ${MUDO}; white-space: nowrap }
 .fo-rc-val { font-size: 20px; font-weight: 900; color: var(--c); font-variant-numeric: tabular-nums }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.fo-val, .fo-rc-val) { color: color-mix(in srgb, var(--c) 60%, #fff) }
 `

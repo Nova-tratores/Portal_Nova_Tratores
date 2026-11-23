@@ -146,4 +146,13 @@ const ESTILO_CSC = `
 /* tema escuro (auditoria 06/11/2026): nomes quase pretos e botões brancos no fundo preto */
 [data-theme="dark"] .csc-id b { color: var(--portal-text) } [data-theme="dark"] .csc-explica { background: var(--portal-bg-secondary); border-color: var(--portal-border); color: var(--portal-text-secondary) }
 [data-theme="dark"] :is(.csc-help, .csc-b, .csc-ic) { background: var(--portal-bg-card); border-color: var(--portal-border); color: var(--portal-text-secondary) }
+[data-theme="dark"] .csc-chip { background: var(--portal-bg-secondary, #262626); color: var(--portal-text-secondary, #a3a3a3) }
+[data-theme="dark"] .csc-chip.vendedor { background: rgb(248 113 113 / .15); color: var(--portal-red-fg, #f87171) }
+[data-theme="dark"] .csc-chip.supervisor { background: rgb(96 165 250 / .15); color: var(--portal-blue-fg, #60a5fa) }
+[data-theme="dark"] .csc-chip.inativo { background: var(--portal-bg-secondary, #262626); color: var(--portal-text-muted, #949494) }
+[data-theme="dark"] .csc-chip.uso { background: rgb(52 211 153 / .15); color: var(--portal-green-fg, #34d399) }
+[data-theme="dark"] :is(.csc-chip.nunca, .csc-cab b em, .csc-cab-ic) { background: rgb(251 191 36 / .15); color: var(--portal-amber-fg, #fbbf24) }
+[data-theme="dark"] .csc-b.verde { background: rgb(52 211 153 / .15); border-color: rgb(52 211 153 / .35); color: var(--portal-green-fg, #34d399) }
+[data-theme="dark"] .csc-b.perigo.cheio { background: #dc2626; border-color: #dc2626; color: #fff }
+[data-theme="dark"] .csc-pergunta { color: var(--portal-red-fg, #f87171) }
 `

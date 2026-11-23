@@ -14,6 +14,8 @@ export default function SalasLayout({ children }: { children: React.ReactNode })
   return (
     <div className="ct-vn" style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--portal-bg)' }}>
       <style>{ESTILO_CENTRAL_VN}</style>
+      {/* botões cheios da sala (branco sobre ciano): no escuro um tom mais fundo para dar 4,5:1 */}
+      <style>{`:root{--sala-cheio:#0891b2}[data-theme="dark"]{--sala-cheio:#0e7490}`}</style>
       {central && <Suspense fallback={null}><CentralNav /></Suspense>}
       {children}
     </div>

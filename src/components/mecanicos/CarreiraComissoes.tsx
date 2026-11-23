@@ -124,7 +124,7 @@ export type PontosCartao = { saldo: number; qtd: number; pendentes: number; desc
 
 export default function CarreiraComissoes({ pontos, onCarta }: { pontos?: Record<string, PontosCartao>; onCarta?: (tecnico: string) => void } = {}) {
   const { dados: d, erro } = useCarreira()
-  if (erro) return <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c' }}>{erro}</div>
+  if (erro) return <div style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--mx-p-red, #fef2f2)', color: 'var(--mx-fg-red, #b91c1c)' }}>{erro}</div>
   if (!d) return <div className="cm-caixa" style={{ color: MUDO, textAlign: 'center' }}><style>{ESTILO}</style><i className="fas fa-circle-notch fa-spin" /> calculando as comissões…</div>
   const [ano, mm] = d.mesAtual.split('-').map(Number)
   const mesAnt = mm === 1 ? `${ano - 1}-12` : `${ano}-${String(mm - 1).padStart(2, '0')}`
@@ -151,12 +151,12 @@ export default function CarreiraComissoes({ pontos, onCarta }: { pontos?: Record
 const ESTILO = `
 .cm-pts { display: flex; gap: 10px; align-items: center; border-radius: 12px; padding: 6px 10px; margin: 2px 0 6px; background: color-mix(in srgb, var(--c) 8%, var(--portal-bg-card, #fefefe)) }
 .cm-pts svg { width: 44px; height: 44px; flex-shrink: 0 } .cm-pts circle { fill: none; stroke-width: 5 } .cm-pts .f { stroke: color-mix(in srgb, var(--c) 18%, transparent) } .cm-pts .v { stroke: var(--c); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 22px 22px; animation: cmPts 1.1s cubic-bezier(.2,.8,.2,1) both } @keyframes cmPts { from { stroke-dasharray: 0 107 } }
-.cm-pts text { font-size: 13px; font-weight: 900; fill: var(--c) } .cm-pts > div { flex: 1; min-width: 0; display: grid } .cm-pts b { font-size: 13.5px; color: var(--c) } .cm-pts small { font-size: 11.5px; color: var(--portal-text-muted, #64748b) } .cm-pts em { font-style: normal; color: #b45309; font-weight: 800 }
+.cm-pts text { font-size: 13px; font-weight: 900; fill: var(--c) } .cm-pts > div { flex: 1; min-width: 0; display: grid } .cm-pts b { font-size: 13.5px; color: var(--c) } .cm-pts small { font-size: 11.5px; color: var(--portal-text-muted, #64748b) } .cm-pts em { font-style: normal; color: var(--mx-fg-orange, #b45309); font-weight: 800 }
 .cm-pts button { border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); background: var(--portal-bg-card, #fefefe); color: var(--c); border-radius: 99px; padding: 4px 10px; font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer; white-space: nowrap } .cm-pts button:hover { background: var(--c); color: #fefefe }
 .cm-caixa { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(15,23,42,.05) }
 .cm-cab { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px }
 .cm-rot { font-size: 12.5px; font-weight: 900; text-transform: uppercase; letter-spacing: .6px; color: ${MUDO} } .cm-rot i { color: #059669; margin-right: 4px }
-.cm-frase { font-size: 21px; font-weight: 800; color: var(--portal-text, #0f172a) } .cm-frase > b { color: #047857 } .cm-frase span { font-size: 14px; font-weight: 700 }
+.cm-frase { font-size: 21px; font-weight: 800; color: var(--portal-text, #0f172a) } .cm-frase > b { color: var(--mx-fg-green, #047857) } .cm-frase span { font-size: 14px; font-weight: 700 }
 .cm-dica { font-size: 12px; color: ${MUDO} }
 .cm-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px }
 .cm-palco { perspective: 1200px; animation: cmEntra .7s cubic-bezier(.2,1.1,.3,1) both }
@@ -171,16 +171,16 @@ const ESTILO = `
 .cm-palco:hover .cm-brilho { opacity: 1 }
 .cm-topo { display: flex; gap: 12px; align-items: center }
 .cm-foto { position: relative; width: 58px; height: 58px; border-radius: 50%; padding: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px rgba(15,23,42,.18); animation: cmFoto .8s .2s cubic-bezier(.2,1.6,.4,1) both }
-.cm-foto img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid #fefefe }
+.cm-foto img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid var(--mx-bd, #fefefe) }
 .cm-foto b { color: #fefefe; font-weight: 900; font-size: 18px; text-shadow: 0 1px 2px rgba(0,0,0,.35) }
 .cm-liga { position: absolute; right: -6px; bottom: -6px }
 @keyframes cmFoto { from { transform: scale(.4) rotate(-25deg); opacity: 0 } }
 .cm-nome { display: block; font-size: 16.5px; font-weight: 900; color: var(--portal-text, #0f172a); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .cm-sub { font-size: 12.5px; color: ${MUDO}; font-weight: 600 }
 .cm-dif { font-size: 14px; font-weight: 900; display: grid; justify-items: end; line-height: 1.1 } .cm-dif small { font-size: 10.5px; font-weight: 700; color: ${MUDO} }
-.cm-dif.up { color: #047857 } .cm-dif.down { color: #b91c1c }
+.cm-dif.up { color: var(--mx-fg-green, #047857) } .cm-dif.down { color: var(--mx-fg-red, #b91c1c) }
 .cm-valor { display: grid } .cm-valor small { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .5px; color: ${MUDO} }
-.cm-valor > b { font-size: 34px; font-weight: 900; color: #047857; font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -.5px }
+.cm-valor > b { font-size: 34px; font-weight: 900; color: var(--mx-fg-green, #047857); font-variant-numeric: tabular-nums; line-height: 1.1; letter-spacing: -.5px }
 .cm-valor > span { font-size: 12.5px; color: ${MUDO} }
 .cm-pilha { display: grid; gap: 8px }
 .cm-trilho { position: relative; height: 16px; border-radius: 99px; background: var(--portal-bg-secondary, #f1f5f9); display: flex; overflow: visible }
@@ -191,7 +191,7 @@ const ESTILO = `
 .cm-trilho i.p { background: repeating-linear-gradient(135deg, rgba(16,185,129,.35) 0 5px, rgba(16,185,129,.12) 5px 10px); border-radius: 0 99px 99px 0; animation-delay: .8s }
 @keyframes cmCresce { from { transform: scaleX(0) } }
 .cm-marca { position: absolute; top: -5px; bottom: -5px; width: 2px; background: #334155; border-radius: 2px; animation: cmEntra .5s 1s both }
-.cm-marca em { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 10px; font-style: normal; font-weight: 800; color: #334155; white-space: nowrap }
+.cm-marca em { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 10px; font-style: normal; font-weight: 800; color: var(--mx-t2, #334155); white-space: nowrap }
 .cm-leg { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: ${MUDO} } .cm-leg b { color: var(--portal-text, #0f172a); font-variant-numeric: tabular-nums }
 .cm-leg i { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 3px; vertical-align: -1px }
 .cm-leg i.g { background: #10b981 } .cm-leg i.a { background: #f59e0b } .cm-leg i.p { background: rgba(16,185,129,.35) }
@@ -207,4 +207,8 @@ const ESTILO = `
 .cm-passos b { font-size: 11.5px; color: #fefefe } .cm-passos small { font-size: 10.5px; color: #94a3b8 }
 .cm-verso > small { font-size: 11px; color: #94a3b8 !important; margin-top: auto }
 @media (prefers-reduced-motion: reduce) { .cm-palco, .cm-trilho > i, .cm-foto, .cm-marca { animation: none !important } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.cm-pts b, .cm-pts button) { color: color-mix(in srgb, var(--c) 60%, #fff) }
+
 `

@@ -99,7 +99,7 @@ function Carta({ d, dir, nomesCat, coresCat }: { d: DadosCartaLiga; dir: number;
             {c ? <p><i className="fas fa-star" style={{ color: '#ca8a04' }} /> <b>{c.saldoAgora}</b> pontos · <b>+{c.mesAtual.ganhos}</b> no mês ({c.mesAtual.osLimpas} OS sem problema){c.faltaProximo ? <> · faltam <b>{c.faltaProximo}</b> para subir</> : null}.</p> : <p>Cada OS sem problema dá 5 pontos.</p>}
             {golpes.length > 0
               ? <div className="cl-golpes">{golpes.map((k, n) => <span key={k} style={{ background: coresCat[k], animationDelay: `${1100 + n * 220}ms` }}>−{e!.porCategoria[k]} {nomesCat[k]}</span>)}</div>
-              : <p style={{ color: '#047857' }}><b>Nenhuma ocorrência neste mês.</b></p>}
+              : <p style={{ color: 'var(--mx-fg-green, #047857)' }}><b>Nenhuma ocorrência neste mês.</b></p>}
             {c && <p className={sobe ? 'cl-ok' : cai ? 'cl-mal' : ''}>{sobe ? <>Se o mês fechar assim, sobe para <b>{patente(c.seFecharAssim).nome}</b>.</> : cai ? <>Se fechar assim, cai para <b>{patente(c.seFecharAssim).nome}</b>.</> : <>Se fechar assim, fica em <b>{patente(c.seFecharAssim).nome}</b>.</>}</p>}
             {c && c.historico.length > 0 && <div className="cl-hist">{c.historico.slice(-8).map((h) => <span key={h.mes} className={h.movimento > 0 ? 'up' : h.movimento < 0 ? 'down' : ''}>{mesCurto(h.mes)} {h.movimento > 0 ? `+${h.movimento}` : h.movimento}</span>)}</div>}
           </div>
@@ -124,15 +124,15 @@ const ESTILO = `
 .cl-fundo { position: fixed; inset: 0; z-index: 100065; display: flex; align-items: center; justify-content: center; gap: 22px; background: radial-gradient(circle at 50% 45%, rgba(30,27,75,.6), rgba(2,6,23,.88)); backdrop-filter: blur(5px); animation: clFade .25s both }
 @keyframes clFade { from { opacity: 0 } }
 .cl-nav { width: 52px; height: 52px; border-radius: 50%; border: none; background: rgba(255,255,255,.14); color: #fefefe; font-size: 20px; cursor: pointer; transition: transform .15s, background .15s } .cl-nav:hover { background: rgba(255,255,255,.28); transform: scale(1.08) }
-.cl-pos { display: flex; gap: 6px } .cl-pos i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.35); cursor: pointer } .cl-pos i.on { width: 22px; border-radius: 99px; background: #fefefe }
+.cl-pos { display: flex; gap: 6px } .cl-pos i { width: 9px; height: 9px; border-radius: 50%; background: rgba(255,255,255,.35); cursor: pointer } .cl-pos i.on { width: 22px; border-radius: 99px; background: var(--mx-bg0, #fefefe) }
 .cl-teclas { font-size: 12px; color: rgba(255,255,255,.65) }
 .cl-palco { perspective: 1400px }
 .cl-voa { animation: clVoa .9s cubic-bezier(.2,1,.3,1) both } .cl-voa-esq { animation-name: clVoaEsq }
 @keyframes clVoa { 0% { opacity: 0; transform: translateX(160px) rotateY(-180deg) scale(.6) } 60% { opacity: 1 } 100% { transform: none } }
 @keyframes clVoaEsq { 0% { opacity: 0; transform: translateX(-160px) rotateY(180deg) scale(.6) } 60% { opacity: 1 } 100% { transform: none } }
-.cl-carta { --rx: 0deg; --ry: 0deg; --hx: 50%; --hy: 50%; position: relative; width: 340px; padding: 12px; border-radius: 16px; border: 6px solid var(--borda); box-shadow: 0 0 0 3px #1e1b18, 0 0 0 6px #d4af37, 0 30px 80px rgba(0,0,0,.55), 0 0 70px var(--borda); transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .08s linear; display: grid; gap: 7px; overflow: hidden; color: #0f172a }
+.cl-carta { --rx: 0deg; --ry: 0deg; --hx: 50%; --hy: 50%; position: relative; width: 340px; padding: 12px; border-radius: 16px; border: 6px solid var(--borda); box-shadow: 0 0 0 3px #1e1b18, 0 0 0 6px #d4af37, 0 30px 80px rgba(0,0,0,.55), 0 0 70px var(--borda); transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .08s linear; display: grid; gap: 7px; overflow: hidden; color: var(--mx-t, #0f172a) }
 .cl-holo { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: color-dodge; opacity: .5; z-index: 2; background: radial-gradient(circle at var(--hx) var(--hy), rgba(255,255,255,.85), transparent 35%), conic-gradient(from 0deg at var(--hx) var(--hy), rgba(255,0,128,.25), rgba(0,200,255,.25), rgba(140,255,0,.25), rgba(255,200,0,.25), rgba(255,0,128,.25)) }
-.cl-titulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: linear-gradient(180deg, #fefefe, #e7e5e4); border: 2px solid #1e1b18; border-radius: 6px; padding: 6px 10px; font-family: Georgia, 'Times New Roman', serif }
+.cl-titulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: linear-gradient(180deg, var(--mx-bg0, #fefefe), var(--mx-bg2, #e7e5e4)); border: 2px solid #1e1b18; border-radius: 6px; padding: 6px 10px; font-family: Georgia, 'Times New Roman', serif }
 .cl-titulo b { font-size: 19px; font-weight: 900; letter-spacing: .3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .cl-atrib { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #1e1b18; display: flex; align-items: center; justify-content: center; color: #fefefe; text-shadow: 0 1px 2px rgba(0,0,0,.4); flex-shrink: 0 }
 .cl-estrelas { display: flex; justify-content: flex-end; gap: 3px; min-height: 18px } .cl-estrelas i { color: #f59e0b; text-shadow: 0 0 6px rgba(245,158,11,.8), 0 1px 0 #7c2d12; font-size: 15px; animation: clEstrela .5s cubic-bezier(.2,1.8,.4,1) both }
@@ -143,19 +143,22 @@ const ESTILO = `
 .cl-emb i { font-size: 30px } .cl-emb b { font-size: 20px; font-weight: 900; margin-top: 2px }
 @keyframes clEmb { from { transform: scale(.2) rotate(-30deg); opacity: 0 } }
 .cl-liga-nome { position: relative; font-size: 15px; font-weight: 900; color: #fefefe; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 0 12px rgba(255,255,255,.6) }
-.cl-tipo { font-family: Georgia, serif; font-size: 12.5px; font-weight: 900; color: #1e1b18; padding: 0 4px }
+.cl-tipo { font-family: Georgia, serif; font-size: 12.5px; font-weight: 900; color: var(--mx-t, #1e1b18); padding: 0 4px }
 .cl-texto { background: rgba(254,252,232,.95); border: 2px solid #1e1b18; border-radius: 4px; padding: 8px 10px; font-size: 12.5px; line-height: 1.4; display: grid; gap: 5px; min-height: 92px }
-.cl-texto p { margin: 0 } .cl-ok { color: #047857 } .cl-mal { color: #b91c1c }
+.cl-texto p { margin: 0 } .cl-ok { color: var(--mx-fg-green, #047857) } .cl-mal { color: var(--mx-fg-red, #b91c1c) }
 .cl-golpes { display: flex; flex-wrap: wrap; gap: 4px } .cl-golpes span { color: #fefefe; font-weight: 900; font-size: 11.5px; border-radius: 6px; padding: 2px 7px; animation: clGolpe .5s cubic-bezier(.2,1.6,.4,1) both }
 @keyframes clGolpe { 0% { transform: scale(2.4) rotate(8deg); opacity: 0 } 60% { opacity: 1 } }
-.cl-hist { display: flex; flex-wrap: wrap; gap: 3px } .cl-hist span { font-size: 10.5px; font-weight: 800; border-radius: 99px; padding: 1px 6px; background: #e7e5e4 } .cl-hist .up { background: #d1fae5; color: #047857 } .cl-hist .down { background: #fee2e2; color: #b91c1c }
+.cl-hist { display: flex; flex-wrap: wrap; gap: 3px } .cl-hist span { font-size: 10.5px; font-weight: 800; border-radius: 99px; padding: 1px 6px; background: var(--mx-bg2, #e7e5e4) } .cl-hist .up { background: var(--mx-p-green, #d1fae5); color: var(--mx-fg-green, #047857) } .cl-hist .down { background: var(--mx-p-red, #fee2e2); color: var(--mx-fg-red, #b91c1c) }
 .cl-escada { display: flex; gap: 3px; align-items: center } .cl-escada > div { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px }
 .cl-escada i { display: block; height: 7px; border-radius: 2px; background: rgba(15,23,42,.18) } .cl-escada i.on { background: var(--c); animation: clAcende .35s both } .cl-dia { width: 10px; height: 10px !important; transform: rotate(45deg) } .cl-dia.on { background: linear-gradient(135deg, #22d3ee, #a78bfa) !important }
 @keyframes clAcende { from { transform: scaleX(0) } }
 .cl-rodape { display: flex; justify-content: flex-end; gap: 14px; font-family: Georgia, serif; font-size: 14px; font-weight: 900; border-top: 2px solid #1e1b18; padding-top: 5px }
 .cl-rodape b { font-variant-numeric: tabular-nums; font-size: 17px }
-.cl-caindo { color: #dc2626; animation: clTreme .12s linear infinite } @keyframes clTreme { 50% { transform: translateX(1px) } }
+.cl-caindo { color: var(--mx-fg-red, #dc2626); animation: clTreme .12s linear infinite } @keyframes clTreme { 50% { transform: translateX(1px) } }
 .cl-mini { display: inline-flex; align-items: center; justify-content: center; clip-path: polygon(50% 0, 100% 18%, 100% 62%, 50% 100%, 0 62%, 0 18%); color: #fefefe; text-shadow: 0 1px 2px rgba(0,0,0,.45); font-weight: 900; flex-shrink: 0 }
 @media (max-width: 600px) { .cl-carta { width: 290px } .cl-nav { position: absolute; bottom: 18px } .cl-nav:first-of-type { left: 18px } .cl-nav:last-of-type { right: 18px } }
 @media (prefers-reduced-motion: reduce) { .cl-voa, .cl-emb, .cl-raios, .cl-estrelas i, .cl-golpes span, .cl-escada i { animation: none !important } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `

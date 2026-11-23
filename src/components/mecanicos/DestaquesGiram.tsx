@@ -150,7 +150,7 @@ export default function DestaquesGiram({ blocos, faturadas, porDia, hoje }: { bl
             <div><span>Já entrou</span><b>{brl(mes.s.bruto)}</b></div>
             <div><span>Ainda deve entrar</span><b>{brl(Math.max(0, proj - mes.s.bruto))}</b></div>
             <div><span>{nomeAnt} inteiro</span><b>{brl(cheio)}</b></div>
-            <div><span>Diferença prevista</span><b style={{ color: proj >= cheio ? '#047857' : '#b91c1c' }}>{proj >= cheio ? '+' : '−'}{brl(Math.abs(proj - cheio))}</b></div>
+            <div><span>Diferença prevista</span><b style={{ color: proj >= cheio ? 'var(--mx-fg-green, #047857)' : 'var(--mx-fg-red, #b91c1c)' }}>{proj >= cheio ? '+' : '−'}{brl(Math.abs(proj - cheio))}</b></div>
           </div>
         ),
       })
@@ -196,8 +196,8 @@ export default function DestaquesGiram({ blocos, faturadas, porDia, hoje }: { bl
           <div className="dg-linhas">
             {partes.map(([r, v, c]) => <div key={r}><span><i style={{ background: c }} />{r}</span><b>{brl(v)} <small>{Math.round((v / tot) * 100)}%</small></b></div>)}
             {mes.s.pecas > 0 && <div><span><i style={{ background: '#f59e0b' }} />Peças (à parte, fora do faturado)</span><b>{brl(mes.s.pecas)}</b></div>}
-            <div className="dg-sep"><span>Terceiros (requisições não cobradas)</span><b style={{ color: '#b91c1c' }}>−{brl(mes.s.custo)}</b></div>
-            <div><span>Sobra depois dos terceiros</span><b style={{ color: '#047857' }}>{brl(mes.s.liquido)}</b></div>
+            <div className="dg-sep"><span>Terceiros (requisições não cobradas)</span><b style={{ color: 'var(--mx-fg-red, #b91c1c)' }}>−{brl(mes.s.custo)}</b></div>
+            <div><span>Sobra depois dos terceiros</span><b style={{ color: 'var(--mx-fg-green, #047857)' }}>{brl(mes.s.liquido)}</b></div>
           </div>
         </div>
       ),
@@ -308,14 +308,14 @@ const ESTILO_DG = `
 .dg-valor { font-size: 30px; font-weight: 900; color: var(--portal-text, #0f172a); line-height: 1.1; font-variant-numeric: tabular-nums }
 .dg-legenda { font-size: 13px; color: ${MUDO} }
 .dg-var { align-self: flex-start; font-size: 12.5px; font-weight: 800; border-radius: 99px; padding: 3px 10px }
-.dg-var.sobe { color: #047857; background: #ecfdf5 } .dg-var.desce { color: #b91c1c; background: #fef2f2 } .dg-var.neutro { color: ${MUDO}; background: var(--portal-bg-secondary, #f1f5f9) }
+.dg-var.sobe { color: var(--mx-fg-green, #047857); background: var(--mx-p-green, #ecfdf5) } .dg-var.desce { color: var(--mx-fg-red, #b91c1c); background: var(--mx-p-red, #fef2f2) } .dg-var.neutro { color: ${MUDO}; background: var(--portal-bg-secondary, #f1f5f9) }
 .dg-corpo { min-width: 0; display: flex; flex-direction: column; justify-content: center; animation: dgEntra .6s .25s both } @keyframes dgEntra { from { opacity: 0; transform: translateX(16px) } }
 .dg-sub { font-size: 11.5px; color: ${MUDO}; margin-bottom: 4px }
 .dg-rodape { font-size: 12.5px; color: ${MUDO}; border-top: 1px dashed var(--portal-border, #e5e7eb); padding-top: 8px } .dg-rodape b { color: var(--portal-text, #0f172a) }
 .dg-barras { display: flex; gap: 6px; height: 140px; align-items: flex-end }
 .dg-bcol { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px } .dg-bcol small { font-size: 11px; color: ${MUDO}; font-weight: 700 } .dg-bcol.on small { color: var(--c); font-weight: 900 }
 .dg-bpar { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 3px }
-.dg-bpar i { width: 40%; border-radius: 5px 5px 0 0; transform-origin: bottom; animation: dgSobe .8s cubic-bezier(.2,.8,.2,1) both } .dg-bpar .b { background: #cbd5e1 } .dg-bpar .a { background: var(--c) }
+.dg-bpar i { width: 40%; border-radius: 5px 5px 0 0; transform-origin: bottom; animation: dgSobe .8s cubic-bezier(.2,.8,.2,1) both } .dg-bpar .b { background: var(--mx-bg2, #cbd5e1) } .dg-bpar .a { background: var(--c) }
 @keyframes dgSobe { from { transform: scaleY(0) } }
 .dg-rank { display: grid; gap: 8px }
 .dg-rl { display: flex; gap: 8px; align-items: center; animation: dgEntra .5s both }
@@ -351,4 +351,8 @@ const ESTILO_DG = `
 .dg-pausa { position: absolute; top: 10px; right: 14px; font-size: 11.5px; color: ${MUDO}; font-weight: 700 }
 @media (max-width: 720px) { .dg-c-meio { grid-template-columns: 1fr } .dg-palco { height: 470px } .dg-c { height: 460px; width: 92%; margin-left: -46% } .dg-c.prox, .dg-c.ant { opacity: 0 } }
 @media (prefers-reduced-motion: reduce) { .dg-c, .dg-bpar i, .dg-rbar i, .dg-enche, .dg-nome, .dg-ic, .dg-valor { transition: none !important; animation: none !important } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.dg-bcol.on small, .dg-bola, .dg-detalhe) { color: color-mix(in srgb, var(--c) 60%, #fff) }
+
 `

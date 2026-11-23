@@ -17,7 +17,7 @@ function Anel({ v, cor }: { v: number; cor: string }) {
         <circle cx="22" cy="22" r={r} fill="none" stroke="rgba(148,163,184,.25)" strokeWidth="5" />
         <circle cx="22" cy="22" r={r} fill="none" stroke={cor} strokeWidth="5" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - Math.min(100, v) / 100)} className="cv-anel" style={{ ['--t' as string]: c }} />
       </svg>
-      <b style={{ fontSize: 14.5, color: cor }}>{v}</b>
+      <b className="cv-cor" style={{ fontSize: 14.5, color: cor, ['--c' as string]: cor }}>{v}</b>
     </span>
   );
 }
@@ -33,7 +33,7 @@ export function colunasVisuais(maxPecas: number): Coluna<ClienteIV>[] {
         const ini = c.nome.split(/\s+/).filter((p) => p.length > 2).slice(0, 2).map((p) => p[0]).join('').toUpperCase();
         return (
           <div style={{ display: 'flex', gap: 12, alignItems: 'center', minWidth: 230 }}>
-            <span style={{ width: 42, height: 42, borderRadius: 13, flexShrink: 0, display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 15, color: cor, background: `${cor}18` }}>{ini}</span>
+            <span className="cv-cor" style={{ width: 42, height: 42, borderRadius: 13, flexShrink: 0, display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 15, color: cor, background: `${cor}18`, ['--c' as string]: cor }}>{ini}</span>
             <span style={{ minWidth: 0 }}>
               <b style={{ display: 'block', fontSize: 15.5, color: TX, lineHeight: 1.25 }}>{c.nome}</b>
               <span style={{ fontSize: 13.5, color: MU }}><i className="fas fa-location-dot" style={{ fontSize: 11 }} /> {c.cidade.replace(/\s*\(..\)$/, '')}{c.vendedor ? ` · ${c.vendedor.split(' ')[0]}` : ''}</span>
@@ -47,7 +47,7 @@ export function colunasVisuais(maxPecas: number): Coluna<ClienteIV>[] {
       render: (c) => (c.ultimoTrator ? (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <b style={{ fontSize: 15, color: TX }}>{c.ultimoTrator.modelo}</b>
-          <span style={{ fontSize: 12.5, fontWeight: 800, borderRadius: 999, padding: '2px 8px', background: (c.anosUltimoTrator ?? 0) >= 5 ? '#fee2e2' : SUAVE, color: (c.anosUltimoTrator ?? 0) >= 5 ? '#dc2626' : MU }}>
+          <span className={(c.anosUltimoTrator ?? 0) >= 5 ? 'cv-velho' : undefined} style={{ fontSize: 12.5, fontWeight: 800, borderRadius: 999, padding: '2px 8px', background: (c.anosUltimoTrator ?? 0) >= 5 ? '#fee2e2' : SUAVE, color: (c.anosUltimoTrator ?? 0) >= 5 ? '#dc2626' : MU }}>
             {c.anosUltimoTrator ? `${c.anosUltimoTrator} a` : 'novo'}
           </span>
           {c.qtdTratores > 1 && <span style={{ fontSize: 12.5, color: MU }}>+{c.qtdTratores - 1}</span>}
@@ -69,8 +69,8 @@ export function colunasVisuais(maxPecas: number): Coluna<ClienteIV>[] {
       id: 'prop', rotulo: 'Propostas', valor: (c) => c.valorPropostasAbertas,
       render: (c) => (c.propostasAbertas + c.propostasGanhas + c.propostasPerdidas === 0 ? <span style={{ color: MU }}>—</span> : (
         <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>
-          {c.propostasAbertas > 0 && <span className="cv-chip" style={{ background: '#fef9c3', color: '#a16207' }}>{c.propostasAbertas} aberta{c.propostasAbertas > 1 ? 's' : ''} · {reais(c.valorPropostasAbertas)}</span>}
-          {c.propostasGanhas > 0 && <span className="cv-chip" style={{ background: '#dcfce7', color: '#15803d' }}>{c.propostasGanhas} ganha{c.propostasGanhas > 1 ? 's' : ''}</span>}
+          {c.propostasAbertas > 0 && <span className="cv-chip cv-aberta" style={{ background: '#fef9c3', color: '#a16207' }}>{c.propostasAbertas} aberta{c.propostasAbertas > 1 ? 's' : ''} · {reais(c.valorPropostasAbertas)}</span>}
+          {c.propostasGanhas > 0 && <span className="cv-chip cv-ganha" style={{ background: '#dcfce7', color: '#15803d' }}>{c.propostasGanhas} ganha{c.propostasGanhas > 1 ? 's' : ''}</span>}
           {c.propostasPerdidas > 0 && <span className="cv-chip" style={{ background: SUAVE, color: MU }}>{c.propostasPerdidas} perdida{c.propostasPerdidas > 1 ? 's' : ''}</span>}
         </span>
       )),
@@ -82,7 +82,7 @@ export function colunasVisuais(maxPecas: number): Coluna<ClienteIV>[] {
       render: (c) => (
         <div style={{ minWidth: 260 }}>
           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
-            {c.oportunidades.map((o) => <span key={o.regra} className="cv-chip" style={{ background: `${REGRAS[o.regra].cor}16`, color: REGRAS[o.regra].cor }}>{REGRAS[o.regra].rotulo}</span>)}
+            {c.oportunidades.map((o) => <span key={o.regra} className="cv-chip cv-cor" style={{ background: `${REGRAS[o.regra].cor}16`, color: REGRAS[o.regra].cor, ['--c' as string]: REGRAS[o.regra].cor }}>{REGRAS[o.regra].rotulo}</span>)}
           </div>
           <div style={{ fontSize: 14.5, color: TX, fontWeight: 600 }}>{c.oportunidades[0]?.oferecer || ''}</div>
         </div>
@@ -98,4 +98,10 @@ export const ESTILO_TABELA_VISUAL = `
   .cv-chip { display: inline-block; font-size: 12.5px; font-weight: 700; border-radius: 999px; padding: 2px 9px; white-space: nowrap }
   .cv-abrir { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 10px; color: var(--portal-text-muted, #64748b); transition: transform .2s, background .2s, color .2s }
   tr:hover .cv-abrir { transform: translateX(4px); background: #fee2e2; color: #dc2626 }
+  /* modo escuro: chips no padrão escuro (cor a 15% + texto claro) e cores das regras clareadas */
+  [data-theme="dark"] .cv-cor { color: color-mix(in srgb, var(--c) 50%, #ffffff) !important }
+  [data-theme="dark"] .cv-aberta { background: rgb(251 191 36 / .15) !important; color: #fcd34d !important }
+  [data-theme="dark"] .cv-ganha { background: rgb(52 211 153 / .15) !important; color: #6ee7b7 !important }
+  [data-theme="dark"] .cv-velho { background: rgb(248 113 113 / .15) !important; color: #fca5a5 !important }
+  [data-theme="dark"] tr:hover .cv-abrir { background: rgb(248 113 113 / .15); color: var(--portal-red-fg, #f87171) }
 `;

@@ -109,7 +109,7 @@ export default function SalaReuniao({ embutida = false }: { embutida?: boolean }
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 8, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', border: '1px solid var(--portal-border,#e5e7eb)', borderRadius: 10, overflow: 'hidden' }}>
-            <button onClick={() => setAgendaDe('sala')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 800, background: !naMinha ? '#0891b2' : 'var(--portal-surface,#fff)', color: !naMinha ? '#fff' : 'var(--portal-text-secondary,#555)' }}><MapPin size={15} /> {sala?.nome || 'Sala de reunião'}</button>
+            <button onClick={() => setAgendaDe('sala')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 800, background: !naMinha ? 'var(--sala-cheio, #0891b2)' : 'var(--portal-surface,#fff)', color: !naMinha ? '#fff' : 'var(--portal-text-secondary,#555)' }}><MapPin size={15} /> {sala?.nome || 'Sala de reunião'}</button>
             <button onClick={() => setAgendaDe('minha')} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 800, background: naMinha ? '#475569' : 'var(--portal-surface,#fff)', color: naMinha ? '#fff' : 'var(--portal-text-secondary,#555)' }}><CalendarX2 size={15} /> Minha agenda</button>
           </div>
           <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>{segunda ? `${fmt(segunda)} – ${fmt(addDias(segunda, 5))}` : 'Carregando…'}</div>
@@ -120,14 +120,14 @@ export default function SalaReuniao({ embutida = false }: { embutida?: boolean }
         <span style={{ flex: 1 }} />
         <div style={{ display: 'flex', border: '1px solid var(--portal-border,#e5e7eb)', borderRadius: 10, overflow: 'hidden' }}>
           {(['dia', 'semana'] as const).map((v) => (
-            <button key={v} onClick={() => setVista(v)} style={{ padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, background: modo === v ? '#0891b2' : 'var(--portal-surface,#fff)', color: modo === v ? '#fff' : 'var(--portal-text-secondary,#555)' }}>{v === 'dia' ? 'Dia' : 'Semana'}</button>
+            <button key={v} onClick={() => setVista(v)} style={{ padding: '8px 14px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700, background: modo === v ? 'var(--sala-cheio, #0891b2)' : 'var(--portal-surface,#fff)', color: modo === v ? '#fff' : 'var(--portal-text-secondary,#555)' }}>{v === 'dia' ? 'Dia' : 'Semana'}</button>
           ))}
         </div>
         <button onClick={() => setAjuda((a) => !a)} title="Como funciona" style={{ ...botaoClaro(), padding: 8 }}><HelpCircle size={16} /></button>
         <button onClick={() => segunda && carregar(segunda)} title="Atualizar" style={{ ...botaoClaro(), padding: 8 }}><RefreshCw size={15} /></button>
         {naMinha
           ? <button onClick={() => { const base = diaSel && diaSel >= agora.dia ? diaSel : agora.dia; setFormBloqueio({ dia: base, inicio: '09:00', fim: '10:00' }) }} style={botao('#475569')}><CalendarX2 size={15} /> Bloquear horário</button>
-          : <button onClick={novaAgora} disabled={!sala} style={botao('#0891b2')}><Plus size={15} /> Reservar</button>}
+          : <button onClick={novaAgora} disabled={!sala} style={botao('var(--sala-cheio, #0891b2)')}><Plus size={15} /> Reservar</button>}
       </div>
 
       {ajuda && (

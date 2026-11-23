@@ -46,6 +46,8 @@ const ESTILO_RN = `
 .rn-btn.suave:hover{background:color-mix(in srgb,var(--c) 13%,var(--portal-surface,#fefefe))}
 .rn-btn.suave.on{color:#fefefe;background:var(--c);border-color:var(--c)}
 .rn-btn.so-ic{width:40px;padding:0;justify-content:center}
+/* tema escuro (23/11/2026): o texto do botão suave (ex.: Histórico #475569) clareia para ler no fundo preto */
+[data-theme="dark"] .rn-btn.suave:not(.on){color:color-mix(in srgb,var(--c) 40%,#fefefe)}
 .rn-aviso{margin-bottom:12px;padding:10px 14px;border-radius:12px;font-size:13.5px}
 .rn-dia{display:grid;grid-template-columns:84px 1fr;gap:14px;padding:14px 0;border-top:1px solid var(--portal-border,#e2e8f0)}
 .rn-dia:first-of-type{border-top:none}

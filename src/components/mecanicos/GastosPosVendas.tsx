@@ -16,7 +16,7 @@ const br = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 function Variacao({ atual, antes, rotulo }: { atual: number; antes: number | undefined; rotulo: string }) {
   if (antes == null) return null
   if (antes < 0.5 && atual < 0.5) return <span className="gp-var" style={{ color: MUDO }}>igual a {rotulo}</span>
-  if (antes < 0.5) return <span className="gp-var" style={{ color: '#b91c1c' }}>▲ novo · {rotulo}: R$ 0</span>
+  if (antes < 0.5) return <span className="gp-var" style={{ color: 'var(--mx-fg-red, #b91c1c)' }}>▲ novo · {rotulo}: R$ 0</span>
   const p = ((atual - antes) / antes) * 100
   const cor = Math.abs(p) < 3 ? MUDO : p > 0 ? '#b91c1c' : '#047857'
   return <span className="gp-var" style={{ color: cor }} title={`${rotulo}: ${brl2(antes)}`}>{p > 0 ? '▲' : p < 0 ? '▼' : '='} {Math.abs(Math.round(p))}% vs {rotulo} ({brl(antes)})</span>
@@ -60,7 +60,7 @@ export default function GastosPosVendas({ atual, anterior, internas, osComDescon
         <div>
           <div className="gp-rot"><i className="fas fa-wallet" /> Gastos do pós-vendas</div>
           <div className="gp-frase">
-            Saíram <b style={{ color: '#be123c' }}><Numero valor={atual.gastosTotal} formato={brl} /></b> em gastos
+            Saíram <b style={{ color: 'var(--mx-fg-red, #be123c)' }}><Numero valor={atual.gastosTotal} formato={brl} /></b> em gastos
             {a && <> · <Variacao atual={atual.gastosTotal} antes={a.gastosTotal} rotulo={rot} /></>}
           </div>
         </div>
@@ -85,7 +85,7 @@ export default function GastosPosVendas({ atual, anterior, internas, osComDescon
               <small>o que a oficina deixou de cobrar (pelo Nº do contrato) — não sai do resultado, as horas já estão no salário</small>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <b className="gp-val" style={{ color: '#7c3aed' }}><Numero valor={atual.internas.valor} formato={brl} /></b>
+              <b className="gp-val" style={{ color: 'var(--mx-fg-violet, #7c3aed)' }}><Numero valor={atual.internas.valor} formato={brl} /></b>
               <small style={{ display: 'block', color: MUDO }}>{atual.internas.qtd} OS · {horas(atual.internas.horas)}</small>
               <Variacao atual={atual.internas.valor} antes={a?.internas.valor} rotulo={rot} />
             </div>
@@ -118,7 +118,7 @@ export default function GastosPosVendas({ atual, anterior, internas, osComDescon
               <small>já saíram do faturamento — separados por tipo</small>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <b className="gp-val" style={{ color: '#db2777' }}><Numero valor={d.total} formato={brl} /></b>
+              <b className="gp-val" style={{ color: 'var(--mx-fg-pink, #db2777)' }}><Numero valor={d.total} formato={brl} /></b>
               <small style={{ display: 'block', color: MUDO }}>{d.qtdOS} OS com desconto</small>
               <Variacao atual={d.total} antes={a?.descontos.total} rotulo={rot} />
             </div>
@@ -172,7 +172,7 @@ const ESTILO = `
 .gp-rot { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: ${MUDO} }
 .gp-frase { font-size: 22px; font-weight: 800; color: var(--portal-text, #0f172a); margin-top: 2px }
 .gp-frase .gp-var { font-size: 13.5px }
-.gp-aberto { font-size: 12.5px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 99px; padding: 5px 12px; font-weight: 700 }
+.gp-aberto { font-size: 12.5px; color: var(--mx-fg-orange, #92400e); background: var(--mx-p-amber, #fffbeb); border: 1px solid var(--mx-pb-amber, #fde68a); border-radius: 99px; padding: 5px 12px; font-weight: 700 }
 .gp-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px }
 .gp-bloco { --c: #64748b; position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; font-family: inherit; color: var(--portal-text, #0f172a); background: linear-gradient(160deg, color-mix(in srgb, var(--c) 9%, transparent), transparent 70%); border: 1px solid color-mix(in srgb, var(--c) 28%, transparent); border-radius: 14px; padding: 12px 14px; cursor: pointer; transition: transform .15s, box-shadow .15s; animation: cpvEntra .5s cubic-bezier(.2,.8,.2,1) both; overflow: hidden }
 .gp-bloco:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px color-mix(in srgb, var(--c) 22%, transparent) }
@@ -188,7 +188,7 @@ const ESTILO = `
 .gp-painel:hover:not(:disabled) { box-shadow: 0 6px 18px rgba(15,23,42,.08) }
 .gp-p-cab { display: flex; gap: 10px; align-items: flex-start }
 .gp-p-cab b { font-size: 15px } .gp-p-cab small { display: block; font-size: 12px; color: ${MUDO} }
-.gp-alerta { font-size: 13px; color: #9a3412; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 7px 10px; animation: gpPisca 1.6s ease-in-out 2 }
+.gp-alerta { font-size: 13px; color: var(--mx-fg-orange, #9a3412); background: var(--mx-p-orange, #fff7ed); border: 1px solid var(--mx-pb-orange, #fed7aa); border-radius: 10px; padding: 7px 10px; animation: gpPisca 1.6s ease-in-out 2 }
 @keyframes gpPisca { 50% { box-shadow: 0 0 0 4px rgba(249,115,22,.25) } }
 .gp-contratos { display: grid; gap: 5px }
 .gp-ct { display: grid; grid-template-columns: minmax(110px, 1.2fr) 2fr 84px 48px; gap: 8px; align-items: center; font-size: 12.5px }
@@ -196,7 +196,7 @@ const ESTILO = `
 .gp-ct b { text-align: right; font-variant-numeric: tabular-nums } .gp-ct small { color: ${MUDO}; text-align: right }
 .gp-ct-barra { height: 8px; background: var(--portal-border, #e2e8f0); border-radius: 99px; overflow: hidden }
 .gp-ct-barra i { display: block; height: 100%; background: #a78bfa; border-radius: 99px; transform-origin: left; animation: gpRisco .7s cubic-bezier(.2,.8,.2,1) both }
-.gp-ct-on > span:first-child { color: #c2410c } .gp-ct-on .gp-ct-barra i { background: #f97316 }
+.gp-ct-on > span:first-child { color: var(--mx-fg-orange, #c2410c) } .gp-ct-on .gp-ct-barra i { background: #f97316 }
 .gp-desc { display: grid; gap: 6px }
 .gp-desc > div { display: grid; grid-template-columns: 1fr 90px; gap: 2px 8px; align-items: center; font-size: 13px }
 .gp-desc b { text-align: right; font-variant-numeric: tabular-nums } .gp-desc .gp-var { grid-column: 1 / -1; font-size: 11.5px }
@@ -210,7 +210,10 @@ const ESTILO = `
 .gp-lista { overflow-y: auto; padding: 10px 14px 14px; display: grid; gap: 5px }
 .gp-linha { display: flex; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--portal-border, #e5e7eb); color: var(--portal-text, #0f172a); text-decoration: none; font-size: 13px }
 .gp-linha:hover { background: var(--portal-bg-secondary, #f8fafc) } .gp-linha small { color: ${MUDO} }
-.gp-linha-on { border-color: #fdba74; background: #fff7ed }
-.gp-tag { font-size: 11.5px; font-weight: 800; background: #ede9fe; color: #6d28d9; border-radius: 99px; padding: 2px 8px; white-space: nowrap }
-.gp-linha-on .gp-tag { background: #ffedd5; color: #c2410c }
+.gp-linha-on { border-color: var(--mx-pb-orange, #fdba74); background: var(--mx-p-orange, #fff7ed) }
+.gp-tag { font-size: 11.5px; font-weight: 800; background: var(--mx-p-violet, #ede9fe); color: var(--mx-fg-violet, #6d28d9); border-radius: 99px; padding: 2px 8px; white-space: nowrap }
+.gp-linha-on .gp-tag { background: var(--mx-p-orange, #ffedd5); color: var(--mx-fg-orange, #c2410c) }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.gp-ic) { color: color-mix(in srgb, var(--c) 60%, #fff) }
 `

@@ -27,7 +27,9 @@ interface Props {
 }
 
 const AZUL = "#0369A1";
-const ROXO = "#7C3AED"; // mesma cor do selo de serviço interno no drawer da OS
+// texto azul (no escuro vira o azul claro do portal; AZUL fica pros fundos sólidos com texto branco)
+const AZUL_TX = "var(--pos-c-azul, #0369A1)";
+const ROXO = "var(--pos-c-roxo, #7C3AED)"; // mesma cor do selo de serviço interno no drawer da OS
 // No PDF o valor de serviço da NFS-e fica só no rodapé (a folha não comporta mais uma coluna).
 const COLS_PDF = COLS_RELACAO_OS.filter((c) => c.k !== "nfseValor");
 const COR_PDF: [number, number, number] = [3, 105, 161];
@@ -35,8 +37,8 @@ const T = { text: "var(--portal-text, #1e293b)", light: "var(--portal-text-secon
 
 const thBase: React.CSSProperties = { textAlign: "left", padding: "11px 10px", fontSize: 12, fontWeight: 800, color: T.light, letterSpacing: 0.3, whiteSpace: "nowrap", userSelect: "none", cursor: "pointer" };
 const tdBase: React.CSSProperties = { padding: "10px 10px", fontSize: 13.5, color: T.text, verticalAlign: "middle", borderTop: `1px solid ${T.border}` };
-const btnBase: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: "0 13px", borderRadius: 8, border: `1px solid ${T.border}`, background: "#fefefe", color: "#111111", fontSize: 12.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" };
-const inputBase: React.CSSProperties = { width: "100%", minWidth: 60, padding: "6px 8px", fontSize: 12, borderRadius: 6, border: `1px solid ${T.border}`, background: "#fefefe", color: T.text, outline: "none", fontFamily: "inherit" };
+const btnBase: React.CSSProperties = { display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: "0 13px", borderRadius: 8, border: `1px solid ${T.border}`, background: "var(--pos-c-superficie, #fefefe)", color: "var(--pos-c-texto, #111111)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit" };
+const inputBase: React.CSSProperties = { width: "100%", minWidth: 60, padding: "6px 8px", fontSize: 12, borderRadius: 6, border: `1px solid ${T.border}`, background: "var(--pos-c-superficie, #fefefe)", color: T.text, outline: "none", fontFamily: "inherit" };
 
 export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCardClick, onPhaseChange }: Props) {
   const fasesQ = useFasesDo("pos"); // fases do controlador (09/11/2026)
@@ -119,18 +121,18 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
   const Th = ({ k, label, right }: { k: ColOSKey; label: string; right?: boolean }) => {
     const active = ordem.key === k;
     return (
-      <th style={{ ...thBase, textAlign: right ? "right" : "left", color: active ? AZUL : thBase.color }} onClick={() => toggleSort(k)} title="Clique para ordenar">
+      <th style={{ ...thBase, textAlign: right ? "right" : "left", color: active ? AZUL_TX : thBase.color }} onClick={() => toggleSort(k)} title="Clique para ordenar">
         <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>{label}{active && <span style={{ fontSize: 9 }}>{ordem.dir === "asc" ? "▲" : "▼"}</span>}</span>
       </th>
     );
   };
   const chip = (active: boolean, extra?: React.CSSProperties): React.CSSProperties => ({
     padding: "5px 11px", borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
-    border: `1px solid ${active ? AZUL : T.border}`, background: active ? AZUL : "#fefefe", color: active ? "#fefefe" : "#111111", fontFamily: "inherit", ...extra,
+    border: `1px solid ${active ? AZUL : T.border}`, background: active ? AZUL : "var(--pos-c-superficie, #fefefe)", color: active ? "#fefefe" : "var(--pos-c-texto, #111111)", fontFamily: "inherit", ...extra,
   });
   const ResumoCard = ({ titulo, n, valor, cor, ativo, onClick, sub }: { titulo: string; n: number; valor?: number; cor: string; ativo?: boolean; onClick?: () => void; sub?: string }) => (
     <button type="button" onClick={onClick} disabled={!onClick}
-      style={{ textAlign: "left", border: `1px solid ${ativo ? AZUL : T.border}`, borderLeft: `4px solid ${cor}`, borderRadius: 8, padding: "10px 14px", background: ativo ? "#E0F2FE" : T.surface, cursor: onClick ? "pointer" : "default", fontFamily: "inherit" }}>
+      style={{ textAlign: "left", border: `1px solid ${ativo ? AZUL : T.border}`, borderLeft: `4px solid ${cor}`, borderRadius: 8, padding: "10px 14px", background: ativo ? "var(--pos-c-chip-azul-bg, #E0F2FE)" : T.surface, cursor: onClick ? "pointer" : "default", fontFamily: "inherit" }}>
       <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: T.light }}>{titulo}</div>
       <div style={{ fontSize: 19, fontWeight: 800, color: cor, marginTop: 2 }}>{valor != null ? fmtBRL(valor) : n}</div>
       <div style={{ fontSize: 12, color: T.light }}>{valor != null ? `${n} OS` : ""}{sub ? `${valor != null ? " · " : ""}${sub}` : ""}</div>
@@ -183,14 +185,15 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
           const ativo = filtroStatus === f.nome;
           return (
             <button key={f.nome} type="button" onClick={() => setFiltroStatus(ativo ? "" : f.nome)} title={f.nome}
-              style={chip(ativo, ativo ? { background: f.text, borderColor: f.text } : { background: f.bg, color: f.text, borderColor: f.bg })}>
+              className={ativo ? undefined : "pos-fase-chip"}
+              style={{ ...chip(ativo, ativo ? { background: f.text, borderColor: f.text } : { background: f.bg, color: f.text, borderColor: f.bg }), ["--f-tx" as string]: f.text }}>
               {f.label} ({f.n})
             </button>
           );
         })}
         <div style={{ flex: 1 }} />
         {(filtroStatus || cobranca || temFiltroCol) && (
-          <button type="button" style={{ ...btnBase, color: "#b91c1c", borderColor: "#fecaca", background: "#fef2f2" }} onClick={limpar}><i className="fas fa-times" /> Limpar filtros</button>
+          <button type="button" style={{ ...btnBase, color: "var(--pos-c-vermelho, #b91c1c)", borderColor: "var(--pos-c-borda-verm, #fecaca)", background: "var(--pos-c-chip-verm-bg, #fef2f2)" }} onClick={limpar}><i className="fas fa-times" /> Limpar filtros</button>
         )}
         <button type="button" style={btnBase} onClick={baixarCSV} title="Baixa um CSV (Excel) com a relação como está na tela"><i className="fas fa-file-csv" /> CSV</button>
         <button type="button" style={{ ...btnBase, background: "#111111", color: "#fefefe", borderColor: "#111111" }} onClick={imprimir} disabled={gerando}
@@ -198,20 +201,20 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
           <i className={`fas fa-print ${gerando ? "fa-beat" : ""}`} /> {gerando ? "Gerando..." : "Imprimir"}
         </button>
       </div>
-      {aviso && <div style={{ fontSize: 13, fontWeight: 600, color: "#b91c1c" }}>{aviso}</div>}
+      {aviso && <div style={{ fontSize: 13, fontWeight: 600, color: "var(--pos-c-vermelho, #b91c1c)" }}>{aviso}</div>}
 
       {/* CARDS DE RESUMO — sempre sobre o filtrado */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
-        <ResumoCard titulo="No filtro" n={totais.n} valor={totais.valor} cor={AZUL} ativo={!filtroStatus} onClick={() => setFiltroStatus("")} />
-        <ResumoCard titulo="Pendentes" n={totais.pendentesN} valor={totais.pendentesV} cor="#047857" ativo={filtroStatus === FASE_PENDENTE_OS} onClick={() => setFiltroStatus(filtroStatus === FASE_PENDENTE_OS ? "" : FASE_PENDENTE_OS)} sub="menos Concluída/Cancelada" />
-        <ResumoCard titulo="Concluídas" n={totais.concluidasN} valor={totais.concluidasV} cor="#1d4ed8" ativo={filtroStatus === "Concluída"} onClick={() => setFiltroStatus(filtroStatus === "Concluída" ? "" : "Concluída")} />
-        <ResumoCard titulo="Atrasadas (pendentes)" n={totais.atrasadasN} cor="#b91c1c" sub={`${totais.horas} h · ${totais.km} km no filtro`} />
+        <ResumoCard titulo="No filtro" n={totais.n} valor={totais.valor} cor={AZUL_TX} ativo={!filtroStatus} onClick={() => setFiltroStatus("")} />
+        <ResumoCard titulo="Pendentes" n={totais.pendentesN} valor={totais.pendentesV} cor="var(--pos-c-verde, #047857)" ativo={filtroStatus === FASE_PENDENTE_OS} onClick={() => setFiltroStatus(filtroStatus === FASE_PENDENTE_OS ? "" : FASE_PENDENTE_OS)} sub="menos Concluída/Cancelada" />
+        <ResumoCard titulo="Concluídas" n={totais.concluidasN} valor={totais.concluidasV} cor="var(--pos-c-azul, #1d4ed8)" ativo={filtroStatus === "Concluída"} onClick={() => setFiltroStatus(filtroStatus === "Concluída" ? "" : "Concluída")} />
+        <ResumoCard titulo="Atrasadas (pendentes)" n={totais.atrasadasN} cor="var(--pos-c-vermelho, #b91c1c)" sub={`${totais.horas} h · ${totais.km} km no filtro`} />
       </div>
       {/* COM NOTA × INTERNO (selo da OS) e o que já virou NFS-e de serviço */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
-        <ResumoCard titulo="Com nota" n={totais.comNotaN} valor={totais.comNotaV} cor={AZUL} ativo={cobranca === "nota"} onClick={() => setCobranca(cobranca === "nota" ? "" : "nota")} sub="sem as OS internas" />
+        <ResumoCard titulo="Com nota" n={totais.comNotaN} valor={totais.comNotaV} cor={AZUL_TX} ativo={cobranca === "nota"} onClick={() => setCobranca(cobranca === "nota" ? "" : "nota")} sub="sem as OS internas" />
         <ResumoCard titulo="Interno" n={totais.internoN} valor={totais.internoV} cor={ROXO} ativo={cobranca === "interno"} onClick={() => setCobranca(cobranca === "interno" ? "" : "interno")} sub="não vira nota de serviço" />
-        <ResumoCard titulo="NFS-e emitidas (serviço)" n={totais.nfseN} valor={totais.nfseV} cor="#047857" sub={totais.semNfseN ? `${totais.semNfseN} concluída${totais.semNfseN !== 1 ? "s" : ""} sem nota` : "peças saem por pedido de venda"} />
+        <ResumoCard titulo="NFS-e emitidas (serviço)" n={totais.nfseN} valor={totais.nfseV} cor="var(--pos-c-verde, #047857)" sub={totais.semNfseN ? `${totais.semNfseN} concluída${totais.semNfseN !== 1 ? "s" : ""} sem nota` : "peças saem por pedido de venda"} />
       </div>
       <div style={{ fontSize: 12, color: T.light, marginTop: -4 }}>
         <b>Valor</b> é o calculado pelo portal (serviço + peças + requisições − descontos). <b>Serviço na NFS-e</b> é só o serviço que saiu na nota da Omie; as peças são faturadas pelo pedido de venda.
@@ -239,14 +242,14 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
               const sitNota = situacaoNota(o);
               return (
                 <tr key={o.id} onClick={() => onCardClick(o)} className="pos-relacao-row" style={{ cursor: "pointer" }}>
-                  <td style={{ ...tdBase, fontWeight: 800, fontSize: 14.5, whiteSpace: "nowrap" }}>{colTextoOS(o, "id")}{o.servicoInterno && <span title="Serviço interno" style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 800, padding: "1px 5px", borderRadius: 4, background: "#f1f5f9", color: "#334155" }}>INT</span>}</td>
+                  <td style={{ ...tdBase, fontWeight: 800, fontSize: 14.5, whiteSpace: "nowrap" }}>{colTextoOS(o, "id")}{o.servicoInterno && <span title="Serviço interno" style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 800, padding: "1px 5px", borderRadius: 4, background: "var(--pos-c-neutro-bg, #f1f5f9)", color: "var(--pos-c-texto, #334155)" }}>INT</span>}</td>
                   <td style={{ ...tdBase, fontWeight: 700, fontSize: 14.5, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={o.cliente}>{colTextoOS(o, "cliente")}</td>
                   <td style={{ ...tdBase, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={o.tecnico}>{o.tecnico || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{o.tipoServico || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{colTextoOS(o, "data") || "—"}</td>
-                  <td style={{ ...tdBase, textAlign: "right", fontWeight: 800, fontSize: 14.5, color: AZUL, whiteSpace: "nowrap" }}>{fmtBRL(valorOS(o))}</td>
-                  <td style={tdBase}><span title={o.status} style={{ fontSize: 12, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: f.bg, color: f.text, whiteSpace: "nowrap" }}>{f.label}</span></td>
-                  <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{colTextoOS(o, "dataFase") || "—"}{atrasada && <span title={`${o.diasAtraso} dia(s) de atraso`} style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, color: "#b91c1c" }}>+{o.diasAtraso}d</span>}</td>
+                  <td style={{ ...tdBase, textAlign: "right", fontWeight: 800, fontSize: 14.5, color: AZUL_TX, whiteSpace: "nowrap" }}>{fmtBRL(valorOS(o))}</td>
+                  <td style={tdBase}><span title={o.status} className="pos-fase-chip" style={{ fontSize: 12, fontWeight: 700, padding: "3px 9px", borderRadius: 6, background: f.bg, color: f.text, whiteSpace: "nowrap", ["--f-tx" as string]: f.text }}>{f.label}</span></td>
+                  <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{colTextoOS(o, "dataFase") || "—"}{atrasada && <span title={`${o.diasAtraso} dia(s) de atraso`} style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, color: "var(--pos-c-vermelho, #b91c1c)" }}>+{o.diasAtraso}d</span>}</td>
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{colTextoOS(o, "previsaoExecucao") || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{colTextoOS(o, "dataFimServico") || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{colTextoOS(o, "previsaoFaturamento") || <span style={{ color: "#94a3b8" }}>—</span>}</td>
@@ -254,7 +257,7 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}
                     title={sitNota === "com_nfse" ? "NFS-e de serviço emitida na Omie" : sitNota === "sem_nfse" ? "Faturada na Omie sem NFS-e (recibo)" : sitNota === "interno" ? "Serviço interno: não vira nota de serviço" : sitNota === "nao_verificada" ? "Enviada à Omie; ainda sem faturamento no cache de NFS-e" : "Ainda não enviada à Omie"}>
                     {sitNota === "com_nfse" ? <b>{colTextoOS(o, "nfse")}</b>
-                      : sitNota === "sem_nfse" ? <span style={{ fontSize: 12, fontWeight: 700, padding: "2px 7px", borderRadius: 6, background: "#FEF3C7", color: "#92400E" }}>sem nota</span>
+                      : sitNota === "sem_nfse" ? <span style={{ fontSize: 12, fontWeight: 700, padding: "2px 7px", borderRadius: 6, background: "var(--pos-c-chip-ambar-bg, #FEF3C7)", color: "var(--pos-c-ambar, #92400E)" }}>sem nota</span>
                       : sitNota === "interno" ? <span style={{ fontSize: 12, fontWeight: 700, color: ROXO }}>interna</span>
                       : <span style={{ color: "#94a3b8" }}>—</span>}
                   </td>
@@ -265,7 +268,7 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
                   {onPhaseChange && (
                     <td style={tdBase} onClick={(e) => e.stopPropagation()}>
                       <select value={o.status} onChange={(e) => onPhaseChange(o.id, e.target.value)}
-                        style={{ width: "100%", padding: "7px 8px", fontSize: 12.5, fontWeight: 600, borderRadius: 6, border: `1px solid ${T.border}`, background: "#fefefe", color: T.text, cursor: "pointer", fontFamily: "inherit" }}>
+                        style={{ width: "100%", padding: "7px 8px", fontSize: 12.5, fontWeight: 600, borderRadius: 6, border: `1px solid ${T.border}`, background: "var(--pos-c-superficie, #fefefe)", color: T.text, cursor: "pointer", fontFamily: "inherit" }}>
                         {(fasesQ.chaves.includes(o.status) ? fasesQ.chaves : [o.status, ...fasesQ.chaves]).map((p) => <option key={p} value={p}>{fasesQ.lista.find((x) => x.chave === p)?.rotulo || rotuloFaseOS(p)}</option>)}
                       </select>
                     </td>

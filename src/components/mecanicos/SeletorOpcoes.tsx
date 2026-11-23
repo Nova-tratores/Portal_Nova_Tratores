@@ -45,7 +45,7 @@ function Resumo({ porDia, escala, refDia, hoje }: { porDia: PorDia; escala: Esca
         <div><small>OS</small><b><Numero valor={s.os} formato={(v) => String(Math.round(v))} /></b></div>
         <div><small>Horas cobradas</small><b>{horas(s.horas)}</b></div>
         <div><small>Ticket médio</small><b>{brl(s.os ? s.bruto / s.os : 0)}</b></div>
-        <div><small>vs {NOME_ANT[escala]}{andamento ? ' (mesmo trecho)' : ''}</small><b style={{ color: dif == null ? MUDO : dif >= 0 ? '#047857' : '#b91c1c' }}>{dif == null ? '—' : `${dif >= 0 ? '▲' : '▼'} ${Math.abs(dif)}%`}</b><span>{brl(sa.bruto)}</span></div>
+        <div><small>vs {NOME_ANT[escala]}{andamento ? ' (mesmo trecho)' : ''}</small><b style={{ color: dif == null ? MUDO : dif >= 0 ? 'var(--mx-fg-green, #047857)' : 'var(--mx-fg-red, #b91c1c)' }}>{dif == null ? '—' : `${dif >= 0 ? '▲' : '▼'} ${Math.abs(dif)}%`}</b><span>{brl(sa.bruto)}</span></div>
       </div>
     </div>
   )
@@ -110,7 +110,7 @@ function Comparativo({ porDia, a, b, hoje, rotA, rotB }: { porDia: PorDia; a: { 
                 <td>{r}</td>
                 <td className="so-cmp-va"><b><Numero valor={va} formato={f} /></b></td>
                 <td className="so-cmp-vb">{f(vb)}</td>
-                <td style={{ color: d >= 0 ? '#047857' : '#b91c1c', fontWeight: 900 }}>{d >= 0 ? '▲ +' : '▼ −'}{f(Math.abs(d))}{p != null && <small> ({d >= 0 ? '+' : ''}{p}%)</small>}</td>
+                <td style={{ color: d >= 0 ? 'var(--mx-fg-green, #047857)' : 'var(--mx-fg-red, #b91c1c)', fontWeight: 900 }}>{d >= 0 ? '▲ +' : '▼ −'}{f(Math.abs(d))}{p != null && <small> ({d >= 0 ? '+' : ''}{p}%)</small>}</td>
                 <td className="so-cmp-bars"><span><i className="a" style={{ width: `${(va / max) * 100}%` }} /></span><span><i className="b" style={{ width: `${(vb / max) * 100}%` }} /></span></td>
               </tr>
             )
@@ -119,7 +119,7 @@ function Comparativo({ porDia, a, b, hoje, rotA, rotB }: { porDia: PorDia; a: { 
       </table>
       <p className="so-cmp-frase">
         {sb.bruto > 0
-          ? <>{rotA} faturou <b>{brl(sa.bruto)}</b>, {sa.bruto >= sb.bruto ? <b style={{ color: '#047857' }}>{brl(sa.bruto - sb.bruto)} a mais</b> : <b style={{ color: '#b91c1c' }}>{brl(sb.bruto - sa.bruto)} a menos</b>} que {rotB} ({sa.bruto >= sb.bruto ? '+' : ''}{Math.round(((sa.bruto - sb.bruto) / sb.bruto) * 100)}%). {sa.os !== sb.os && <>Foram {sa.os} OS contra {sb.os}{sa.os && sb.os ? <>, com ticket médio de {brl(sa.bruto / sa.os)} contra {brl(sb.bruto / sb.os)}</> : null}.</>}</>
+          ? <>{rotA} faturou <b>{brl(sa.bruto)}</b>, {sa.bruto >= sb.bruto ? <b style={{ color: 'var(--mx-fg-green, #047857)' }}>{brl(sa.bruto - sb.bruto)} a mais</b> : <b style={{ color: 'var(--mx-fg-red, #b91c1c)' }}>{brl(sb.bruto - sa.bruto)} a menos</b>} que {rotB} ({sa.bruto >= sb.bruto ? '+' : ''}{Math.round(((sa.bruto - sb.bruto) / sb.bruto) * 100)}%). {sa.os !== sb.os && <>Foram {sa.os} OS contra {sb.os}{sa.os && sb.os ? <>, com ticket médio de {brl(sa.bruto / sa.os)} contra {brl(sb.bruto / sb.os)}</> : null}.</>}</>
           : <>{rotB} não teve faturamento para comparar.</>}
       </p>
     </div>
@@ -192,8 +192,8 @@ export function SeletorBarras({ porDia, hoje }: { porDia: PorDia; hoje: string }
       </div>
       <div className="so-leg">
         <span><i style={{ background: AZUL }} /> <b>barra azul</b> = quanto faturou no {NOME_UNID[escala][0]}</span>
-        {legendaCinza && <span><i style={{ background: '#cbd5e1' }} /> <b>barra cinza</b> = {legendaCinza}</span>}
-        {legendaCinza && <span><b style={{ color: '#047857' }}>▲</b>/<b style={{ color: '#b91c1c' }}>▼</b> = quanto o azul ficou acima ou abaixo do cinza</span>}
+        {legendaCinza && <span><i style={{ background: 'var(--mx-bg2, #cbd5e1)' }} /> <b>barra cinza</b> = {legendaCinza}</span>}
+        {legendaCinza && <span><b style={{ color: 'var(--mx-fg-green, #047857)' }}>▲</b>/<b style={{ color: 'var(--mx-fg-red, #b91c1c)' }}>▼</b> = quanto o azul ficou acima ou abaixo do cinza</span>}
         <span><b className="so-tag-leg">A</b> = {NOME_UNID[escala][0]} escolhido{modo === 'escolhido' ? <> · <b className="so-tag-leg b">B</b> = comparado</> : null} · clique numa barra para escolher</span>
       </div>
       <Comparativo porDia={porDia} a={sel} b={b} hoje={hoje} rotA={maiuscula(rotuloPeriodo(escala, sel.de, sel.ate))} rotB={rotuloPeriodo(escala, b.de, b.ate)} />
@@ -424,7 +424,7 @@ function ComparativoDet({ sa, sb, rotA, rotB, andamento, ateB, soA }: { sa: Det;
       {!soA && (
         <p className="so-cx-frase"><i className="fas fa-lightbulb" />
           <span>{sb.bruto > 0
-            ? <>{rotA} faturou <b>{brl(sa.bruto)}</b>, {d >= 0 ? <b style={{ color: '#047857' }}>{brl(d)} a mais</b> : <b style={{ color: '#b91c1c' }}>{brl(-d)} a menos</b>} que {rotB}. Em horas foram {brl(sa.servico)} ({horas(sa.horas)}) contra {brl(sb.servico)}; em km {brl(sa.kmValor)} contra {brl(sb.kmValor)}; em peças {brl(sa.pecas)} contra {brl(sb.pecas)}.</>
+            ? <>{rotA} faturou <b>{brl(sa.bruto)}</b>, {d >= 0 ? <b style={{ color: 'var(--mx-fg-green, #047857)' }}>{brl(d)} a mais</b> : <b style={{ color: 'var(--mx-fg-red, #b91c1c)' }}>{brl(-d)} a menos</b>} que {rotB}. Em horas foram {brl(sa.servico)} ({horas(sa.horas)}) contra {brl(sb.servico)}; em km {brl(sa.kmValor)} contra {brl(sb.kmValor)}; em peças {brl(sa.pecas)} contra {brl(sb.pecas)}.</>
             : <>{rotB} não teve faturamento para comparar.</>}</span>
         </p>
       )}
@@ -520,7 +520,7 @@ export function SeletorCartoes({ faturadas, hoje, escala: escalaC, refDia, onMud
           </div>
         </div>
         <div className="so-fdir">
-          <small>{escolhendo ? <b style={{ color: '#c2410c' }}>clique no cartão que vai ser o B</b> : 'clique num cartão para abrir os detalhes dele'}</small>
+          <small>{escolhendo ? <b style={{ color: 'var(--mx-fg-orange, #c2410c)' }}>clique no cartão que vai ser o B</b> : 'clique num cartão para abrir os detalhes dele'}</small>
           <button type="button" className={`so-foco ${foco ? 'on' : ''}`} onClick={trocarFoco} title={foco ? 'Os outros cartões estão desfocados: clique para ver todos nítidos' : 'Clique para desfocar os outros cartões e destacar o escolhido'}><span aria-hidden><i /></span>destacar o escolhido</button>
           {onAtualizar && <button type="button" className="so-atualiza" onClick={onAtualizar} disabled={carregando} title="Buscar os dados de novo"><i className={`fas fa-rotate ${carregando ? 'fa-spin' : ''}`} /> atualizar</button>}
         </div>
@@ -604,7 +604,7 @@ export function SeletorCartoes({ faturadas, hoje, escala: escalaC, refDia, onMud
         })}
       </div>
       <div className="so-leg">
-        <span><b>Em cada cartão:</b> o número grande é <b style={{ color: M.cor }}>{M.rot.toLowerCase()}</b>{comparar && <> · <b style={{ color: '#047857' }}>▲</b>/<b style={{ color: '#b91c1c' }}>▼</b> quanto subiu ou caiu contra {textoComp}</>}</span>
+        <span><b>Em cada cartão:</b> o número grande é <b style={{ color: M.cor }}>{M.rot.toLowerCase()}</b>{comparar && <> · <b style={{ color: 'var(--mx-fg-green, #047857)' }}>▲</b>/<b style={{ color: 'var(--mx-fg-red, #b91c1c)' }}>▼</b> quanto subiu ou caiu contra {textoComp}</>}</span>
         <button type="button" className={`so-det ${detalhes ? 'on' : ''}`} onClick={() => setDetalhes((v) => !v)}><i className={`fas ${detalhes ? 'fa-eye-slash' : 'fa-eye'}`} /> {detalhes ? 'esconder' : 'mostrar'} horas, km e peças nos cartões</button>
       </div>
 
@@ -742,18 +742,18 @@ export const ESTILO_SO = `
 .so-cards .so-card.futuro { opacity: .3; cursor: default; filter: none }
 /* o cartão do período ATUAL (o de hoje) sempre marcado em verde, mesmo sem estar escolhido */
 .so-cards .so-card.atual:not(.on) { border-color: #16a34a; box-shadow: 0 0 0 2px #16a34a33; filter: none; opacity: 1 }
-.so-foco { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 5px 12px 5px 6px; font-family: inherit; font-size: 13px; font-weight: 600; color: #0f172a; cursor: pointer }
-.so-foco > span { position: relative; width: 30px; height: 18px; border-radius: 99px; background: #cbd5e1; transition: background .2s } .so-foco > span i { position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: #fefefe; transition: transform .25s } .so-foco.on > span { background: #2563eb } .so-foco.on > span i { transform: translateX(12px) }
+.so-foco { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 5px 12px 5px 6px; font-family: inherit; font-size: 13px; font-weight: 600; color: var(--mx-t, #0f172a); cursor: pointer }
+.so-foco > span { position: relative; width: 30px; height: 18px; border-radius: 99px; background: var(--mx-bg2, #cbd5e1); transition: background .2s } .so-foco > span i { position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--mx-bg0, #fefefe); transition: transform .25s } .so-foco.on > span { background: #2563eb } .so-foco.on > span i { transform: translateX(12px) }
 
 .so-comp { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
 .so-comp-rot { font-size: 12.5px; font-weight: 900; color: ${MUDO}; margin-right: 4px }
 .so-comp button { border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: ${MUDO}; border-radius: 99px; padding: 5px 12px; font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; transition: all .2s }
 .so-comp button.on { background: #0f172a; color: #fefefe; border-color: #0f172a } .so-comp button.on.laranja { background: #f97316; border-color: #f97316 }
 .so-comp button.piscando { animation: soPisca 1s ease-in-out infinite } @keyframes soPisca { 50% { box-shadow: 0 0 0 5px rgba(249,115,22,.3) } }
-.so-barras.escolhendo .so-col:not(:disabled):hover { background: #ffedd5; outline: 2px dashed #f97316 }
+.so-barras.escolhendo .so-col:not(:disabled):hover { background: var(--mx-p-orange, #ffedd5); outline: 2px dashed #f97316 }
 .so-col { position: relative } .so-tag { position: absolute; top: -2px; right: 6px; background: ${AZUL}; color: #fefefe; font-size: 10px; font-weight: 900; border-radius: 6px; padding: 0 5px } .so-tag.b { background: #f97316 }
-.so-col.ehb .so-par .a { background: #f97316 !important; box-shadow: 0 0 14px rgba(249,115,22,.45) } .so-col.ehb small { color: #c2410c; font-weight: 900 }
-.so-delta { font-size: 10.5px; font-weight: 900; border-radius: 99px; padding: 0 5px } .so-delta.up { color: #047857; background: #ecfdf5 } .so-delta.down { color: #b91c1c; background: #fef2f2 }
+.so-col.ehb .so-par .a { background: #f97316 !important; box-shadow: 0 0 14px rgba(249,115,22,.45) } .so-col.ehb small { color: var(--mx-fg-orange, #c2410c); font-weight: 900 }
+.so-delta { font-size: 10.5px; font-weight: 900; border-radius: 99px; padding: 0 5px } .so-delta.up { color: var(--mx-fg-green, #047857); background: var(--mx-p-green, #ecfdf5) } .so-delta.down { color: var(--mx-fg-red, #b91c1c); background: var(--mx-p-red, #fef2f2) }
 .so-tag-leg { background: ${AZUL}; color: #fefefe; border-radius: 5px; padding: 0 5px; font-size: 10.5px } .so-tag-leg.b { background: #f97316 }
 .so-cmp { border-top: 1px dashed var(--portal-border, #e5e7eb); padding-top: 10px; display: grid; gap: 8px; animation: soEntra .45s both }
 .so-cmp-cab { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 15px; font-weight: 900 } .so-cmp-cab > b { color: ${MUDO} }
@@ -775,7 +775,7 @@ export const ESTILO_SO = `
 .so-col { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 3px; border: none; background: transparent; border-radius: 10px; padding: 4px 0; cursor: pointer; font-family: inherit; transition: background .2s } .so-col:hover:not(:disabled) { background: var(--portal-bg-secondary, #f1f5f9) } .so-col:disabled { opacity: .35; cursor: default }
 .so-col em { font-style: normal; font-size: 11px; font-weight: 800; color: ${MUDO}; height: 14px } .so-col.on em { color: ${AZUL} }
 .so-par { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 3px }
-.so-par i { width: 34%; max-width: 22px; border-radius: 5px 5px 0 0; transform-origin: bottom; animation: soSobe .7s cubic-bezier(.2,.8,.2,1) both } .so-par .b { background: #e2e8f0 } .so-par .a { background: #93c5fd } .so-col.on .so-par .a { background: ${AZUL}; box-shadow: 0 0 14px rgba(37,99,235,.45) }
+.so-par i { width: 34%; max-width: 22px; border-radius: 5px 5px 0 0; transform-origin: bottom; animation: soSobe .7s cubic-bezier(.2,.8,.2,1) both } .so-par .b { background: var(--mx-bg2, #e2e8f0) } .so-par .a { background: #93c5fd } .so-col.on .so-par .a { background: ${AZUL}; box-shadow: 0 0 14px rgba(37,99,235,.45) }
 @keyframes soSobe { from { transform: scaleY(0) } }
 .so-col small { font-size: 11.5px; font-weight: 700; color: ${MUDO}; white-space: nowrap } .so-col.on small { color: ${AZUL}; font-weight: 900 }
 .so-leg { display: flex; gap: 14px; font-size: 12px; color: ${MUDO} } .so-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; vertical-align: -1px }
@@ -790,16 +790,16 @@ export const ESTILO_SO = `
 .so-cal-mes { flex: 1; font-family: inherit; font-size: 15px; font-weight: 900; text-transform: capitalize } .so-cal-mes small { font-weight: 700; color: ${MUDO}; margin-left: 6px } .so-cal-mes.on { background: ${AZUL} !important; color: #fefefe } .so-cal-mes.on small { color: #dbeafe }
 .so-cal-grade { display: grid; grid-template-columns: 24px repeat(7, 1fr); gap: 4px; margin-top: 8px }
 .so-cal-sem { text-align: center; font-size: 10.5px; font-weight: 800; color: ${MUDO} }
-.so-cal-linha { border: none; background: transparent; color: #cbd5e1; cursor: pointer; border-radius: 6px } .so-cal-linha:hover, .so-cal-linha.on { color: ${AZUL}; background: #dbeafe }
+.so-cal-linha { border: none; background: transparent; color: #cbd5e1; cursor: pointer; border-radius: 6px } .so-cal-linha:hover, .so-cal-linha.on { color: ${AZUL}; background: var(--mx-p-blue, #dbeafe) }
 .so-dia { aspect-ratio: 1; border: 1px solid transparent; border-radius: 10px; background: var(--portal-bg-secondary, #f1f5f9); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; font-family: inherit; cursor: pointer; transition: transform .15s; color: var(--portal-text, #0f172a) } .so-dia:hover:not(:disabled) { transform: scale(1.1) } .so-dia:disabled { border: 1px dashed var(--portal-border, #e2e8f0); color: #cbd5e1; cursor: default }
 .so-dia b { font-size: 12.5px } .so-dia small { font-size: 9.5px; opacity: .85 }
 .so-dia.sel { box-shadow: 0 0 0 3px #f59e0b } .so-dia.hoje { outline: 2px solid #16a34a; outline-offset: 1px }
 .so-cal-dica { font-size: 12px; color: ${MUDO}; margin-top: 8px }
 .so-cards { display: flex; gap: 10px; overflow-x: auto; padding: 4px 2px 8px; scroll-snap-type: x mandatory }
 .so-card { position: relative; flex: 1 0 190px; scroll-snap-align: start; display: grid; gap: 3px; text-align: left; border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-card, #fefefe); border-radius: 14px; padding: 10px 12px; font-family: inherit; cursor: pointer; animation: soEntra .45s both; transition: transform .2s, box-shadow .2s, border-color .2s }
-.so-card:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(15,23,42,.1) } .so-card.on { border-color: ${AZUL}; box-shadow: 0 0 0 2px ${AZUL}, 0 10px 22px rgba(37,99,235,.2); background: linear-gradient(160deg, #eff6ff, var(--portal-bg-card, #fefefe)) }
+.so-card:hover { transform: translateY(-3px); box-shadow: 0 8px 18px rgba(15,23,42,.1) } .so-card.on { border-color: ${AZUL}; box-shadow: 0 0 0 2px ${AZUL}, 0 10px 22px rgba(37,99,235,.2); background: linear-gradient(160deg, var(--mx-bg1, #eff6ff), var(--portal-bg-card, #fefefe)) }
 .so-card small { font-size: 12px; font-weight: 800; color: ${MUDO}; display: flex; gap: 6px; align-items: center; flex-wrap: wrap } .so-card small .so-vivo { font-size: 10.5px } .so-card b { font-size: 19px; font-variant-numeric: tabular-nums; color: var(--portal-text, #0f172a) } .so-card span { font-size: 11.5px; color: ${MUDO} }
-.so-card em { justify-self: start; font-style: normal; font-size: 11.5px; font-weight: 900; border-radius: 99px; padding: 1px 8px } .so-card em i { font-style: normal; font-weight: 700; opacity: .8 } .so-card em.nada { color: ${MUDO}; background: var(--portal-bg-secondary, #f1f5f9); font-weight: 700 } .so-card em.up { color: #047857; background: #ecfdf5 } .so-card em.down { color: #b91c1c; background: #fef2f2 }
+.so-card em { justify-self: start; font-style: normal; font-size: 11.5px; font-weight: 900; border-radius: 99px; padding: 1px 8px } .so-card em i { font-style: normal; font-weight: 700; opacity: .8 } .so-card em.nada { color: ${MUDO}; background: var(--portal-bg-secondary, #f1f5f9); font-weight: 700 } .so-card em.up { color: var(--mx-fg-green, #047857); background: var(--mx-p-green, #ecfdf5) } .so-card em.down { color: var(--mx-fg-red, #b91c1c); background: var(--mx-p-red, #fef2f2) }
 .so-g .so-cards { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; overflow: visible; padding: 4px 2px 6px }
 .so-g .so-card { min-width: 0; padding: 10px 12px } .so-g .so-card small { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block } .so-g .so-card b { font-size: clamp(16px, 1.45vw, 21px); white-space: nowrap }
 @media (max-width: 900px) { .so-g .so-cards { grid-auto-columns: minmax(150px, 1fr); overflow-x: auto; scrollbar-width: none } .so-g .so-cards::-webkit-scrollbar { display: none } } .so-g .so-card span { font-size: 13px } .so-g .so-card em { font-size: 12.5px }
@@ -810,37 +810,37 @@ export const ESTILO_SO = `
 .so-mix-n { font-size: 12px; font-weight: 800; color: var(--portal-text, #334155); display: inline-flex; align-items: center; gap: 6px } .so-mix-n i { width: 8px; height: 8px; border-radius: 3px; background: var(--c) }
 .so-g .so-card .so-mix-l b { font-size: 13.5px; font-weight: 900; color: var(--portal-text, #0f172a); text-align: right; font-variant-numeric: tabular-nums }
 .so-g .so-card .so-mix-l small { grid-column: 1 / 3; font-size: 10.5px; font-weight: 700; color: ${MUDO}; margin: -2px 0 0 14px; display: block } .so-g .so-card .so-mix-l small:empty { display: none }
-.so-mix-d { grid-row: 1; grid-column: 3; font-size: 10.5px; font-weight: 900; text-align: right } .so-g .so-card .so-mix-d { font-size: 10.5px; color: ${MUDO} } .so-g .so-card .so-mix-d.up { color: #047857 } .so-g .so-card .so-mix-d.down { color: #b91c1c }
+.so-mix-d { grid-row: 1; grid-column: 3; font-size: 10.5px; font-weight: 900; text-align: right } .so-g .so-card .so-mix-d { font-size: 10.5px; color: ${MUDO} } .so-g .so-card .so-mix-d.up { color: var(--mx-fg-green, #047857) } .so-g .so-card .so-mix-d.down { color: var(--mx-fg-red, #b91c1c) }
 .so-ab2 { display: grid; gap: 10px; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; padding: 12px; background: linear-gradient(100deg, rgba(37,99,235,.06), transparent 45%, rgba(249,115,22,.07)); transition: background .3s } .so-ab2.off { background: linear-gradient(100deg, rgba(37,99,235,.06), transparent 60%) }
 .so-ab2-linha { display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
 .so-ab2-chip { flex: 1 1 240px; min-width: 0; display: flex; gap: 10px; align-items: center; background: var(--portal-bg-card, #fefefe); border-radius: 14px; padding: 8px 12px; box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 6px 16px rgba(15,23,42,.05); animation: soEntra .35s both }
 
 .so-ab2-chip > em { font-style: normal; width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; font-weight: 900; font-size: 15px; color: #fefefe } .so-ab2-chip.a > em { background: ${AZUL}; box-shadow: 0 4px 12px rgba(37,99,235,.35) } .so-ab2-chip.b > em { background: #f97316; box-shadow: 0 4px 12px rgba(249,115,22,.35) }
 .so-ab2-chip > div { flex: 1; min-width: 0 } .so-ab2-chip small { display: block; font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: ${MUDO} } .so-ab2-chip b { display: block; font-size: 16px; color: var(--portal-text, #0f172a); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.so-ab2-seta { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; border: none; background: #fff7ed; color: #c2410c; cursor: pointer; transition: all .2s } .so-ab2-seta:hover { background: #f97316; color: #fefefe; transform: scale(1.1) }
+.so-ab2-seta { flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%; border: none; background: var(--mx-p-orange, #fff7ed); color: var(--mx-fg-orange, #c2410c); cursor: pointer; transition: all .2s } .so-ab2-seta:hover { background: #f97316; color: #fefefe; transform: scale(1.1) }
 .so-ab2-vs { width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; background: var(--portal-bg-card, #fefefe); color: ${MUDO}; box-shadow: 0 2px 8px rgba(15,23,42,.1); animation: soGira .5s both } @keyframes soGira { from { transform: rotate(-180deg) scale(.5); opacity: 0 } }
 .so-ab2-sem { flex: 1 1 240px; font-size: 13.5px; font-weight: 700; color: ${MUDO}; display: inline-flex; gap: 8px; align-items: center; animation: soEntra .3s both }
 .so-pq { position: relative }
-.so-pq-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid #fdba74; background: #fff7ed; color: #c2410c; font-size: 14px; cursor: pointer; animation: soPqPulso 2.4s ease-in-out 3; transition: all .2s } .so-pq-btn:hover, .so-pq-btn.on { background: #f97316; color: #fefefe; border-color: #f97316 }
+.so-pq-btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--mx-pb-orange, #fdba74); background: var(--mx-p-orange, #fff7ed); color: var(--mx-fg-orange, #c2410c); font-size: 14px; cursor: pointer; animation: soPqPulso 2.4s ease-in-out 3; transition: all .2s } .so-pq-btn:hover, .so-pq-btn.on { background: #f97316; color: #fefefe; border-color: #f97316 }
 @keyframes soPqPulso { 50% { box-shadow: 0 0 0 6px rgba(249,115,22,.18) } }
 .so-pq-balao { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: min(480px, 86vw); background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; box-shadow: 0 20px 44px rgba(15,23,42,.2); padding: 14px 16px; display: grid; gap: 10px; animation: soPqAbre .25s cubic-bezier(.2,1.1,.3,1) both }
 @keyframes soPqAbre { from { opacity: 0; transform: translateY(-6px) scale(.97) } }
 .so-pq-cab { display: flex; gap: 10px; align-items: center } .so-pq-cab > span { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #0369a1; color: #fefefe } .so-pq-cab b { display: block; font-size: 14.5px; color: var(--portal-text, #0f172a) } .so-pq-cab small { font-size: 12px; color: ${MUDO} }
 .so-pq-balao ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px } .so-pq-balao li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; font-size: 13.5px; line-height: 1.45; color: var(--portal-text, #334155); animation: soEntra .3s both } .so-pq-balao li > i { margin-top: 3px; text-align: center }
 .so-ab2-chave { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 6px 12px 6px 6px; font-family: inherit; font-size: 13px; font-weight: 800; color: ${MUDO}; cursor: pointer }
-.so-ab2-chave > span { width: 34px; height: 20px; border-radius: 99px; background: #cbd5e1; position: relative; transition: background .25s } .so-ab2-chave > span i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fefefe; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .25s cubic-bezier(.3,1.5,.5,1) }
-.so-ab2-chave.on { color: #c2410c } .so-ab2-chave.on > span { background: #f97316 } .so-ab2-chave.on > span i { transform: translateX(14px) }
+.so-ab2-chave > span { width: 34px; height: 20px; border-radius: 99px; background: var(--mx-bg2, #cbd5e1); position: relative; transition: background .25s } .so-ab2-chave > span i { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--mx-bg0, #fefefe); box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .25s cubic-bezier(.3,1.5,.5,1) }
+.so-ab2-chave.on { color: var(--mx-fg-orange, #c2410c) } .so-ab2-chave.on > span { background: #f97316 } .so-ab2-chave.on > span i { transform: translateX(14px) }
 .so-ab2-op { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; animation: soEntra .3s both } .so-ab2-op > small { font-size: 12px; font-weight: 900; color: ${MUDO}; text-transform: uppercase }
 .so-ab2-seg { display: inline-flex; flex-wrap: wrap; gap: 2px; background: var(--portal-bg-secondary, #f1f5f9); border-radius: 12px; padding: 3px }
-.so-ab2-seg button { border: none; background: transparent; color: ${MUDO}; border-radius: 9px; padding: 6px 12px; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; transition: all .2s } .so-ab2-seg button:hover { color: #c2410c } .so-ab2-seg button.on { background: var(--portal-bg-card, #fefefe); color: #c2410c; box-shadow: 0 1px 2px rgba(15,23,42,.08), 0 4px 10px rgba(249,115,22,.18) }
+.so-ab2-seg button { border: none; background: transparent; color: ${MUDO}; border-radius: 9px; padding: 6px 12px; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; transition: all .2s } .so-ab2-seg button:hover { color: var(--mx-fg-orange, #c2410c) } .so-ab2-seg button.on { background: var(--portal-bg-card, #fefefe); color: var(--mx-fg-orange, #c2410c); box-shadow: 0 1px 2px rgba(15,23,42,.08), 0 4px 10px rgba(249,115,22,.18) }
 .so-ab2-seg button.piscando { animation: soPisca 1s ease-in-out infinite }
 .so-det { margin-left: auto; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 4px 12px; font-family: inherit; font-size: 12.5px; font-weight: 800; color: ${MUDO}; cursor: pointer } .so-det:hover, .so-det.on { color: ${AZUL}; border-color: ${AZUL} }
 .so-mix { animation: soEntra .3s both }
 .so-cx { display: grid; gap: 12px; border-top: 1px dashed var(--portal-border, #e5e7eb); padding-top: 14px; animation: soEntra .45s both }
 .so-cx-cab { display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
-.so-cx-p { display: flex; gap: 10px; align-items: center; border-radius: 14px; padding: 8px 14px; flex: 1 1 260px } .so-cx-p.a { background: #eff6ff } .so-cx-p.b { background: #fff7ed }
+.so-cx-p { display: flex; gap: 10px; align-items: center; border-radius: 14px; padding: 8px 14px; flex: 1 1 260px } .so-cx-p.a { background: var(--mx-bg1, #eff6ff) } .so-cx-p.b { background: var(--mx-p-orange, #fff7ed) }
 .so-cx-p > em { font-style: normal; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 900; color: #fefefe; flex-shrink: 0 } .so-cx-p.a > em { background: ${AZUL} } .so-cx-p.b > em { background: #f97316 }
-.so-cx-p b { display: block; font-size: 16px; color: #0f172a } .so-cx-p small { font-size: 12px; font-weight: 700; color: ${MUDO} }
+.so-cx-p b { display: block; font-size: 16px; color: var(--mx-t, #0f172a) } .so-cx-p small { font-size: 12px; font-weight: 700; color: ${MUDO} }
 .so-cx-vs { font-size: 13px; font-weight: 900; color: ${MUDO}; text-transform: uppercase }
 .so-cx-lista { display: grid; gap: 6px } .so-cx-tit, .so-cx-l { display: grid; grid-template-columns: minmax(170px, 1.3fr) 1fr 1fr 1fr minmax(120px, 1.4fr); gap: 12px; align-items: center }
 .so-cx-soa .so-cx-tit, .so-cx-soa .so-cx-l { grid-template-columns: minmax(170px, 1fr) 2fr }
@@ -849,14 +849,14 @@ export const ESTILO_SO = `
 .so-cx-l:hover { transform: translateX(3px); box-shadow: 0 6px 16px rgba(15,23,42,.07) }
 .so-cx-n { display: flex; gap: 10px; align-items: center } .so-cx-n > span { width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 13%, transparent); color: var(--c) }
 .so-cx-n b { display: block; font-size: 14.5px; color: var(--portal-text, #0f172a) } .so-cx-n small { font-size: 11.5px; color: ${MUDO} }
-.so-cx-va b { font-size: 18px; font-weight: 900; color: ${AZUL}; font-variant-numeric: tabular-nums } .so-cx-vb b { font-size: 15px; font-weight: 800; color: #c2410c; font-variant-numeric: tabular-nums }
+.so-cx-va b { font-size: 18px; font-weight: 900; color: ${AZUL}; font-variant-numeric: tabular-nums } .so-cx-vb b { font-size: 15px; font-weight: 800; color: var(--mx-fg-orange, #c2410c); font-variant-numeric: tabular-nums }
 .so-cx-va small, .so-cx-vb small { display: block; font-size: 11.5px; font-weight: 700; color: ${MUDO} }
-.so-cx-df { display: inline-block; font-size: 13.5px; font-weight: 900; border-radius: 99px; padding: 3px 10px; font-variant-numeric: tabular-nums } .so-cx-df.up { color: #047857; background: #ecfdf5 } .so-cx-df.down { color: #b91c1c; background: #fef2f2 } .so-cx-df.igual { color: ${MUDO}; background: var(--portal-bg-secondary, #f1f5f9) }
+.so-cx-df { display: inline-block; font-size: 13.5px; font-weight: 900; border-radius: 99px; padding: 3px 10px; font-variant-numeric: tabular-nums } .so-cx-df.up { color: var(--mx-fg-green, #047857); background: var(--mx-p-green, #ecfdf5) } .so-cx-df.down { color: var(--mx-fg-red, #b91c1c); background: var(--mx-p-red, #fef2f2) } .so-cx-df.igual { color: ${MUDO}; background: var(--portal-bg-secondary, #f1f5f9) }
 .so-cx-pc { display: block; margin: 2px 0 0 10px; font-size: 12px; font-weight: 800; color: ${MUDO} }
 .so-cx-bars { display: grid; gap: 4px } .so-cx-bars span { height: 9px; border-radius: 99px; background: var(--portal-bg-secondary, #f1f5f9); overflow: hidden } .so-cx-bars i { display: block; height: 100%; border-radius: 99px; transform-origin: left; animation: soLado .9s cubic-bezier(.2,.8,.2,1) both } .so-cx-bars i.a { background: var(--c) } .so-cx-bars i.b { background: #fdba74 }
-.so-cx-frase { margin: 0; display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; line-height: 1.5; color: var(--portal-text, #334155); background: linear-gradient(100deg, #eff6ff, #fff7ed); border-radius: 14px; padding: 12px 16px } .so-cx-frase > i { color: #f59e0b; font-size: 18px; margin-top: 2px }
+.so-cx-frase { margin: 0; display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; line-height: 1.5; color: var(--portal-text, #334155); background: linear-gradient(100deg, var(--mx-bg1, #eff6ff), var(--mx-p-orange, #fff7ed)); border-radius: 14px; padding: 12px 16px } .so-cx-frase > i { color: #f59e0b; font-size: 18px; margin-top: 2px }
 @media (max-width: 900px) { .so-cx-tit { display: none } .so-cx-l { grid-template-columns: 1fr 1fr } .so-cx-bars { grid-column: 1 / -1 } }
-.so-ab-datas { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 800; color: #c2410c; animation: soEntra .3s both } .so-ab-datas input { border: 1px solid #fdba74; border-radius: 8px; padding: 4px 8px; font-family: inherit; font-size: 13px; background: #fefefe; color: #0f172a }
+.so-ab-datas { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 800; color: var(--mx-fg-orange, #c2410c); animation: soEntra .3s both } .so-ab-datas input { border: 1px solid var(--mx-pb-orange, #fdba74); border-radius: 8px; padding: 4px 8px; font-family: inherit; font-size: 13px; background: var(--mx-bg0, #fefefe); color: var(--mx-t, #0f172a) }
 .so-cards { contain: inline-size }
 
 .so-g .so-comp button { font-size: 13.5px; padding: 6px 14px } .so-g .so-comp-rot { font-size: 13.5px } .so-g .so-leg { font-size: 13px }
@@ -876,7 +876,7 @@ export const ESTILO_SO = `
 .so-kpi-ab strong { font-size: 12.5px; font-variant-numeric: tabular-nums; color: var(--portal-text, #334155); min-width: 60px; text-align: right }
 .so-kpi-pe { font-size: 11.5px; font-weight: 800; color: ${MUDO}; opacity: .75; border-top: 1px dashed var(--portal-border, #e5e7eb); padding-top: 6px } .so-kpi.on .so-kpi-pe { color: var(--c); opacity: 1 }
 .so-atualiza { border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 5px 12px; font-family: inherit; font-weight: 800; font-size: 12.5px; color: var(--portal-text, #334155); cursor: pointer } .so-atualiza:hover:not(:disabled) { border-color: ${AZUL}; color: ${AZUL} }
-.so-dl { font-weight: 900; border-radius: 99px; padding: 0 7px; font-size: 12px } .so-dl.up { color: #047857; background: #ecfdf5 } .so-dl.down { color: #b91c1c; background: #fef2f2 } .so-dl.nada { color: ${MUDO} }
+.so-dl { font-weight: 900; border-radius: 99px; padding: 0 7px; font-size: 12px } .so-dl.up { color: var(--mx-fg-green, #047857); background: var(--mx-p-green, #ecfdf5) } .so-dl.down { color: var(--mx-fg-red, #b91c1c); background: var(--mx-p-red, #fef2f2) } .so-dl.nada { color: ${MUDO} }
 .so-cmp-g .so-cmp-tab { font-size: 14.5px } .so-cmp-g .so-cmp-va b { font-size: 16.5px } .so-cmp-g td small { display: block; font-size: 12px; color: ${MUDO}; font-weight: 700 } .so-cmp-g .so-cmp-frase { font-size: 14.5px }
 .so-g .so-d em { font-size: 12px } .so-g .so-d small { font-size: 12px } .so-g .so-dias { height: 160px }
 .so-vazio { display: flex; gap: 8px; align-items: center; font-size: 13.5px; font-weight: 700; color: var(--portal-text-muted, #64748b); background: var(--portal-bg-secondary, #f8fafc); border: 1px dashed var(--portal-border, #e2e8f0); border-radius: 12px; padding: 10px 14px; animation: soEntra .35s both }
@@ -892,18 +892,18 @@ export const ESTILO_SO = `
 .so-osd::after { content: ''; position: absolute; left: 0; right: 0; bottom: -8px; height: 8px }
 .so-osd-cab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 0 4px } .so-osd-cab b { font-size: 13.5px; text-transform: capitalize } .so-osd-cab span { font-size: 12px; font-weight: 800; color: ${AZUL} }
 .so-osd-lista { display: grid; gap: 2px; max-height: 260px; overflow-y: auto }
-.so-osd-lista button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; border: none; background: transparent; border-radius: 9px; padding: 6px 6px; font-family: inherit; font-size: 12.5px; text-align: left; cursor: pointer; animation: soEntra .25s both } .so-osd-lista button:hover { background: #eff6ff }
+.so-osd-lista button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; align-items: center; border: none; background: transparent; border-radius: 9px; padding: 6px 6px; font-family: inherit; font-size: 12.5px; text-align: left; cursor: pointer; animation: soEntra .25s both } .so-osd-lista button:hover { background: var(--mx-bg1, #eff6ff) }
 .so-osd-lista button b { white-space: nowrap } .so-osd-lista button span { color: ${MUDO}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .so-osd-lista button strong { font-variant-numeric: tabular-nums }
 .so-osd-lista small, .so-osd-nada { font-size: 12px; color: ${MUDO}; padding: 2px 6px }
 .so-dias-box { display: grid; gap: 6px; animation: soEntra .4s both } .so-leg { flex-wrap: wrap }
-.so-card.ehb { border-color: #f97316; box-shadow: 0 0 0 2px #f97316, 0 10px 22px rgba(249,115,22,.2); background: linear-gradient(160deg, #fff7ed, var(--portal-bg-card, #fefefe)) }
-.so-cards.escolhendo .so-card:hover { outline: 2px dashed #f97316; background: #fff7ed }
+.so-card.ehb { border-color: #f97316; box-shadow: 0 0 0 2px #f97316, 0 10px 22px rgba(249,115,22,.2); background: linear-gradient(160deg, var(--mx-p-orange, #fff7ed), var(--portal-bg-card, #fefefe)) }
+.so-cards.escolhendo .so-card:hover { outline: 2px dashed #f97316; background: var(--mx-p-orange, #fff7ed) }
 .so-dias { display: flex; gap: 4px; height: 140px; align-items: flex-end }
 .so-d { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; border-radius: 8px; transition: background .15s } .so-d:hover { background: var(--portal-bg-secondary, #f1f5f9) } .so-d.fut { opacity: .35 }
 .so-d em { font-style: normal; font-size: 11px; font-weight: 800; color: ${AZUL}; height: 13px } .so-d small { font-size: 11px; font-weight: 700; color: ${MUDO}; white-space: nowrap }
 .so-d-par { flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center; gap: 2px } .so-d-par span { width: 38%; max-width: 26px; border-radius: 4px 4px 0 0; transform-origin: bottom; animation: soSobe .6s both } .so-d-par .a { background: ${AZUL} } .so-d-par .b { background: #fdba74 }
 .so-regua { position: relative; height: 110px; display: flex; gap: 1px; align-items: flex-end; cursor: ew-resize; user-select: none; border-bottom: 2px solid var(--portal-border, #e2e8f0) }
-.so-regua i { flex: 1; background: #cbd5e1; border-radius: 2px 2px 0 0; transition: background .15s } .so-regua i.on { background: ${AZUL} }
+.so-regua i { flex: 1; background: var(--mx-bg2, #cbd5e1); border-radius: 2px 2px 0 0; transition: background .15s } .so-regua i.on { background: ${AZUL} }
 .so-janela { position: absolute; top: -6px; bottom: -2px; border: 2px solid ${AZUL}; border-radius: 8px; background: rgba(37,99,235,.08); transition: left .12s, width .25s; pointer-events: none; box-shadow: 0 0 0 4px rgba(37,99,235,.12) }
 .so-janela em { position: absolute; top: -22px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 11px; font-weight: 900; color: #fefefe; background: ${AZUL}; border-radius: 6px; padding: 1px 7px; white-space: nowrap }
 .so-regua-meses { position: relative; height: 16px } .so-regua-meses span { position: absolute; font-size: 11px; font-weight: 800; color: ${MUDO}; text-transform: capitalize }
@@ -914,4 +914,7 @@ export const ESTILO_SO = `
 .so-zcol { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 3px; border: none; background: transparent; border-radius: 8px; font-family: inherit; cursor: pointer; padding: 3px 0 } .so-zcol:hover:not(:disabled) { background: var(--portal-bg-secondary, #f1f5f9) } .so-zcol:disabled { opacity: .3; cursor: default }
 .so-zcol em { font-style: normal; font-size: 10.5px; font-weight: 800; color: ${MUDO}; height: 13px } .so-zcol span { width: 70%; max-width: 40px; background: #93c5fd; border-radius: 5px 5px 0 0; transform-origin: bottom; animation: soSobe .6s both } .so-zcol.on span { background: ${AZUL}; box-shadow: 0 0 12px rgba(37,99,235,.45) } .so-zcol small { font-size: 11px; color: ${MUDO}; font-weight: 700; text-transform: capitalize }
 .so-zoom-dias .so-zcol em { font-size: 9px }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.so-cx-n > span, .so-kpi-ic, .so-kpi-cab small, .so-kpi.on .so-kpi-pe, .so-seg button.on) { color: color-mix(in srgb, var(--c) 60%, #fff) }
 `

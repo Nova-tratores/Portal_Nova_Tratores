@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import SemPermissao from '@/components/SemPermissao'
+import '@/components/abas-modulo.css'
 import { authHeaders } from '@/lib/auth/client'
 import PlanoCarAba from '@/components/dashboard-agro/PlanoCarAba'
 import VinculosSugeridos from '@/components/dashboard-agro/VinculosSugeridos'
@@ -58,7 +59,10 @@ export default function DashboardAgroPage() {
       // link "abrir município" do painel chega aqui e é repassado para dentro dele
       const painelTab = searchParams?.get('painel_tab'), mun = searchParams?.get('mun')
       const extra = painelTab ? `&tab=${encodeURIComponent(painelTab)}${mun ? `&mun=${encodeURIComponent(mun)}` : ''}` : ''
-      setIframeUrl(String(j.url) + extra)
+      // o painel externo abre no mesmo tema do Portal (claro/escuro)
+      const tema = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
+      const base = String(j.url)
+      setIframeUrl(base + extra + `${base.includes('?') || extra ? '&' : '?'}theme=${tema}`)
     } catch (e) {
       setErroIframe(e instanceof Error ? e.message : 'Falha ao abrir o painel')
     }
@@ -81,6 +85,7 @@ export default function DashboardAgroPage() {
     <div style={{ width: '100%', height: 'calc(100dvh - 84px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {/* Faixa verde com guias estilo Chrome (mesmo desenho do FrotaNav) */}
       <div
+        className="aba-faixa"
         style={{
           display: 'flex', alignItems: 'flex-end', gap: 3, padding: mobile ? '8px 12px 0' : '10px 24px 0',
           height: ALTURA_FAIXA, boxSizing: 'border-box', flexShrink: 0,
@@ -96,6 +101,7 @@ export default function DashboardAgroPage() {
               key={g.id}
               type="button"
               onClick={() => trocar(g.id)}
+              className={`aba-guia${ativo ? ' aba-ativa' : ''}`}
               style={{
                 display: 'flex', alignItems: 'center', gap: 7,
                 padding: mobile ? '10px 14px' : '11px 20px', fontSize: mobile ? 13 : 14, fontWeight: ativo ? 700 : 500, flexShrink: 0,
@@ -109,7 +115,7 @@ export default function DashboardAgroPage() {
             >
               {g.icon} {g.label}
               {g.selo && (
-                <span style={{
+                <span className="aba-selo" style={{
                   fontSize: 9, fontWeight: 800, letterSpacing: .5, padding: '2px 6px', borderRadius: 999,
                   background: ativo ? 'rgba(22,163,74,0.16)' : 'rgba(0,0,0,0.12)', color: '#111111',
                 }}>{g.selo}</span>

@@ -69,7 +69,8 @@ export default function ChequesAtrasados({ podeVarrer, onIrParaChassi }: { podeV
   const total = itens.length;
 
   return (
-    <section className={`mb-8 rounded-lg border ${total ? "border-red-300 bg-red-50" : "border-zinc-200 bg-white"}`}>
+    <section className={`cq-painel mb-8 rounded-lg border ${total ? "cq-pend border-red-300 bg-red-50" : "border-zinc-200 bg-white"}`}>
+      <style>{CSS_PAINEL}</style>
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <button type="button" onClick={() => setAberto((v) => !v)} className="flex items-center gap-2 text-left">
           <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold ${total ? "bg-red-600 text-white" : "bg-emerald-500 text-white"}`}>
@@ -154,6 +155,17 @@ const CSS_CARTOES = `
   .cq-tab td { display: block; padding: 0 !important; min-width: 0; white-space: normal !important; }
   .cq-tab td.cq-cli { grid-column: 2; font-weight: 600; }
   .cq-tab td.cq-falta { grid-column: 1 / -1; }
-  .cq-tab td[data-r]::before { content: attr(data-r); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #71717a; }
+  .cq-tab td[data-r]::before { content: attr(data-r); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #71717a; } [data-theme="dark"] .cq-tab td[data-r]::before { color: var(--portal-text-muted, #949494); }
 }
+`
+
+// tema escuro: o painel rosa (bg-red-50) e o texto zinc do cabeçalho ficam escuros/claros
+const CSS_PAINEL = `
+[data-theme="dark"] .cq-painel { background: var(--portal-bg-card, #1a1a1a) !important; border-color: var(--portal-border, #2a2a2a) !important; }
+[data-theme="dark"] .cq-painel.cq-pend { background: rgb(248 113 113 / .08) !important; border-color: rgb(248 113 113 / .35) !important; }
+[data-theme="dark"] .cq-painel .text-zinc-900 { color: var(--portal-text, #f5f5f5) !important; }
+[data-theme="dark"] .cq-painel :is(.text-zinc-400, .text-zinc-500, .text-zinc-600, .text-zinc-700) { color: var(--portal-text-secondary, #a3a3a3) !important; }
+[data-theme="dark"] .cq-painel .text-red-600 { color: var(--portal-red-fg, #f87171) !important; }
+[data-theme="dark"] .cq-painel .border-red-200 { border-color: rgb(248 113 113 / .3) !important; }
+[data-theme="dark"] .cq-painel button.bg-white { background: var(--portal-bg-secondary, #262626) !important; border-color: var(--portal-border, #2a2a2a) !important; color: var(--portal-text, #f5f5f5) !important; }
 `

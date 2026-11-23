@@ -291,12 +291,12 @@ export const ESTILO_SIM2 = `
 .s2-volta, .s2-rodape button { border: 1px solid ${BORDA}; background: ${CARTAO}; color: ${TXT}; border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 12.5px; cursor: pointer; justify-self: start }
 
 .s2-passo { display: grid; gap: 4px; background: ${CARTAO}; border: 1px solid ${BORDA}; border-radius: 10px; padding: 8px 10px; transition: border-color .2s, background .2s }
-.s2-passo.on { border-color: #93c5fd; background: #eff6ff }
+.s2-passo.on { border-color: #93c5fd; background: var(--mx-bg1, #eff6ff) }
 .s2-passo small { font-size: 11.5px }
 .s2-passo > div { display: flex; align-items: center; justify-content: space-between; gap: 6px }
 .s2-passo b { font-weight: 600; font-size: 14px; white-space: nowrap }
 .s2-passo button { width: 26px; height: 26px; border-radius: 7px; border: 1px solid ${BORDA}; background: ${FUNDO2}; color: ${TXT}; cursor: pointer; font-size: 10px; flex: none; transition: background .15s }
-.s2-passo button:hover { background: #e2e8f0 } .s2-passo button:active { transform: scale(.94) }
+.s2-passo button:hover { background: var(--mx-bg2, #e2e8f0) } .s2-passo button:active { transform: scale(.94) }
 .s2-ctrl { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px }
 .s2-nota { grid-column: 1 / -1; font-size: 12px }
 .s2-rodape { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; margin-top: 10px } .s2-rodape b { font-weight: 700 }
@@ -318,7 +318,7 @@ export const ESTILO_SIM2 = `
 .s2-d-trilho { height: 6px; border-radius: 99px; background: ${FUNDO2}; overflow: hidden } .s2-d-trilho span { display: block; height: 100%; border-radius: 99px; transition: width .5s }
 .s2-d-num { display: grid; grid-template-columns: 1fr 1fr; gap: 8px } .s2-d-num span { display: grid } .s2-d-num small { font-size: 11.5px } .s2-d-num b { font-weight: 600; font-size: 14px }
 .s2-d-ctrl { display: grid; grid-template-columns: 1fr 1fr; gap: 6px }
-.s2-d-selo { position: absolute; top: 14px; right: 14px; font-size: 11.5px; color: ${VERDE}; background: #f0fdfa; border-radius: 99px; padding: 2px 9px }
+.s2-d-selo { position: absolute; top: 14px; right: 14px; font-size: 11.5px; color: ${VERDE}; background: var(--mx-p-teal, #f0fdfa); border-radius: 99px; padding: 2px 9px }
 
 .s2-e { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 14px; align-items: stretch }
 .s2-e-meta { background: ${CARTAO}; border: 1px solid ${BORDA}; border-radius: 14px; padding: 18px; display: grid; gap: 8px; align-content: start }
@@ -349,7 +349,7 @@ export const ESTILO_SIM2 = `
 .s2-g { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 14px; align-items: start }
 .s2-g-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px }
 .s2-g-acao { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; text-align: left; background: ${CARTAO}; border: 1px solid ${BORDA}; border-radius: 12px; padding: 12px; cursor: pointer; font: inherit; color: ${TXT}; transition: border-color .2s, background .2s, transform .15s }
-.s2-g-acao:hover { border-color: #93c5fd; transform: translateY(-1px) } .s2-g-acao.on { border-color: ${AZUL}; background: #eff6ff }
+.s2-g-acao:hover { border-color: #93c5fd; transform: translateY(-1px) } .s2-g-acao.on { border-color: ${AZUL}; background: var(--mx-bg1, #eff6ff) }
 .s2-g-acao > i { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: ${FUNDO2}; transition: background .2s, color .2s } .s2-g-acao.on > i { background: ${AZUL}; color: #fefefe }
 .s2-g-acao span { display: grid; min-width: 0 } .s2-g-acao b { font-weight: 600; font-size: 13.5px } .s2-g-acao small { font-size: 12px }
 .s2-g-acao em { font-size: 12.5px; white-space: nowrap }
@@ -362,4 +362,6 @@ export const ESTILO_SIM2 = `
   .s2-c-graf { gap: 4px } .s2-c-area { height: 200px } .s2-c-barra em { font-size: 10px }
   .s2-g-res { position: static }
 }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
 `

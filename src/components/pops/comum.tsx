@@ -8,6 +8,8 @@ export { chamar, cartao, campo, rotulo, botao, botaoClaro, chip, Modal, br, prim
 
 export const COR_POPS = '#0f766e'
 export const FUNDO_POPS = 'rgba(15,118,110,.10)'
+/** Teal para TEXTO (código do POP, etiquetas, links): no claro é o mesmo #0f766e, no escuro clareia (--portal-teal-fg). */
+export const TEXTO_POPS = 'var(--portal-teal-fg, #0f766e)'
 
 export interface UsuarioMapa { [id: string]: { id: string; nome: string; avatar_url?: string | null } }
 

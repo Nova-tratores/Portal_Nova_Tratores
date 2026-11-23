@@ -140,7 +140,7 @@ export default function SeletorTempo({ escala, refDia, onMudar, porDia, desde, c
           {total && !topo && <>
             <div className="st-total-valor">{brl(total.bruto)}</div>
             <div className="st-total-sub">{horas(total.horas)} cobradas · {total.os} OS faturadas</div>
-            {difAnt != null && <div className="st-total-sub" style={{ color: difAnt >= 0 ? '#047857' : '#b91c1c', fontWeight: 800 }}>{difAnt >= 0 ? '▲' : '▼'} {Math.abs(difAnt)}% vs {ehAtual ? 'mesmo trecho do período anterior' : 'período anterior'} ({brl(totalAnt)})</div>}
+            {difAnt != null && <div className="st-total-sub" style={{ color: difAnt >= 0 ? 'var(--mx-fg-green, #047857)' : 'var(--mx-fg-red, #b91c1c)', fontWeight: 800 }}>{difAnt >= 0 ? '▲' : '▼'} {Math.abs(difAnt)}% vs {ehAtual ? 'mesmo trecho do período anterior' : 'período anterior'} ({brl(totalAnt)})</div>}
           </>}
           <div className="st-total-sub" style={{ marginTop: 2 }}>
             {carregando ? <span><i className="fas fa-circle-notch fa-spin" /> atualizando…</span>
@@ -209,7 +209,7 @@ export default function SeletorTempo({ escala, refDia, onMudar, porDia, desde, c
             <b>{dica.b.rotulo}</b>
             <span>{brl(dica.b.bruto)} · {horas(dica.b.horas)} · {dica.b.os} OS</span>
             {(() => { const pv = passado[barras.indexOf(dica.b)]; if (pv == null) return null; const dif = pv > 0 ? Math.round(((dica.b.bruto - pv) / pv) * 100) : null
-              return <span style={{ color: dif == null ? undefined : dif >= 0 ? '#047857' : '#b91c1c', fontWeight: 800 }}>{rotComp}: {brl(pv)}{dif != null ? ` · ${dif >= 0 ? '▲' : '▼'} ${Math.abs(dif)}%` : ''}</span> })()}
+              return <span style={{ color: dif == null ? undefined : dif >= 0 ? 'var(--mx-fg-green, #047857)' : 'var(--mx-fg-red, #b91c1c)', fontWeight: 800 }}>{rotComp}: {brl(pv)}{dif != null ? ` · ${dif >= 0 ? '▲' : '▼'} ${Math.abs(dif)}%` : ''}</span> })()}
             {!dica.b.futuro && <em>{dica.b.escala === 'dia' ? 'clique para ver o dia' : 'clique para entrar'}</em>}
           </div>
         )}
@@ -224,16 +224,16 @@ const ESTILO = `
 .st-linha1 { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; justify-content: space-between }
 .st-atalhos { display: flex; gap: 6px; flex-wrap: wrap; padding-bottom: 8px }
 .st-atalhos button { border: 1px solid var(--portal-border, #e2e8f0); background: transparent; border-radius: 99px; padding: 5px 12px; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--portal-text-muted, #475569); cursor: pointer; transition: all .15s; white-space: nowrap }
-.st-atalhos button:hover { border-color: #0369a1; color: #0369a1 }
+.st-atalhos button:hover { border-color: #0369a1; color: var(--mx-fg-blue, #0369a1) }
 .st-atalhos button.on { background: #0369a1; border-color: #0369a1; color: #fefefe }
-.st-passo-on { color: #0369a1 }
+.st-passo-on { color: var(--mx-fg-blue, #0369a1) }
 .st-titulo-linha { position: relative; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 2px }
 .st-titulo { display: inline-flex; align-items: center; gap: 10px; border: 1px solid transparent; background: transparent; border-radius: 12px; padding: 4px 10px; font-family: inherit; font-size: 24px; font-weight: 900; color: var(--portal-text, #0f172a); cursor: pointer; text-transform: capitalize; transition: background .15s, border-color .15s }
 .st-titulo span { animation: stEntra .3s cubic-bezier(.2,.8,.2,1) both }
-.st-titulo i { font-size: 15px; color: #0369a1 }
-.st-titulo:hover, .st-titulo.on { background: #eff6ff; border-color: #bfdbfe }
+.st-titulo i { font-size: 15px; color: var(--mx-fg-blue, #0369a1) }
+.st-titulo:hover, .st-titulo.on { background: var(--mx-bg1, #eff6ff); border-color: var(--mx-pb-blue, #bfdbfe) }
 .st-seta { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #334155); cursor: pointer; flex-shrink: 0; transition: all .15s }
-.st-seta:hover:not(:disabled) { border-color: #0369a1; color: #0369a1; transform: scale(1.06) }
+.st-seta:hover:not(:disabled) { border-color: #0369a1; color: var(--mx-fg-blue, #0369a1); transform: scale(1.06) }
 .st-seta:disabled { opacity: .3; cursor: default }
 .cal-fora { position: fixed; inset: 0; z-index: 40 }
 .cal { position: absolute; top: calc(100% + 8px); left: 40px; z-index: 41; width: 340px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 18px; padding: 14px; box-shadow: 0 24px 60px rgba(15,23,42,.22); animation: calAbre .25s cubic-bezier(.2,1.1,.3,1) both }
@@ -241,7 +241,7 @@ const ESTILO = `
 .cal-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px }
 .cal-titulo { display: flex; gap: 6px }
 .cal-titulo button { border: none; background: transparent; font-family: inherit; font-size: 17px; font-weight: 900; color: var(--portal-text, #0f172a); cursor: pointer; border-radius: 8px; padding: 2px 6px; text-transform: capitalize }
-.cal-titulo button:hover { background: #eff6ff; color: #0369a1 }
+.cal-titulo button:hover { background: var(--mx-bg1, #eff6ff); color: var(--mx-fg-blue, #0369a1) }
 .cal-total { text-align: center; font-size: 12.5px; color: var(--portal-text-muted, #64748b); margin: 4px 0 8px }
 .cal-grade { display: grid; grid-template-columns: 46px repeat(7, 1fr); gap: 4px }
 .cal-dsem { font-size: 10.5px; font-weight: 800; text-transform: uppercase; color: var(--portal-text-muted, #94a3b8); text-align: center }
@@ -278,14 +278,14 @@ const ESTILO = `
 .st-link { border: none; background: transparent; cursor: pointer; font-family: inherit; font-size: 13px; color: var(--portal-text-muted, #64748b); padding: 2px 6px; border-radius: 6px }
 .st-link:hover { background: var(--portal-bg-secondary, #f1f5f9); color: ${AZUL} }
 .st-fita-borda { position: relative; margin-top: 12px }
-.st-destaque { margin-left: 10px; font-size: 13px; font-weight: 800; color: #7c3aed; background: #f5f3ff; border-radius: 99px; padding: 3px 10px; animation: stEntra .3s ease both }
-.st-com-destaque .st-barra { background: #ddd6fe }
+.st-destaque { margin-left: 10px; font-size: 13px; font-weight: 800; color: var(--mx-fg-violet, #7c3aed); background: var(--mx-p-violet, #f5f3ff); border-radius: 99px; padding: 3px 10px; animation: stEntra .3s ease both }
+.st-com-destaque .st-barra { background: var(--mx-p-violet, #ddd6fe) }
 .st-com-destaque .st-sel .st-barra, .st-com-destaque .st-sel:hover .st-barra { background: #7c3aed !important }
-.st-com-destaque .st-sel .st-rot, .st-com-destaque .st-sel .st-valor { color: #7c3aed }
+.st-com-destaque .st-sel .st-rot, .st-com-destaque .st-sel .st-valor { color: var(--mx-fg-violet, #7c3aed) }
 .st-fita { position: relative; display: grid; gap: 4px; height: 118px; align-items: end; outline: none; animation: stZoom .35s cubic-bezier(.2,.8,.2,1) both }
 @keyframes stZoom { from { opacity: 0; transform: scale(.95) } to { opacity: 1; transform: none } }
 .st-media { position: absolute; left: 0; right: 0; border-top: 2px dashed rgba(245,158,11,.7); pointer-events: none; z-index: 1; transition: bottom .4s cubic-bezier(.2,.8,.2,1) }
-.st-media span { position: absolute; right: 0; top: -20px; font-size: 11px; font-weight: 800; color: #b45309; background: var(--portal-bg-card, #fefefe); padding: 1px 6px; border-radius: 6px }
+.st-media span { position: absolute; right: 0; top: -20px; font-size: 11px; font-weight: 800; color: var(--mx-fg-orange, #b45309); background: var(--portal-bg-card, #fefefe); padding: 1px 6px; border-radius: 6px }
 .st-coroa { color: #eab308; margin-right: 3px; font-size: 10px }
 .st-col .st-valor:has(.st-coroa) { opacity: 1 }
 .st-espera { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--portal-text-muted, #94a3b8) }
@@ -305,16 +305,16 @@ const ESTILO = `
 .st-comp-cor-atual { border: none; background: ${AZUL}; margin-left: 6px }
 @keyframes stCresce { from { transform: scaleY(0) } to { transform: scaleY(1) } }
 .st-sel .st-valor { color: ${AZUL} }
-.st-barra { width: 72%; max-width: 46px; min-height: 2px; border-radius: 5px 5px 2px 2px; background: #cbd5e1; transition: height .5s cubic-bezier(.2,.8,.2,1), background .15s; transform-origin: bottom; animation: stCresce .7s cubic-bezier(.2,.8,.2,1) both }
+.st-barra { width: 72%; max-width: 46px; min-height: 2px; border-radius: 5px 5px 2px 2px; background: var(--mx-bg2, #cbd5e1); transition: height .5s cubic-bezier(.2,.8,.2,1), background .15s; transform-origin: bottom; animation: stCresce .7s cubic-bezier(.2,.8,.2,1) both }
 .st-fantasma + .st-barra { width: 46%; max-width: 26px }
 .st-col:hover:not(:disabled) .st-barra { background: #94a3b8 }
 .st-sel .st-barra, .st-sel:hover .st-barra { background: ${AZUL} !important }
-.st-fds .st-barra { background: #e2e8f0 }
+.st-fds .st-barra { background: var(--mx-bg2, #e2e8f0) }
 .st-rot { font-size: 13px; font-weight: 700; color: var(--portal-text-muted, #64748b); height: 16px; line-height: 16px; white-space: nowrap; text-transform: capitalize }
 .st-fds .st-rot { color: var(--portal-text-muted, #cbd5e1) }
 .st-sel .st-rot { color: ${AZUL}; font-weight: 900 }
 .st-semanas { display: grid; gap: 4px; margin-top: 6px }
-.st-semana { border: 1px solid var(--portal-border, #e2e8f0); border-top: 3px solid #cbd5e1; background: transparent; border-radius: 0 0 8px 8px; font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--portal-text-muted, #64748b); padding: 4px 0; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, color .15s, border-color .15s }
+.st-semana { border: 1px solid var(--portal-border, #e2e8f0); border-top: 3px solid var(--mx-bd, #cbd5e1); background: transparent; border-radius: 0 0 8px 8px; font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--portal-text-muted, #64748b); padding: 4px 0; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, color .15s, border-color .15s }
 .st-semana:hover:not(:disabled) { background: var(--portal-bg-secondary, #f1f5f9); color: ${AZUL}; border-top-color: ${AZUL} }
 .st-semana:disabled { opacity: .35; cursor: default }
 .st-semana-sel { background: rgba(3,105,161,.08); color: ${AZUL}; border-top-color: ${AZUL}; font-weight: 900 }
@@ -324,6 +324,9 @@ const ESTILO = `
 .st-dica em { font-size: 11.5px; color: ${AZUL}; font-style: normal; font-weight: 700 }
 @media (max-width: 720px) { .st-passo-atual { font-size: 18px } .st-total { text-align: left } .st-total-sub { justify-content: flex-start } .st-rot { font-size: 10.5px } .st-fita { gap: 2px } .st-abas { gap: 14px } }
 @media (prefers-reduced-motion: reduce) { .st-fita, .st-col, .st-passo-atual, .st-traco, .st-barra, .st-fantasma, .st-valor { animation: none !important; transition: none !important } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `
 
 const MESES_NOME = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']

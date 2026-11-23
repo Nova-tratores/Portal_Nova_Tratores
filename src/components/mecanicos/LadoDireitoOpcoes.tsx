@@ -204,60 +204,64 @@ export function LadoDireito({ forma, d }: { forma: 1 | 2 | 3; d: DadosLado }) {
 
 export const ESTILO_LD = `
 .ld-x { position: relative; display: inline-flex; vertical-align: middle; margin-left: 4px }
-.ld-x-b { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #cbd5e1; background: #fefefe; color: #475569; font: 500 11px/1 inherit; font-family: inherit; display: grid; place-items: center; cursor: pointer; padding: 0 }
-.ld-x-b:hover, .ld-x-b.on { border-color: #2563eb; color: #2563eb; background: #eff6ff }
+.ld-x-b { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--mx-bd, #cbd5e1); background: var(--mx-bg0, #fefefe); color: var(--mx-t2, #475569); font: 500 11px/1 inherit; font-family: inherit; display: grid; place-items: center; cursor: pointer; padding: 0 }
+.ld-x-b:hover, .ld-x-b.on { border-color: #2563eb; color: var(--mx-fg-blue, #2563eb); background: var(--mx-bg1, #eff6ff) }
 .ld-x-t { position: absolute; left: 50%; top: calc(100% + 8px); transform: translateX(-50%); z-index: 70; width: max-content; max-width: 280px; white-space: normal; text-align: left; background: #0f172a; color: #f8fafc; font-size: 13.5px; font-weight: 400; line-height: 1.5; padding: 9px 12px; border-radius: 10px; box-shadow: 0 10px 30px rgba(15,23,42,.3); cursor: pointer; text-transform: none; letter-spacing: 0 }
-.ld { display: grid; gap: 12px; color: ${TXT}; font-size: 15px; font-variant-numeric: tabular-nums }
-.ld b { font-weight: 700 } .ld .bom { color: #166534; font-style: normal; font-weight: 600; font-size: 13.5px } .ld .ruim { color: #991b1b; font-style: normal; font-weight: 600; font-size: 13.5px }
-.ld-cartao { background: #fefefe; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px 20px; display: grid; gap: 12px }
-.ld-t { display: inline-flex; align-items: center; gap: 10px; font-size: 16.5px; font-weight: 500 !important; color: ${TXT} }
-.ld-ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 15px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, #fefefe); border: 1px solid color-mix(in srgb, var(--c) 22%, #fefefe); flex: none }
+.ld { display: grid; gap: 12px; color: var(--mx-t, #0f172a); font-size: 15px; font-variant-numeric: tabular-nums }
+.ld b { font-weight: 700 } .ld .bom { color: var(--mx-fg-green, #166534); font-style: normal; font-weight: 600; font-size: 13.5px } .ld .ruim { color: var(--mx-fg-red, #991b1b); font-style: normal; font-weight: 600; font-size: 13.5px }
+.ld-cartao { background: var(--mx-bg0, #fefefe); border: 1px solid var(--mx-bd, #e2e8f0); border-radius: 14px; padding: 18px 20px; display: grid; gap: 12px }
+.ld-t { display: inline-flex; align-items: center; gap: 10px; font-size: 16.5px; font-weight: 500 !important; color: var(--mx-t, #0f172a) }
+.ld-ic { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 15px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, var(--mx-bg0, #fefefe)); border: 1px solid color-mix(in srgb, var(--c) 22%, var(--mx-bd, #fefefe)); flex: none }
 .ld-cartao { border-radius: 16px; transition: box-shadow .2s } .ld-cartao:hover { box-shadow: 0 14px 30px -20px rgba(15,23,42,.45) }
 .ld-ext-l b, .ld-escala b, .ld-med-v b, .ld-blocos b, .ld-casc-l b { font-weight: 500 } .ld-ext-l.tot { font-weight: 500 } .ld-ext-l.tot b { font-weight: 600 }
-.ld-resumo { margin: 0; font-size: 15px; line-height: 1.55; color: #1e293b }
+.ld-resumo { margin: 0; font-size: 15px; line-height: 1.55; color: var(--mx-t, #1e293b) }
 
 .ld-ext { display: grid }
-.ld-ext-l { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: baseline; padding: 10px 0; border-bottom: 1px dashed #cbd5e1; font-size: 16px }
+.ld-ext-l { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 14px; align-items: baseline; padding: 10px 0; border-bottom: 1px dashed var(--mx-bd, #cbd5e1); font-size: 16px }
 .ld-ext.duas .ld-ext-l { grid-template-columns: minmax(80px, 1fr) 110px minmax(200px, auto); gap: 18px }
 /* José, 21/10/2026: "bugou aqui" — no simulado o total grande passava por cima do "como foi" */
 .ld-ext.duas .ld-ext-l.tot b { font-size: 21px } .ld-ext-l > span:last-child { flex-wrap: wrap; gap: 2px 8px; min-width: 0 }
 .ld-ext-l .ant { white-space: nowrap }
 .ld-ext-l > span:not(:first-child) { text-align: right } .ld-ext-l > span:last-child { display: flex; gap: 8px; justify-content: flex-end; align-items: baseline }
-.ld-ext-l > span:first-child { display: flex; align-items: center; gap: 8px } .ld-ext-l > span:first-child em { font-style: normal; width: 14px; color: ${SEG} } .ld-ext-l > span:first-child i { width: 10px; height: 10px; border-radius: 3px; order: -1 }
-.ld-ext-l .ant { color: ${SEG}; font-size: 14.5px }
-.ld-ext-l.cab { font-size: 13px; color: ${SEG}; padding: 0 0 6px; border-bottom: 1px solid #e2e8f0 }
-.ld-ext-l.tot { border-bottom: 0; border-top: 2px solid ${TXT}; margin-top: 2px; font-size: 18px; font-weight: 700 } .ld-ext-l.tot b { font-size: 26px }
+.ld-ext-l > span:first-child { display: flex; align-items: center; gap: 8px } .ld-ext-l > span:first-child em { font-style: normal; width: 14px; color: var(--mx-t2, #334155) } .ld-ext-l > span:first-child i { width: 10px; height: 10px; border-radius: 3px; order: -1 }
+.ld-ext-l .ant { color: var(--mx-t2, #334155); font-size: 14.5px }
+.ld-ext-l.cab { font-size: 13px; color: var(--mx-t2, #334155); padding: 0 0 6px; border-bottom: 1px solid var(--mx-bd, #e2e8f0) }
+.ld-ext-l.tot { border-bottom: 0; border-top: 2px solid var(--mx-t, #0f172a); margin-top: 2px; font-size: 18px; font-weight: 700 } .ld-ext-l.tot b { font-size: 26px }
 
 .ld-med { display: grid; grid-template-columns: 220px 1fr; gap: 16px; align-items: center }
 .ld-med svg { width: 100%; max-width: 240px }
-.ld-med-v { display: grid; gap: 4px } .ld-med-v b { font-size: 40px; line-height: 1 } .ld-med-v span { font-size: 15px; color: ${SEG}; line-height: 1.4 }
+.ld-med-v { display: grid; gap: 4px } .ld-med-v b { font-size: 40px; line-height: 1 } .ld-med-v span { font-size: 15px; color: var(--mx-t2, #334155); line-height: 1.4 }
 .ld-blocos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px }
-.ld-blocos > div { display: grid; gap: 2px; background: #f8fafc; border: 1px solid #e2e8f0; border-top: 4px solid; border-radius: 10px; padding: 10px 12px }
-.ld-blocos small { font-size: 13.5px; color: ${SEG} } .ld-blocos b { font-size: 18px } .ld-blocos span { font-size: 13px; color: ${SEG} }
+.ld-blocos > div { display: grid; gap: 2px; background: var(--mx-bg1, #f8fafc); border: 1px solid var(--mx-bd, #e2e8f0); border-top: 4px solid; border-radius: 10px; padding: 10px 12px }
+.ld-blocos small { font-size: 13.5px; color: var(--mx-t2, #334155) } .ld-blocos b { font-size: 18px } .ld-blocos span { font-size: 13px; color: var(--mx-t2, #334155) }
 
 .ld-casc { display: grid; gap: 12px }
 .ld-casc-l { display: grid; grid-template-columns: 96px minmax(0, 1fr) 170px; gap: 12px; align-items: center; font-size: 15px }
 .ld-casc-l > span:last-child { display: flex; gap: 8px; justify-content: flex-end; align-items: baseline }
-.ld-casc-trilho { position: relative; height: 26px; background: #f1f5f9; border-radius: 6px }
+.ld-casc-trilho { position: relative; height: 26px; background: var(--mx-bg1, #f1f5f9); border-radius: 6px }
 .ld-casc-trilho i { position: absolute; top: 0; bottom: 0; border-radius: 6px; transition: left .6s cubic-bezier(.2,.8,.2,1), width .6s cubic-bezier(.2,.8,.2,1) }
-.ld-casc-l:last-child { border-top: 2px solid ${TXT}; padding-top: 10px } .ld-casc-l:last-child b { font-size: 20px }
+.ld-casc-l:last-child { border-top: 2px solid var(--mx-t, #0f172a); padding-top: 10px } .ld-casc-l:last-child b { font-size: 20px }
 
 .ld-regua { display: grid; gap: 10px }
 .ld-regua-t { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px } .ld-regua-t > b { font-size: 16px }
-.ld-meta { font-size: 14.5px; color: #1e293b; display: inline-flex; align-items: center; gap: 6px }
-.ld-meta input { width: 56px; height: 32px; border: 1px solid #94a3b8; border-radius: 8px; text-align: center; font-family: inherit; font-size: 15px; font-weight: 700; color: ${TXT} } .ld-meta input:focus { outline: 2px solid #0f766e; border-color: #0f766e }
+.ld-meta { font-size: 14.5px; color: var(--mx-t, #1e293b); display: inline-flex; align-items: center; gap: 6px }
+.ld-meta input { width: 56px; height: 32px; border: 1px solid #94a3b8; border-radius: 8px; text-align: center; font-family: inherit; font-size: 15px; font-weight: 700; color: var(--mx-t, #0f172a) } .ld-meta input:focus { outline: 2px solid #0f766e; border-color: #0f766e }
 .ld-trilha { position: relative; height: 22px; border-radius: 99px; margin: 34px 0 0; overflow: visible }
 .ld-trilha > i { position: absolute; top: 0; bottom: 0; transition: left .6s, width .6s } .ld-trilha > i.z1 { border-radius: 99px 0 0 99px } .ld-trilha > i.z3 { border-radius: 0 99px 99px 0 }
-.ld-trilha .z1, .ld-zonas .z1 { background: #fecaca } .ld-trilha .z2, .ld-zonas .z2 { background: #fde68a } .ld-trilha .z3, .ld-zonas .z3 { background: #bbf7d0 }
-.ld-pino { position: absolute; top: -6px; bottom: -6px; width: 4px; margin-left: -2px; background: ${TXT}; border-radius: 2px; transition: left .6s cubic-bezier(.2,.8,.2,1) }
-.ld-pino b { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: ${TXT}; color: #fefefe; font-size: 13px; border-radius: 6px; padding: 3px 8px }
-.ld-marca { position: absolute; top: 0; bottom: 0; width: 2px; background: #fefefe; transition: left .6s }
+.ld-trilha .z1, .ld-zonas .z1 { background: var(--mx-p-red, #fecaca) } .ld-trilha .z2, .ld-zonas .z2 { background: var(--mx-p-amber, #fde68a) } .ld-trilha .z3, .ld-zonas .z3 { background: var(--mx-p-green, #bbf7d0) }
+.ld-pino { position: absolute; top: -6px; bottom: -6px; width: 4px; margin-left: -2px; background: var(--mx-bg3, #0f172a); border-radius: 2px; transition: left .6s cubic-bezier(.2,.8,.2,1) }
+.ld-pino b { position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%); white-space: nowrap; background: var(--mx-bg3, #0f172a); color: #fefefe; font-size: 13px; border-radius: 6px; padding: 3px 8px }
+.ld-marca { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--mx-bg0, #fefefe); transition: left .6s }
 .ld-escala { position: relative; height: 40px }
-.ld-escala span { position: absolute; transform: translateX(-50%); display: grid; text-align: center; white-space: nowrap; transition: left .6s } .ld-escala small { font-size: 12.5px; color: ${SEG} } .ld-escala b { font-size: 15px }
+.ld-escala span { position: absolute; transform: translateX(-50%); display: grid; text-align: center; white-space: nowrap; transition: left .6s } .ld-escala small { font-size: 12.5px; color: var(--mx-t2, #334155) } .ld-escala b { font-size: 15px }
 .ld-escala span:first-child:last-child, .ld-escala span:first-child { transform: translateX(-60%) } .ld-escala span:last-child:not(:first-child) { transform: translateX(-40%) }
-.ld-zonas { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13.5px; color: ${SEG} } .ld-zonas i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px }
-.ld-frase { margin: 0; border-radius: 10px; padding: 10px 14px; font-size: 15px; line-height: 1.5 } .ld-frase.prejuizo { background: #fee2e2; color: #7f1d1d } .ld-frase.abaixo { background: #fef3c7; color: #78350f } .ld-frase.acima { background: #dcfce7; color: #14532d }
-.ld-bt { justify-self: start; border: 0; background: ${TXT}; color: #fefefe; border-radius: 99px; padding: 8px 16px; font-family: inherit; font-size: 14px; cursor: pointer }
-.ld-nota { font-size: 13px; color: ${SEG} }
+.ld-zonas { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13.5px; color: var(--mx-t2, #334155) } .ld-zonas i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px }
+.ld-frase { margin: 0; border-radius: 10px; padding: 10px 14px; font-size: 15px; line-height: 1.5 } .ld-frase.prejuizo { background: var(--mx-p-red, #fee2e2); color: var(--mx-fg-red, #7f1d1d) } .ld-frase.abaixo { background: var(--mx-p-amber, #fef3c7); color: var(--mx-fg-orange, #78350f) } .ld-frase.acima { background: var(--mx-p-green, #dcfce7); color: var(--mx-fg-green, #14532d) }
+.ld-bt { justify-self: start; border: 0; background: var(--mx-bg3, #0f172a); color: #fefefe; border-radius: 99px; padding: 8px 16px; font-family: inherit; font-size: 14px; cursor: pointer }
+.ld-nota { font-size: 13px; color: var(--mx-t2, #334155) }
 @media (max-width: 700px) { .ld-med { grid-template-columns: 1fr } .ld-blocos { grid-template-columns: repeat(2, minmax(0, 1fr)) } .ld-casc-l { grid-template-columns: 80px minmax(0, 1fr) 120px } .ld-ext.duas .ld-ext-l { grid-template-columns: minmax(0, 1fr) 90px 130px } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.ld-ic) { color: color-mix(in srgb, var(--c) 60%, #fff) }
+
 `

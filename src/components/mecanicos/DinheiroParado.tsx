@@ -60,8 +60,8 @@ export default function DinheiroParado({ pendencias: inicial }: { pendencias: Pe
       <div className="dp-cab">
         <div>
           <div className="dp-rot"><i className="fas fa-hourglass-half" /> Dinheiro parado · agora</div>
-          <div className="dp-frase"><b style={{ color: '#b45309' }}><Numero valor={r.total.total} formato={brl} /></b> em {r.total.qtd} OS ainda não faturadas</div>
-          {garantias.length > 0 && <div style={{ fontSize: 12.5, color: MUDO, marginTop: 2 }}><i className="fas fa-shield-heart" style={{ color: '#7c3aed' }} /> fora daqui: {garantias.length} garantia(s) esperando a montadora ({brl(garantias.reduce((a, p) => a + p.total, 0))}) — veja no card Garantia</div>}
+          <div className="dp-frase"><b style={{ color: 'var(--mx-fg-orange, #b45309)' }}><Numero valor={r.total.total} formato={brl} /></b> em {r.total.qtd} OS ainda não faturadas</div>
+          {garantias.length > 0 && <div style={{ fontSize: 12.5, color: MUDO, marginTop: 2 }}><i className="fas fa-shield-heart" style={{ color: 'var(--mx-fg-violet, #7c3aed)' }} /> fora daqui: {garantias.length} garantia(s) esperando a montadora ({brl(garantias.reduce((a, p) => a + p.total, 0))}) — veja no card Garantia</div>}
         </div>
         <button type="button" className="dp-btn" onClick={() => setVer({ tipo: 'todos' })}>ver todas <i className="fas fa-chevron-right" /></button>
       </div>
@@ -91,7 +91,7 @@ export default function DinheiroParado({ pendencias: inicial }: { pendencias: Pe
         })}
 
         <div className="dp-card dp-rank" style={{ animationDelay: '180ms' }}>
-          <div className="dp-card-cab"><span className="dp-ic" style={{ background: '#eff6ff', color: '#0369a1' }}><i className="fas fa-user-clock" /></span><div><b>Com quem está parado</b><small>clique para ver as OS de cada um</small></div></div>
+          <div className="dp-card-cab"><span className="dp-ic" style={{ background: 'var(--mx-bg1, #eff6ff)', color: 'var(--mx-fg-blue, #0369a1)' }}><i className="fas fa-user-clock" /></span><div><b>Com quem está parado</b><small>clique para ver as OS de cada um</small></div></div>
           <div style={{ display: 'grid', gap: 6, marginTop: 4 }}>
             {ranking.slice(0, 6).map(([t, v], k) => (
               <button key={t} type="button" className="dp-tec" onClick={() => setVer({ tipo: 'todos', tecnico: t })}>
@@ -157,7 +157,7 @@ export const ESTILO_DP = `
 .dp-cab { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 12px }
 .dp-rot { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--portal-text-muted, #64748b) }
 .dp-frase { font-size: 21px; font-weight: 700; color: var(--portal-text, #0f172a) } .dp-frase b { font-weight: 900 }
-.dp-btn { border: 1px solid var(--portal-border, #e2e8f0); background: transparent; border-radius: 99px; padding: 6px 14px; font-family: inherit; font-weight: 800; font-size: 13px; color: #0369a1; cursor: pointer }
+.dp-btn { border: 1px solid var(--portal-border, #e2e8f0); background: transparent; border-radius: 99px; padding: 6px 14px; font-family: inherit; font-weight: 800; font-size: 13px; color: var(--mx-fg-blue, #0369a1); cursor: pointer }
 .dp-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px }
 .dp-card { text-align: left; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-top: 4px solid; border-radius: 16px; padding: 12px 14px; font-family: inherit; color: inherit; cursor: pointer; display: grid; gap: 8px; animation: cpvEntra .5s cubic-bezier(.2,.8,.2,1) both; transition: transform .2s, box-shadow .2s }
 .dp-card:hover { transform: translateY(-3px); box-shadow: 0 12px 26px rgba(15,23,42,.10) }
@@ -194,8 +194,11 @@ export const ESTILO_DP = `
 .dp-item:hover { background: var(--portal-bg-secondary, #f8fafc) }
 .dp-dias { width: 46px; display: flex; flex-direction: column; align-items: center; line-height: 1 } .dp-dias b { font-size: 20px; font-weight: 900 } .dp-dias small { font-size: 10px; font-weight: 700 }
 .dp-i1 { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px } .dp-i1 span { font-size: 12px; color: var(--portal-text-muted, #64748b); background: var(--portal-bg-secondary, #f1f5f9); border-radius: 99px; padding: 1px 8px }
-.dp-gar { font-style: normal; font-size: 11px; font-weight: 800; color: #db2777; background: #fdf2f8; border-radius: 99px; padding: 1px 8px }
+.dp-gar { font-style: normal; font-size: 11px; font-weight: 800; color: var(--mx-fg-pink, #db2777); background: var(--mx-p-pink, #fdf2f8); border-radius: 99px; padding: 1px 8px }
 .dp-i2 { font-size: 12.5px; color: var(--portal-text-muted, #64748b); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .dp-dir { display: flex; flex-direction: column; align-items: flex-end; text-align: right } .dp-dir b { font-size: 15px; font-variant-numeric: tabular-nums } .dp-dir small { font-size: 11px; color: var(--portal-text-muted, #94a3b8); white-space: nowrap }
 @media (max-width: 720px) { .dp-dir small { display: none } .dp-tec { grid-template-columns: 90px 1fr auto } .dp-tec small { display: none } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `

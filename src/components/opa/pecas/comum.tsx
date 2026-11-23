@@ -14,6 +14,7 @@ import { contagens, listarLookups, type Contagens } from '@/lib/opa-pecas/db'
 import { mensagemErro, urlsMiniaturas } from '@/lib/opa-pecas/fotos'
 import { codigoDefinitivo, mapaNomesLocais } from '@/lib/opa-pecas/regras'
 import { BotaoLerCodigo } from './LeitorCodigo'
+import '@/components/abas-modulo.css'
 import dynamic from 'next/dynamic'
 
 // carregado à parte: ele usa a janela/impressão, que importam este arquivo
@@ -128,7 +129,7 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
   const faixa = 'linear-gradient(135deg, #94a3b8 0%, #64748b 55%, #475569 100%)'
 
   return (
-    <div style={{
+    <div className="aba-faixa" style={{
       display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: isMobile ? 'wrap' : 'nowrap',
       margin: isMobile ? '-12px -12px 14px' : '-16px -20px 18px', padding: isMobile ? '10px 12px 0' : '12px 24px 0',
       background: faixa, boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
@@ -158,7 +159,7 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
             {pathname !== '/opa/patrimonio' && (
               <Link href="/opa/patrimonio" style={{ ...btn, padding: '0 12px' }}><ArrowLeft size={16} strokeWidth={2.5} /> Lista</Link>
             )}
-            <Link href="/opa/patrimonio/novo" style={{ ...btn, background: '#fefefe', color: '#111111', border: '1px solid #fefefe', boxShadow: '0 2px 8px rgba(0,0,0,0.18)', gridColumn: isMobile && pathname === '/opa/patrimonio' ? '1 / -1' : undefined }}>
+            <Link href="/opa/patrimonio/novo" className="aba-btn-claro" style={{ ...btn, background: '#fefefe', color: '#111111', border: '1px solid #fefefe', boxShadow: '0 2px 8px rgba(0,0,0,0.18)', gridColumn: isMobile && pathname === '/opa/patrimonio' ? '1 / -1' : undefined }}>
               <Plus size={16} strokeWidth={2.5} /> Novo item
             </Link>
           </>
@@ -171,13 +172,13 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
             )}
             <MenuEtapas podeGerir={podeGerir} c={c} mobile={isMobile} />
             {podeGerir && (
-              <Link href="/opa/pecas/relacao" title="Códigos existentes × produtos já cadastrados (CSV/PDF)"
+              <Link href="/opa/pecas/relacao" className={pathname.startsWith('/opa/pecas/relacao') ? 'aba-btn-claro' : undefined} title="Códigos existentes × produtos já cadastrados (CSV/PDF)"
                 style={{ ...btn, ...(pathname.startsWith('/opa/pecas/relacao') ? { background: '#fefefe', color: '#111111', border: '1px solid #fefefe' } : {}) }}>
                 <GitCompare size={16} /> Relação
               </Link>
             )}
             <BotaoLerCodigo estilo={btn} />
-            <Link href="/opa/pecas/novo" style={{ ...btn, background: '#fefefe', color: '#111111', border: '1px solid #fefefe', boxShadow: '0 2px 8px rgba(0,0,0,0.18)', gridColumn: isMobile && qtdBotoes % 2 === 1 ? '1 / -1' : undefined }}>
+            <Link href="/opa/pecas/novo" className="aba-btn-claro" style={{ ...btn, background: '#fefefe', color: '#111111', border: '1px solid #fefefe', boxShadow: '0 2px 8px rgba(0,0,0,0.18)', gridColumn: isMobile && qtdBotoes % 2 === 1 ? '1 / -1' : undefined }}>
               <Plus size={16} strokeWidth={2.5} /> Novo produto
             </Link>
           </>
@@ -202,7 +203,7 @@ function GuiaChrome({ href, ativo, cor, icone, titulo, curto, conta, dica, mobil
   href: string; ativo: boolean; cor: string; icone: React.ReactNode; titulo: string; curto?: string; conta: number | null; dica: string; mobile: boolean
 }) {
   return (
-    <Link href={href} role="tab" aria-selected={ativo} aria-current={ativo ? 'page' : undefined} title={dica} style={{
+    <Link href={href} role="tab" aria-selected={ativo} aria-current={ativo ? 'page' : undefined} title={dica} className={`aba-guia${ativo ? ' aba-ativa' : ''}`} style={{
       display: 'flex', alignItems: 'center', gap: mobile ? 5 : 7, padding: mobile ? '9px 10px' : '10px 14px', flexShrink: 0, // não encolhe: no celular a faixa rola de lado (encolhendo, os textos ficavam um por cima do outro)
       minWidth: 0,
       borderRadius: '11px 11px 0 0', textDecoration: 'none', whiteSpace: 'nowrap', transition: '0.15s',
@@ -210,10 +211,10 @@ function GuiaChrome({ href, ativo, cor, icone, titulo, curto, conta, dica, mobil
       background: ativo ? '#fefefe' : 'rgba(255,255,255,0.30)',
       boxShadow: ativo ? '0 -2px 6px rgba(0,0,0,0.15)' : 'none',
     }}>
-      <span style={{ color: ativo ? cor : '#111111', display: 'flex', opacity: ativo ? 1 : 0.75 }}>{icone}</span>
+      <span className="aba-ico" style={{ color: ativo ? cor : '#111111', display: 'flex', opacity: ativo ? 1 : 0.75 }}>{icone}</span>
       {mobile && curto ? curto : titulo}
       {conta != null && conta > 0 && (
-        <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 7px', borderRadius: 9, background: ativo ? cor : 'rgba(0,0,0,0.14)', color: ativo ? '#fefefe' : '#111111' }}>{conta}</span>
+        <span className="aba-n" style={{ fontSize: 11, fontWeight: 800, padding: '1px 7px', borderRadius: 9, background: ativo ? cor : 'rgba(0,0,0,0.14)', color: ativo ? '#fefefe' : '#111111' }}>{conta}</span>
       )}
     </Link>
   )
@@ -242,7 +243,7 @@ function MenuEtapas({ podeGerir, c, mobile = false }: { podeGerir: boolean; c: C
 
   return (
     <div style={{ position: 'relative', minWidth: 0 }}>
-      <button ref={botaoRef} type="button" onClick={abrir} aria-haspopup="menu" aria-expanded={aberto}
+      <button ref={botaoRef} type="button" onClick={abrir} aria-haspopup="menu" aria-expanded={aberto} className={atual ? 'aba-btn-claro' : undefined}
         style={{ ...(mobile ? BTN_FAIXA_MOVEL : BTN_FAIXA), ...(atual ? { background: '#fefefe', color: '#111111', border: '1px solid #fefefe' } : {}) }}>
         <LayoutList size={16} /> {atual ? `${atual.n}. ${atual.titulo}` : 'Etapas'}
         {pendentes > 0 && <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 7px', borderRadius: 9, background: atual ? COR_OPA : '#fefefe', color: atual ? '#fefefe' : '#111111' }}>{pendentes}</span>}

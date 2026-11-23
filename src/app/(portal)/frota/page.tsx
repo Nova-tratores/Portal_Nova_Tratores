@@ -87,7 +87,7 @@ export default function FrotaHoje() {
     return (
       <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
         <CabecalhoFrota titulo="Hoje" resumo="O que precisa de atenção na frota agora." />
-        {erro ? <div style={{ color: '#b91c1c', fontSize: 13 }}>{erro}</div> : <CarregandoFrota kpis={4} linhas={5} />}
+        {erro ? <div style={{ color: 'var(--portal-red-fg, #b91c1c)', fontSize: 13 }}>{erro}</div> : <CarregandoFrota kpis={4} linhas={5} />}
       </div>
     );
   }
@@ -139,7 +139,7 @@ export default function FrotaHoje() {
         />
       </KpisFrota>
 
-      {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
+      {erro && <div style={{ color: 'var(--portal-red-fg, #b91c1c)', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
         {d.parados.length > 0 && (
@@ -288,7 +288,7 @@ function Linha({ placa, modelo, texto, selo, acao, destaque }: {
         {modelo && <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{modelo}</span>}
       </Link>
       {selo}
-      <span style={{ fontSize: 13.5, color: destaque ? '#b91c1c' : 'var(--portal-text)', fontWeight: destaque ? 700 : 400, flex: '1 1 260px', minWidth: 0 }}>{texto}</span>
+      <span style={{ fontSize: 13.5, color: destaque ? 'var(--portal-red-fg, #b91c1c)' : 'var(--portal-text)', fontWeight: destaque ? 700 : 400, flex: '1 1 260px', minWidth: 0 }}>{texto}</span>
       {acao}
     </div>
   );
@@ -399,7 +399,7 @@ function LeiturasSuspeitas({ itens, podeConferir, onMudou }: { itens: DadosHoje[
   return (
     <Bloco titulo="Leituras de km para conferir" icone={<Gauge size={16} />} cor="#b45309" n={itens.length}
       ajuda="Leituras que ficaram menores que a anterior ou saltaram demais. Olhe a foto: aceite se o número estiver certo, descarte se foi erro.">
-      {msg && <div style={{ ...linhaEstilo, color: '#b91c1c', fontSize: 13 }}>{msg}</div>}
+      {msg && <div style={{ ...linhaEstilo, color: 'var(--portal-red-fg, #b91c1c)', fontSize: 13 }}>{msg}</div>}
       {itens.map((l) => (
         <div key={l.id} style={linhaEstilo}>
           {l.foto_url ? (
@@ -411,7 +411,7 @@ function LeiturasSuspeitas({ itens, podeConferir, onMudou }: { itens: DadosHoje[
           <strong style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--portal-text)', flex: '0 1 110px' }}>{formatarPlaca(l.placa)}</strong>
           <span style={{ fontSize: 13.5, color: 'var(--portal-text)', flex: '1 1 260px', minWidth: 0 }}>
             <strong>{Math.round(Number(l.km)).toLocaleString('pt-BR')} km</strong> · {fmtData(l.lida_em)}{l.lido_por ? ` · ${l.lido_por}` : ''}
-            {l.motivo && <span style={{ display: 'block', color: '#b45309', fontSize: 12.5 }}>{l.motivo}</span>}
+            {l.motivo && <span style={{ display: 'block', color: 'var(--portal-amber-fg, #b45309)', fontSize: 12.5 }}>{l.motivo}</span>}
           </span>
           {podeConferir && (
             <span style={{ display: 'flex', gap: 6 }}>

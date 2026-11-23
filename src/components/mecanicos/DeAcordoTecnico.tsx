@@ -195,34 +195,37 @@ function ModalDeAcordo({ p, modo, fechar, onFeito }: { p: PedidoComissao; modo: 
 const CSS = `
 .dats { grid-column: 1 / -1; margin: 0 22px 16px; display: flex; flex-direction: column; gap: 8px }
 .dats-cab { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap }
-.dats-cab > div { display: flex; flex-direction: column; gap: 2px; flex: 1 1 300px } .dats-cab b { font-size: 14.5px; color: #0f172a } .dats-cab small { font-size: 12.5px; color: #64748b }
+.dats-cab > div { display: flex; flex-direction: column; gap: 2px; flex: 1 1 300px } .dats-cab b { font-size: 14.5px; color: var(--mx-t, #0f172a) } .dats-cab small { font-size: 12.5px; color: var(--mx-t3, #64748b) }
 .dat-n { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: #0f172a; color: #fefefe; font-size: 11.5px }
-.dat-rh { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; margin-top: 2px } .dat-rh.ok { color: #166534 } .dat-rh.ruim { color: #b45309 }
+.dat-rh { display: inline-flex; gap: 6px; align-items: center; font-size: 12.5px; margin-top: 2px } .dat-rh.ok { color: var(--mx-fg-green, #166534) } .dat-rh.ruim { color: var(--mx-fg-orange, #b45309) }
 .dat-rh button { border: none; background: none; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; font-size: 12.5px; padding: 0 }
-.dat-erro { color: #991b1b; font-size: 12.5px }
-.dat { border-radius: 12px; padding: 12px 14px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; border: 1px solid #fde68a; background: #fffbeb; color: #0f172a }
-.dat.ok { border-color: #bbf7d0; background: #f0fdf4 } .dat.ruim { border-color: #fecaca; background: #fef2f2 }
-.dat-tx { flex: 1 1 320px; display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; color: #334155 }
-.dat-tx > b { font-size: 14.5px; color: #0f172a; display: flex; align-items: center; gap: 8px } .dat-tx > b i { color: #b45309 } .dat.ok .dat-tx > b i { color: #16a34a } .dat.ruim .dat-tx > b i { color: #dc2626 }
+.dat-erro { color: var(--mx-fg-red, #991b1b); font-size: 12.5px }
+.dat { border-radius: 12px; padding: 12px 14px; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; border: 1px solid var(--mx-pb-amber, #fde68a); background: var(--mx-p-amber, #fffbeb); color: var(--mx-t, #0f172a) }
+.dat.ok { border-color: var(--mx-pb-green, #bbf7d0); background: var(--mx-p-green, #f0fdf4) } .dat.ruim { border-color: var(--mx-pb-red, #fecaca); background: var(--mx-p-red, #fef2f2) }
+.dat-tx { flex: 1 1 320px; display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; color: var(--mx-t2, #334155) }
+.dat-tx > b { font-size: 14.5px; color: var(--mx-t, #0f172a); display: flex; align-items: center; gap: 8px } .dat-tx > b i { color: var(--mx-fg-orange, #b45309) } .dat.ok .dat-tx > b i { color: #16a34a } .dat.ruim .dat-tx > b i { color: var(--mx-fg-red, #dc2626) }
 .dat-bts { display: flex; gap: 8px; flex-wrap: wrap; align-items: center }
-.dat-bt { display: inline-flex; align-items: center; gap: 7px; border: 1px solid #cbd5e1; background: #fefefe; color: #0f172a; border-radius: 999px; padding: 8px 14px; font: inherit; font-size: 13.5px; cursor: pointer; min-height: 38px }
+.dat-bt { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--mx-bd, #cbd5e1); background: var(--mx-bg0, #fefefe); color: var(--mx-t, #0f172a); border-radius: 999px; padding: 8px 14px; font: inherit; font-size: 13.5px; cursor: pointer; min-height: 38px }
 .dat-bt:hover { border-color: #0f172a } .dat-bt.forte { background: #111111; color: #fefefe; border-color: #111111 } .dat-bt:disabled { opacity: .45; cursor: default }
-.dat-lk { border: none; background: none; color: #475569; font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; padding: 6px }
+.dat-lk { border: none; background: none; color: var(--mx-t2, #475569); font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; padding: 6px }
 .dat-fundo { position: fixed; inset: 0; background: rgba(15,23,42,.45); z-index: 9500; display: flex; align-items: center; justify-content: center; padding: 16px }
-.dat-m { background: #fefefe; color: #0f172a; border-radius: 14px; width: min(620px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.25) }
-.dat-m header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #eef2f7; font-size: 16px }
-.dat-m header button { border: none; background: none; font-size: 18px; color: #64748b; cursor: pointer }
+.dat-m { background: var(--mx-bg0, #fefefe); color: var(--mx-t, #0f172a); border-radius: 14px; width: min(620px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.25) }
+.dat-m header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--mx-bd, #eef2f7); font-size: 16px }
+.dat-m header button { border: none; background: none; font-size: 18px; color: var(--mx-t3, #64748b); cursor: pointer }
 .dat-m-corpo { padding: 16px 20px; overflow: auto; display: flex; flex-direction: column; gap: 12px }
-.dat-m-sub { margin: 0; font-size: 13.5px; color: #475569 }
-.dat-m-rot { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: #475569 }
-.dat-m-rot input, .dat-m-rot textarea { font: inherit; font-size: 14px; color: #0f172a; border: 1px solid #cbd5e1; border-radius: 8px; padding: 9px 10px; background: #fefefe }
-.dat-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #f1f5f9; padding: 4px; border-radius: 10px }
-.dat-tabs button { border: none; background: none; border-radius: 8px; padding: 9px; font: inherit; font-size: 13.5px; color: #475569; cursor: pointer; display: flex; gap: 7px; align-items: center; justify-content: center }
-.dat-tabs button.on { background: #fefefe; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,.1) }
-.dat-arq { display: flex; gap: 8px; flex-wrap: wrap; align-items: center } .dat-arq-n { font-size: 13px; color: #166534; display: flex; gap: 6px; align-items: center }
-.dat-texto { margin: 0; font-size: 13.5px; line-height: 1.6; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px }
-.dat-pad-cab { display: flex; justify-content: space-between; font-size: 12.5px; color: #475569 } .dat-pad-cab button { border: none; background: none; color: #475569; text-decoration: underline; cursor: pointer; font: inherit; font-size: 12.5px }
-.dat-pad { position: relative; border: 1px dashed #94a3b8; border-radius: 10px; background: #fefefe } .dat-pad > span { position: absolute; left: 0; right: 0; top: 45%; text-align: center; color: #94a3b8; font-size: 13px; pointer-events: none }
-.dat-erro { margin: 0; color: #991b1b; font-size: 13.5px }
-.dat-m footer { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 14px 20px; border-top: 1px solid #eef2f7 } .dat-m footer small { margin-right: auto; color: #b45309; font-size: 12.5px }
+.dat-m-sub { margin: 0; font-size: 13.5px; color: var(--mx-t2, #475569) }
+.dat-m-rot { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--mx-t2, #475569) }
+.dat-m-rot input, .dat-m-rot textarea { font: inherit; font-size: 14px; color: var(--mx-t, #0f172a); border: 1px solid var(--mx-bd, #cbd5e1); border-radius: 8px; padding: 9px 10px; background: var(--mx-bg0, #fefefe) }
+.dat-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--mx-bg1, #f1f5f9); padding: 4px; border-radius: 10px }
+.dat-tabs button { border: none; background: none; border-radius: 8px; padding: 9px; font: inherit; font-size: 13.5px; color: var(--mx-t2, #475569); cursor: pointer; display: flex; gap: 7px; align-items: center; justify-content: center }
+.dat-tabs button.on { background: var(--mx-bg0, #fefefe); color: var(--mx-t, #0f172a); box-shadow: 0 1px 3px rgba(0,0,0,.1) }
+.dat-arq { display: flex; gap: 8px; flex-wrap: wrap; align-items: center } .dat-arq-n { font-size: 13px; color: var(--mx-fg-green, #166534); display: flex; gap: 6px; align-items: center }
+.dat-texto { margin: 0; font-size: 13.5px; line-height: 1.6; background: var(--mx-bg1, #f8fafc); border: 1px solid var(--mx-bd, #e2e8f0); border-radius: 8px; padding: 10px 12px }
+.dat-pad-cab { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--mx-t2, #475569) } .dat-pad-cab button { border: none; background: none; color: var(--mx-t2, #475569); text-decoration: underline; cursor: pointer; font: inherit; font-size: 12.5px }
+.dat-pad { position: relative; border: 1px dashed #94a3b8; border-radius: 10px; background: var(--mx-bg0, #fefefe) } .dat-pad > span { position: absolute; left: 0; right: 0; top: 45%; text-align: center; color: #94a3b8; font-size: 13px; pointer-events: none }
+.dat-erro { margin: 0; color: var(--mx-fg-red, #991b1b); font-size: 13.5px }
+.dat-m footer { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--mx-bd, #eef2f7) } .dat-m footer small { margin-right: auto; color: var(--mx-fg-orange, #b45309); font-size: 12.5px }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `

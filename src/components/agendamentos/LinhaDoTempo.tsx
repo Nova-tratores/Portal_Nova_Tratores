@@ -65,7 +65,7 @@ export default function LinhaDoTempo({ hoje, agendamentos }: { hoje: Rodada[]; a
           const ruins = rs.filter((r) => ['erro', 'interrompida', 'bloqueio'].includes(r.status)).length
           return (
             <div key={job} style={{ display: 'grid', gridTemplateColumns: '230px 1fr 130px', gap: 10, alignItems: 'center', padding: '5px 0', borderTop: '1px solid #f3f4f6' }}>
-              <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#111111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job}>
+              <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--agd-tx, #111111)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job}>
                 {nomes.get(job) ?? job}
                 {!nomes.has(job) && <span style={{ fontWeight: 400, color: '#9ca3af' }}> · GitHub</span>}
               </span>
@@ -99,7 +99,7 @@ export default function LinhaDoTempo({ hoje, agendamentos }: { hoje: Rodada[]; a
                 })}
               </div>
               <span style={{ fontSize: '.72rem', color: '#374151' }}>
-                {rs.length ? <>{ok} ok{ruins > 0 && <strong style={{ color: '#b91c1c' }}> · {ruins} com problema</strong>}</> : <span style={{ color: '#9ca3af' }}>nenhuma</span>}
+                {rs.length ? <>{ok} ok{ruins > 0 && <strong style={{ color: 'var(--agd-err, #b91c1c)' }}> · {ruins} com problema</strong>}</> : <span style={{ color: '#9ca3af' }}>nenhuma</span>}
               </span>
             </div>
           )
@@ -127,7 +127,7 @@ function BalaoDetalhe({ b, nome, onFechar }: { b: Balao; nome: string; onFechar:
       onClick={(e) => e.stopPropagation()}
       style={{
         position: 'fixed', left: b.x, top: b.y, zIndex: 1000, width: 330, maxWidth: 'calc(100vw - 24px)',
-        background: '#fff', color: '#111111', border: `1px solid ${s.borda}`, borderLeft: `4px solid ${s.cor}`, borderRadius: 10,
+        background: '#fff', color: 'var(--agd-tx, #111111)', border: `1px solid ${s.borda}`, borderLeft: `4px solid ${s.cor}`, borderRadius: 10,
         boxShadow: '0 12px 30px -10px rgba(0,0,0,0.35)', padding: '10px 12px', fontSize: '.78rem', lineHeight: 1.45,
         pointerEvents: b.fixo ? 'auto' : 'none',
       }}
@@ -139,7 +139,7 @@ function BalaoDetalhe({ b, nome, onFechar }: { b: Balao; nome: string; onFechar:
       <div style={{ color: '#374151', marginTop: 4 }}>
         {horaSP(r.iniciado_em)} → {fim}{r.duracao_ms != null ? ` · ${duracao(r.duracao_ms)}` : ''} · {quemDisparou(r)}
       </div>
-      {r.detalhe && <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 180, overflowY: 'auto', color: '#111111' }}>{r.detalhe}</div>}
+      {r.detalhe && <div style={{ marginTop: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 180, overflowY: 'auto', color: 'var(--agd-tx, #111111)' }}>{r.detalhe}</div>}
       {r.progresso && Object.keys(r.progresso).length > 0 && (
         <div style={{ marginTop: 6, color: '#374151' }}>{Object.entries(r.progresso).map(([k, v]) => `${k}: ${v}`).join(' · ')}</div>
       )}

@@ -486,7 +486,7 @@ function JanelaPedido({ pedido, onFechar }: { pedido: PedidoPc; onFechar: () => 
         <div className="pcp-conta">
           <span>Venda<b>{brl2(pedido.venda)}</b></span>
           <span>Custo<b>{brl2(pedido.custo)}</b></span>
-          <span>Ficou<b style={{ color: ficou >= 0 ? '#15803d' : '#dc2626' }}>{brl2(ficou)}</b></span>
+          <span>Ficou<b style={{ color: ficou >= 0 ? 'var(--mx-fg-green, #15803d)' : 'var(--mx-fg-red, #dc2626)' }}>{brl2(ficou)}</b></span>
           <button type="button" className="pcp-nota" onClick={() => setVerNota(true)}><i className="fas fa-file-pdf" /> Nota fiscal</button>
         </div>
         {erro && <div className="pcp-aviso">{erro}</div>}
@@ -652,19 +652,22 @@ const CSS_PCP = `
 .pcp-chips .fp-chip-v { grid-column: 2; text-align: left }
 @media (max-width: 1200px) { .pcp-chips { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
 @media (max-width: 760px) { .pcp-chips { grid-template-columns: 1fr } }
-.pcp-aviso { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; border-radius: 12px; padding: 10px 14px; font-size: 14px }
-.pcp-aviso button { border: 0; background: transparent; color: #9a3412; text-decoration: underline; font: inherit; cursor: pointer }
+.pcp-aviso { background: var(--mx-p-orange, #fff7ed); border: 1px solid var(--mx-pb-orange, #fed7aa); color: var(--mx-fg-orange, #9a3412); border-radius: 12px; padding: 10px 14px; font-size: 14px }
+.pcp-aviso button { border: 0; background: transparent; color: var(--mx-fg-orange, #9a3412); text-decoration: underline; font: inherit; cursor: pointer }
 .pcp-conta { display: flex; flex-wrap: wrap; gap: 10px; align-items: center }
-.pcp-conta > span { display: grid; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px 14px; font-size: 12.5px; color: #475569; min-width: 120px }
-.pcp-conta > span b { font-size: 18px; color: #0f172a }
-.pcp-nota { margin-left: auto; border: 1px solid #fca5a5; background: #fefefe; color: #b91c1c; border-radius: 99px; padding: 8px 16px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer }
-.pcp-nota:hover { background: #fef2f2 }
+.pcp-conta > span { display: grid; background: var(--mx-bg1, #f8fafc); border: 1px solid var(--mx-bd, #e2e8f0); border-radius: 12px; padding: 8px 14px; font-size: 12.5px; color: var(--mx-t2, #475569); min-width: 120px }
+.pcp-conta > span b { font-size: 18px; color: var(--mx-t, #0f172a) }
+.pcp-nota { margin-left: auto; border: 1px solid #fca5a5; background: var(--mx-bg0, #fefefe); color: var(--mx-fg-red, #b91c1c); border-radius: 99px; padding: 8px 16px; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer }
+.pcp-nota:hover { background: var(--mx-p-red, #fef2f2) }
 .pcp-canal { font-style: normal; color: var(--c); font-weight: 600 }
-.pcp-it { display: grid; grid-template-columns: minmax(0, 1fr) 150px 100px 100px; gap: 10px; align-items: center; padding: 9px 4px; border-top: 1px solid #f1f5f9; font-size: 14px }
+.pcp-it { display: grid; grid-template-columns: minmax(0, 1fr) 150px 100px 100px; gap: 10px; align-items: center; padding: 9px 4px; border-top: 1px solid var(--mx-bd, #f1f5f9); font-size: 14px }
 .pcp-it > span { display: grid; min-width: 0 } .pcp-it > span:not(:first-child), .pcp-it > b { text-align: right }
-.pcp-it small { font-size: 12.5px; color: #475569 } .pcp-it span b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-.pcp-it.cab { font-size: 13px; color: #475569; border-top: 0 }
+.pcp-it small { font-size: 12.5px; color: var(--mx-t2, #475569) } .pcp-it span b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.pcp-it.cab { font-size: 13px; color: var(--mx-t2, #475569); border-top: 0 }
 .fp-lista-r.pcp-par { grid-template-columns: 90px minmax(0, 1fr) 80px 110px 110px; cursor: default }
 .fp-lista-r.pcp-par:hover { background: transparent }
 @media (max-width: 760px) { .pcp-it { grid-template-columns: minmax(0, 1fr) 90px } .pcp-it > span:nth-child(2), .pcp-it > span:nth-child(3) { display: none } .fp-lista-r.pcp-par { grid-template-columns: minmax(0, 1fr) 90px } .fp-lista-r.pcp-par > span:nth-child(1), .fp-lista-r.pcp-par > span:nth-child(3), .fp-lista-r.pcp-par > span:nth-child(5) { display: none } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.pcp-canal) { color: color-mix(in srgb, var(--c) 60%, #fff) }
 `

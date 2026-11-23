@@ -83,7 +83,7 @@ export default function FaturamentoVivo({ compacto = false }: { compacto?: boole
       <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 10, background: destaque ? 'rgba(255,255,255,.2)' : 'var(--portal-bg-secondary, #f1f5f9)' }}>
         {[['servico', COR.servico], ['kmValor', COR.km], ['outros', COR.outros]].map(([k, c]) => {
           const v = Math.max(0, s[k as keyof Soma] as number)
-          return <div key={k} title={k} style={{ width: `${s.bruto ? (v / s.bruto) * 100 : 0}%`, background: destaque ? (k === 'servico' ? '#e0f2fe' : k === 'kmValor' ? '#bbf7d0' : k === 'pecas' ? '#fed7aa' : '#e2e8f0') : c, transition: 'width .9s cubic-bezier(.2,.8,.2,1)' }} />
+          return <div key={k} title={k} style={{ width: `${s.bruto ? (v / s.bruto) * 100 : 0}%`, background: destaque ? (k === 'servico' ? 'var(--mx-p-blue, #e0f2fe)' : k === 'kmValor' ? 'var(--mx-p-green, #bbf7d0)' : k === 'pecas' ? 'var(--mx-p-orange, #fed7aa)' : 'var(--mx-bg2, #e2e8f0)') : c, transition: 'width .9s cubic-bezier(.2,.8,.2,1)' }} />
         })}
       </div>
       <div style={{ display: 'flex', gap: 10, fontSize: 11.5, marginTop: 6, opacity: .85, flexWrap: 'wrap' }}>
@@ -107,7 +107,7 @@ export default function FaturamentoVivo({ compacto = false }: { compacto?: boole
           <i className="fas fa-rotate" /> Atualizar
         </button>
       </div>
-      {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
+      {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--mx-p-red, #fef2f2)', color: 'var(--mx-fg-red, #b91c1c)', marginBottom: 12 }}>{erro}</div>}
 
       {d && (
         <>
@@ -151,9 +151,9 @@ export default function FaturamentoVivo({ compacto = false }: { compacto?: boole
                   <a key={o.os} href={o.os.startsWith('OMIE') ? undefined : `/pos?id=${encodeURIComponent(o.os)}`} target="_blank" rel="noreferrer"
                     className={`cpv-linha${novos.has(o.os) ? ' cpv-novo' : ''}`}
                     style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 10, border: '1px solid var(--portal-border, #eef2f7)', textDecoration: 'none', color: 'inherit' }}>
-                    <span style={{ width: 34, height: 34, borderRadius: 10, background: '#e0f2fe', color: '#0369a1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}><i className="fas fa-file-invoice-dollar" /></span>
+                    <span style={{ width: 34, height: 34, borderRadius: 10, background: 'var(--mx-p-blue, #e0f2fe)', color: 'var(--mx-fg-blue, #0369a1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, flexShrink: 0 }}><i className="fas fa-file-invoice-dollar" /></span>
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: 800, fontSize: 13 }}>{o.os}{novos.has(o.os) && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, color: '#a16207', background: '#fef9c3', borderRadius: 6, padding: '1px 6px' }}>NOVO</span>}</div>
+                      <div style={{ fontWeight: 800, fontSize: 13 }}>{o.os}{novos.has(o.os) && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, color: 'var(--mx-fg-orange, #a16207)', background: 'var(--mx-p-amber, #fef9c3)', borderRadius: 6, padding: '1px 6px' }}>NOVO</span>}</div>
                       <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {br(o.data)}{o.em ? ` ${hora(o.em)}` : ''} · {o.cliente || 'Omie'} · {o.tecnicos.join(' + ') || 'sem técnico'}
                       </div>
@@ -186,15 +186,18 @@ function AvisoFaturou({ o, onFim }: { o: OSFaturada; onFim: () => void }) {
   return (
     <div className="fv-aviso" role="status">
       <style>{`
-        .fv-aviso { position: fixed; right: 24px; top: 96px; z-index: 100040; width: 330px; background: var(--portal-bg-card, #fefefe); border: 1px solid #bbf7d0; border-left: 5px solid #16a34a; border-radius: 16px; padding: 14px 16px; box-shadow: 0 18px 44px rgba(15,23,42,.22); animation: fvEntra .55s cubic-bezier(.2,1.2,.3,1) both, fvSai .4s ease 6.6s both }
+        .fv-aviso { position: fixed; right: 24px; top: 96px; z-index: 100040; width: 330px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--mx-pb-green, #bbf7d0); border-left: 5px solid #16a34a; border-radius: 16px; padding: 14px 16px; box-shadow: 0 18px 44px rgba(15,23,42,.22); animation: fvEntra .55s cubic-bezier(.2,1.2,.3,1) both, fvSai .4s ease 6.6s both }
         @keyframes fvEntra { from { transform: translateX(120%) scale(.9); opacity: 0 } to { transform: none; opacity: 1 } }
         @keyframes fvSai { to { transform: translateX(120%); opacity: 0 } }
         .fv-confete { position: absolute; left: 30px; top: 22px; width: 7px; height: 11px; border-radius: 2px; opacity: 0; animation: fvVoa 1.3s cubic-bezier(.1,.7,.3,1) .25s both }
         @keyframes fvVoa { 0% { opacity: 1; transform: translate(0,0) rotate(0) } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) rotate(var(--r)) } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
       `}</style>
       {pecas.map((i) => <span key={i} className="fv-confete" style={{ background: ['#16a34a', '#0369a1', '#f59e0b', '#ea580c', '#7c3aed'][i % 5], ['--dx' as string]: `${Math.round(Math.cos(i * 0.9) * (60 + (i % 4) * 30))}px`, ['--dy' as string]: `${Math.round(Math.sin(i * 0.9) * (40 + (i % 3) * 30))}px`, ['--r' as string]: `${i * 47}deg` }} />)}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ width: 40, height: 40, borderRadius: 12, background: '#dcfce7', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}><i className="fas fa-sack-dollar" /></span>
+        <span style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--mx-p-green, #dcfce7)', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}><i className="fas fa-sack-dollar" /></span>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: '#16a34a', textTransform: 'uppercase', letterSpacing: .5 }}>Acabou de faturar</div>
           <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--portal-text, #0f172a)' }}>{o.os} · {brl(o.bruto)}</div>
@@ -231,7 +234,7 @@ export function BlocoVivo({ titulo, s, ritmo, destaque = false, atraso }: { titu
       <div className="bv-cab"><span>{titulo}</span><em>{s.os} OS</em></div>
       <div className="bv-valor"><Odometro texto={brl(s.bruto)} /></div>
       {ritmo && (
-        <div className="bv-comp" style={{ color: dif == null ? undefined : dif >= 0 ? (destaque ? '#bbf7d0' : '#047857') : (destaque ? '#fecaca' : '#b91c1c') }}>
+        <div className="bv-comp" style={{ color: dif == null ? undefined : dif >= 0 ? (destaque ? '#bbf7d0' : 'var(--mx-fg-green, #047857)') : (destaque ? '#fecaca' : 'var(--mx-fg-red, #b91c1c)') }}>
           {dif == null ? <>sem base no {ritmo.rotulo}</> : <><b>{dif >= 0 ? '▲' : '▼'} {Math.abs(dif)}%</b> vs {ritmo.rotulo} ({brl(ritmo.anterior)})</>}
         </div>
       )}
@@ -304,7 +307,7 @@ function VivoCompacto({ d, erro, seg, novos, aviso, onFimAviso }: { d: RespVivo 
         <b style={{ fontSize: 16, color: 'var(--portal-text, #0f172a)' }}>Faturamento ao vivo</b>
         <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted, #94a3b8)' }}>{d ? `atualiza sozinho · há ${seg}s` : 'carregando…'}</span>
       </div>
-      {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
+      {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--mx-p-red, #fef2f2)', color: 'var(--mx-fg-red, #b91c1c)', marginBottom: 12 }}>{erro}</div>}
       {/* abertura escolhida pelo José na página de teste (17/10/2026): destaques que giram + feed */}
       {d && base && porDia && ritmo && (
         <div className="bv-abertura so">
@@ -343,32 +346,35 @@ export const ESTILO_VIVO = `
 .bv-dest .bv-ritmo { background: rgba(255,255,255,.18) }
 .bv-ritmo i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; transition: width 1.1s cubic-bezier(.2,.8,.2,1); animation: bvCresce 1.1s cubic-bezier(.2,.8,.2,1) both; transform-origin: left }
 @keyframes bvCresce { from { transform: scaleX(0) } }
-.bv-atual { background: #0369a1 } .bv-dest .bv-atual { background: #fefefe }
+.bv-atual { background: #0369a1 } .bv-dest .bv-atual { background: var(--mx-bg0, #fefefe) }
 .bv-proj { background: repeating-linear-gradient(45deg, rgba(3,105,161,.25) 0 6px, rgba(3,105,161,.1) 6px 12px) }
 .bv-marca { position: absolute; top: -4px; bottom: -4px; width: 3px; border-radius: 2px; background: #f59e0b; transform: translateX(-50%); box-shadow: 0 0 0 2px var(--portal-bg-card, #fefefe) }
-.bv-dest .bv-marca { background: #fde68a; box-shadow: none }
+.bv-dest .bv-marca { background: var(--mx-p-amber, #fde68a); box-shadow: none }
 .bv-cheio { background: #94a3b8; width: 2px }
 .bv-leg { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--portal-text-muted, #94a3b8) } .bv-dest .bv-leg { color: #e0f2fe }
 .bv-leg span { display: inline-flex; align-items: center; gap: 4px }
 .bv-leg i { width: 10px; height: 6px; border-radius: 3px; display: inline-block }
-.bv-l-at { background: #0369a1 } .bv-dest .bv-l-at { background: #fefefe } .bv-l-ma { background: #f59e0b; width: 3px !important; height: 10px !important } .bv-l-pj { background: rgba(3,105,161,.3) }
+.bv-l-at { background: #0369a1 } .bv-dest .bv-l-at { background: var(--mx-bg0, #fefefe) } .bv-l-ma { background: #f59e0b; width: 3px !important; height: 10px !important } .bv-l-pj { background: rgba(3,105,161,.3) }
 .bv-segs { display: flex; height: 8px; border-radius: 99px; overflow: hidden; gap: 2px; margin-top: 4px; background: var(--portal-bg-secondary, #f1f5f9) }
 .bv-dest .bv-segs { background: rgba(255,255,255,.18) }
 .bv-segs i { display: block; height: 100%; cursor: pointer; transition: opacity .15s, width .8s }
-.bv-sd-servico { background: #e0f2fe } .bv-sd-kmValor { background: #bbf7d0 } .bv-sd-pecas { background: #fed7aa } .bv-sd-outros { background: #e2e8f0 }
+.bv-sd-servico { background: var(--mx-p-blue, #e0f2fe) } .bv-sd-kmValor { background: var(--mx-p-green, #bbf7d0) } .bv-sd-pecas { background: var(--mx-p-orange, #fed7aa) } .bv-sd-outros { background: var(--mx-bg2, #e2e8f0) }
 .bv-segtxt { font-size: 12px; color: var(--portal-text-muted, #64748b); min-height: 16px } .bv-dest .bv-segtxt { color: #e0f2fe }
 .bv-feed { gap: 4px }
 .fd-lista { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; max-height: 236px; overflow-y: auto; overflow-x: hidden; margin: 0 -6px; padding: 0 6px }
 .fd-item { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px 6px; border-radius: 10px; text-decoration: none; color: inherit; animation: fdEntra .45s cubic-bezier(.2,.8,.2,1) both; transition: background .15s }
 .fd-item:hover { background: var(--portal-bg-secondary, #f1f5f9) }
 @keyframes fdEntra { from { opacity: 0; transform: translateX(14px) } to { opacity: 1; transform: none } }
-.fd-novo { animation: fdNovo 2.4s ease both; background: #fefce8 }
-@keyframes fdNovo { 0% { transform: translateX(30px); opacity: 0; background: #fde68a } 30% { transform: none; opacity: 1 } 100% { background: transparent } }
+.fd-novo { animation: fdNovo 2.4s ease both; background: var(--mx-p-amber, #fefce8) }
+@keyframes fdNovo { 0% { transform: translateX(30px); opacity: 0; background: var(--mx-p-amber, #fde68a) } 30% { transform: none; opacity: 1 } 100% { background: transparent } }
 .fd-av { position: relative; width: 32px; height: 32px; border-radius: 50%; color: #fefefe; font-size: 12px; font-weight: 900; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0 }
 .fd-av small { position: absolute; right: -4px; bottom: -3px; background: #0f172a; color: #fefefe; border-radius: 99px; font-size: 9px; padding: 0 4px }
 .fd-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2 }
-.fd-txt b { font-size: 13.5px } .fd-txt b em { font-style: normal; margin-left: 6px; font-size: 10px; font-weight: 900; color: #a16207; background: #fef9c3; border-radius: 6px; padding: 1px 5px }
+.fd-txt b { font-size: 13.5px } .fd-txt b em { font-style: normal; margin-left: 6px; font-size: 10px; font-weight: 900; color: var(--mx-fg-orange, #a16207); background: var(--mx-p-amber, #fef9c3); border-radius: 6px; padding: 1px 5px }
 .fd-txt small, .fd-dir small { font-size: 11.5px; color: var(--portal-text-muted, #94a3b8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .fd-dir { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; flex-shrink: 0 }
 .fd-dir b { font-size: 13.5px; font-variant-numeric: tabular-nums }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `

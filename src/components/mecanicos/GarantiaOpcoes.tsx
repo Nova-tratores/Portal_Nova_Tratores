@@ -474,7 +474,7 @@ function JanelaGarantia({ g, hoje, onFechar }: { g: Gar; hoje: string; onFechar:
             <div><small>Pedido à fábrica</small><b>{brl(g.esperado)}</b><span>peças + serviço</span></div>
             <div><small>Peças</small><b>{brl(g.valorPecas)}</b>{det && <span>aprovadas {brl(pecasAprov)}</span>}</div>
             <div><small>Serviço (hora + km)</small><b>{brl(g.valorServico)}</b><span>{g.horas} h · {g.km} km</span></div>
-            <div><small>Pago pela fábrica</small><b style={{ color: g.pago > 0 ? '#047857' : undefined }}>{brl(g.pago)}</b>
+            <div><small>Pago pela fábrica</small><b style={{ color: g.pago > 0 ? 'var(--mx-fg-green, #047857)' : undefined }}>{brl(g.pago)}</b>
               {det && (det.valor_pago_pecas != null || det.valor_pago_horas != null || det.valor_pago_km != null) && <span>peças {brl(num(det.valor_pago_pecas))} · MO {brl(num(det.valor_pago_horas))} · km {brl(num(det.valor_pago_km))}</span>}</div>
           </div>
           <div className="gj-datas">
@@ -529,7 +529,7 @@ function JanelaGarantia({ g, hoje, onFechar }: { g: Gar; hoje: string; onFechar:
                         <img src={a.url} alt="" loading="lazy" /><small>{CAT[a.categoria] || a.categoria}</small></button>
                     : ehPdf(a)
                       ? <button key={a.id} type="button" className="gj-arq" onClick={() => setDoc({ titulo: a.nome_arquivo || 'Anexo', url: a.url, nome: a.nome_arquivo || 'anexo' })}><i className="fas fa-file-pdf" /><span>{a.nome_arquivo || 'arquivo'}</span><small>{CAT[a.categoria] || a.categoria}</small></button>
-                      : <a key={a.id} className="gj-arq" href={a.url} target="_blank" rel="noreferrer"><i className="fas fa-file-arrow-down" style={{ color: '#2563eb' }} /><span>{a.nome_arquivo || 'arquivo'}</span><small>{CAT[a.categoria] || a.categoria}</small></a>)}
+                      : <a key={a.id} className="gj-arq" href={a.url} target="_blank" rel="noreferrer"><i className="fas fa-file-arrow-down" style={{ color: 'var(--mx-fg-blue, #2563eb)' }} /><span>{a.nome_arquivo || 'arquivo'}</span><small>{CAT[a.categoria] || a.categoria}</small></a>)}
                 </div>
               ) : <small className="gj-nada">nenhum anexo</small>}
             </div>
@@ -583,7 +583,7 @@ export function GarantiasNoPainel() {
   const [per, setPer] = useState<Janela | null>(null)
   // abre no mês escolhido no topo da Gestão (06/11/2026: o topo em outubro e esta aba em novembro)
   const [mesG] = useMesGestao()
-  if (erro) return <div className="gx-caixa" style={{ color: '#b91c1c' }}>{erro}</div>
+  if (erro) return <div className="gx-caixa" style={{ color: 'var(--mx-fg-red, #b91c1c)' }}>{erro}</div>
   if (!dados) return <div className="gx-caixa" style={{ color: MUDO }}><span><i className="fas fa-circle-notch fa-spin" /> carregando as garantias…</span></div>
   const periodo = per || janela('mes', dados.hoje.startsWith(mesG) ? dados.hoje : `${mesG}-01`)
   const atual = ehAtual(periodo, dados.hoje)
@@ -612,7 +612,7 @@ function Cab({ c }: { c: ReturnType<typeof useConta> }) {
   return (
     <div className="gx-cab">
       <small><i className="fas fa-shield-heart" /> Garantias · direto do módulo</small>
-      <h3><b><Numero valor={c.emJogo} formato={brl} /></b> em {c.abertas.length} garantias esperando · {c.taxa == null ? 'sem respostas no período' : <><b style={{ color: '#047857' }}>{Math.round(c.taxa * 100)}%</b> aprovadas no período</>}</h3>
+      <h3><b><Numero valor={c.emJogo} formato={brl} /></b> em {c.abertas.length} garantias esperando · {c.taxa == null ? 'sem respostas no período' : <><b style={{ color: 'var(--mx-fg-green, #047857)' }}>{Math.round(c.taxa * 100)}%</b> aprovadas no período</>}</h3>
     </div>
   )
 }
@@ -622,7 +622,7 @@ export const ESTILO_GX = `
 .gx-per button { border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 5px 12px; font-family: inherit; font-weight: 800; font-size: 12.5px; color: var(--portal-text, #334155); cursor: pointer } .gx-per button.on { background: #7c3aed; border-color: #7c3aed; color: #fefefe }
 @keyframes gxEntra { from { opacity: 0; transform: translateY(8px) } } @keyframes gxLado { from { transform: scaleX(0) } } @keyframes gxPop { from { opacity: 0; transform: scale(.9) } }
 .gx-caixa { display: grid; gap: 14px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; padding: 16px 18px; min-width: 0 }
-.gx-cab small { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; color: ${MUDO} } .gx-cab small i { color: #7c3aed } .gx-cab h3 { margin: 2px 0 0; font-size: 20px; font-weight: 700; color: var(--portal-text, #0f172a) } .gx-cab h3 b { color: #2563eb }
+.gx-cab small { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .05em; color: ${MUDO} } .gx-cab small i { color: var(--mx-fg-violet, #7c3aed) } .gx-cab h3 { margin: 2px 0 0; font-size: 20px; font-weight: 700; color: var(--portal-text, #0f172a) } .gx-cab h3 b { color: var(--mx-fg-blue, #2563eb) }
 .gx-leg { margin: 0; display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: ${MUDO} } .gx-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px }
 .gx-st { display: inline-block; font-size: 11px; font-weight: 800; color: #fefefe; border-radius: 99px; padding: 2px 9px; white-space: nowrap }
 .gx-funil { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; align-items: stretch }
@@ -633,21 +633,21 @@ export const ESTILO_GX = `
 .gx-seta { position: absolute; right: -12px; top: 50%; transform: translateY(-50%); z-index: 1; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); color: ${MUDO}; font-size: 10px; text-decoration: none }
 .gx-fim { flex: 0 0 190px; display: grid; gap: 8px }
 .gx-fim button { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center; border: none; border-radius: 14px; padding: 10px 12px; font-family: inherit; text-align: left; cursor: pointer; animation: gxEntra .45s .5s both } .gx-fim b { font-size: 22px } .gx-fim span { font-size: 12px; font-weight: 700 }
-.gx-fim-a { background: #ecfdf5; color: #047857 } .gx-fim-r { background: #fef2f2; color: #b91c1c }
+.gx-fim-a { background: var(--mx-p-green, #ecfdf5); color: var(--mx-fg-green, #047857) } .gx-fim-r { background: var(--mx-p-red, #fef2f2); color: var(--mx-fg-red, #b91c1c) }
 /* bloco 4 no estilo dos cartões do Faturamento por período (José, 21/10/2026): ícone no quadradinho, sem negrito */
 .gx-painel .gx-tile { gap: 6px; padding: 14px 16px; transition: transform .2s, box-shadow .2s, border-color .2s }
-.gx-painel .gx-tile:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--c) 40%, #e2e8f0); box-shadow: 0 12px 26px -18px rgba(15,23,42,.5) }
-.gx-painel .gx-tile small { display: inline-flex; align-items: center; gap: 10px; font-size: 15.5px; font-weight: 500; color: #0f172a }
-.gx-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, #fefefe); border: 1px solid color-mix(in srgb, var(--c) 22%, #fefefe); flex: none }
-.gx-painel .gx-tile b { font-size: 28px; font-weight: 500; margin-top: 4px } .gx-painel .gx-tile span { font-size: 13px; color: #475569 }
+.gx-painel .gx-tile:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--c) 40%, var(--mx-bd, #e2e8f0)); box-shadow: 0 12px 26px -18px rgba(15,23,42,.5) }
+.gx-painel .gx-tile small { display: inline-flex; align-items: center; gap: 10px; font-size: 15.5px; font-weight: 500; color: var(--mx-t, #0f172a) }
+.gx-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, var(--mx-bg0, #fefefe)); border: 1px solid color-mix(in srgb, var(--c) 22%, var(--mx-bd, #fefefe)); flex: none }
+.gx-painel .gx-tile b { font-size: 28px; font-weight: 500; margin-top: 4px } .gx-painel .gx-tile span { font-size: 13px; color: var(--mx-t2, #475569) }
 .gx-painel .gx-anel2 { border-radius: 16px; padding: 12px 16px; transition: transform .2s, box-shadow .2s } .gx-painel .gx-anel2:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -18px rgba(15,23,42,.5) }
-.gx-painel .gx-anel2 > div b { font-size: 15.5px; font-weight: 500 } .gx-painel .gx-anel2 p { font-size: 13px; color: #475569 }
+.gx-painel .gx-anel2 > div b { font-size: 15.5px; font-weight: 500 } .gx-painel .gx-anel2 p { font-size: 13px; color: var(--mx-t2, #475569) }
 .gx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px }
 .gx-tile { display: grid; gap: 2px; text-align: left; font-family: inherit; border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-card, #fefefe); border-radius: 16px; padding: 12px 14px; cursor: pointer; animation: gxEntra .45s both; transition: transform .2s, box-shadow .2s } .gx-tile:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(15,23,42,.1) }
 .gx-tile small { font-size: 12px; font-weight: 900; color: var(--c) } .gx-tile b { font-size: 22px; font-variant-numeric: tabular-nums; color: var(--portal-text, #0f172a) } .gx-tile span { font-size: 12.5px; color: ${MUDO} }
 .gx-aneis { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px }
-button.gx-anel2 { font-family: inherit; text-align: left; cursor: pointer; color: inherit; width: 100% } .gx-anel2.abre:hover { border-color: color-mix(in srgb, var(--c) 45%, #e5e7eb) }
-.gx-anel-ver { display: inline-flex; gap: 5px; align-items: center; margin-top: 4px; font-size: 12.5px; text-decoration: none; color: color-mix(in srgb, var(--c) 85%, #0f172a) } .gx-anel-ver i { font-size: 10px; transition: transform .2s } .gx-anel2.abre:hover .gx-anel-ver i { transform: translateX(3px) }
+button.gx-anel2 { font-family: inherit; text-align: left; cursor: pointer; color: inherit; width: 100% } .gx-anel2.abre:hover { border-color: color-mix(in srgb, var(--c) 45%, var(--mx-bd, #e5e7eb)) }
+.gx-anel-ver { display: inline-flex; gap: 5px; align-items: center; margin-top: 4px; font-size: 12.5px; text-decoration: none; color: color-mix(in srgb, var(--c) 85%, var(--mx-t, #0f172a)) } .gx-anel-ver i { font-size: 10px; transition: transform .2s } .gx-anel2.abre:hover .gx-anel-ver i { transform: translateX(3px) }
 .gx-anel2 { display: flex; gap: 12px; align-items: center; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; padding: 10px 14px; background: var(--portal-bg-card, #fefefe); animation: gxEntra .45s both; transition: transform .2s, box-shadow .2s } .gx-anel2:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(15,23,42,.08) }
 .gx-ap { position: relative; width: 78px; height: 78px; flex-shrink: 0 } .gx-ap svg { width: 78px; height: 78px; transform: rotate(-90deg) } .gx-ap circle { fill: none; stroke-width: 11 } .gx-ap .v { stroke-linecap: round; animation: gxRoda2 1.2s cubic-bezier(.2,.8,.2,1) both } @keyframes gxRoda2 { from { stroke-dasharray: 0 314.16 } }
 .gx-ap > b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px; font-weight: 900 }
@@ -655,7 +655,7 @@ button.gx-anel2 { font-family: inherit; text-align: left; cursor: pointer; color
 .gx-so-mont { grid-template-columns: 1fr }
 .gx-duo { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 18px; align-items: start } @media (max-width: 800px) { .gx-duo { grid-template-columns: 1fr } }
 .gx-anel { display: grid; grid-template-columns: 120px 1fr; gap: 12px; align-items: center; position: relative } .gx-anel svg { width: 120px; height: 120px; transform: rotate(-90deg) } .gx-anel circle { fill: none; stroke-width: 12 } .gx-anel .f { stroke: #fee2e2 } .gx-anel .v { stroke: #047857; stroke-linecap: round; animation: gxRoda 1.2s cubic-bezier(.2,.8,.2,1) both } @keyframes gxRoda { from { stroke-dasharray: 0 301.6 } }
-.gx-anel > div { position: absolute; left: 0; top: 0; width: 120px; height: 120px; display: grid; place-content: center; text-align: center } .gx-anel > div b { font-size: 24px; color: #047857 } .gx-anel > div small { font-size: 11px; font-weight: 800; color: ${MUDO} }
+.gx-anel > div { position: absolute; left: 0; top: 0; width: 120px; height: 120px; display: grid; place-content: center; text-align: center } .gx-anel > div b { font-size: 24px; color: var(--mx-fg-green, #047857) } .gx-anel > div small { font-size: 11px; font-weight: 800; color: ${MUDO} }
 .gx-anel p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--portal-text, #334155) }
 .gx-mont { display: grid; gap: 8px } .gx-mont > small { font-size: 11.5px; font-weight: 900; text-transform: uppercase; color: ${MUDO} }
 .gx-mont-l { display: grid; gap: 3px; animation: gxEntra .4s both } .gx-mont-l b { font-size: 13.5px } .gx-mont-l > div { display: flex; height: 12px; border-radius: 99px; overflow: hidden; transform-origin: left; animation: gxLado .8s both } .gx-mont-l > div i { display: block; flex-basis: 0 } .gx-mont-l span { font-size: 12px; color: ${MUDO} }
@@ -677,10 +677,10 @@ button.gx-anel2 { font-family: inherit; text-align: left; cursor: pointer; color
 .gx-tl em { font-style: normal; font-size: 12px; font-weight: 700; color: ${MUDO}; white-space: nowrap }
 .gx-chips { display: flex; gap: 6px; flex-wrap: wrap }
 .gx-chips button { --c: #0f172a; display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 5px 12px; font-family: inherit; font-size: 12.5px; font-weight: 800; color: var(--portal-text, #334155); cursor: pointer } .gx-chips button i { width: 8px; height: 8px; border-radius: 50%; background: var(--c) } .gx-chips button em { font-style: normal; color: ${MUDO} }
-.gx-chips button.on { background: var(--c); border-color: var(--c); color: #fefefe } .gx-chips button.on i { background: #fefefe } .gx-chips button.on em { color: #fefefe }
+.gx-chips button.on { background: var(--c); border-color: var(--c); color: #fefefe } .gx-chips button.on i { background: var(--mx-bg0, #fefefe) } .gx-chips button.on em { color: #fefefe }
 .gx-mural { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px }
 .gx-mc { display: grid; gap: 4px; text-decoration: none; color: inherit; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; padding: 12px 14px; background: var(--portal-bg-card, #fefefe); animation: gxPop .35s both; transition: transform .2s, box-shadow .2s } .gx-mc:hover { transform: translateY(-3px); box-shadow: 0 12px 26px rgba(15,23,42,.1); border-color: color-mix(in srgb, var(--c) 40%, transparent) }
-.gx-mc-top { display: flex; justify-content: space-between; align-items: center } .gx-mc-top em { font-style: normal; font-size: 12px; font-weight: 900; color: ${MUDO} } .gx-mc-top em.velha { color: #dc2626 }
+.gx-mc-top { display: flex; justify-content: space-between; align-items: center } .gx-mc-top em { font-style: normal; font-size: 12px; font-weight: 900; color: ${MUDO} } .gx-mc-top em.velha { color: var(--mx-fg-red, #dc2626) }
 .gx-mc > b { font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .gx-mc > small { font-size: 12px; color: ${MUDO} }
 .gx-mc-val { display: grid } .gx-mc-val strong { font-size: 19px; font-variant-numeric: tabular-nums } .gx-mc-val span { font-size: 11.5px; color: ${MUDO} }
 .gx-mc-pe { display: flex; gap: 4px 10px; flex-wrap: wrap; font-size: 12px; color: ${MUDO} } .gx-mc-pe .pend { color: #d97706; font-weight: 800 }
@@ -691,7 +691,7 @@ button.gx-anel2 { font-family: inherit; text-align: left; cursor: pointer; color
 .gx-li { display: grid; grid-template-columns: 150px minmax(0, 1fr) 50px 100px; gap: 10px; align-items: center; text-decoration: none; color: inherit; border: 1px solid var(--portal-border, #eef2f7); border-radius: 12px; padding: 8px 12px; animation: gxEntra .3s both } .gx-li:hover { background: var(--portal-bg-secondary, #f8fafc) }
 .gx-li > div { min-width: 0 } .gx-li b { font-size: 13.5px } .gx-li small { display: block; font-size: 12px; color: ${MUDO}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .gx-li em { font-style: normal; font-size: 12px; font-weight: 800; color: ${MUDO} } .gx-li strong { text-align: right; font-variant-numeric: tabular-nums }
 button.gx-li { width: 100%; background: var(--portal-bg-card, #fefefe); font-family: inherit; text-align: left; cursor: pointer }
-button.gx-mont-l { border: none; background: transparent; font-family: inherit; text-align: left; cursor: pointer; border-radius: 10px; padding: 4px 6px; margin: 0 -6px } button.gx-mont-l:hover { background: var(--portal-bg-secondary, #f8fafc) } .gx-mont-l u { text-decoration: none; color: #2563eb; font-weight: 800; margin-left: 6px; opacity: 0; transition: opacity .2s } button.gx-mont-l:hover u { opacity: 1 }
+button.gx-mont-l { border: none; background: transparent; font-family: inherit; text-align: left; cursor: pointer; border-radius: 10px; padding: 4px 6px; margin: 0 -6px } button.gx-mont-l:hover { background: var(--portal-bg-secondary, #f8fafc) } .gx-mont-l u { text-decoration: none; color: var(--mx-fg-blue, #2563eb); font-weight: 800; margin-left: 6px; opacity: 0; transition: opacity .2s } button.gx-mont-l:hover u { opacity: 1 }
 .gj-fundo { position: fixed; inset: 0; z-index: 100060; background: rgba(15,23,42,.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: gxEntra .2s both }
 .gj { width: min(1020px, 100%); max-height: 92vh; display: flex; flex-direction: column; background: var(--portal-bg-card, #fefefe); border-radius: 20px; box-shadow: 0 30px 80px rgba(15,23,42,.35); overflow: hidden; border-top: 5px solid var(--c); animation: gxPop .4s cubic-bezier(.2,1.15,.3,1) both }
 .gj-cab { display: flex; gap: 12px; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--portal-border, #e5e7eb); background: linear-gradient(100deg, color-mix(in srgb, var(--c) 8%, transparent), transparent 60%) }
@@ -701,22 +701,22 @@ button.gx-mont-l { border: none; background: transparent; font-family: inherit; 
 .gj-vals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px } @media (max-width: 760px) { .gj-vals { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
 .gj-vals > div { display: grid; background: var(--portal-bg-secondary, #f8fafc); border-radius: 14px; padding: 10px 12px; animation: gxEntra .4s both } .gj-vals small { font-size: 11px; font-weight: 900; text-transform: uppercase; color: ${MUDO} } .gj-vals b { font-size: 18px; font-variant-numeric: tabular-nums } .gj-vals span { font-size: 12px; color: ${MUDO} }
 .gj-info { display: flex; gap: 8px 20px; flex-wrap: wrap } .gj-info span { display: grid; font-size: 13.5px; font-weight: 700 } .gj-info small { font-size: 11px; font-weight: 800; text-transform: uppercase; color: ${MUDO} }
-.gj-motivo { font-size: 13.5px; color: #b91c1c; background: #fef2f2; border-radius: 12px; padding: 8px 12px }
-.gj-carr, .gj-nada { color: ${MUDO}; font-size: 13px } .gj-erro { color: #b91c1c; background: #fef2f2; border-radius: 10px; padding: 8px 12px; font-size: 13px }
+.gj-motivo { font-size: 13.5px; color: var(--mx-fg-red, #b91c1c); background: var(--mx-p-red, #fef2f2); border-radius: 12px; padding: 8px 12px }
+.gj-carr, .gj-nada { color: ${MUDO}; font-size: 13px } .gj-erro { color: var(--mx-fg-red, #b91c1c); background: var(--mx-p-red, #fef2f2); border-radius: 10px; padding: 8px 12px; font-size: 13px }
 .gj-txt { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px } .gj-txt > div { border: 1px solid var(--portal-border, #eef2f7); border-radius: 12px; padding: 8px 12px } .gj-txt small { font-size: 11px; font-weight: 900; text-transform: uppercase; color: ${MUDO} } .gj-txt p { margin: 3px 0 0; font-size: 13.5px; white-space: pre-wrap; max-height: 140px; overflow-y: auto }
 .gj-bloco { display: grid; gap: 6px } .gj-bloco > b { font-size: 14.5px } .gj-bloco > b i { color: var(--c) }
 .gj-peca { display: grid; grid-template-columns: 130px minmax(0, 1fr) 110px 80px 100px; gap: 10px; align-items: center; padding: 6px 10px; border-radius: 10px; background: var(--portal-bg-secondary, #f8fafc); font-size: 13px; animation: gxEntra .3s both }
 .gj-peca code { font-size: 12px; color: ${MUDO}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .gj-peca span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .gj-peca small { color: ${MUDO}; text-align: right } .gj-peca b { text-align: right; font-variant-numeric: tabular-nums }
-.gj-peca em { font-style: normal; font-size: 11px; font-weight: 800; border-radius: 99px; padding: 1px 8px; text-align: center; background: var(--portal-bg-card, #fefefe); color: ${MUDO} } .gj-peca em.aprovada { background: #ecfdf5; color: #047857 } .gj-peca em.rejeitada { background: #fef2f2; color: #b91c1c }
+.gj-peca em { font-style: normal; font-size: 11px; font-weight: 800; border-radius: 99px; padding: 1px 8px; text-align: center; background: var(--portal-bg-card, #fefefe); color: ${MUDO} } .gj-peca em.aprovada { background: var(--mx-p-green, #ecfdf5); color: var(--mx-fg-green, #047857) } .gj-peca em.rejeitada { background: var(--mx-p-red, #fef2f2); color: var(--mx-fg-red, #b91c1c) }
 @media (max-width: 760px) { .gj-peca { grid-template-columns: minmax(0, 1fr) 90px } .gj-peca code, .gj-peca small, .gj-peca em { display: none } }
-.gj-pend { display: flex; gap: 8px; align-items: baseline; font-size: 13px } .gj-pend em { font-style: normal; font-size: 11px; font-weight: 800; border-radius: 99px; padding: 1px 8px; background: #fffbeb; color: #b45309 } .gj-pend.respondida em { background: #ecfdf5; color: #047857 } .gj-pend small { color: ${MUDO} }
+.gj-pend { display: flex; gap: 8px; align-items: baseline; font-size: 13px } .gj-pend em { font-style: normal; font-size: 11px; font-weight: 800; border-radius: 99px; padding: 1px 8px; background: var(--mx-p-amber, #fffbeb); color: var(--mx-fg-orange, #b45309) } .gj-pend.respondida em { background: var(--mx-p-green, #ecfdf5); color: var(--mx-fg-green, #047857) } .gj-pend small { color: ${MUDO} }
 .gj-anexos { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px }
 .gj-foto, .gj-arq { display: grid; gap: 4px; border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-card, #fefefe); border-radius: 12px; padding: 4px; font-family: inherit; cursor: pointer; overflow: hidden; transition: transform .2s, box-shadow .2s; animation: gxPop .3s both } .gj-foto:hover, .gj-arq:hover { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(15,23,42,.12) }
 .gj-foto img { width: 100%; height: 90px; object-fit: cover; border-radius: 9px } .gj-foto small, .gj-arq small { font-size: 10.5px; color: ${MUDO}; text-align: center }
-.gj-arq { place-items: center; padding: 10px 6px; text-align: center } .gj-arq i { font-size: 26px; color: #dc2626 } .gj-arq span { font-size: 11.5px; font-weight: 700; word-break: break-word; max-height: 32px; overflow: hidden }
+.gj-arq { place-items: center; padding: 10px 6px; text-align: center } .gj-arq i { font-size: 26px; color: var(--mx-fg-red, #dc2626) } .gj-arq span { font-size: 11.5px; font-weight: 700; word-break: break-word; max-height: 32px; overflow: hidden }
 .gj-hist { display: grid; gap: 4px } .gj-hist > div { display: grid; grid-template-columns: 50px minmax(0, 1fr) auto; gap: 8px; font-size: 12.5px } .gj-hist em { font-style: normal; font-weight: 800; color: ${MUDO} } .gj-hist small { color: ${MUDO} }
 .gj-rodape { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 18px; border-top: 1px solid var(--portal-border, #e5e7eb) }
-.gj-rodape button, .gj-rodape a { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 7px 14px; font-family: inherit; font-weight: 800; font-size: 13px; color: var(--portal-text, #334155); cursor: pointer; text-decoration: none } .gj-rodape button:hover, .gj-rodape a:hover { border-color: #2563eb; color: #2563eb }
+.gj-rodape button, .gj-rodape a { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 7px 14px; font-family: inherit; font-weight: 800; font-size: 13px; color: var(--portal-text, #334155); cursor: pointer; text-decoration: none } .gj-rodape button:hover, .gj-rodape a:hover { border-color: #2563eb; color: var(--mx-fg-blue, #2563eb) }
 .gj-zoom { position: fixed; inset: 0; z-index: 100090; background: rgba(15,23,42,.85); display: grid; place-items: center; padding: 20px; cursor: zoom-out; animation: gxEntra .2s both } .gj-zoom img { max-width: 100%; max-height: 100%; border-radius: 12px }
 .gj-doc { position: fixed; inset: 0; z-index: 100090 }
 /* 22/10/2026: período Dia · Mês · Ano, destino das rejeitadas e janela completa do caso (estilo POS NewPortal: sem negrito, sem caixa alta) */
@@ -725,7 +725,7 @@ button.gx-mont-l { border: none; background: transparent; font-family: inherit; 
 .gx-per-nav { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 2px 4px }
 .gx-per-nav b { font-weight: 500; font-size: 13.5px; min-width: 130px; text-align: center; color: var(--portal-text, #0f172a); text-transform: none }
 .gx-per .gx-per-nav button { border: none; background: transparent; width: 28px; height: 28px; padding: 0; border-radius: 50%; color: ${MUDO} } .gx-per .gx-per-nav button:hover:not(:disabled) { background: var(--portal-bg-secondary, #f1f5f9); color: var(--portal-text, #0f172a) } .gx-per .gx-per-nav button:disabled { opacity: .35; cursor: default }
-.gx-per .gx-per-hoje { border: none; background: transparent; color: #2563eb; font-weight: 400; padding: 4px 6px }
+.gx-per .gx-per-hoje { border: none; background: transparent; color: var(--mx-fg-blue, #2563eb); font-weight: 400; padding: 4px 6px }
 .gx-per-nota { margin: 0; font-size: 12.5px; color: ${MUDO} }
 .gx-dest { display: grid; gap: 12px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 16px; padding: 14px 16px; animation: gxEntra .45s both }
 .gx-dest-cab { display: flex; gap: 10px; align-items: center } .gx-dest-cab > div { display: grid } .gx-dest-cab b { font-size: 15.5px; font-weight: 500; color: var(--portal-text, #0f172a) } .gx-dest-cab small { font-size: 13px; color: ${MUDO} }
@@ -748,4 +748,8 @@ a.gj-arq { text-decoration: none; color: inherit }
 .gj-zoom-x, .gj-zoom-s { position: absolute; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(254,254,254,.35); background: rgba(15,23,42,.55); color: #fefefe; cursor: pointer; display: grid; place-items: center; font-size: 16px }
 .gj-zoom-x { top: 14px; right: 14px } .gj-zoom-s { top: 50%; transform: translateY(-50%) } .gj-zoom-s.esq { left: 14px } .gj-zoom-s.dir { right: 14px } .gj-zoom-x:hover, .gj-zoom-s:hover { background: rgba(15,23,42,.8) }
 .gj-motivo { font-weight: 400 }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.gx-fase small, .gx-ic, .gx-tile small, .gx-ac-ic, .gx-ac-lista em, .gj-bloco > b i, .gj-dest b, .gj-check em) { color: color-mix(in srgb, var(--c) 60%, #fff) }
+
 `

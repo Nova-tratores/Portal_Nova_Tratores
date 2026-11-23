@@ -19,9 +19,9 @@ const MODULO_ROTULO: Record<string, string> = {
 }
 
 const ESCOPO_INFO: Record<string, { rot: string; bg: string; cor: string }> = {
-  geral: { rot: 'Portal + WhatsApp', bg: '#dcfce7', cor: '#15803d' },
-  portal: { rot: 'Só portal', bg: '#dbeafe', cor: '#1d4ed8' },
-  clientes: { rot: 'Só WhatsApp', bg: '#ffedd5', cor: '#c2410c' },
+  geral: { rot: 'Portal + WhatsApp', bg: 'var(--e-ver-bg, #dcfce7)', cor: 'var(--e-ver, #15803d)' },
+  portal: { rot: 'Só portal', bg: 'var(--e-azu-bg, #dbeafe)', cor: 'var(--e-azu, #1d4ed8)' },
+  clientes: { rot: 'Só WhatsApp', bg: 'var(--e-lar-bg, #ffedd5)', cor: 'var(--e-lar, #c2410c)' },
 }
 
 const SAUDACAO: Msg = {
@@ -147,20 +147,21 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
   const card: React.CSSProperties = { background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14 }
 
   return (
-    <div style={{ ...card, marginTop: 16, overflow: 'hidden' }}>
+    <div className="ens-raiz" style={{ ...card, marginTop: 16, overflow: 'hidden' }}>
       <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#7c3aed,#4c1d95)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <GraduationCap size={18} color="#fff" />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--portal-text)' }}>Ensinar o Tratorilson <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', background: '#f3e8ff', borderRadius: 6, padding: '2px 8px', marginLeft: 6 }}>SÓ DEV</span></div>
+          <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--portal-text)' }}>Ensinar o Tratorilson <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--e-vio, #7c3aed)', background: 'var(--e-vio-bg, #f3e8ff)', borderRadius: 6, padding: '2px 8px', marginLeft: 6 }}>SÓ DEV</span></div>
           <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>Memória única: o que ele aprende aqui vale no chat do portal E no atendimento dos clientes no WhatsApp.</div>
         </div>
       </div>
 
       {/* Tela estreita: chat em cima, o resto embaixo. */}
       <style>{`@media (max-width: 900px){.ens-split{grid-template-columns:minmax(0,1fr) !important}.ens-chat{border-right:none !important;border-bottom:1px solid var(--portal-border)}}
-        @media (hover: none){.ens-mod{min-height:38px}.ens-ic{min-width:40px;min-height:40px;display:inline-flex !important;align-items:center;justify-content:center;margin:-8px -4px}}`}</style>
+        @media (hover: none){.ens-mod{min-height:38px}.ens-ic{min-width:40px;min-height:40px;display:inline-flex !important;align-items:center;justify-content:center;margin:-8px -4px}}
+        [data-theme="dark"] .ens-raiz{--e-vio:var(--portal-violet-fg,#a78bfa);--e-vio-bg:rgb(167 139 250 / .15);--e-ver:#6ee7b7;--e-ver-bg:rgb(52 211 153 / .15);--e-azu:var(--portal-blue-fg,#60a5fa);--e-azu-bg:rgb(96 165 250 / .15);--e-lar:#fdba74;--e-lar-bg:rgb(251 146 60 / .15);--e-verm:#fca5a5;--e-verm-bg:rgb(248 113 113 / .15);--e-verm2:var(--portal-red-fg,#f87171);--e-ok:var(--portal-green-fg,#34d399);--e-amb:#fcd34d;--e-amb-bg:rgb(251 191 36 / .12);--e-amb-bd:rgb(251 191 36 / .35)}`}</style>
       <div className="ens-split" style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(300px, 1fr)', gap: 0 }}>
         {/* Chat de ensino */}
         <div className="ens-chat" style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', minHeight: 420, maxHeight: 560, minWidth: 0 }}>
@@ -220,7 +221,7 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
             </div>
           )}
           <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {aviso && <div style={{ fontSize: 12.5, color: '#d97706', padding: '8px 10px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8 }}>{aviso}</div>}
+            {aviso && <div style={{ fontSize: 12.5, color: 'var(--e-amb, #d97706)', padding: '8px 10px', background: 'var(--e-amb-bg, #fffbeb)', border: '1px solid var(--e-amb-bd, #fde68a)', borderRadius: 8 }}>{aviso}</div>}
             {filtradas.length === 0 && !aviso && (
               <div style={{ fontSize: 13, color: 'var(--portal-text-muted)', textAlign: 'center', padding: 24 }}>Nenhuma regra aqui ainda — ensina no chat que ela entra no módulo certo.</div>
             )}
@@ -231,18 +232,18 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>#{m.id}</span>
                     <span style={{ fontSize: 10.5, fontWeight: 800, background: info.bg, color: info.cor, borderRadius: 6, padding: '2px 8px' }}>{info.rot}</span>
-                    <span style={{ fontSize: 10.5, fontWeight: 700, background: '#f3e8ff', color: '#7c3aed', borderRadius: 6, padding: '2px 8px', textTransform: 'capitalize' }}>{String(m.modulo || 'geral').replace('/', ' › ').replace(/-/g, ' ')}</span>
-                    {!m.ativo && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#dc2626' }}>esquecida</span>}
+                    <span style={{ fontSize: 10.5, fontWeight: 700, background: 'var(--e-vio-bg, #f3e8ff)', color: 'var(--e-vio, #7c3aed)', borderRadius: 6, padding: '2px 8px', textTransform: 'capitalize' }}>{String(m.modulo || 'geral').replace('/', ' › ').replace(/-/g, ' ')}</span>
+                    {!m.ativo && <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--e-verm2, #dc2626)' }}>esquecida</span>}
                     <span style={{ flex: 1 }} />
                     {editando === m.id ? (
                       <>
-                        <button title="Salvar" onClick={() => { patch(m.id, { conteudo: editTexto }); setEditando(null) }} style={{ background: 'none', border: 'none', color: '#16a34a', cursor: 'pointer', padding: 2 }}><Check size={14} /></button>
+                        <button title="Salvar" onClick={() => { patch(m.id, { conteudo: editTexto }); setEditando(null) }} style={{ background: 'none', border: 'none', color: 'var(--e-ok, #16a34a)', cursor: 'pointer', padding: 2 }}><Check size={14} /></button>
                         <button title="Cancelar" onClick={() => setEditando(null)} style={{ background: 'none', border: 'none', color: 'var(--portal-text-muted)', cursor: 'pointer', padding: 2 }}><X size={14} /></button>
                       </>
                     ) : (
                       <>
                         <button className="ens-ic" title="Editar" onClick={() => { setEditando(m.id); setEditTexto(m.conteudo) }} style={{ background: 'none', border: 'none', color: 'var(--portal-text-muted)', cursor: 'pointer', padding: 2 }}><Pencil size={13} /></button>
-                        <button className="ens-ic" title={m.ativo ? 'Esquecer (desativar)' : 'Reativar'} onClick={() => patch(m.id, { ativo: !m.ativo })} style={{ background: 'none', border: 'none', color: m.ativo ? '#dc2626' : '#16a34a', cursor: 'pointer', padding: 2 }}><Power size={13} /></button>
+                        <button className="ens-ic" title={m.ativo ? 'Esquecer (desativar)' : 'Reativar'} onClick={() => patch(m.id, { ativo: !m.ativo })} style={{ background: 'none', border: 'none', color: m.ativo ? 'var(--e-verm2, #dc2626)' : 'var(--e-ok, #16a34a)', cursor: 'pointer', padding: 2 }}><Power size={13} /></button>
                       </>
                     )}
                   </div>
@@ -265,7 +266,7 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
         <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--portal-text)', marginBottom: 4 }}>
           Perguntas do Tratorilson
           {perguntas.filter((p) => p.status === 'aberta').length > 0 && (
-            <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 800, background: '#fee2e2', color: '#b91c1c', borderRadius: 999, padding: '2px 9px' }}>
+            <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 800, background: 'var(--e-verm-bg, #fee2e2)', color: 'var(--e-verm, #b91c1c)', borderRadius: 999, padding: '2px 9px' }}>
               {perguntas.filter((p) => p.status === 'aberta').length} em aberto
             </span>
           )}
@@ -273,14 +274,14 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
         <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginBottom: 10 }}>
           Quando ele NÃO SABE lidar com uma situação no WhatsApp, ele pergunta aqui (e no alerta central dos notificados). A resposta vira regra na memória.
         </div>
-        {avisoPerg && <div style={{ fontSize: 12, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '7px 10px', marginBottom: 10 }}>{avisoPerg}</div>}
+        {avisoPerg && <div style={{ fontSize: 12, color: 'var(--e-amb, #b45309)', background: 'var(--e-amb-bg, #fffbeb)', border: '1px solid var(--e-amb-bd, #fde68a)', borderRadius: 8, padding: '7px 10px', marginBottom: 10 }}>{avisoPerg}</div>}
         {perguntas.length === 0 && !avisoPerg && <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>Nenhuma pergunta até agora.</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {perguntas.filter((p) => p.status === 'aberta').map((p) => (
             <div key={p.id} style={{ border: '1px solid var(--portal-border)', borderLeft: '4px solid #7c3aed', borderRadius: 10, padding: '10px 14px' }}>
               <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)' }}>
                 {p.contato_nome || 'Contato'}{p.contato_telefone ? ` · ${p.contato_telefone}` : ''}
-                <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, background: '#f3e8ff', color: '#7c3aed', borderRadius: 6, padding: '1px 7px' }}>ABERTA</span>
+                <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, background: 'var(--e-vio-bg, #f3e8ff)', color: 'var(--e-vio, #7c3aed)', borderRadius: 6, padding: '1px 7px' }}>ABERTA</span>
               </div>
               {p.contexto && <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', marginTop: 2 }}>Cliente disse: “{p.contexto}”</div>}
               <div style={{ fontSize: 13, color: 'var(--portal-text)', marginTop: 6, lineHeight: 1.5 }}>🤖 {p.pergunta}</div>
@@ -299,7 +300,7 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
             <div key={p.id} style={{ border: '1px solid var(--portal-border)', borderRadius: 10, padding: '8px 14px', opacity: 0.75 }}>
               <div style={{ fontSize: 12, color: 'var(--portal-text)' }}>
                 🤖 {p.pergunta}
-                <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, background: p.status === 'respondida' ? '#dcfce7' : 'var(--portal-bg-secondary)', color: p.status === 'respondida' ? '#15803d' : 'var(--portal-text-muted)', borderRadius: 6, padding: '1px 7px' }}>{p.status === 'respondida' ? 'RESPONDIDA' : 'FECHADA'}</span>
+                <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, background: p.status === 'respondida' ? 'var(--e-ver-bg, #dcfce7)' : 'var(--portal-bg-secondary)', color: p.status === 'respondida' ? 'var(--e-ver, #15803d)' : 'var(--portal-text-muted)', borderRadius: 6, padding: '1px 7px' }}>{p.status === 'respondida' ? 'RESPONDIDA' : 'FECHADA'}</span>
               </div>
               {p.resposta && <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', marginTop: 3 }}>↳ {p.resposta} <span style={{ color: 'var(--portal-text-faint)' }}>— {p.respondido_por}</span></div>}
             </div>
@@ -309,7 +310,7 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
 
       {/* Quem recebe o alerta central: Devs sempre + escolhidos na Administração */}
       <div style={{ borderTop: '1px solid var(--portal-border)', padding: '12px 18px', fontSize: 12, color: 'var(--portal-text-muted)' }}>
-        O alerta das perguntas aparece para os Devs e para quem for escolhido em <a href="/admin" style={{ color: '#7c3aed', fontWeight: 700 }}>Administração → Quem recebe os avisos do Tratorilson</a>. O primeiro que responder fecha pra todos.
+        O alerta das perguntas aparece para os Devs e para quem for escolhido em <a href="/admin" style={{ color: 'var(--e-vio, #7c3aed)', fontWeight: 700 }}>Administração → Quem recebe os avisos do Tratorilson</a>. O primeiro que responder fecha pra todos.
       </div>
     </div>
   )

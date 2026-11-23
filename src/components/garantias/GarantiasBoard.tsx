@@ -8,6 +8,7 @@ import type { PecasDaGarantia, PendenteReembolso } from '@/lib/garantias/notas-s
 import GarantiaMiniCard from './GarantiaMiniCard';
 import { ChecklistPecasFabrica, faltaChegar } from './PecasFabrica';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { MX_ESCURO } from '@/lib/tema/mx-escuro';
 
 // Colunas VIRTUAIS (não são status) das garantias APROVADAS com algo pendente:
 //  - falta_nfse: nenhuma NFS-e de reembolso (Nova → montadora) cobre a garantia;
@@ -131,7 +132,7 @@ export default function GarantiasBoard({ garantias, onCardClick, refreshKey = 0,
   };
   const rolar = (dir: number) => quadroRef.current?.scrollBy({ left: dir * 520, behavior: 'smooth' });
 
-  const selo = (cor: string): React.CSSProperties => ({ border: `1px solid ${cor}`, color: cor, borderRadius: 999, padding: '1px 8px', fontSize: 10, fontWeight: 700 });
+  const selo = (cor: string): React.CSSProperties => ({ border: `1px solid ${cor}`, color: `color-mix(in srgb, ${cor} var(--mx-mix, 100%), #fff)`, borderRadius: 999, padding: '1px 8px', fontSize: 10, fontWeight: 700 });
 
   const extraDo = (g: GarantiaResumo, col: Coluna) => {
     if (g.status !== 'aprovada') return null;
@@ -166,6 +167,7 @@ export default function GarantiasBoard({ garantias, onCardClick, refreshKey = 0,
 
   return (
     <div>
+      <style>{MX_ESCURO}</style>
       {!isMobile && (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center', marginBottom: 6, fontSize: 11, color: 'var(--portal-text-muted)' }}>
           <span>Arraste o quadro para o lado ou use as setas</span>
@@ -211,10 +213,10 @@ export default function GarantiasBoard({ garantias, onCardClick, refreshKey = 0,
                   ? 'Aprovadas que nenhuma NFS-e de reembolso (Nova → montadora) cobre ainda'
                   : 'Aprovadas com peça que a fábrica vai repor e que ainda não chegou') : undefined}
               >
-                <span style={{ fontSize: 12, fontWeight: 700, color: COL_COR[col], textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: `color-mix(in srgb, ${COL_COR[col]} var(--mx-mix, 100%), #fff)`, textTransform: 'uppercase', letterSpacing: 0.3 }}>
                   {COL_LABEL[col]}
                 </span>
-                <span style={{ fontSize: 11, fontWeight: 700, color: COL_COR[col], background: 'var(--portal-bg-card)', borderRadius: 10, padding: '1px 8px' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: `color-mix(in srgb, ${COL_COR[col]} var(--mx-mix, 100%), #fff)`, background: 'var(--portal-bg-card)', borderRadius: 10, padding: '1px 8px' }}>
                   {itens.length}
                 </span>
               </div>
@@ -232,7 +234,7 @@ export default function GarantiasBoard({ garantias, onCardClick, refreshKey = 0,
                 }}
               >
                 {itens.length === 0 ? (
-                  <div style={{ fontSize: 11, color: 'var(--portal-text-faint)', textAlign: 'center', padding: '16px 0' }}>
+                  <div style={{ fontSize: 11, color: 'var(--mx-t3, var(--portal-text-faint))', textAlign: 'center', padding: '16px 0' }}>
                     Vazio
                   </div>
                 ) : (

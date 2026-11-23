@@ -213,7 +213,7 @@ function PendenciasInner() {
           </div>
         )}
         {ult && (
-          <div style={{ padding: '10px 12px', fontSize: 13.5, lineHeight: 1.55, background: prematuro ? '#fef2f2' : '#eff6ff', border: `1px solid ${prematuro ? '#fecaca' : '#bfdbfe'}`, color: prematuro ? '#b91c1c' : '#1d4ed8' }}>
+          <div style={{ padding: '10px 12px', fontSize: 13.5, lineHeight: 1.55, background: prematuro ? '#fef2f2' : '#eff6ff', border: `1px solid ${prematuro ? '#fecaca' : '#bfdbfe'}`, color: prematuro ? 'var(--portal-red-fg, #b91c1c)' : 'var(--portal-blue-fg, #1d4ed8)' }}>
             <b>{resolvidasIguais.length === 1 ? 'Já houve pendência neste componente:' : `Já houve ${resolvidasIguais.length} pendências neste componente:`}</b>
             {resolvidasIguais.slice(0, 3).map((h) => (
               <div key={h.id} style={{ marginTop: 2 }}>
@@ -271,7 +271,7 @@ function PendenciasInner() {
             {p.km ? ` · ${Number(p.km).toLocaleString('pt-BR')} km` : ''}
             {p.responsavel ? ` · responsável: ${p.responsavel}` : ''}
             {resolvida && (
-              <div style={{ color: '#15803d' }}>
+              <div style={{ color: 'var(--portal-green-fg, #15803d)' }}>
                 Resolvida por <b>{p.resolvida_por || '—'}</b> em {fmtDataHora(p.resolvida_em)}{p.resolucao ? ` — ${p.resolucao}` : ''}
               </div>
             )}
@@ -297,7 +297,7 @@ function PendenciasInner() {
         </button>
       </div>
       {filaKm > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', marginBottom: 12, background: 'rgba(180,83,9,.12)', color: '#b45309', fontSize: 13.5 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', marginBottom: 12, background: 'rgba(180,83,9,.12)', color: 'var(--portal-amber-fg, #b45309)', fontSize: 13.5 }}>
           <WifiOff size={15} /> {filaKm} leitura(s) de km esperando sinal — saem sozinhas quando a internet voltar.
         </div>
       )}
@@ -318,7 +318,7 @@ function PendenciasInner() {
       </div>
 
       {erro && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: 13.5, marginBottom: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', background: '#fef2f2', border: '1px solid #fecaca', color: 'var(--portal-red-fg, #b91c1c)', fontSize: 13.5, marginBottom: 14 }}>
           <AlertTriangle size={16} /> {erro}
         </div>
       )}

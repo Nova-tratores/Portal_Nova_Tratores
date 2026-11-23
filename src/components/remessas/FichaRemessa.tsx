@@ -81,7 +81,7 @@ export default function FichaRemessa({ chave, onFechar, onMudou, onAbrir }: { ch
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
                 <span className="rm-selo" style={{ background: `${TIPOS[l.tipo].cor}1f`, color: TIPOS[l.tipo].cor }}>{TIPOS[l.tipo].rotulo} · {l.cfop}</span>
                 <span className="rm-selo" style={{ background: `${SITUACOES[l.situacao].cor}1f`, color: SITUACOES[l.situacao].cor }}>{SITUACOES[l.situacao].rotulo}</span>
-                {l.origemPortal && <span className="rm-selo" style={{ background: '#ede9fe', color: '#5b21b6' }}>emitida pelo portal</span>}
+                {l.origemPortal && <span className="rm-selo" style={{ background: 'var(--mx-p-violet, #ede9fe)', color: 'var(--mx-fg-violet, #5b21b6)' }}>emitida pelo portal</span>}
               </div>
             )}
           </div>
@@ -105,7 +105,7 @@ export default function FichaRemessa({ chave, onFechar, onMudou, onAbrir }: { ch
                 {f.nf ? (
                   <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <span>nº <b>{f.nf.numero}</b></span>
-                    {f.nf.danfe && <a href={f.nf.danfe} target="_blank" rel="noreferrer" style={{ color: '#7c3aed', display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}><FileText size={13} /> DANFE</a>}
+                    {f.nf.danfe && <a href={f.nf.danfe} target="_blank" rel="noreferrer" style={{ color: 'var(--mx-fg-violet, #7c3aed)', display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}><FileText size={13} /> DANFE</a>}
                   </span>
                 ) : <span style={{ color: 'var(--text-light)' }}>{f.omieErro ? `Omie fora: ${f.omieErro}` : 'ainda não emitida'}</span>}
               </div>
@@ -127,7 +127,7 @@ export default function FichaRemessa({ chave, onFechar, onMudou, onAbrir }: { ch
                     <div style={{ flex: '1 1 240px', fontSize: 13.5 }}>
                       <b>{e.tipo === 'retorno' ? 'Nota de entrada de volta (1.913/2.913)' : 'Remessa de demonstração'}</b>{e.renovacao ? ' · renovação' : ''} — {brl(Number(e.valor_total))}
                       <div style={{ fontSize: 12, color: 'var(--text-light)' }}>por {e.user_nome} em {quando(e.criado_em)}. Confira os itens/impostos na Omie se quiser antes de emitir.</div>
-                      {e.erro && <div style={{ fontSize: 12.5, color: '#dc2626' }}>{e.erro}</div>}
+                      {e.erro && <div style={{ fontSize: 12.5, color: 'var(--mx-fg-red, #dc2626)' }}>{e.erro}</div>}
                     </div>
                     {podeEmitirNF && e.status === 'criada' && (
                       <button className="rm-btn pri" disabled={!!ocupado} onClick={() => acao({ acao: 'emitir_nf', emissaoId: e.id }, 'nf', 'NF-e emitida — nº {nf}.')}>

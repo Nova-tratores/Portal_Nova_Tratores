@@ -622,6 +622,8 @@ const ESTILO = `
   .pv-hero-fala { position: relative; display: flex; gap: 10px; align-items: flex-start; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); border-radius: 16px; padding: 12px 14px; backdrop-filter: blur(2px) }
   .pv-hero-fala p { margin: 0; font-size: 14.5px; line-height: 1.55 } .pv-hero-fala small { display: block; font-size: 11.5px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; opacity: .8; margin-bottom: 2px }
   .pv-hero-fala .pv-rosto { background: #fefefe; color: var(--k); box-shadow: none }
+  [data-theme="dark"] .pv-hero-fala .pv-rosto { background: var(--portal-bg-card, #1a1a1a); color: color-mix(in srgb, var(--k, #0ea5e9) 50%, #ffffff) }
+  [data-theme="dark"] .pv-erro { background: rgb(248 113 113 / .15); color: #fca5a5 }
   .pv-hero-dica { position: relative; display: flex; gap: 10px; align-items: flex-start; background: #fefefe; color: #111111; border-radius: 16px; padding: 12px 14px; font-size: 14.5px; font-weight: 700; line-height: 1.45; box-shadow: 0 10px 24px rgba(0,0,0,.15) }
   .pv-hero-dica i { color: var(--k); font-size: 18px; margin-top: 2px } .pv-hero-dica small { display: block; font-size: 11.5px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; color: var(--k); margin-bottom: 2px }
   @media (prefers-reduced-motion: reduce) { .pv-hero::after, .pv-hero-fundo, .pv-hero-ic, .pv-bol-ic { animation: none !important } }

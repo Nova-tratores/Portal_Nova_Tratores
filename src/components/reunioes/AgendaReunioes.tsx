@@ -52,6 +52,9 @@ const PASSO: Record<Passo, { texto: string; dica: string; cor: string; ic: React
   cancelada: { texto: 'Cancelada', dica: '', cor: '#94a3b8', ic: <Ban size={16} />, botao: 'Abrir', icone: <ArrowRight size={15} /> },
 }
 
+// cor do botão cheio no tema escuro (texto branco precisa de 4,5:1)
+const FUNDO_ESCURO: Record<string, string> = { '#d97706': '#b45309', '#059669': '#047857', '#94a3b8': '#64748b' }
+
 const CSS = `
 .ag{color:var(--portal-text,#0f172a)}
 .ag *{font-weight:inherit;box-sizing:border-box}
@@ -60,6 +63,8 @@ const CSS = `
 .ag-sec .sub{font-size:13px;color:var(--portal-text-muted,#64748b)}
 .ag-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:40px;padding:0 14px;border-radius:11px;font-size:14px;font-weight:500;cursor:pointer;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);color:var(--portal-text-secondary,#475569);white-space:nowrap;font-family:inherit}
 .ag-btn.cheio{border:none;color:#fefefe;background:var(--c,#dc2626)}
+/* tema escuro: fundo um tom mais escuro quando a cor do passo não dá 4,5:1 com o texto branco (--cb) */
+[data-theme="dark"] .ag-btn.cheio{background:var(--cb,var(--c,#dc2626))}
 .ag-btn.peq{height:36px;padding:0 11px;font-size:13px}
 .ag-btn:disabled{opacity:.45;cursor:default}
 .ag-av{width:24px;height:24px;border-radius:50%;display:inline-grid;place-items:center;font-size:10px;color:#fefefe;background:#64748b;overflow:hidden;flex:none;border:2px solid var(--portal-surface,#fefefe)}
@@ -195,7 +200,7 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
     const p = passo(t); const info = PASSO[p]
     return (
       <>
-        <button className="ag-btn cheio" style={{ ['--c' as string]: info.cor }} onClick={() => router.push(`/reunioes/${t.id}`)}>{info.icone} {info.botao}</button>
+        <button className="ag-btn cheio" style={{ ['--c' as string]: info.cor, ['--cb' as string]: FUNDO_ESCURO[info.cor] || info.cor }} onClick={() => router.push(`/reunioes/${t.id}`)}>{info.icone} {info.botao}</button>
         {p === 'aconteceu' && conduzo(t) && <button className="ag-btn" disabled={ocupado} onClick={() => naoAconteceu(t)}><X size={15} /> Não aconteceu</button>}
       </>
     )

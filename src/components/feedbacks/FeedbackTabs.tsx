@@ -17,8 +17,11 @@ const ESTILO = `
   border-radius: 11px 11px 0 0; text-decoration: none; white-space: nowrap; flex-shrink: 0; transition: background .2s }
 .fbt-guia:hover { background: rgba(255,255,255,0.45) }
 .fbt-guia.on { background: #fefefe; box-shadow: 0 -2px 6px rgba(0,0,0,0.15) }
-/* tema escuro (auditoria 06/11/2026): a guia ativa ficava branca colada no conteúdo preto — segue o fundo da tela */
-[data-theme="dark"] .fbt-guia.on { background: var(--portal-bg); color: var(--portal-text) }
+/* tema escuro (23/11/2026): faixa cinza escuro, guia fechada com texto secundário, aberta = cartão escuro com realce vermelho */
+[data-theme="dark"] .fbt-faixa { background: var(--portal-bg-secondary, #262626) }
+[data-theme="dark"] .fbt-guia { color: var(--portal-text-secondary, #a3a3a3); background: rgba(255,255,255,0.05) }
+[data-theme="dark"] .fbt-guia:hover { color: var(--portal-text, #f5f5f5); background: rgba(255,255,255,0.10) }
+[data-theme="dark"] .fbt-guia.on { background: var(--portal-bg-card, #1a1a1a); color: var(--portal-text, #f5f5f5); box-shadow: inset 0 2px 0 #f87171 }
 .fbt-guia i { font-size: 13px }
 @media (max-width: 640px) { .fbt-faixa { padding: 8px 12px 0 } .fbt-guia { padding: 10px 14px; font-size: 13.5px } }
 `;

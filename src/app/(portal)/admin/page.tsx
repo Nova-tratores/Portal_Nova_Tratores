@@ -432,6 +432,8 @@ export default function AdminPage() {
         .adm-apps { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0 }
         .adm-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; border-radius: 999px; padding: 4px 10px; white-space: nowrap }
         .adm-tag.adm { background: #fef3c7; color: #b45309 } .adm-tag.mec { background: #ecfdf5; color: #047857 } .adm-tag.ven { background: #fef2f2; color: #b91c1c }
+        [data-theme="dark"] .adm-tag.adm { background: rgb(251 191 36 / .15); color: var(--portal-amber-fg, #fbbf24) } [data-theme="dark"] .adm-tag.mec { background: rgb(52 211 153 / .15); color: var(--portal-green-fg, #34d399) } [data-theme="dark"] .adm-tag.ven { background: rgb(248 113 113 / .15); color: var(--portal-red-fg, #f87171) }
+        [data-theme="dark"] .adm-sel.fn.tem { color: #a5b4fc; background-color: rgb(129 140 248 / .15) } [data-theme="dark"] .adm-nada { color: var(--portal-text-muted, #949494) } [data-theme="dark"] .adm-pessoa:hover .adm-quem b { color: var(--portal-red-fg, #f87171) }
         .adm-nada { color: #cbd5e1; font-size: 13px } .adm-acoes { display: flex; justify-content: flex-end }
         @media (max-width: 900px) {
           .adm-cab { display: none }
