@@ -1,0 +1,1506 @@
+<title>Escola do Portal</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: barra fixa com XP + abas; cada aba é uma "estação de oficina" em coluna central de ~900px */
+:root{
+  --bg:#eef1ed; --surface:#ffffff; --surface-2:#f6f8f5; --ink:#1b2620; --muted:#5a685f; --line:#d3dbd4;
+  --accent:#e2a300; --accent-soft:#fbefc9; --accent-ink:#1b2620;
+  --ok:#2c7a4b; --ok-soft:#dcefe3; --bad:#b93c28; --bad-soft:#f7dfd9;
+  --code-bg:#18211c; --code-fg:#e4ebe5; --code-k:#f0b93a; --code-s:#8fd19e; --code-n:#f29e74; --code-c:#7f9186; --code-hl:rgba(226,163,0,.28);
+  --f-display:"Archivo","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,"Cascadia Code",Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111713; --surface:#19211c; --surface-2:#1f2822; --ink:#e5ebe6; --muted:#9aa89f; --line:#2d3831;
+  --accent:#f0b432; --accent-soft:#3a3118; --accent-ink:#141a16;
+  --ok:#63c58a; --ok-soft:#1c3326; --bad:#f08a76; --bad-soft:#3a201b;
+  --code-bg:#0c110e; --code-hl:rgba(240,180,50,.25); color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#111713; --surface:#19211c; --surface-2:#1f2822; --ink:#e5ebe6; --muted:#9aa89f; --line:#2d3831;
+  --accent:#f0b432; --accent-soft:#3a3118; --accent-ink:#141a16;
+  --ok:#63c58a; --ok-soft:#1c3326; --bad:#f08a76; --bad-soft:#3a201b;
+  --code-bg:#0c110e; --code-hl:rgba(240,180,50,.25); color-scheme:dark;}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.55}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.15}
+h2{font-size:1.6rem;font-weight:800}
+h3{font-size:1.1rem;font-weight:600}
+p{margin:0}
+code,.mono{font-family:var(--f-mono);font-size:.9em}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.wrap{max-width:920px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* ---------- casca: barra de cima + menu lateral (tela larga) ou abas (celular) ---------- */
+button{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.pular{position:absolute;left:-9999px;top:8px;z-index:30;background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:10px 14px;font-weight:600}
+.pular:focus-visible{left:max(16px,env(safe-area-inset-left,0px))}
+.topo{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.faixa{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.marca{display:flex;align-items:baseline;gap:10px}
+.marca h1{font-size:1.35rem;font-weight:800;letter-spacing:-.01em}
+.marca span{color:var(--muted);font-size:.85rem}
+.hud{display:flex;align-items:center;gap:10px;font-size:.85rem}
+.nivel{font-weight:600}
+.barra{width:120px;height:8px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden}
+.barra i{display:block;height:100%;background:var(--accent);width:0;transition:width .4s}
+.xp{font-family:var(--f-mono);font-variant-numeric:tabular-nums;background:var(--accent-soft);padding:2px 8px;border-radius:6px}
+.abas{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;background:var(--surface);border-bottom:1px solid var(--line);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.abas::-webkit-scrollbar{display:none}
+.aba{background:none;border:0;border-bottom:3px solid transparent;padding:10px 12px;min-height:44px;white-space:nowrap;color:var(--muted);font-weight:500;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;text-align:left;transition:color .15s,background-color .15s}
+.aba small{display:none;font-size:.78rem;color:var(--muted);font-weight:400;font-variant-numeric:tabular-nums}
+.aba[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.aba:hover{color:var(--ink)}
+.btn-tela{min-height:36px;padding:6px 12px;font-size:.85rem}
+
+main{padding-block:28px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));min-width:0}
+@media (min-width:1000px){
+  .app{display:grid;grid-template-columns:250px minmax(0,1fr)}
+  .abas{flex-direction:column;gap:4px;overflow:visible;border-bottom:0;border-right:1px solid var(--line);padding:20px 12px;position:sticky;top:calc(env(safe-area-inset-top,0px) + var(--topo-h,60px));align-self:start;height:calc(100vh - var(--topo-h,60px))}
+  .aba{border-bottom:0;border-left:3px solid transparent;border-radius:0 8px 8px 0;padding:10px 14px;width:100%}
+  .aba small{display:block}
+  .aba:hover{background:var(--surface-2)}
+  .aba[aria-selected="true"]{border-left-color:var(--accent);background:var(--accent-soft)}
+  main{padding:36px 48px 80px}
+}
+.cab{display:flex;flex-direction:column;gap:6px;margin-bottom:22px}
+.cab p{color:var(--muted);max-width:62ch}
+.eti{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+/* botões */
+.btn{border:1px solid var(--line);background:var(--surface);padding:9px 16px;min-height:44px;border-radius:8px;font-weight:500;transition:transform .12s,border-color .15s,filter .15s}
+.btn:hover:not(:disabled){border-color:var(--muted);transform:translateY(-1px)}
+.btn:active:not(:disabled){transform:translateY(1px)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.pri:hover{filter:brightness(1.05)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 16px;min-height:40px;font-size:.9rem;transition:border-color .15s,transform .12s}
+.chip:hover{border-color:var(--muted)}
+.chip:active{transform:translateY(1px)}
+.op,.passo,.des,.no{transition:border-color .15s,background-color .15s,transform .12s}
+.op:active:not(:disabled),.passo:active,.des:active{transform:translateY(1px)}
+@media (prefers-reduced-motion:reduce){.btn,.chip,.op,.passo,.des,.no,.aba,.barra i,.item,.toast{transition:none!important}.btn:hover:not(:disabled){transform:none}}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* código */
+pre.cod{background:var(--code-bg);color:var(--code-fg);font-family:var(--f-mono);font-size:.88rem;line-height:1.6;padding:14px 16px;border-radius:10px;margin:0;overflow-x:auto;white-space:pre}
+.t-k{color:var(--code-k)} .t-s{color:var(--code-s)} .t-n{color:var(--code-n)} .t-c{color:var(--code-c);font-style:italic}
+
+/* ---------- trilha ---------- */
+.licao{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:16px}
+.passos{display:grid;gap:8px;list-style:none;padding:0;margin:0}
+.passo{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);text-align:left;width:100%}
+.passo:hover{border-color:var(--muted)}
+.passo .bola{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:.8rem;font-weight:700}
+.passo.feito .bola{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.passo .txt{flex:1;min-width:0}
+.passo .txt b{display:block;font-weight:600}
+.passo .txt small{color:var(--muted)}
+.passo .ir{color:var(--muted);font-size:.85rem}
+.leitura{border-top:1px solid var(--line);padding-top:16px;display:flex;flex-direction:column;gap:14px}
+.leitura p{max-width:65ch}
+.tab-wrap{overflow-x:auto}
+table.abrev{border-collapse:collapse;width:100%;font-size:.92rem}
+table.abrev th,table.abrev td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+table.abrev th{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+table.abrev td:first-child{font-family:var(--f-mono);white-space:nowrap}
+.proximas{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:20px}
+.prox{border:1px dashed var(--line);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:4px}
+.prox .eti{display:flex;justify-content:space-between}
+.prox p{color:var(--muted);font-size:.9rem}
+.selo{font-size:.7rem;padding:1px 8px;border-radius:99px;background:var(--surface-2);border:1px solid var(--line);text-transform:none;letter-spacing:0}
+.selo.prev{background:var(--accent-soft);border-color:var(--accent)}
+
+/* ---------- flashcards ---------- */
+.decks{margin-bottom:18px}
+.contador{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:.9rem;margin-bottom:10px;gap:10px;flex-wrap:wrap}
+.pontos{display:flex;gap:4px;flex-wrap:wrap}
+.pontos i{width:10px;height:10px;border-radius:3px;background:var(--line)}
+.pontos i.sei{background:var(--ok)} .pontos i.rever{background:var(--bad)} .pontos i.agora{outline:2px solid var(--accent);outline-offset:1px}
+.palco{perspective:1400px}
+.flip{display:grid;transition:transform .5s cubic-bezier(.2,.7,.2,1);transform-style:preserve-3d;cursor:pointer;min-height:300px}
+.flip.virado{transform:rotateY(180deg)}
+.face{grid-area:1/1;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:16px;padding:26px;display:flex;flex-direction:column;gap:14px}
+.frente{background:var(--surface);border:1px solid var(--line);justify-content:center;align-items:stretch}
+.frente .pergunta{color:var(--muted);font-size:.9rem;text-align:center}
+.frente .dica{color:var(--muted);font-size:.8rem;text-align:center}
+.verso{background:var(--surface);border:2px solid var(--accent);transform:rotateY(180deg)}
+.verso h3{font-size:1.35rem}
+.verso .onde{font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.verso .onde b{color:var(--ink)}
+.respostas{display:flex;gap:10px;justify-content:center;margin-top:16px;flex-wrap:wrap}
+.btn.nao{border-color:var(--bad);color:var(--bad)} .btn.sim{border-color:var(--ok);color:var(--ok)}
+.atalhos{text-align:center;color:var(--muted);font-size:.78rem;margin-top:10px}
+@media (prefers-reduced-motion:reduce){.flip{transition:none}}
+
+/* ---------- quiz ---------- */
+.qbox{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:16px}
+.qbox .enun{font-size:1.1rem;font-weight:500}
+.opcoes{display:grid;gap:8px}
+.op{display:flex;gap:12px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--surface-2);border-radius:10px;padding:12px 14px;font-family:var(--f-mono);font-size:.92rem}
+.op .letra{flex:none;width:24px;height:24px;border-radius:6px;border:1px solid var(--line);display:grid;place-items:center;font-family:var(--f-body);font-size:.8rem;font-weight:600;background:var(--surface)}
+.op:hover:not(:disabled){border-color:var(--muted)}
+.op:disabled{cursor:default}
+.op.certa{background:var(--ok-soft);border-color:var(--ok)}
+.op.errada{background:var(--bad-soft);border-color:var(--bad)}
+.explica{border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:4px}
+.explica.ok{background:var(--ok-soft)} .explica.ruim{background:var(--bad-soft)}
+.explica b{font-family:var(--f-display)}
+.placar{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+.placar .grande{font-family:var(--f-display);font-size:3rem;font-weight:800;line-height:1}
+
+/* ---------- câmera lenta ---------- */
+.cam{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px}
+@media (max-width:760px){.cam{grid-template-columns:1fr}}
+.cam pre.cod .parte{border-radius:4px;transition:background .25s,box-shadow .25s}
+.cam pre.cod .parte.luz{background:var(--code-hl);box-shadow:0 0 0 2px var(--code-hl)}
+.explic{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:6px}
+.explic .eti{color:var(--accent)}
+.mesa{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.itens{display:grid;gap:8px}
+.item{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:.88rem;transition:opacity .3s,border-color .3s}
+.item .mono{color:var(--muted)}
+.item.fora{opacity:.4;text-decoration:line-through}
+.item.foco{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.item.feito{border-color:var(--ok)}
+.acum{display:flex;align-items:baseline;gap:10px;font-family:var(--f-mono)}
+.acum .v{font-size:1.8rem;font-weight:600;font-variant-numeric:tabular-nums}
+.conta{font-family:var(--f-mono);font-size:.88rem;background:var(--surface-2);border-radius:8px;padding:8px 10px;min-height:2.4em}
+.vars{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-family:var(--f-mono);font-size:.95rem}
+.vars .n{color:var(--muted)}
+.vars .vv{font-variant-numeric:tabular-nums}
+.vars .vv.novo{color:var(--accent);font-weight:600}
+.ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.ctrl .num{color:var(--muted);font-size:.85rem;margin-left:auto}
+
+/* ---------- oficina ---------- */
+.ofi{display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px}
+@media (max-width:760px){.ofi{grid-template-columns:1fr}}
+.desafios{display:flex;flex-direction:column;gap:6px}
+@media (max-width:760px){.desafios{flex-direction:row;overflow-x:auto;padding-bottom:4px}}
+.des{display:flex;gap:10px;align-items:center;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;font-size:.9rem;min-width:0}
+@media (max-width:760px){.des{flex:none;width:200px}}
+.des[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.des .bola{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:.7rem;font-weight:700}
+.des.ok .bola{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.des small{display:block;color:var(--muted);font-size:.75rem}
+.bancada{display:flex;flex-direction:column;gap:12px;min-width:0}
+.bancada .enun{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px}
+.bancada label{font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+textarea#editor{width:100%;min-height:220px;resize:vertical;background:var(--code-bg);color:var(--code-fg);border:2px solid var(--line);border-radius:10px;padding:14px 16px;font-family:var(--f-mono);font-size:.9rem;line-height:1.6;tab-size:2}
+textarea#editor:focus{border-color:var(--accent);outline:none}
+.saida{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;font-size:.9rem}
+.saida:empty{display:none}
+.res{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;align-items:start}
+.marca-ok,.marca-no{font-weight:700;font-size:.75rem;padding:2px 8px;border-radius:6px}
+.marca-ok{background:var(--ok-soft);color:var(--ok)} .marca-no{background:var(--bad-soft);color:var(--bad)}
+.res .det{grid-column:2;font-family:var(--f-mono);font-size:.8rem;color:var(--muted);white-space:pre-wrap;word-break:break-word}
+.logs{font-family:var(--f-mono);font-size:.82rem;background:var(--surface-2);border-radius:8px;padding:8px 10px;white-space:pre-wrap;word-break:break-word}
+.aviso{background:var(--accent-soft);border-radius:10px;padding:12px 14px;font-size:.9rem}
+.festa{font-family:var(--f-display);font-weight:800;font-size:1.2rem;color:var(--ok)}
+
+/* ---------- mapa ---------- */
+.fluxo{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.etapa{flex:1 1 150px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:2px}
+.etapa b{font-family:var(--f-display)}
+.etapa small{color:var(--muted);font-family:var(--f-mono);font-size:.75rem;word-break:break-all}
+.seta{align-self:center;color:var(--muted);font-size:1.2rem}
+@media (max-width:640px){.seta{display:none}}
+.mapa{display:grid;grid-template-columns:minmax(0,300px) minmax(0,1fr);gap:16px}
+@media (max-width:700px){.mapa{grid-template-columns:1fr}}
+.arvore{background:var(--code-bg);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:2px;font-family:var(--f-mono);font-size:.88rem}
+.no{background:none;border:0;color:var(--code-fg);text-align:left;padding:6px 8px;border-radius:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.no:hover{background:rgba(255,255,255,.06)}
+.no[aria-current="true"]{background:var(--code-hl);color:var(--code-fg)}
+.no .pasta{color:var(--code-k)}
+.ficha{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.ficha h3{font-family:var(--f-mono);font-size:1rem;word-break:break-all}
+.ficha dl{display:grid;gap:10px;margin:0}
+.ficha dt{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+.ficha dd{margin:0}
+
+/* ---------- aproveitar a tela larga ---------- */
+.qcol,.codarea{display:flex;flex-direction:column;gap:16px;min-width:0}
+.codarea{gap:12px}
+@media (min-width:1000px){
+  .cab h2{font-size:2.1rem}
+  .cab p{font-size:1.05rem}
+  .passos{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+  .palco,.contador,.respostas,.atalhos{max-width:1100px;margin-inline:auto}
+  .flip{min-height:clamp(320px,50vh,600px)}
+  .face{padding:40px 52px}
+  .frente pre.cod{font-size:1.2rem;padding:22px 26px}
+  .verso h3{font-size:1.8rem}
+  .verso p{font-size:1.1rem}
+  .qbox{padding:32px}
+  .qbox.duas{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;align-items:start}
+  .qbox .enun{font-size:1.25rem}
+  .qbox pre.cod{font-size:1rem}
+  .op{padding:16px 18px;font-size:1rem}
+  .cam{gap:24px}
+  .cam pre.cod{font-size:1rem;padding:20px 22px}
+  .ofi{grid-template-columns:270px minmax(0,1fr);gap:24px}
+  textarea#editor{min-height:max(300px,calc(100vh - var(--topo-h,60px) - 420px))}
+}
+@media (min-width:1400px){
+  .bancada{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:24px;align-items:start}
+  textarea#editor{min-height:max(340px,calc(100vh - var(--topo-h,60px) - 300px))}
+}
+
+/* ---------- o básico (lição 0) ---------- */
+.basico{display:grid;grid-template-columns:250px minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:760px){.basico{grid-template-columns:1fr}}
+@media (min-width:761px){#topicos{position:sticky;top:calc(var(--topo-h,60px) + 16px)}}
+.artigo{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:28px;display:flex;flex-direction:column;gap:16px;min-width:0}
+@media (max-width:760px){.artigo{padding:18px}}
+.artigo h3{font-size:1.6rem;font-weight:800}
+.texto{display:flex;flex-direction:column;gap:12px;max-width:72ch;font-size:1.03rem}
+.texto ul{margin:0;padding-left:20px;display:grid;gap:6px}
+.texto code{background:var(--surface-2);border:1px solid var(--line);padding:1px 6px;border-radius:5px}
+.texto .grande{font-size:1.15rem;font-weight:600}
+.java{background:var(--surface-2);border:1px dashed var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;max-width:72ch}
+.java .eti{color:var(--ink)}
+textarea#basEditor{width:100%;min-height:180px;resize:vertical;background:var(--code-bg);color:var(--code-fg);border:2px solid var(--line);border-radius:10px;padding:14px 16px;font-family:var(--f-mono);font-size:.9rem;line-height:1.6;tab-size:2}
+textarea#basEditor:focus{border-color:var(--accent);outline:none}
+.licao0{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:18px 22px;margin-bottom:24px}
+.licao0 > div{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 300px}
+.licao0 p{color:var(--muted)}
+
+/* ---------- perguntar ao Claude ---------- */
+body:not([data-claude="on"]) .so-claude{display:none!important}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.fab{position:fixed;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:15;background:var(--ink);color:var(--bg);border:0;border-radius:99px;padding:12px 20px;min-height:48px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.18);transition:transform .12s}
+.fab:hover{transform:translateY(-2px)} .fab:active{transform:translateY(1px)}
+.tutor{position:fixed;top:0;right:0;bottom:0;width:min(720px,100%);z-index:25;background:var(--surface);border-left:1px solid var(--line);box-shadow:-10px 0 30px rgba(0,0,0,.12);display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);padding-right:env(safe-area-inset-right,0px);overscroll-behavior:contain}
+.tutor-cab{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.tutor-cab b{font-family:var(--f-display);font-size:1.1rem}
+.tutor-sobre{padding:8px 16px;font-size:.82rem;color:var(--muted);border-bottom:1px solid var(--line);background:var(--surface-2)}
+.tutor-sobre b{color:var(--ink)}
+.tutor-msgs{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;overscroll-behavior:contain}
+.tutor-vazio{color:var(--muted);font-size:.92rem}
+.tutor.largo{width:min(1200px,100%)}
+.msg{max-width:92%;padding:12px 16px;border-radius:12px;font-size:1.02rem;line-height:1.6;overflow-wrap:anywhere}
+.msg.claude{max-width:100%}
+.msg table.abrev{margin:8px 0;font-size:.92rem}
+.msg table.abrev td:first-child{font-family:inherit;white-space:normal}
+.msg table.abrev th{text-transform:none;letter-spacing:0;font-size:.85rem;color:var(--ink)}
+.msg.eu{align-self:flex-end;background:var(--accent-soft);border-bottom-right-radius:4px}
+.msg.claude{align-self:flex-start;background:var(--surface-2);border:1px solid var(--line);border-bottom-left-radius:4px}
+.msg.claude pre.cod{margin:8px 0;font-size:.82rem}
+.msg.claude code{background:var(--bg);padding:1px 5px;border-radius:4px}
+.msg .nota{display:block;margin-top:6px;font-size:.8rem;color:var(--muted)}
+.tutor-sug{display:flex;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding:8px 16px;border-top:1px solid var(--line);scrollbar-width:thin}
+.tutor-sug .chip{font-size:.82rem;min-height:34px;white-space:nowrap;flex:none}
+.tutor-form{border-top:1px solid var(--line);padding:10px 16px;display:flex;gap:8px;align-items:flex-end}
+.tutor-form .btns{flex:none;flex-wrap:nowrap}
+.tutor-form textarea{flex:1;min-width:0;resize:none;min-height:46px;max-height:160px;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font:inherit;background:var(--surface-2);color:var(--ink)}
+.tutor-form textarea:focus{border-color:var(--accent);outline:none}
+.perg{align-self:flex-start;font-size:.88rem}
+
+/* toast de XP */
+.toast{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;transform:translateY(20px);opacity:0;transition:transform .3s,opacity .3s;pointer-events:none;z-index:20}
+.toast.on{transform:none;opacity:1}
+.kbd{font-family:var(--f-mono);font-size:.75rem;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px}
+</style>
+
+<button class="pular" id="pular">Pular para o conteúdo</button>
+<header class="topo">
+  <div class="faixa">
+    <div class="marca"><h1>Escola do Portal</h1><span>Nova Tratores · Lição 1</span></div>
+    <div class="hud">
+      <span class="nivel" id="nivel" aria-live="polite">Aprendiz</span>
+      <span class="barra" title="Progresso até o próximo nível"><i id="barra"></i></span>
+      <span class="xp" id="xp">0 XP</span>
+      <button class="btn btn-tela" id="btnTela">Tela cheia</button>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+<nav class="abas" role="tablist" aria-label="Estações da lição">
+  <button class="aba" role="tab" data-tab="trilha">Trilha<small data-st="trilha"></small></button>
+  <button class="aba" role="tab" data-tab="basico">O básico (Lição 0)<small data-st="basico"></small></button>
+  <button class="aba" role="tab" data-tab="cards">Flashcards<small data-st="cards"></small></button>
+  <button class="aba" role="tab" data-tab="quiz">Quiz<small data-st="quiz"></small></button>
+  <button class="aba" role="tab" data-tab="camera">Câmera lenta<small data-st="camera"></small></button>
+  <button class="aba" role="tab" data-tab="oficina">Oficina de código<small data-st="oficina"></small></button>
+  <button class="aba" role="tab" data-tab="mapa">Mapa do portal<small data-st="mapa"></small></button>
+</nav>
+
+<main id="conteudo" tabindex="-1">
+
+<!-- ================= TRILHA ================= -->
+<section data-view="trilha">
+  <div class="licao0" id="licao0"></div>
+  <div class="cab">
+    <span class="eti">Lição 1 de 8</span>
+    <h2>Desresumindo o código</h2>
+    <p>O portal parece "resumido" porque usa atalhos do JavaScript. Aqui você aprende os 7 atalhos que mais aparecem. Faça as estações na ordem; cada uma marca sozinha quando você termina.</p>
+  </div>
+  <div class="licao">
+    <ul class="passos" id="passos"></ul>
+    <div class="leitura" id="leitura" hidden>
+      <h3>TypeScript é JavaScript com etiquetas</h3>
+      <p>O portal é escrito em TypeScript. Ele é JavaScript com <b>etiquetas de tipo</b>, como <code>: number</code>. Apague as etiquetas e sobra JavaScript normal:</p>
+      <pre class="cod" data-hl>// TypeScript (como está no portal)
+const brl = (v: number) => v.toLocaleString('pt-BR')
+
+// JavaScript (igual, sem a etiqueta)
+const brl = (v) => v.toLocaleString('pt-BR')</pre>
+      <p>Então, na hora de LER o portal: <b>ignore tudo que vem depois de dois-pontos dentro dos parênteses</b>, e ignore as linhas <code>type</code> e <code>interface</code>.</p>
+      <h3>Os 7 atalhos</h3>
+      <div class="tab-wrap"><table class="abrev">
+        <thead><tr><th>Resumido</th><th>Quer dizer</th></tr></thead>
+        <tbody>
+          <tr><td>(x) =&gt; x * 2</td><td>uma função: <code>function (x) { return x * 2 }</code></td></tr>
+          <tr><td>lista.map(...)</td><td>lista nova, trocando cada item</td></tr>
+          <tr><td>lista.filter(...)</td><td>lista nova, só com quem passa no teste</td></tr>
+          <tr><td>lista.reduce(...)</td><td>junta a lista num valor só (quase sempre soma)</td></tr>
+          <tr><td>a || 'padrão'</td><td>se <code>a</code> for vazio ou zero, usa <code>'padrão'</code></td></tr>
+          <tr><td>obj?.nome</td><td>pega <code>nome</code> só se <code>obj</code> existir, sem dar erro</td></tr>
+          <tr><td>cond ? x : y</td><td>um <code>if/else</code> numa linha</td></tr>
+        </tbody>
+      </table></div>
+      <h3>Onde isso está no portal</h3>
+      <p>Abra no VS Code o arquivo <code>src/lib/requisicoes/itens-compra.ts</code>. Ele é a regra da tela <b>Requisições → nova requisição → "O que vai comprar?"</b>: soma o total e monta o texto das observações. Usa os 7 atalhos. Se um dia o total sair errado nessa tela, é nesse arquivo que você mexe.</p>
+      <div class="btns"><button class="btn pri" id="btnLi">Li e entendi</button></div>
+    </div>
+  </div>
+  <div class="proximas" id="proximas"></div>
+</section>
+
+<!-- ================= O BÁSICO ================= -->
+<section data-view="basico" hidden>
+  <div class="cab">
+    <span class="eti">Lição 0</span>
+    <h2>O básico da programação</h2>
+    <p>A sintaxe do JavaScript do zero: o que é cada sinal, por que se escreve assim e como era no Java. Em cada tópico tem um código que você pode mudar e rodar na hora.</p>
+  </div>
+  <div class="basico">
+    <div class="desafios" id="topicos"></div>
+    <article class="artigo" id="artigo"></article>
+  </div>
+</section>
+
+<!-- ================= FLASHCARDS ================= -->
+<section data-view="cards" hidden>
+  <div class="cab">
+    <span class="eti">Estação 2</span>
+    <h2>Flashcards</h2>
+    <p>Olhe o código, tente lembrar o que ele faz e vire o cartão. Seja honesto: o que você marcar como "ainda não sei" volta no baralho de revisão.</p>
+  </div>
+  <div class="btns decks" id="decks"></div>
+  <div id="areaCard"></div>
+</section>
+
+<!-- ================= QUIZ ================= -->
+<section data-view="quiz" hidden>
+  <div class="cab">
+    <span class="eti">Estação 3</span>
+    <h2>Quiz: o que sai daqui?</h2>
+    <p>Leia o código e escolha o resultado. Algumas linhas são copiadas do portal de verdade.</p>
+  </div>
+  <div class="btns decks" id="qLicoes"></div>
+  <div class="qbox" id="qbox"></div>
+</section>
+
+<!-- ================= CÂMERA LENTA ================= -->
+<section data-view="camera" hidden>
+  <div class="cab">
+    <span class="eti">Estação 4</span>
+    <h2>Câmera lenta</h2>
+    <p>Uma linha "resumida" do portal rodando passo a passo. A parte amarela do código é a que está trabalhando agora; do lado, você vê o que acontece com os dados.</p>
+  </div>
+  <div class="btns decks" id="camProgs"></div>
+  <div class="cam">
+    <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+      <pre class="cod" id="camCod"></pre>
+      <div class="explic" id="camExp"></div>
+    </div>
+    <div class="mesa" id="camMesa"></div>
+  </div>
+  <div class="ctrl">
+    <button class="btn" id="camVolta">Voltar</button>
+    <button class="btn pri" id="camProx">Próximo passo</button>
+    <button class="btn" id="camPlay">Tocar sozinho</button>
+    <span class="num" id="camNum"></span>
+  </div>
+</section>
+
+<!-- ================= OFICINA ================= -->
+<section data-view="oficina" hidden>
+  <div class="cab">
+    <span class="eti">Estação 5</span>
+    <h2>Oficina de código</h2>
+    <p>Escreva o código aqui mesmo e clique em <b>Rodar e conferir</b>. Os testes dizem na hora se está certo. Primeiro faça "por extenso" (com <code>for</code> e <code>if</code>); depois, se quiser, tente a versão resumida.</p>
+  </div>
+  <div class="ofi">
+    <div class="desafios" id="desafios"></div>
+    <div class="bancada">
+      <div class="enun" id="desEnun"></div>
+      <div class="codarea">
+        <label for="editor">Seu código <span class="kbd">Ctrl</span>&nbsp;+&nbsp;<span class="kbd">Enter</span> roda</label>
+        <textarea id="editor" name="codigo" spellcheck="false" autocapitalize="off" autocomplete="off" translate="no"></textarea>
+        <div class="btns">
+          <button class="btn pri" id="btnRodar">Rodar e conferir</button>
+          <button class="btn" id="btnDica">Ver dica</button>
+          <button class="btn" id="btnResp" disabled title="Libera depois da primeira tentativa">Ver resposta</button>
+          <button class="btn" id="btnLimpar">Recomeçar desafio</button>
+          <button class="btn so-claude" data-perguntar="oficina">Perguntar ao Claude</button>
+        </div>
+        <div class="saida" id="saida" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MAPA ================= -->
+<section data-view="mapa" hidden>
+  <div class="cab">
+    <span class="eti">Consulta</span>
+    <h2>Mapa do portal</h2>
+    <p>O caminho que quase todo problema segue. Quando algo der errado numa tela, siga essa ordem até achar onde está.</p>
+  </div>
+  <div class="fluxo">
+    <div class="etapa"><b>1. Tela</b><span>o que a pessoa vê</span><small>src/app/(portal)/…/page.tsx</small></div>
+    <span class="seta" aria-hidden="true">→</span>
+    <div class="etapa"><b>2. Componente</b><span>pedaço da tela</span><small>src/components/…</small></div>
+    <span class="seta" aria-hidden="true">→</span>
+    <div class="etapa"><b>3. Regra</b><span>contas e buscas</span><small>src/lib/…</small></div>
+    <span class="seta" aria-hidden="true">→</span>
+    <div class="etapa"><b>4. Banco</b><span>onde os dados moram</span><small>Supabase</small></div>
+  </div>
+  <div class="mapa">
+    <nav class="arvore" id="arvore" aria-label="Pastas do portal"></nav>
+    <div class="ficha" id="ficha"></div>
+  </div>
+</section>
+
+</main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<button class="fab so-claude" id="fab" data-perguntar="geral">Perguntar ao Claude</button>
+<aside class="tutor" id="tutor" hidden aria-label="Perguntar ao Claude">
+  <div class="tutor-cab">
+    <b>Perguntar ao Claude</b>
+    <div class="btns">
+      <button class="btn btn-tela" id="tutorBaixar" hidden>Baixar conversa (.md)</button>
+      <button class="btn btn-tela" id="tutorAmpliar">Ampliar</button>
+      <button class="btn btn-tela" id="tutorNova">Nova conversa</button>
+      <button class="btn btn-tela" id="tutorFechar">Fechar</button>
+    </div>
+  </div>
+  <div class="tutor-sobre" id="tutorSobre"></div>
+  <div class="tutor-msgs" id="tutorMsgs" aria-live="polite"></div>
+  <div class="tutor-sug" id="tutorSug"></div>
+  <form class="tutor-form" id="tutorForm">
+    <label for="pergunta" class="vh">Sua pergunta</label>
+    <textarea id="pergunta" name="pergunta" rows="1" autocomplete="off" placeholder="Escreva sua dúvida… (Enter envia)"></textarea>
+    <div class="btns">
+      <button class="btn pri" id="tutorEnviar" type="submit">Perguntar</button>
+      <button class="btn" id="tutorParar" type="button" hidden>Parar resposta</button>
+    </div>
+  </form>
+</aside>
+
+<script>
+/* =====================================================================
+   CONTEÚDO
+   ===================================================================== */
+const TOPICOS = [
+  {id:'b1', t:'Mostrar na tela: console.log',
+   h:`<p class="grande">console.log( ) escreve uma mensagem para você ver.</p>
+<p>É o jeito de "espiar" o que o programa está fazendo. Tudo o que você colocar dentro dos parênteses aparece no console (a área de saída).</p>
+<p>Quando algo no portal não funciona, colocar um <code>console.log(valor)</code> é o primeiro passo para descobrir o que está acontecendo. No navegador, a saída aparece apertando <b>F12</b> e indo na aba <b>Console</b>.</p>`,
+   java:'System.out.println("Olá");', js:'console.log("Olá");',
+   cod:`console.log('Olá, oficina!');
+console.log(2 + 3);
+console.log('Horas do trator:', 1200);`},
+  {id:'b2', t:'Guardar valores: let e const',
+   h:`<p class="grande">Uma variável é uma caixa com etiqueta, onde você guarda um valor.</p>
+<ul><li><code>const</code>: a caixa é <b>lacrada</b>. Guardou, não troca mais. Use na maioria das vezes.</li>
+<li><code>let</code>: a caixa <b>pode ser trocada</b>. Use quando o valor vai mudar (um contador, uma soma).</li>
+<li><code>var</code>: jeito antigo. Você vai ver em código velho, mas não precisa usar.</li></ul>
+<p>O sinal <code>=</code> quer dizer <b>"guarde isso aqui"</b>. Não é "igual" de matemática.</p>`,
+   java:'int horas = 120;\nString modelo = "6075";', js:'let horas = 120;\nconst modelo = "6075";',
+   javaTxt:'No Java você dizia o tipo (int, String). No JavaScript não: só let ou const, e ele descobre o tipo sozinho.',
+   cod:`const modelo = 'Trator 6075';
+let horas = 120;
+horas = horas + 8;   // let pode mudar
+console.log(modelo, horas);
+
+// Tire as duas barras da linha abaixo e rode: vai dar erro, porque const não muda
+// modelo = 'outro';`},
+  {id:'b3', t:'Tipos de valor',
+   h:`<p class="grande">Todo valor tem um tipo. São poucos:</p>
+<ul><li><b>Número</b>: <code>10</code>, <code>45.9</code> (decimal usa ponto, não vírgula)</li>
+<li><b>Texto</b> (string): <code>'Vela'</code> ou <code>"Vela"</code>. Aspas simples e duplas são iguais.</li>
+<li><b>Verdadeiro/falso</b> (booleano): <code>true</code>, <code>false</code></li>
+<li><b>Lista</b> (array): <code>['Vela', 'Correia']</code></li>
+<li><b>Objeto</b>: uma ficha com campos, <code>{ modelo: '6075', horas: 120 }</code></li>
+<li><b>Vazio</b>: <code>null</code> (vazio de propósito) e <code>undefined</code> (nunca recebeu valor)</li></ul>
+<p><code>typeof</code> mostra o tipo de um valor.</p>`,
+   javaTxt:'No Java existiam int, double, float, long… No JavaScript só existe "número", para inteiro e decimal.',
+   cod:`console.log(typeof 10);
+console.log(typeof 'Vela');
+console.log(typeof true);
+console.log(typeof { modelo: '6075' });
+let nada;
+console.log(nada);   // nunca recebeu valor`},
+  {id:'b4', t:'O ponto ( . ) — o mais importante',
+   h:`<p class="grande">O ponto quer dizer "de dentro de".</p>
+<p><code>trator.modelo</code> se lê <b>"o modelo DO trator"</b>. O ponto <b>não alimenta</b> nada: ele <b>entra</b> numa coisa e pega um pedaço dela.</p>
+<p>Ele tem dois usos:</p>
+<ul><li><b>Pegar um dado</b>: <code>trator.horas</code> → o número de horas que está guardado no trator.</li>
+<li><b>Mandar fazer uma ação</b> (chamada de <b>método</b>): <code>lista.push('Vela')</code> → "lista, coloque 'Vela' dentro de você". Se tem <b>parênteses depois</b>, é ação.</li></ul>
+<p><b>Quem alimenta são os parênteses.</b> O que vai dentro de <code>( )</code> é o que você <b>entrega</b> para a ação. Em <code>lista.push('Vela')</code>: o ponto escolhe a ação, os parênteses entregam o 'Vela'.</p>
+<p><b>Só tem esse jeito? Não.</b> Para pegar um dado de dentro de um objeto existem 4 formas:</p>
+<ul><li><code>trator.modelo</code> — com ponto (o mais comum)</li>
+<li><code>trator['modelo']</code> — com colchetes. Serve quando o nome do campo está guardado numa variável: <code>trator[campo]</code></li>
+<li><code>const { modelo } = trator</code> — desestruturação: tira o campo direto para uma variável</li>
+<li><code>trator?.modelo</code> — ponto seguro: se o trator não existir, não dá erro</li></ul>
+<p>Os pontos podem vir em fila: <code>trator.dono.nome</code> = "o nome do dono do trator". Leia da esquerda para a direita, entrando uma caixa de cada vez.</p>`,
+   java:'trator.getModelo();\nlista.add("Vela");\nSystem.out.println("oi");', js:'trator.modelo\nlista.push("Vela")\nconsole.log("oi")',
+   javaTxt:'No Java era igualzinho! System.out.println é "dentro de System, pegue out, e dentro de out, chame println".',
+   cod:`const trator = {
+  modelo: 'Trator 6075',
+  horas: 1200,
+  dono: { nome: 'Sítio Boa Vista' },
+  pneus: ['dianteiro', 'dianteiro', 'traseiro', 'traseiro'],
+};
+
+console.log(trator.modelo);        // com ponto
+console.log(trator['horas']);      // com colchetes
+const campo = 'modelo';
+console.log(trator[campo]);        // colchetes com variável
+console.log(trator.dono.nome);     // pontos em fila
+console.log(trator.pneus.length);  // quantos pneus
+trator.pneus.push('estepe');       // ação: coloca mais um
+console.log(trator.pneus.length);`},
+  {id:'b5', t:'Contas e juntar texto',
+   h:`<p class="grande">Contas: + soma, - subtrai, * multiplica, / divide, % resto da divisão.</p>
+<p>O <code>+</code> tem um segundo trabalho: <b>com texto, ele junta</b>. <code>'Vela' + ' NGK'</code> vira <code>'Vela NGK'</code>.</p>
+<p><b>Armadilha:</b> número que veio como texto (de um campo da tela, por exemplo) junta em vez de somar: <code>'2' + 3</code> dá <code>'23'</code>. Para virar número de verdade use <code>Number('2')</code>. É por isso que o portal tem a função <code>num()</code>.</p>
+<p>Para montar frases, o jeito moderno é a crase: <code>&#96;Trator com \${horas} horas&#96;</code>. O <code>\${ }</code> coloca o valor no meio do texto.</p>`,
+   javaTxt:'No Java o + também juntava String. A diferença é que lá o compilador avisava do tipo errado; aqui não avisa, então cuidado com o "2" + 3.',
+   cod:`const horas = 1200;
+console.log(10 * 45.9);
+console.log(17 % 5);               // resto: 2
+console.log('Vela' + ' NGK');
+console.log('2' + 3);              // armadilha!
+console.log(Number('2') + 3);      // agora sim
+console.log(\`Trator com \${horas} horas\`);`},
+  {id:'b6', t:'Comparar e combinar: === && || !',
+   h:`<p class="grande">Comparar sempre dá true ou false.</p>
+<ul><li><code>===</code> é igual (valor e tipo). <code>!==</code> é diferente.</li>
+<li><code>&gt;</code> maior, <code>&lt;</code> menor, <code>&gt;=</code> maior ou igual, <code>&lt;=</code> menor ou igual.</li></ul>
+<p>Para juntar condições:</p>
+<ul><li><code>&amp;&amp;</code> = <b>E</b> (as duas precisam ser verdade)</li>
+<li><code>||</code> = <b>OU</b> (basta uma)</li>
+<li><code>!</code> = <b>NÃO</b> (inverte)</li></ul>
+<p>Existe também o <code>==</code> (com dois), mas ele "dá um jeitinho" nos tipos: <code>5 == '5'</code> dá true. No portal e em código bom, use sempre <code>===</code>.</p>`,
+   javaTxt:'&&, || e ! são iguais ao Java. A diferença é o === (três iguais), que no Java não existia.',
+   cod:`const estoque = 4;
+console.log(estoque > 0);
+console.log(5 === 5);
+console.log(5 === '5');            // tipos diferentes: false
+console.log(estoque > 0 && estoque < 10);
+console.log(!true);`},
+  {id:'b7', t:'Decidir: if / else',
+   h:`<p class="grande">if = "se". else = "senão".</p>
+<p>A condição vai dentro dos <b>parênteses</b>. O que fazer vai dentro das <b>chaves</b> <code>{ }</code>. As chaves marcam o começo e o fim de um bloco.</p>
+<p>Dá para encadear com <code>else if</code> (senão, se…).</p>
+<p>Lembra do ternário da Lição 1? <code>cond ? a : b</code> é este mesmo if, escrito numa linha só.</p>`,
+   javaTxt:'A sintaxe do if/else é idêntica à do Java.',
+   cod:`const estoque = 0;
+
+if (estoque > 5) {
+  console.log('Tem bastante');
+} else if (estoque > 0) {
+  console.log('Está acabando');
+} else {
+  console.log('Sem estoque, fazer requisição');
+}`},
+  {id:'b8', t:'Repetir: for e while',
+   h:`<p class="grande">Laço = repetir a mesma coisa várias vezes.</p>
+<ul><li><code>for (const peca of pecas) { }</code> — <b>para cada</b> peça da lista. É o mais fácil e o mais usado.</li>
+<li><code>for (let i = 0; i &lt; 3; i++) { }</code> — o clássico com contador: começa em 0, vai enquanto i for menor que 3, e soma 1 a cada volta (<code>i++</code>).</li>
+<li><code>while (condição) { }</code> — repete <b>enquanto</b> a condição for verdade. Cuidado: se ela nunca ficar falsa, repete para sempre.</li></ul>`,
+   javaTxt:'O for clássico é igual ao Java. O for…of é o for (String p : pecas) do Java, com "of" no lugar dos dois-pontos.',
+   cod:`const pecas = ['Filtro', 'Correia', 'Vela'];
+
+for (const peca of pecas) {
+  console.log('Peça:', peca);
+}
+
+for (let i = 0; i < 3; i++) {
+  console.log('Volta número', i);
+}`},
+  {id:'b9', t:'Listas (arrays)',
+   h:`<p class="grande">Lista = vários valores em fila, entre colchetes.</p>
+<ul><li>A contagem <b>começa no 0</b>: <code>lista[0]</code> é o primeiro, <code>lista[1]</code> o segundo.</li>
+<li><code>lista.length</code> — quantos itens tem.</li>
+<li><code>lista.push(x)</code> — coloca x no fim.</li>
+<li><code>lista.includes(x)</code> — tem x? (true/false)</li></ul>
+<p>Os colchetes têm dois trabalhos: <b>criar</b> a lista (<code>['a', 'b']</code>) e <b>pegar um item</b> (<code>lista[0]</code>).</p>`,
+   java:'String[] pecas = {"Filtro", "Vela"};\nArrayList<String> l = new ArrayList<>();\nl.add("Vela");', js:"const pecas = ['Filtro', 'Vela'];\n\npecas.push('Vela');",
+   javaTxt:'No Java você escolhia entre array (tamanho fixo) e ArrayList (cresce). No JavaScript a lista sempre pode crescer.',
+   cod:`const pecas = ['Filtro', 'Correia', 'Vela'];
+console.log(pecas[0]);
+console.log(pecas.length);
+pecas.push('Bateria');
+console.log(pecas);
+console.log(pecas.includes('Vela'));`},
+  {id:'b10', t:'Objetos (fichas com campos)',
+   h:`<p class="grande">Objeto = uma ficha. Cada campo tem um nome e um valor.</p>
+<p>Escreve entre chaves: <code>{ nome: valor, outro: valor }</code>. Os dois-pontos separam o nome do valor; a vírgula separa um campo do outro.</p>
+<ul><li>Ler: <code>os.cliente</code></li>
+<li>Mudar: <code>os.status = 'fechada'</code></li>
+<li>Criar campo novo: <code>os.tecnico = 'João'</code> (é só guardar)</li></ul>
+<p>O portal inteiro funciona assim: cada linha que vem do banco (uma OS, uma requisição, uma peça) chega como um objeto.</p>`,
+   javaTxt:'No Java você precisava criar uma classe (class OS { String cliente; }) antes. No JavaScript você escreve a ficha direto.',
+   cod:`const os = { numero: 1534, cliente: 'Sítio Boa Vista', status: 'aberta' };
+
+console.log(os.cliente);
+os.status = 'fechada';
+os.tecnico = 'João';
+console.log(os);`},
+  {id:'b11', t:'Funções: entra, processa, devolve',
+   h:`<p class="grande">Função = uma receita com nome. Você escreve uma vez e usa quantas vezes quiser.</p>
+<ul><li><code>function dobro(x) { return x * 2; }</code> — <b>cria</b> a receita. <code>x</code> é a entrada (parâmetro).</li>
+<li><code>return</code> — <b>devolve</b> o resultado e termina a função.</li>
+<li><code>dobro(5)</code> — <b>usa</b> a receita, entregando o 5. Resultado: 10.</li></ul>
+<p>Os parênteses aparecem nos dois momentos: na criação (o que a função recebe) e no uso (o que você entrega). É aqui que se "alimenta" algo.</p>
+<p>Jeito curto (arrow), muito usado no portal: <code>const dobro = (x) =&gt; x * 2;</code></p>`,
+   java:'public int dobro(int x) {\n  return x * 2;\n}', js:'function dobro(x) {\n  return x * 2;\n}',
+   javaTxt:'Igual a um método do Java, sem public e sem dizer os tipos.',
+   cod:`function precoComDesconto(preco, desconto) {
+  return preco - preco * desconto;
+}
+
+console.log(precoComDesconto(100, 0.1));
+console.log(precoComDesconto(45.9, 0.05));
+
+const dobro = (x) => x * 2;
+console.log(dobro(21));`},
+  {id:'b12', t:'Os sinais: para que serve cada um',
+   h:`<div class="tab-wrap"><table class="abrev">
+<thead><tr><th>Sinal</th><th>Para que serve</th></tr></thead><tbody>
+<tr><td>.</td><td>entrar e pegar algo de dentro: <code>trator.modelo</code></td></tr>
+<tr><td>( )</td><td>entregar valores a uma função <code>dobro(5)</code>, a condição do <code>if ( )</code>, agrupar conta <code>(2 + 3) * 4</code></td></tr>
+<tr><td>{ }</td><td>bloco de código (if, for, função) <b>ou</b> objeto <code>{ modelo: '6075' }</code></td></tr>
+<tr><td>[ ]</td><td>criar lista <code>['a', 'b']</code> <b>ou</b> pegar item <code>lista[0]</code></td></tr>
+<tr><td>;</td><td>fim da instrução. No JavaScript é opcional, por isso alguns arquivos do portal usam e outros não</td></tr>
+<tr><td>,</td><td>separar itens: de lista, de campos, de parâmetros</td></tr>
+<tr><td>' ' &nbsp; " "</td><td>texto</td></tr>
+<tr><td>&#96; &#96;</td><td>texto com valores no meio: <code>&#96;\${x} horas&#96;</code></td></tr>
+<tr><td>=</td><td>guardar valor</td></tr>
+<tr><td>===</td><td>comparar</td></tr>
+<tr><td>=&gt;</td><td>função curta (arrow)</td></tr>
+<tr><td>//</td><td>comentário: o computador ignora o resto da linha</td></tr>
+</tbody></table></div>`,
+   javaTxt:'Quase todos os sinais são iguais ao Java. Os novos são === , => , a crase e o ?. (ponto seguro).',
+   cod:`// Comentário: o computador ignora esta linha
+const lista = ['a', 'b'];              // [ ] cria lista
+const ficha = { modelo: '6075' };      // { } cria objeto
+console.log(lista[1]);                 // [ ] pega item
+console.log(ficha.modelo);             // . entra no objeto
+console.log((2 + 3) * 4);              // ( ) agrupa a conta`}
+];
+
+const CARDS = [
+  // ---- Lição 0
+  {id:'z1',deck:'l0',f:"console.log('oi')",t:'Mostrar na tela',d:'Escreve o que está dentro dos parênteses no console. Serve para espiar valores e achar erros.'},
+  {id:'z2',deck:'l0',f:'let horas = 120',t:'Variável que pode mudar',d:'Cria uma caixa chamada horas e guarda 120 nela. Por ser let, dá para trocar depois: horas = 130.'},
+  {id:'z3',deck:'l0',f:"const modelo = '6075'",t:'Variável que não muda',d:'Caixa lacrada: guardou, não troca mais. Tentar trocar dá erro.'},
+  {id:'z4',deck:'l0',f:'trator.modelo',t:'O ponto: "de dentro de"',d:'Lê-se "o modelo DO trator". O ponto entra no objeto e pega um pedaço dele. Não alimenta nada.'},
+  {id:'z5',deck:'l0',f:"lista.push('Vela')",t:'Ponto + parênteses = ação',d:'O ponto escolhe a ação (push = colocar no fim). Os parênteses entregam o valor para a ação. Quem alimenta é o ( ).'},
+  {id:'z6',deck:'l0',f:"trator['modelo']",t:'Colchetes: outro jeito do ponto',d:'Mesma coisa que trator.modelo. É útil quando o nome do campo está numa variável: trator[campo].'},
+  {id:'z7',deck:'l0',f:'trator.dono.nome',t:'Pontos em fila',d:'Leia da esquerda para a direita: dentro do trator, pegue o dono; dentro do dono, pegue o nome.'},
+  {id:'z8',deck:'l0',f:'lista[0]',t:'Primeiro item da lista',d:'A contagem começa no 0. lista[0] é o primeiro, lista[1] o segundo.'},
+  {id:'z9',deck:'l0',f:'lista.length',t:'Quantos itens tem',d:'length é um dado (sem parênteses), não uma ação. Diz o tamanho da lista ou do texto.'},
+  {id:'z10',deck:'l0',f:"5 === '5'",t:'=== compara valor e tipo',d:'Dá false, porque um é número e o outro é texto. Sempre use === para comparar.'},
+  {id:'z11',deck:'l0',f:"'2' + 3",t:'Armadilha do +',d:"Dá '23', porque com texto o + junta em vez de somar. Use Number('2') + 3 para dar 5."},
+  {id:'z12',deck:'l0',f:'if (estoque > 0) {\n  …\n} else {\n  …\n}',t:'Decidir',d:'Se a condição dos parênteses for verdade, roda o primeiro bloco { }. Senão, roda o do else.'},
+  {id:'z13',deck:'l0',f:'for (const p of pecas) {\n  …\n}',t:'Repetir para cada item',d:'Roda o bloco uma vez para cada peça da lista. Em cada volta, p é a peça da vez.'},
+  {id:'z14',deck:'l0',f:'function dobro(x) {\n  return x * 2;\n}',t:'Criar uma função',d:'Uma receita chamada dobro. Recebe x, devolve (return) x vezes 2.'},
+  {id:'z15',deck:'l0',f:'dobro(5)',t:'Usar uma função',d:'Chama a receita dobro entregando o 5. O resultado é 10.'},
+  {id:'z16',deck:'l0',f:"{ modelo: '6075', horas: 120 }",t:'Objeto (ficha)',d:'Uma ficha com campos. Dois-pontos separam nome e valor; vírgula separa os campos.'},
+  {id:'z17',deck:'l0',f:'&&   ||   !',t:'E, OU, NÃO',d:'&& = as duas condições precisam ser verdade. || = basta uma. ! = inverte (true vira false).'},
+  {id:'z18',deck:'l0',f:'// texto qualquer',t:'Comentário',d:'O computador ignora. Serve para explicar o código para quem vai ler depois (inclusive você).'},
+  // ---- Lição 1
+  {id:'c1',deck:'l1',f:'(x) => x * 2',t:'Arrow function (função curta)',d:'Uma função escrita do jeito curto. Igual a  function (x) { return x * 2 }. Sem chaves { }, o resultado já é devolvido sozinho.',onde:'const brl = (v) => … em itens-compra.ts'},
+  {id:'c2',deck:'l1',f:'function brl(v: number)',t:'Etiqueta de tipo (TypeScript)',d:'O ": number" só avisa que v é um número. Não muda nada no funcionamento. Na hora de ler, pode ignorar.',onde:'todo arquivo .ts e .tsx'},
+  {id:'c3',deck:'l1',f:'type ItemCompra = {\n  produto: string;\n  qtd: string;\n}',t:'Molde de objeto (TypeScript)',d:'Descreve quais campos um objeto tem. Some quando vira JavaScript. Serve para o VS Code avisar se você digitar um campo errado.',onde:'src/lib/requisicoes/itens-compra.ts'},
+  {id:'c4',deck:'l1',f:'lista.map(i => i.nome)',t:'map: troca cada item',d:'Cria uma lista NOVA, do mesmo tamanho, trocando cada item pelo que a função devolve.',ex:"[{nome:'Vela'}, {nome:'Correia'}].map(i => i.nome)\n// ['Vela', 'Correia']"},
+  {id:'c5',deck:'l1',f:'lista.filter(i => i.estoque > 0)',t:'filter: fica só com quem passa',d:'Cria uma lista NOVA só com os itens em que a função deu verdadeiro. Pode ficar menor.',ex:'[5, 0, 8].filter(n => n > 0)\n// [5, 8]'},
+  {id:'c6',deck:'l1',f:'lista.reduce((s, i) => s + i, 0)',t:'reduce: junta tudo num valor',d:'Passa item por item guardando o acumulado em s. O 0 no final é o valor inicial de s. Quase sempre é uma soma.',ex:'[2, 3, 4].reduce((s, n) => s + n, 0)\n// 9'},
+  {id:'c7',deck:'l1',f:"lista.find(p => p.codigo === 'F01')",t:'find: acha o primeiro',d:'Devolve o PRIMEIRO item que passa no teste. Se nenhum passar, devolve undefined.'},
+  {id:'c8',deck:'l1',f:'linhas.some(l => !l.valores)',t:'some: tem pelo menos um?',d:'Devolve true se pelo menos UM item passar no teste. Se nenhum passar, false.',onde:'src/lib/mecanicos/valores-os-pedido.ts'},
+  {id:'c9',deck:'l1',f:"a || 'padrão'",t:'|| : valor reserva',d:'Se a for "vazio" (0, texto vazio, null, undefined ou false), usa o valor da direita.',ex:'num(i.qtd) || 1\n// quantidade em branco conta como 1',onde:'itens-compra.ts'},
+  {id:'c10',deck:'l1',f:'a ?? 0',t:'?? : reserva só para nulo',d:'Parecido com ||, mas só troca se a for null ou undefined. O número 0 e o texto vazio continuam.',ex:'0 || 5   // 5\n0 ?? 5   // 0'},
+  {id:'c11',deck:'l1',f:'cliente?.nome',t:'?. : acesso seguro',d:'Se cliente existir, pega o nome. Se for null ou undefined, dá undefined em vez de quebrar a tela com erro.'},
+  {id:'c12',deck:'l1',f:'!!valor',t:'!! : vira true ou false',d:'Duas negações seguidas. Transformam qualquer coisa em verdadeiro ou falso. "abc" vira true; "" vira false.',onde:'itemUsado em itens-compra.ts'},
+  {id:'c13',deck:'l1',f:"qtd > 1 ? 'itens' : 'item'",t:'Ternário: if numa linha',d:'Se a condição for verdadeira, usa o valor depois do ?. Se for falsa, usa o valor depois do :.'},
+  {id:'c14',deck:'l1',f:'`${q} × ${nome}`',t:'Template string',d:'Texto entre crases. O ${ } coloca o valor de uma variável no meio do texto.',ex:"const q = 2, nome = 'Vela'\n`${q} × ${nome}`   // '2 × Vela'"},
+  {id:'c15',deck:'l1',f:'{ ...ITEM_VAZIO }',t:'Spread: copia o objeto',d:'Os três pontos "espalham" os campos dentro de um objeto novo. É uma cópia: mexer nela não mexe no original.',onde:'MAIS_INFO_VAZIO em itens-compra.ts'},
+  {id:'c16',deck:'l1',f:'const { total, linhasObs } = dados',t:'Desestruturação',d:'Tira campos de um objeto direto para variáveis. É o mesmo que  const total = dados.total  e  const linhasObs = dados.linhasObs.'},
+  {id:'c17',deck:'l1',f:"export function brl(v) { … }\n\nimport { brl } from './itens-compra'",t:'export e import',d:'export deixa a função disponível para outros arquivos. import puxa ela para dentro do arquivo atual.'},
+  {id:'c18',deck:'l1',f:"import { supabase } from '@/lib/supabase'",t:'@ = pasta src/',d:'No portal, "@/" é um atalho para "src/". Então "@/lib/supabase" é o arquivo src/lib/supabase.ts.',onde:'definido no tsconfig.json, em "paths"'},
+  // ---- Mapa
+  {id:'m1',deck:'mapa',f:'src/app/(portal)/',t:'As telas do portal',d:'Cada pasta aqui dentro vira um endereço. A pasta avisos vira /avisos.'},
+  {id:'m2',deck:'mapa',f:'page.tsx',t:'O arquivo da tela',d:'Dentro de uma pasta de tela, o page.tsx é o que aparece no navegador.'},
+  {id:'m3',deck:'mapa',f:'(portal)   ← com parênteses',t:'Grupo de pastas',d:'Pasta com parênteses NÃO entra no endereço. Serve para organizar e para dar o mesmo layout (o menu) a todas as telas de dentro.',onde:'src/app/(portal)/layout.tsx'},
+  {id:'m4',deck:'mapa',f:'src/components/',t:'Pedaços de tela',d:'Botões, cartões, tabelas, janelas. Uma tela (page.tsx) monta vários componentes.'},
+  {id:'m5',deck:'mapa',f:'src/lib/',t:'Regras e banco de dados',d:'Contas, formatação, buscas no Supabase. Total errado? Normalmente o problema está aqui.'},
+  {id:'m6',deck:'mapa',f:'src/app/api/',t:'Código do servidor',d:'Roda no servidor, não no navegador da pessoa. É onde ficam e-mail, Omie e chaves secretas.'},
+  {id:'m7',deck:'mapa',f:'.ts   e   .tsx',t:'Com ou sem tela',d:'.tsx tem pedaços que parecem HTML (o JSX) e é usado em telas e componentes. .ts é só lógica.'},
+  {id:'m8',deck:'mapa',f:'src/lib/supabase.ts',t:'A conexão com o banco',d:'Cria o "supabase" que o portal inteiro usa para ler e gravar. O endereço e a chave vêm do arquivo .env.'},
+  {id:'m9',deck:'mapa',f:'npm run dev',t:'Liga o portal no seu PC',d:'Roda o portal em http://localhost:3000 para você testar mudanças antes de subir para todo mundo.'}
+];
+
+const QUIZ = [
+  {id:'z1',li:0,p:'O que sai?',c:"const pecas = ['Vela', 'Correia', 'Filtro']\npecas[1]",o:["'Vela'","'Correia'","'Filtro'"],a:1,e:'A contagem começa no 0. [0] é Vela, [1] é Correia.'},
+  {id:'z2',li:0,p:'O que sai?',c:"'2' + 3",o:['5',"'23'",'Erro'],a:1,e:'Com texto, o + junta em vez de somar. Para dar 5: Number(\'2\') + 3.'},
+  {id:'z3',li:0,p:'Em  lista.push("Vela"), o que o ponto faz?',c:'lista.push("Vela")',o:['Alimenta a lista com "Vela"','Entra na lista e escolhe a ação push','Separa duas palavras'],a:1,e:'O ponto entra na lista e escolhe a ação. Quem entrega o "Vela" para a ação são os parênteses.'},
+  {id:'z4',li:0,p:'O que sai?',c:"const t = { dono: { nome: 'Sítio Boa Vista' } }\nt.dono.nome",o:["'Sítio Boa Vista'",'{ nome: ... }','undefined'],a:0,e:'Da esquerda para a direita: dentro de t, pegue dono; dentro de dono, pegue nome.'},
+  {id:'z5',li:0,p:'O que sai?',c:"const trator = { modelo: '6075' }\nconst campo = 'modelo'\ntrator[campo]",o:['undefined',"'campo'","'6075'"],a:2,e:'Com colchetes, o JavaScript usa o VALOR da variável campo, que é "modelo". Então é igual a trator.modelo.'},
+  {id:'z6',li:0,p:'Qual o valor de h no final?',c:'let h = 10\nh = h + 5',o:['10','15','Erro, porque h já existia'],a:1,e:'O = guarda: pega o h atual (10), soma 5 e guarda o 15 de volta no h. Funciona porque é let.'},
+  {id:'z7',li:0,p:'O que sai?',c:"5 === '5'",o:['true','false'],a:1,e:'=== compara valor E tipo. Um é número, o outro é texto.'},
+  {id:'z8',li:0,p:'O que sai?',c:'function dobro(x) {\n  return x * 2\n}\ndobro(4)',o:['4','8','x * 2'],a:1,e:'O 4 entra no lugar do x. A função devolve 4 × 2 = 8.'},
+  {id:'z9',li:0,p:'Qual o valor de total no final?',c:'let total = 0\nfor (const v of [10, 20, 5]) {\n  total = total + v\n}',o:['35','5','0'],a:0,e:'Volta 1: 0+10 = 10. Volta 2: 10+20 = 30. Volta 3: 30+5 = 35.'},
+  {id:'q1',p:'O que sai?',c:'[1, 2, 3].map(n => n * 10)',o:['[10, 20, 30]','60','[1, 2, 3, 10]'],a:0,e:'map troca cada item e devolve uma lista do mesmo tamanho.'},
+  {id:'q2',p:'O que sai?',c:'[5, 0, 8].filter(n => n > 0)',o:['[5, 8]','[5, 0, 8]','2'],a:0,e:'filter fica só com quem passa no teste. 0 não é maior que 0, então sai.'},
+  {id:'q3',p:'O que sai?',c:'[2, 3, 4].reduce((s, n) => s + n, 0)',o:['24','[2, 3, 4]','9'],a:2,e:'s começa em 0. Depois: 0+2 = 2, 2+3 = 5, 5+4 = 9.'},
+  {id:'q4',p:'No portal, num("") devolve 0. Qual o resultado?',c:'num("") || 1',o:['0','1','""'],a:1,e:'0 conta como "vazio", então o || usa o 1. É assim que uma quantidade em branco vira 1 na requisição.'},
+  {id:'q5',p:'O que sai?',c:'0 ?? 5',o:['5','null','0'],a:2,e:'?? só troca quando é null ou undefined. 0 é um número de verdade, então fica.'},
+  {id:'q6',p:'O que acontece?',c:'const cliente = null\ncliente?.nome',o:['Erro e a tela quebra','undefined','""'],a:1,e:'O ?. confere antes: cliente é null, então devolve undefined sem dar erro. Sem o ?, daria erro.'},
+  {id:'q7',p:'O que sai?',c:"!!'abc'",o:["'abc'",'false','true'],a:2,e:'Texto com alguma coisa dentro é "verdadeiro". !! transforma em true.'},
+  {id:'q8',p:'Linha real do portal (itens-compra.ts). Qual o total?',c:"// itens: [{ qtd: '2', valor: '10' }, { qtd: '', valor: '5' }]\n\nm.itens.filter(itemUsado)\n  .reduce((s, i) => s + (num(i.qtd) || 1) * num(i.valor), 0)",o:['20','15','25','0'],a:2,e:'Item 1: 2 × 10 = 20. Item 2: a quantidade vazia vira 1, então 1 × 5 = 5. Total: 25.'},
+  {id:'q9',p:'Também de itens-compra.ts. Qual título sai?',c:"// usados tem 3 itens e primeiro = 'Filtro'\n\n(usados.length > 1\n  ? `${primeiro} E MAIS ${usados.length - 1} ITEM(NS)`\n  : primeiro).toUpperCase()",o:["'FILTRO E MAIS 3 ITEM(NS)'","'Filtro'","'FILTRO E MAIS 2 ITEM(NS)'"],a:2,e:'3 é maior que 1, então usa o primeiro texto. usados.length - 1 = 2. No fim, toUpperCase() põe tudo em maiúsculas.'},
+  {id:'q10',p:'Do arquivo tempo.ts do portal. 65 segundos vira:',c:'formatarDuracao(65)',o:['"1:5"','"01:05"','"65:00"'],a:1,e:'65 segundos = 1 minuto e 5 segundos. O padStart(2, "0") põe um zero na frente: 1 vira "01" e 5 vira "05".'},
+  {id:'q11',p:'O total da tela "nova requisição" está somando errado. Onde você procura primeiro?',c:'',o:['src/lib/requisicoes/itens-compra.ts','src/app/api/','src/app/globals.css'],a:0,e:'Conta é regra, e regra mora em src/lib. Esse é justamente o arquivo que soma os itens da requisição.'},
+  {id:'q12',p:'Você quer trocar o texto de um botão na tela /avisos. Por onde começa?',c:'',o:['src/lib/avisos/','src/app/(portal)/avisos/page.tsx','src/app/api/'],a:1,e:'Texto de tela começa no page.tsx da pasta com o nome do endereço. Se não estiver lá, ele vem de um componente importado no topo do arquivo.'}
+];
+
+const PEDIDO = [
+  {produto:'Filtro de óleo',qtd:'2',valor:'45,90'},
+  {produto:'Correia',qtd:'',valor:'120'},
+  {produto:'',qtd:'1',valor:''}
+];
+const CAM = [
+  {id:'total',nome:'Total da requisição',
+   partes:[['p1','m.itens'],['','\n  '],['p2','.filter(itemUsado)'],['','\n  .reduce((s, i) => '],['p4','s + '],['p5','(num(i.qtd) || 1)'],['',' * '],['p6','num(i.valor)'],['',', '],['p7','0'],['',')']],
+   passos:[
+    {l:['p1'],t:'Começa com a lista de itens',x:'m.itens é a lista que a pessoa digitou na tela. Tem 3 linhas, e a última ficou em branco.',it:['','',''],s:null,c:''},
+    {l:['p2'],t:'filter tira as linhas vazias',x:'itemUsado olha se a linha tem produto, link ou valor. A 3ª está vazia, então sai da lista.',it:['','','fora'],s:null,c:'itemUsado(linha 3) → false'},
+    {l:['p7'],t:'reduce começa com s = 0',x:'O 0 no final da linha é o valor inicial do acumulador s. Agora ele vai passar item por item.',it:['','','fora'],s:0,c:'s = 0'},
+    {l:['p5'],t:'Item 1: a quantidade',x:'num("2") vira o número 2. Como 2 não é vazio, o || 1 nem é usado.',it:['foco','','fora'],s:0,c:'num("2") || 1  →  2'},
+    {l:['p6'],t:'Item 1: o valor',x:'num("45,90") troca a vírgula por ponto e vira o número 45.9.',it:['foco','','fora'],s:0,c:'num("45,90")  →  45.9'},
+    {l:['p4'],t:'Item 1: soma no acumulador',x:'Quantidade × valor = 91,80. Soma com o s que estava em 0.',it:['feito','','fora'],s:91.8,c:'s = 0 + 2 × 45.9  →  91.8'},
+    {l:['p5'],t:'Item 2: quantidade em branco',x:'num("") dá 0. Zero conta como vazio, então o || 1 entra em ação: quantidade vira 1.',it:['feito','foco','fora'],s:91.8,c:'num("") || 1  →  0 || 1  →  1'},
+    {l:['p4','p6'],t:'Item 2: soma no acumulador',x:'1 × 120 = 120. Soma com os 91,80 que já estavam em s.',it:['feito','feito','fora'],s:211.8,c:'s = 91.8 + 1 × 120  →  211.8'},
+    {l:['p1','p2','p4','p5','p6','p7'],t:'Resultado final',x:'Acabaram os itens, então o reduce devolve o s: 211.8. Na tela, a função brl() formata como dinheiro: R$ 211,80. Tudo isso numa linha só!',it:['feito','feito','fora'],s:211.8,c:'brl(211.8)  →  "R$ 211,80"'}
+   ]},
+  {id:'tempo',nome:'formatarDuracao(3725)',
+   partes:[['a','const s = Math.floor(segundos)'],['','\n'],['b','const h = Math.floor(s / 3600)'],['','\n'],['c','const m = Math.floor((s % 3600) / 60)'],['','\n'],['d','const r = s % 60'],['','\n'],['e','const p = (n) => String(n).padStart(2, "0")'],['','\n'],['f','return h > 0 ? `${h}:${p(m)}:${p(r)}` : `${p(m)}:${p(r)}`']],
+   passos:[
+    {l:['a'],t:'Garante um número inteiro',x:'Math.floor corta as casas decimais. 3725 já é inteiro, fica igual. (No portal ainda tem um Math.max para nunca ser negativo.)',v:{s:'3725'},n:'s'},
+    {l:['b'],t:'Quantas horas?',x:'1 hora = 3600 segundos. 3725 ÷ 3600 = 1,03… e o Math.floor corta para 1.',v:{s:'3725',h:'1'},n:'h'},
+    {l:['c'],t:'Quantos minutos sobram?',x:'O % é o "resto da divisão". 3725 % 3600 = 125 segundos que sobram. 125 ÷ 60 = 2,08… vira 2.',v:{s:'3725',h:'1',m:'2'},n:'m'},
+    {l:['d'],t:'Quantos segundos sobram?',x:'3725 ÷ 60 = 62 minutos inteiros (3720 segundos). O resto é 5.',v:{s:'3725',h:'1',m:'2',r:'5'},n:'r'},
+    {l:['e'],t:'Uma mini função para pôr zero na frente',x:'padStart(2, "0") completa o texto até ter 2 letras, colocando "0" na esquerda. 2 vira "02"; 5 vira "05"; 12 continua "12".',v:{s:'3725',h:'1',m:'2',r:'5','p(m)':'"02"','p(r)':'"05"'},n:'p(r)'},
+    {l:['f'],t:'Monta o texto final',x:'h é maior que 0? Sim (1). Então usa o formato com horas. Resultado: "1:02:05".',v:{s:'3725',h:'1',m:'2',r:'5','p(m)':'"02"','p(r)':'"05"','resultado':'"1:02:05"'},n:'resultado'}
+   ]}
+];
+
+const SETUP_PECAS = "const pecas = [\n  { codigo: 'F01', nome: 'Filtro de óleo', preco: 45.9, estoque: 10 },\n  { codigo: 'C02', nome: 'Correia',        preco: 120,  estoque: 0  },\n  { codigo: 'V03', nome: 'Vela',           preco: 18.5, estoque: 4  },\n];";
+const SETUP_NUM = "function num(v) {\n  let s = String(v || '').replace(/[^\\d,.]/g, '');\n  if (!s) return 0;\n  if (s.includes(',')) s = s.replace(/\\./g, '').replace(',', '.');\n  return parseFloat(s) || 0;\n}";
+const DESAFIOS = [
+  {id:'d1',t:'Nomes das peças',nv:'map',
+   e:'Devolva uma lista só com os NOMES das peças.',setup:SETUP_PECAS,
+   ini:"function nomesDasPecas(lista) {\n  const nomes = [];\n  // percorra a lista e coloque cada nome dentro de \"nomes\"\n\n  return nomes;\n}\n\nconsole.log(nomesDasPecas(pecas));",
+   tests:[['nomes das 3 peças','nomesDasPecas(pecas)',['Filtro de óleo','Correia','Vela']],['lista vazia','nomesDasPecas([])',[]]],
+   dica:'Use  for (const peca of lista) { … }  e dentro  nomes.push(peca.nome).',
+   resp:"function nomesDasPecas(lista) {\n  const nomes = [];\n  for (const peca of lista) {\n    nomes.push(peca.nome);\n  }\n  return nomes;\n}\n\n// versão resumida (estilo portal):\n// const nomesDasPecas = (lista) => lista.map(p => p.nome);"},
+  {id:'d2',t:'Peças com estoque',nv:'filter',
+   e:'Devolva só as peças que têm estoque maior que 0.',setup:SETUP_PECAS,
+   ini:"function pecasComEstoque(lista) {\n  const resultado = [];\n  // só entra quem tem estoque > 0\n\n  return resultado;\n}\n\nconsole.log(pecasComEstoque(pecas));",
+   tests:[['códigos F01 e V03','pecasComEstoque(pecas).map(p => p.codigo)',['F01','V03']],['tudo zerado','pecasComEstoque([{estoque:0}]).length',0]],
+   dica:'Dentro do for, use  if (peca.estoque > 0) { resultado.push(peca) }.',
+   resp:"function pecasComEstoque(lista) {\n  const resultado = [];\n  for (const peca of lista) {\n    if (peca.estoque > 0) {\n      resultado.push(peca);\n    }\n  }\n  return resultado;\n}\n\n// resumida: const pecasComEstoque = (l) => l.filter(p => p.estoque > 0);"},
+  {id:'d3',t:'Valor do estoque',nv:'reduce',
+   e:'Some (preço × estoque) de cada peça. Esperado: 45,9×10 + 120×0 + 18,5×4 = 533.',setup:SETUP_PECAS,
+   ini:"function valorDoEstoque(lista) {\n  let soma = 0;\n  // some preco * estoque de cada peça\n\n  return soma;\n}\n\nconsole.log(valorDoEstoque(pecas));",
+   tests:[['total = 533','Math.round(valorDoEstoque(pecas) * 100) / 100',533],['lista vazia = 0','valorDoEstoque([])',0]],
+   dica:'Dentro do for:  soma = soma + peca.preco * peca.estoque.',
+   resp:"function valorDoEstoque(lista) {\n  let soma = 0;\n  for (const peca of lista) {\n    soma = soma + peca.preco * peca.estoque;\n  }\n  return soma;\n}\n\n// resumida: const valorDoEstoque = (l) => l.reduce((s, p) => s + p.preco * p.estoque, 0);"},
+  {id:'d4',t:'Nome do cliente',nv:'?. e ||',
+   e:'"Desresuma" esta linha usando só if (sem ?. , sem || e sem ? :):\n\nconst nomeDoCliente = (c) => c?.nome || \'Sem nome\'',setup:'',
+   ini:"function nomeDoCliente(cliente) {\n  // 1) se não tem cliente, devolve 'Sem nome'\n  // 2) se o nome está vazio, devolve 'Sem nome'\n  // 3) senão, devolve o nome\n}\n\nconsole.log(nomeDoCliente({ nome: 'João' }));\nconsole.log(nomeDoCliente(null));",
+   tests:[['com nome',"nomeDoCliente({ nome: 'João' })",'João'],['nome vazio',"nomeDoCliente({ nome: '' })",'Sem nome'],['sem cliente','nomeDoCliente(null)','Sem nome']],
+   dica:"Primeiro:  if (!cliente) return 'Sem nome';   O ! quer dizer \"não tem\".",
+   resp:"function nomeDoCliente(cliente) {\n  if (!cliente) return 'Sem nome';\n  if (!cliente.nome) return 'Sem nome';\n  return cliente.nome;\n}"},
+  {id:'d5',t:'itemUsado do portal',nv:'código real',
+   e:'Esta é a linha REAL de src/lib/requisicoes/itens-compra.ts:\n\nconst itemUsado = (i) => !!(i.link.trim() || i.produto.trim() || num(i.valor))\n\nReescreva por extenso, com if. A função num() já existe para você usar. Dica de leitura: .trim() tira os espaços das pontas do texto.',setup:SETUP_NUM,
+   ini:"function itemUsado(item) {\n  // devolve true se tiver link OU produto OU valor\n  // senão, false\n}\n\nconsole.log(itemUsado({ link: '', produto: 'Vela', valor: '' }));",
+   tests:[['só produto',"itemUsado({link:'',produto:'Vela',valor:''})",true],['só espaços',"itemUsado({link:'',produto:'   ',valor:''})",false],['só link',"itemUsado({link:'http://loja',produto:'',valor:''})",true],['só valor',"itemUsado({link:'',produto:'',valor:'10,50'})",true],['tudo vazio',"itemUsado({link:'',produto:'',valor:''})",false]],
+   dica:"Três ifs, um para cada campo. Ex.:  if (item.produto.trim() !== '') return true;   e no fim  return false;",
+   resp:"function itemUsado(item) {\n  if (item.link.trim() !== '') return true;\n  if (item.produto.trim() !== '') return true;\n  if (num(item.valor) !== 0) return true;\n  return false;\n}"},
+  {id:'d6',t:'Prévia da lição 2',nv:'bônus',
+   e:'Faça formatarDuracao: 65 → "01:05" e 3725 → "1:02:05". Veja a Câmera lenta "formatarDuracao" antes, ela mostra o caminho todo.',setup:'',
+   ini:"function formatarDuracao(segundos) {\n  const h = Math.floor(segundos / 3600);\n  // calcule m (minutos que sobram) e r (segundos que sobram)\n\n  // depois monte o texto\n}\n\nconsole.log(formatarDuracao(65));",
+   tests:[['65 segundos','formatarDuracao(65)','01:05'],['3725 segundos','formatarDuracao(3725)','1:02:05'],['zero','formatarDuracao(0)','00:00']],
+   dica:'m = Math.floor((segundos % 3600) / 60)  e  r = segundos % 60. Para o zero na frente: String(m).padStart(2, "0").',
+   resp:"function formatarDuracao(segundos) {\n  const h = Math.floor(segundos / 3600);\n  const m = Math.floor((segundos % 3600) / 60);\n  const r = segundos % 60;\n  const p = (n) => String(n).padStart(2, '0');\n  if (h > 0) return h + ':' + p(m) + ':' + p(r);\n  return p(m) + ':' + p(r);\n}"}
+];
+
+const PROXIMAS = [
+  ['2','Datas e textos','Date, hora, padStart, template string.','prévia na Câmera lenta e na Oficina'],
+  ['3','Buscar no banco','async/await e Supabase: select, insert, update.',''],
+  ['4','Primeira tela','React: componente, JSX e useState.',''],
+  ['5','Tela que carrega dados','useEffect + Supabase na tela.',''],
+  ['6','Pastas viram páginas','Como o Next.js monta os endereços.',''],
+  ['7','A API (o servidor)','O que é um route.ts e quando ele roda.',''],
+  ['8','Manutenção de verdade','Achar, mudar, testar e fazer git commit.','']
+];
+
+const ARVORE = [
+  {id:'src',n:'src/',p:0,o:'Todo o código do portal mora aqui.',q:'Nunca mexa em node_modules nem em .next: são gerados sozinhos.'},
+  {id:'app',n:'app/',p:1,o:'O Next.js transforma as pastas daqui em endereços do site.',ex:'src/app/login/page.tsx → /login'},
+  {id:'portal',n:'(portal)/',p:2,o:'Todas as telas que têm o menu do portal. O nome com parênteses NÃO aparece no endereço.',ex:'src/app/(portal)/avisos/page.tsx → /avisos',q:'Mudar texto, botão ou organização de uma tela.'},
+  {id:'layout',n:'layout.tsx',p:3,o:'Embrulha TODAS as telas de (portal) com o menu (PortalLayout) e com extras como o AutoAtualiza, que recarrega a página quando sai versão nova.',q:'Algo que precisa aparecer em todas as telas.'},
+  {id:'avisos',n:'avisos/page.tsx',p:3,o:'Exemplo de uma tela: o endereço /avisos. Tem cerca de 700 linhas.',q:'Tudo que é visual na tela de Avisos começa aqui.'},
+  {id:'api',n:'api/',p:2,o:'Código que roda no SERVIDOR. A pessoa não vê esse código no navegador, por isso as chaves secretas ficam aqui.',q:'Integrações: e-mail, Omie, WhatsApp, rotinas automáticas.'},
+  {id:'comp',n:'components/',p:1,o:'Pedaços de tela reaproveitáveis, separados por assunto. Uma tela importa vários deles.',ex:'src/components/requisicoes/CardReq.tsx',q:'Quando o texto/botão não está no page.tsx, ele está num componente importado no topo.'},
+  {id:'lib',n:'lib/',p:1,o:'Regras do negócio e acesso ao banco. Quase não tem nada visual.',ex:'src/lib/requisicoes/itens-compra.ts',q:'Conta errada, formato de data, dinheiro, busca no banco.'},
+  {id:'supa',n:'supabase.ts',p:2,o:'Cria a conexão "supabase" que o portal inteiro usa para ler e gravar. São 7 linhas só.',ex:"import { supabase } from '@/lib/supabase'",q:'Quase nunca. Se o banco mudar de endereço, a mudança é no arquivo .env, não aqui.'},
+  {id:'mid',n:'middleware.ts',p:1,o:'Roda ANTES de qualquer página abrir. No portal, ele corrige links de QR code impressos em MAIÚSCULAS (etiquetas de peça e garantia) para o endereço certo.',q:'Com muito cuidado: um erro aqui afeta o site inteiro.'}
+];
+
+/* =====================================================================
+   ESTADO (progresso salvo neste navegador)
+   ===================================================================== */
+const LS = 'escola-portal-v1';
+function base(){ return {xp:0,leu:false,cards:{},quiz:{},cam:{},ofi:{},rasc:{},premios:{},base:{}}; }
+let S = base();
+try { const r = localStorage.getItem(LS); if (r) S = Object.assign(base(), JSON.parse(r)); } catch(e) {}
+function salvar(){ try { localStorage.setItem(LS, JSON.stringify(S)); } catch(e) {} hud(); renderPassos(); }
+function premiar(chave, n){
+  if (S.premios[chave]) { salvar(); return; }
+  S.premios[chave] = true; S.xp += n; toast('+' + n + ' XP'); salvar();
+}
+const NIVEIS = [[0,'Aprendiz'],[100,'Ajudante'],[300,'Mecânico de código'],[600,'Chefe de oficina']];
+function hud(){
+  let i = 0; while (i + 1 < NIVEIS.length && S.xp >= NIVEIS[i+1][0]) i++;
+  const ini = NIVEIS[i][0], fim = NIVEIS[i+1] ? NIVEIS[i+1][0] : ini;
+  document.getElementById('nivel').textContent = NIVEIS[i][1];
+  document.getElementById('xp').textContent = S.xp + ' XP';
+  document.getElementById('barra').style.width = (fim > ini ? Math.min(100, (S.xp - ini) / (fim - ini) * 100) : 100) + '%';
+}
+let tt;
+function toast(t){ const el = document.getElementById('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => el.classList.remove('on'), 1600); }
+
+/* =====================================================================
+   UTILIDADES
+   ===================================================================== */
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const KW = /(\/\/.*$)|('(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`)|\b(const|let|function|return|if|else|for|of|export|import|from|async|await|type|new|true|false|null|undefined|continue|interface)\b|\b(\d+(?:\.\d+)?)\b/gm;
+function hl(code){
+  let out = '', last = 0;
+  code.replace(KW, (m, c, s, k, n, off) => {
+    out += esc(code.slice(last, off));
+    out += '<span class="t-' + (c ? 'c' : s ? 's' : k ? 'k' : 'n') + '">' + esc(m) + '</span>';
+    last = off + m.length; return m;
+  });
+  return out + esc(code.slice(last));
+}
+const brl = v => v.toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
+document.querySelectorAll('pre[data-hl]').forEach(p => p.innerHTML = hl(p.textContent));
+
+/* =====================================================================
+   ABAS
+   ===================================================================== */
+const TABS = ['trilha','basico','cards','quiz','camera','oficina','mapa'];
+function mostrar(t){
+  if (!TABS.includes(t)) t = 'trilha';
+  document.querySelectorAll('[data-view]').forEach(v => v.hidden = v.dataset.view !== t);
+  document.querySelectorAll('.aba').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === t));
+  atual = t; pararPlay();
+}
+let atual = 'trilha';
+document.querySelectorAll('.aba').forEach(b => b.onclick = () => { location.hash = b.dataset.tab; mostrar(b.dataset.tab); window.scrollTo(0,0); });
+window.addEventListener('hashchange', () => mostrar(location.hash.slice(1)));
+
+/* =====================================================================
+   TRILHA
+   ===================================================================== */
+function feitoCards(){ return CARDS.filter(c => c.deck === 'l1' && S.cards[c.id] === 'sei').length; }
+const liDe = q => q.li === 0 ? 0 : 1;
+function feitoQuiz(li){ return QUIZ.filter(q => liDe(q) === (li === 0 ? 0 : 1) && S.quiz[q.id]).length; }
+const totalQuiz = li => QUIZ.filter(q => liDe(q) === li).length;
+function feitoBase(){ return TOPICOS.filter(t => S.base && S.base[t.id]).length; }
+function feitoOfi(){ return DESAFIOS.filter(d => S.ofi[d.id]).length; }
+function renderPassos(){
+  const l1 = CARDS.filter(c => c.deck === 'l1').length;
+  const P = [
+    ['ler','Ler a lição','3 minutos de leitura, com a tabela dos 7 atalhos', S.leu, S.leu ? 'feito' : 'abrir'],
+    ['cards','Flashcards','Marque "já sei" em todos os cartões da Lição 1', feitoCards() >= l1, feitoCards() + ' / ' + l1],
+    ['quiz','Quiz','Acerte todas as perguntas da Lição 1 (pode refazer)', feitoQuiz(1) >= totalQuiz(1), feitoQuiz(1) + ' / ' + totalQuiz(1)],
+    ['camera','Câmera lenta','Assista a linha do "Total da requisição" até o fim', !!S.cam.total, S.cam.total ? 'feito' : 'ver'],
+    ['oficina','Oficina de código','Resolva os desafios 1 a 5 (o 6 é bônus)', DESAFIOS.slice(0,5).every(d => S.ofi[d.id]), feitoOfi() + ' / ' + DESAFIOS.length]
+  ];
+  const ul = document.getElementById('passos');
+  ul.innerHTML = P.map((p, i) => '<li><button class="passo' + (p[3] ? ' feito' : '') + '" data-ir="' + p[0] + '"><span class="bola">' + (p[3] ? '✓' : i + 1) + '</span><span class="txt"><b>' + p[1] + '</b><small>' + p[2] + '</small></span><span class="ir">' + p[4] + '</span></button></li>').join('');
+  const nb = feitoBase(), z0 = CARDS.filter(c => c.deck === 'l0').length, zs = CARDS.filter(c => c.deck === 'l0' && S.cards[c.id] === 'sei').length;
+  document.getElementById('licao0').innerHTML = '<div><span class="eti">Lição 0 · comece aqui se esqueceu a sintaxe</span><h3>O básico da programação</h3><p>Variáveis, o ponto, parênteses, listas, if, for, funções, sempre comparando com o Java. ' +
+    nb + ' de ' + TOPICOS.length + ' tópicos · ' + zs + ' de ' + z0 + ' cartões · ' + feitoQuiz(0) + ' de ' + totalQuiz(0) + ' perguntas.</p></div><button class="btn pri" id="irBasico">' + (nb ? 'Continuar o básico' : 'Começar o básico') + '</button>';
+  document.getElementById('irBasico').onclick = () => { location.hash = 'basico'; mostrar('basico'); window.scrollTo(0,0); };
+  const st = {basico: nb + ' de ' + TOPICOS.length + ' tópicos', trilha: P.filter(p => p[3]).length + ' de ' + P.length + ' etapas feitas', cards: P[1][4] + ' cartões sabidos', quiz: P[2][4] + ' perguntas certas', camera: S.cam.total ? 'assistida' : 'ainda não vista', oficina: P[4][4] + ' desafios', mapa: 'para consultar'};
+  document.querySelectorAll('[data-st]').forEach(el => el.textContent = st[el.dataset.st]);
+  ul.querySelectorAll('.passo').forEach(b => b.onclick = () => {
+    const ir = b.dataset.ir;
+    if (ir === 'ler') { const l = document.getElementById('leitura'); l.hidden = !l.hidden; if (!l.hidden) l.scrollIntoView({behavior:'smooth', block:'start'}); }
+    else { location.hash = ir; mostrar(ir); window.scrollTo(0,0); }
+  });
+}
+document.getElementById('btnLi').onclick = () => { S.leu = true; premiar('leu', 10); salvar(); document.getElementById('leitura').hidden = true; };
+document.getElementById('proximas').innerHTML = PROXIMAS.map(p => '<div class="prox"><span class="eti">Lição ' + p[0] + '<span class="selo' + (p[3] ? ' prev' : '') + '">' + (p[3] ? 'prévia' : 'em breve') + '</span></span><h3>' + p[1] + '</h3><p>' + p[2] + (p[3] ? ' Já tem ' + p[3] + '.' : '') + '</p></div>').join('');
+
+/* =====================================================================
+   FLASHCARDS
+   ===================================================================== */
+let deck = 'l0', fila = [], pos = 0, virado = false;
+const DECKS = [['l0','Lição 0 · o básico'],['l1','Lição 1 · atalhos'],['mapa','Mapa do portal'],['rever','Só os que errei'],['tudo','Todos misturados']];
+function renderDecks(){
+  const el = document.getElementById('decks');
+  const nRever = CARDS.filter(c => S.cards[c.id] === 'rever').length;
+  el.innerHTML = DECKS.map(d => '<button class="chip" data-d="' + d[0] + '" aria-pressed="' + (deck === d[0]) + '">' + d[1] + (d[0] === 'rever' ? ' (' + nRever + ')' : '') + '</button>').join('');
+  el.querySelectorAll('.chip').forEach(b => b.onclick = () => { deck = b.dataset.d; montarFila(); });
+}
+function embaralhar(a){ a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function montarFila(){
+  let c = deck === 'rever' ? CARDS.filter(x => S.cards[x.id] === 'rever') : deck === 'tudo' ? embaralhar(CARDS) : CARDS.filter(x => x.deck === deck);
+  fila = c; pos = 0; virado = false; renderDecks(); renderCard();
+}
+function renderCard(){
+  const area = document.getElementById('areaCard');
+  if (!fila.length) { area.innerHTML = '<div class="qbox"><h3>Nada para revisar</h3><p>Você não marcou nenhum cartão como "ainda não sei". Bom sinal.</p></div>'; return; }
+  if (pos >= fila.length) {
+    const sei = fila.filter(c => S.cards[c.id] === 'sei').length;
+    area.innerHTML = '<div class="qbox placar"><span class="eti">Baralho terminado</span><span class="grande">' + sei + ' / ' + fila.length + '</span><p>cartões que você já sabe.</p><div class="btns"><button class="btn pri" id="cRe">Passar de novo</button><button class="btn" id="cErr">Revisar os que errei</button></div></div>';
+    document.getElementById('cRe').onclick = montarFila;
+    document.getElementById('cErr').onclick = () => { deck = 'rever'; montarFila(); };
+    return;
+  }
+  const c = fila[pos];
+  const pontos = fila.map((x, i) => '<i class="' + (S.cards[x.id] || '') + (i === pos ? ' agora' : '') + '"></i>').join('');
+  area.innerHTML =
+    '<div class="contador"><span>Cartão ' + (pos + 1) + ' de ' + fila.length + '</span><span class="pontos" aria-hidden="true">' + pontos + '</span></div>' +
+    '<div class="palco"><div class="flip' + (virado ? ' virado' : '') + '" id="flip" tabindex="0" role="button" aria-label="Virar cartão">' +
+      '<div class="face frente"><span class="pergunta">O que isso faz?</span><pre class="cod" translate="no">' + hl(c.f) + '</pre><span class="dica">Clique no cartão ou aperte <span class="kbd">espaço</span> para virar</span></div>' +
+      '<div class="face verso"><span class="eti">' + ({mapa:'Mapa do portal', l0:'Lição 0 · o básico', l1:'Lição 1'})[c.deck] + '</span><h3>' + esc(c.t) + '</h3><p>' + esc(c.d) + '</p>' +
+        (c.ex ? '<pre class="cod" translate="no">' + hl(c.ex) + '</pre>' : '') +
+        (c.onde ? '<p class="onde"><b>No portal:</b> ' + esc(c.onde) + '</p>' : '') +
+        '<button class="btn so-claude perg" data-perguntar="cards">Perguntar ao Claude sobre este cartão</button></div>' +
+    '</div></div>' +
+    '<div class="respostas"><button class="btn nao" id="cNao">Ainda não sei</button><button class="btn sim" id="cSim">Já sei</button></div>' +
+    '<p class="atalhos"><span class="kbd">espaço</span> vira · <span class="kbd">1</span> ainda não sei · <span class="kbd">2</span> já sei</p>';
+  const f = document.getElementById('flip');
+  f.onclick = virar; f.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); virar(); } };
+  document.getElementById('cNao').onclick = () => responder('rever');
+  document.getElementById('cSim').onclick = () => responder('sei');
+}
+function virar(){ virado = !virado; const f = document.getElementById('flip'); if (f) f.classList.toggle('virado', virado); }
+function responder(r){
+  const c = fila[pos]; if (!c) return;
+  S.cards[c.id] = r;
+  if (r === 'sei') premiar('card-' + c.id, 3); else salvar();
+  pos++; virado = false; renderDecks(); renderCard();
+}
+document.addEventListener('keydown', e => {
+  if (atual !== 'cards' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === ' ') { e.preventDefault(); virar(); }
+  else if (e.key === '1') responder('rever');
+  else if (e.key === '2') responder('sei');
+});
+
+/* =====================================================================
+   QUIZ
+   ===================================================================== */
+let qLic = 0;
+const ordemDe = lic => QUIZ.map((q, i) => i).filter(i => lic === 'tudo' || liDe(QUIZ[i]) === lic);
+let qOrdem = ordemDe(qLic), qi = 0, qAcertos = 0, qErradas = [], qEscolha = null;
+function renderQLicoes(){
+  const el = document.getElementById('qLicoes');
+  el.innerHTML = [[0,'Lição 0 · o básico'],[1,'Lição 1 · atalhos'],['tudo','Todas']].map(([v, n]) => '<button class="chip" data-v="' + v + '" aria-pressed="' + (qLic === v) + '">' + n + '</button>').join('');
+  el.querySelectorAll('.chip').forEach(b => b.onclick = () => { qLic = b.dataset.v === 'tudo' ? 'tudo' : +b.dataset.v; qOrdem = ordemDe(qLic); qi = 0; qAcertos = 0; qErradas = []; renderQLicoes(); renderQuiz(); });
+}
+function renderQuiz(){
+  const box = document.getElementById('qbox');
+  if (qi >= qOrdem.length) {
+    box.className = 'qbox';
+    box.innerHTML = '<div class="placar"><span class="eti">Fim do quiz</span><span class="grande">' + qAcertos + ' / ' + qOrdem.length + '</span><p>' +
+      (qAcertos === qOrdem.length ? 'Gabaritou. Você já lê esse tipo de linha melhor que muita gente.' : 'Refaça as que errou: a explicação aparece de novo.') +
+      '</p><div class="btns">' + (qErradas.length ? '<button class="btn pri" id="qErr">Refazer as ' + qErradas.length + ' que errei</button>' : '') + '<button class="btn" id="qTudo">Refazer tudo</button></div></div>';
+    const e = document.getElementById('qErr'); if (e) e.onclick = () => { qOrdem = qErradas.slice(); qi = 0; qAcertos = 0; qErradas = []; renderQuiz(); };
+    document.getElementById('qTudo').onclick = () => { qOrdem = ordemDe(qLic); qi = 0; qAcertos = 0; qErradas = []; renderQuiz(); };
+    return;
+  }
+  const q = QUIZ[qOrdem[qi]];
+  qEscolha = null;
+  box.className = 'qbox duas';
+  box.innerHTML = '<div class="qcol"><div class="contador"><span>Pergunta ' + (qi + 1) + ' de ' + qOrdem.length + '</span><span>' + qAcertos + ' certas</span></div>' +
+    '<p class="enun">' + esc(q.p) + '</p>' + (q.c ? '<pre class="cod" translate="no">' + hl(q.c) + '</pre>' : '') + '</div>' +
+    '<div class="qcol"><div class="opcoes">' + q.o.map((o, i) => '<button class="op" data-i="' + i + '"><span class="letra">' + 'ABCD'[i] + '</span><span translate="no">' + esc(o) + '</span></button>').join('') + '</div><div id="qExp"></div></div>';
+  box.querySelectorAll('.op').forEach(b => b.onclick = () => {
+    const i = +b.dataset.i, ok = i === q.a; qEscolha = i;
+    box.querySelectorAll('.op').forEach(x => { x.disabled = true; if (+x.dataset.i === q.a) x.classList.add('certa'); });
+    if (!ok) { b.classList.add('errada'); qErradas.push(qOrdem[qi]); } else { qAcertos++; S.quiz[q.id] = true; premiar('quiz-' + q.id, 10); }
+    document.getElementById('qExp').innerHTML = '<div class="explica ' + (ok ? 'ok' : 'ruim') + '"><b>' + (ok ? 'Certo!' : 'Não foi dessa vez.') + '</b><span>' + esc(q.e) + '</span></div><div class="btns" style="margin-top:12px"><button class="btn pri" id="qProx">' + (qi + 1 < qOrdem.length ? 'Próxima pergunta' : 'Ver resultado') + '</button><button class="btn so-claude" data-perguntar="quiz">Não entendi, perguntar ao Claude</button></div>';
+    const p = document.getElementById('qProx'); p.focus(); p.onclick = () => { qi++; renderQuiz(); };
+  });
+}
+
+/* =====================================================================
+   O BÁSICO (LIÇÃO 0)
+   ===================================================================== */
+let tIdx = 0;
+function renderTopicos(){
+  const el = document.getElementById('topicos');
+  el.innerHTML = TOPICOS.map((t, i) => '<button class="des' + (S.base[t.id] ? ' ok' : '') + '" data-i="' + i + '" aria-current="' + (i === tIdx) + '"><span class="bola">' + (S.base[t.id] ? '✓' : i + 1) + '</span><span>' + esc(t.t) + '</span></button>').join('');
+  el.querySelectorAll('.des').forEach(b => b.onclick = () => { tIdx = +b.dataset.i; abrirTopico(); document.getElementById('artigo').scrollIntoView({block:'start', behavior:'smooth'}); });
+}
+function abrirTopico(){
+  renderTopicos();
+  const t = TOPICOS[tIdx];
+  let java = '';
+  if (t.java || t.javaTxt) {
+    java = '<div class="java"><span class="eti">E no Java?</span>' + (t.javaTxt ? '<p>' + t.javaTxt + '</p>' : '') +
+      (t.java ? '<div class="cam" style="gap:10px"><div style="min-width:0"><span class="eti">Java</span><pre class="cod" translate="no">' + hl(t.java) + '</pre></div><div style="min-width:0"><span class="eti">JavaScript</span><pre class="cod" translate="no">' + hl(t.js) + '</pre></div></div>' : '') + '</div>';
+  }
+  document.getElementById('artigo').innerHTML =
+    '<span class="eti">Tópico ' + (tIdx + 1) + ' de ' + TOPICOS.length + '</span><h3>' + esc(t.t) + '</h3>' +
+    '<div class="texto">' + t.h + '</div>' + java +
+    '<span class="eti">Experimente: mude o código e rode</span>' +
+    '<label for="basEditor" class="vh">Código do exemplo</label><textarea id="basEditor" name="exemplo" spellcheck="false" autocapitalize="off" autocomplete="off" translate="no"></textarea>' +
+    '<div class="btns"><button class="btn pri" id="basRodar">Rodar</button><button class="btn" id="basVoltar">Voltar ao exemplo original</button><button class="btn so-claude" data-perguntar="basico">Perguntar ao Claude sobre isso</button></div>' +
+    '<div class="saida" id="basSaida" aria-live="polite"></div>' +
+    '<div class="btns" style="border-top:1px solid var(--line);padding-top:16px">' +
+      (tIdx > 0 ? '<button class="btn" id="basAnt">Tópico anterior</button>' : '') +
+      '<button class="btn pri" id="basOk">' + (tIdx + 1 < TOPICOS.length ? 'Entendi, próximo tópico' : 'Entendi, terminar o básico') + '</button></div>';
+  const ed = document.getElementById('basEditor');
+  ed.value = (S.rasc['base-' + t.id] != null ? S.rasc['base-' + t.id] : t.cod);
+  ed.addEventListener('keydown', e => {
+    if (e.key === 'Tab') { e.preventDefault(); ed.setRangeText('  ', ed.selectionStart, ed.selectionEnd, 'end'); }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); rodarBase(); }
+  });
+  ed.addEventListener('input', () => { S.rasc['base-' + t.id] = ed.value; clearTimeout(window._rb); window._rb = setTimeout(() => { try { localStorage.setItem(LS, JSON.stringify(S)); } catch(e) {} }, 600); });
+  document.getElementById('basRodar').onclick = rodarBase;
+  document.getElementById('basVoltar').onclick = () => { ed.value = t.cod; delete S.rasc['base-' + t.id]; salvar(); document.getElementById('basSaida').innerHTML = ''; };
+  const ant = document.getElementById('basAnt'); if (ant) ant.onclick = () => { tIdx--; abrirTopico(); window.scrollTo(0,0); };
+  document.getElementById('basOk').onclick = () => {
+    S.base[t.id] = true; premiar('base-' + t.id, 5); salvar();
+    if (tIdx + 1 < TOPICOS.length) { tIdx++; abrirTopico(); window.scrollTo(0,0); }
+    else { renderTopicos(); toast('Básico concluído! Agora faça os flashcards e o quiz da Lição 0'); }
+  };
+}
+async function rodarBase(){
+  const saida = document.getElementById('basSaida');
+  saida.innerHTML = '<span class="eti">Rodando…</span>';
+  const r = await rodarNoWorker(document.getElementById('basEditor').value + '\n;return [];');
+  let h = '';
+  if (r.erro && /EvalError|unsafe-eval|Content Security/i.test(r.erro)) h = '<div class="aviso">Este navegador não deixa rodar código dentro da página. Copie o código para um arquivo .js e rode no terminal com <code>node arquivo.js</code>.</div>';
+  else {
+    h = '<span class="eti">O que apareceu no console</span><div class="logs">' + (r.logs && r.logs.length ? esc(r.logs.join('\n')) : '(nada: não tem console.log, ou ele não chegou a rodar)') + '</div>';
+    if (r.erro) h += '<div class="explica ruim"><b>Deu erro</b><span class="mono">' + esc(r.erro) + '</span><span>Erro faz parte. Leia a mensagem: ela diz o que o computador não entendeu. Se quiser, pergunte ao Claude.</span></div>';
+  }
+  saida.innerHTML = h;
+}
+
+/* =====================================================================
+   CÂMERA LENTA
+   ===================================================================== */
+let camP = 0, camS = 0, play = null;
+function renderCamProgs(){
+  const el = document.getElementById('camProgs');
+  el.innerHTML = CAM.map((p, i) => '<button class="chip" data-i="' + i + '" aria-pressed="' + (i === camP) + '">' + esc(p.nome) + (S.cam[p.id] ? ' ✓' : '') + '</button>').join('');
+  el.querySelectorAll('.chip').forEach(b => b.onclick = () => { pararPlay(); camP = +b.dataset.i; camS = 0; renderCam(); });
+}
+function renderCam(){
+  renderCamProgs();
+  const p = CAM[camP], st = p.passos[camS];
+  document.getElementById('camCod').innerHTML = p.partes.map(([id, t]) => id ? '<span class="parte' + (st.l.includes(id) ? ' luz' : '') + '">' + hl(t) + '</span>' : hl(t)).join('');
+  document.getElementById('camExp').innerHTML = '<span class="eti">Passo ' + (camS + 1) + '</span><h3>' + esc(st.t) + '</h3><p>' + esc(st.x) + '</p><button class="btn so-claude perg" data-perguntar="camera">Perguntar ao Claude sobre este passo</button>';
+  const mesa = document.getElementById('camMesa');
+  if (p.id === 'total') {
+    mesa.innerHTML = '<span class="eti">Os dados</span><div class="itens">' + PEDIDO.map((it, i) =>
+      '<div class="item ' + st.it[i] + '"><span>' + (it.produto ? esc(it.produto) : '<i>(linha em branco)</i>') + '</span><span class="mono">qtd "' + esc(it.qtd) + '"</span><span class="mono">valor "' + esc(it.valor) + '"</span></div>').join('') +
+      '</div><div class="acum"><span class="eti">acumulador s =</span><span class="v">' + (st.s === null ? '—' : String(st.s).replace('.', ',')) + '</span></div><div class="conta">' + esc(st.c) + '</div>';
+  } else {
+    mesa.innerHTML = '<span class="eti">As variáveis</span><div class="vars">' + Object.entries(st.v).map(([k, v]) =>
+      '<span class="n">' + esc(k) + '</span><span class="vv' + (k === st.n ? ' novo' : '') + '">' + esc(v) + '</span>').join('') + '</div>';
+  }
+  document.getElementById('camNum').textContent = (camS + 1) + ' de ' + p.passos.length;
+  document.getElementById('camVolta').disabled = camS === 0;
+  const fim = camS === p.passos.length - 1;
+  document.getElementById('camProx').textContent = fim ? 'Ver de novo' : 'Próximo passo';
+  if (fim) { S.cam[p.id] = true; premiar('cam-' + p.id, 20); renderCamProgs(); }
+}
+function camAvancar(){ const n = CAM[camP].passos.length; if (camS < n - 1) camS++; else { camS = 0; } renderCam(); }
+document.getElementById('camProx').onclick = () => { pararPlay(); camAvancar(); };
+document.getElementById('camVolta').onclick = () => { pararPlay(); if (camS > 0) { camS--; renderCam(); } };
+document.getElementById('camPlay').onclick = () => {
+  if (play) { pararPlay(); return; }
+  if (camS === CAM[camP].passos.length - 1) { camS = 0; renderCam(); }
+  document.getElementById('camPlay').textContent = 'Pausar';
+  play = setInterval(() => { if (camS >= CAM[camP].passos.length - 1) { pararPlay(); return; } camAvancar(); }, 3200);
+};
+function pararPlay(){ if (play) { clearInterval(play); play = null; } const b = document.getElementById('camPlay'); if (b) b.textContent = 'Tocar sozinho'; }
+
+/* =====================================================================
+   OFICINA (roda o código num "Worker", separado da página)
+   ===================================================================== */
+let dIdx = 0, tentativas = {};
+const WORKER_SRC = "onmessage=function(e){var logs=[];var fmt=function(v){if(typeof v==='string')return v;if(v===undefined)return 'undefined';try{return JSON.stringify(v)}catch(_){return String(v)}};var con={log:function(){logs.push(Array.prototype.map.call(arguments,fmt).join(' '))}};try{var f=new Function('console',e.data);var r=f(con);postMessage({logs:logs,res:r.map(function(x){return {ok:x.ok,j:x.ok?(x.v===undefined?'undefined':JSON.stringify(x.v)):x.v}})})}catch(err){postMessage({logs:logs,erro:err.name+': '+err.message})}}";
+function montarFonte(d, codigo){
+  const testes = d.tests.map(t => '(function(){try{return {ok:true,v:(' + t[1] + ')}}catch(e){return {ok:false,v:"Erro: "+e.message}}})()').join(',');
+  return d.setup + '\n' + codigo + '\n;return [' + testes + '];';
+}
+function rodarNoWorker(fonte){
+  return new Promise(resolve => {
+    let w;
+    try { w = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], {type:'text/javascript'}))); }
+    catch(e) { resolve(rodarAqui(fonte)); return; }
+    const t = setTimeout(() => { w.terminate(); resolve({logs:[], erro:'Demorou demais. Será que tem um for ou while que nunca termina?'}); }, 3000);
+    w.onmessage = ev => { clearTimeout(t); w.terminate(); resolve(ev.data); };
+    w.onerror = ev => { ev.preventDefault(); clearTimeout(t); w.terminate(); resolve(rodarAqui(fonte)); };
+  });
+}
+function rodarAqui(fonte){
+  const logs = [], fmt = v => typeof v === 'string' ? v : v === undefined ? 'undefined' : JSON.stringify(v);
+  try {
+    const r = new Function('console', fonte)({log: (...a) => logs.push(a.map(fmt).join(' '))});
+    return {logs, res: r.map(x => ({ok:x.ok, j:x.ok ? (x.v === undefined ? 'undefined' : JSON.stringify(x.v)) : x.v}))};
+  } catch(err) { return {logs, erro: err.name + ': ' + err.message}; }
+}
+function renderDesafios(){
+  const el = document.getElementById('desafios');
+  el.innerHTML = DESAFIOS.map((d, i) => '<button class="des' + (S.ofi[d.id] ? ' ok' : '') + '" data-i="' + i + '" aria-current="' + (i === dIdx) + '"><span class="bola">' + (S.ofi[d.id] ? '✓' : i + 1) + '</span><span>' + esc(d.t) + '<small>' + esc(d.nv) + '</small></span></button>').join('');
+  el.querySelectorAll('.des').forEach(b => b.onclick = () => { guardarRasc(); dIdx = +b.dataset.i; abrirDesafio(); });
+}
+function guardarRasc(){ const d = DESAFIOS[dIdx]; S.rasc[d.id] = document.getElementById('editor').value; try { localStorage.setItem(LS, JSON.stringify(S)); } catch(e) {} }
+function abrirDesafio(){
+  renderDesafios();
+  const d = DESAFIOS[dIdx];
+  document.getElementById('desEnun').innerHTML = '<span class="eti">Desafio ' + (dIdx + 1) + ' · ' + esc(d.nv) + '</span><h3>' + esc(d.t) + '</h3><p style="white-space:pre-wrap">' + esc(d.e) + '</p>' + (d.setup ? '<span class="eti">Já existe no código (pode usar)</span><pre class="cod" translate="no">' + hl(d.setup) + '</pre>' : '');
+  document.getElementById('editor').value = S.rasc[d.id] != null ? S.rasc[d.id] : d.ini;
+  document.getElementById('saida').innerHTML = '';
+  document.getElementById('btnResp').disabled = !tentativas[d.id];
+}
+document.getElementById('editor').addEventListener('keydown', e => {
+  if (e.key === 'Tab') { e.preventDefault(); const t = e.target, a = t.selectionStart; t.setRangeText('  ', a, t.selectionEnd, 'end'); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); rodar(); }
+});
+document.getElementById('editor').addEventListener('input', () => { clearTimeout(window._r); window._r = setTimeout(guardarRasc, 600); });
+async function rodar(){
+  const d = DESAFIOS[dIdx], codigo = document.getElementById('editor').value;
+  guardarRasc();
+  const saida = document.getElementById('saida');
+  saida.innerHTML = '<span class="eti">Rodando…</span>';
+  const r = await rodarNoWorker(montarFonte(d, codigo));
+  tentativas[d.id] = (tentativas[d.id] || 0) + 1;
+  document.getElementById('btnResp').disabled = false;
+  let h = '';
+  if (r.erro && /EvalError|unsafe-eval|Content Security/i.test(r.erro)) {
+    h = '<div class="aviso">Este navegador não deixa rodar código dentro da página. Sem problema: copie seu código para o arquivo <code>estudo/licao-01-desresumindo/exercicio.js</code> e rode no terminal do VS Code com <code>node estudo/licao-01-desresumindo/exercicio.js</code>.</div>';
+  } else if (r.erro) {
+    h = '<div class="explica ruim"><b>O código deu erro antes de terminar</b><span class="mono">' + esc(r.erro) + '</span><span>Confira: faltou fechar parêntese ou chave? Algum nome escrito diferente?</span></div>';
+  } else {
+    const oks = r.res.filter((x, i) => x.ok && x.j === JSON.stringify(d.tests[i][2])).length;
+    h = '<span class="eti">Testes: ' + oks + ' de ' + d.tests.length + '</span><div class="res">' + d.tests.map((t, i) => {
+      const x = r.res[i], ok = x.ok && x.j === JSON.stringify(t[2]);
+      return '<span class="' + (ok ? 'marca-ok">certo' : 'marca-no">errado') + '</span><span>' + esc(t[0]) + '</span>' + (ok ? '' : '<span class="det">esperado: ' + esc(JSON.stringify(t[2])) + '\nrecebido: ' + esc(x.j) + '</span>');
+    }).join('') + '</div>';
+    if (oks === d.tests.length) {
+      const novo = !S.ofi[d.id]; S.ofi[d.id] = true; premiar('ofi-' + d.id, 30); salvar(); renderDesafios();
+      h = '<span class="festa">' + (novo ? 'Resolvido!' : 'Continua certo.') + '</span>' + h + (dIdx + 1 < DESAFIOS.length ? '<div class="btns"><button class="btn pri" id="btnProxD">Próximo desafio</button></div>' : '');
+    }
+  }
+  if (r.logs && r.logs.length) h += '<span class="eti">O que o console.log mostrou</span><div class="logs">' + esc(r.logs.join('\n')) + '</div>';
+  saida.innerHTML = h;
+  const pd = document.getElementById('btnProxD'); if (pd) pd.onclick = () => { dIdx++; abrirDesafio(); };
+}
+document.getElementById('btnRodar').onclick = rodar;
+document.getElementById('btnDica').onclick = () => { const d = DESAFIOS[dIdx]; document.getElementById('saida').innerHTML = '<div class="aviso"><b>Dica:</b> ' + esc(d.dica) + '</div>'; };
+document.getElementById('btnResp').onclick = () => { const d = DESAFIOS[dIdx]; document.getElementById('saida').innerHTML = '<span class="eti">Uma resposta possível (tente entender, não só copiar)</span><pre class="cod" translate="no">' + hl(d.resp) + '</pre>'; };
+document.getElementById('btnLimpar').onclick = () => { const d = DESAFIOS[dIdx]; document.getElementById('editor').value = d.ini; guardarRasc(); document.getElementById('saida').innerHTML = ''; };
+
+/* =====================================================================
+   MAPA
+   ===================================================================== */
+let noAtual = 'portal';
+function renderMapa(){
+  const arv = document.getElementById('arvore');
+  arv.innerHTML = ARVORE.map(n => '<button class="no" data-id="' + n.id + '" aria-current="' + (n.id === noAtual) + '" style="padding-left:' + (8 + n.p * 18) + 'px">' + (n.n.endsWith('/') ? '<span class="pasta">▸ </span>' : '· ') + esc(n.n) + '</button>').join('');
+  arv.querySelectorAll('.no').forEach(b => b.onclick = () => { noAtual = b.dataset.id; renderMapa(); });
+  const n = ARVORE.find(x => x.id === noAtual);
+  let caminho = [], nivel = n.p;
+  for (let i = ARVORE.indexOf(n); i >= 0; i--) if (ARVORE[i].p === nivel) { caminho.unshift(ARVORE[i].n); nivel--; if (nivel < 0) break; }
+  document.getElementById('ficha').innerHTML = '<span class="eti">Caminho</span><h3>' + esc(caminho.join('')) + '</h3><dl><div><dt>O que é</dt><dd>' + esc(n.o) + '</dd></div>' +
+    (n.ex ? '<div><dt>Exemplo</dt><dd><code>' + esc(n.ex) + '</code></dd></div>' : '') +
+    (n.q ? '<div><dt>Quando mexer aqui</dt><dd>' + esc(n.q) + '</dd></div>' : '') + '</dl><button class="btn so-claude perg" data-perguntar="mapa">Perguntar ao Claude sobre esta pasta</button>';
+}
+
+/* =====================================================================
+   PERGUNTAR AO CLAUDE (usa a conta do Claude de quem está vendo)
+   ===================================================================== */
+const REGRAS = [
+  'Você é o tutor da "Escola do Portal", um curso para um funcionário da Nova Tratores (concessionária de tratores) que está voltando a programar e quer entender o código do portal interno da empresa para conseguir fazer manutenções sozinho.',
+  'O aluno é iniciante e tem mais afinidade com JavaScript do que com TypeScript.',
+  'O portal: Next.js + React + TypeScript + Supabase. src/app/(portal)/ = telas (cada pasta vira um endereço; page.tsx é a tela). src/components/ = pedaços de tela. src/lib/ = regras e acesso ao banco. src/app/api/ = código que roda no servidor. "@/" quer dizer "src/".',
+  'Lição 0, "O básico": sintaxe do zero (console.log, let/const, tipos, o ponto como "de dentro de" e os parênteses como "o que se entrega", contas, comparações, if, for, listas, objetos, funções, o papel de cada sinal). O aluno estudou Java há tempos e não lembra quase nada; compare com Java quando ajudar.',
+  'Lição 1, "Desresumindo o código": arrow functions, map, filter, reduce, find, some, ||, ??, ?., !!, ternário, template string, spread, desestruturação, import/export. Arquivo real usado de exemplo: src/lib/requisicoes/itens-compra.ts (soma os itens da tela de nova requisição).',
+  'Como responder:',
+  '- Português do Brasil, simples e direto. Curto: até uns 150 palavras, a não ser que o aluno peça mais.',
+  '- Explique cada termo técnico na primeira vez que usar.',
+  '- Formato: parágrafos curtos e listas com "-". Evite tabelas grandes; se usar tabela, no máximo 3 colunas.',
+  '- Código sempre em JavaScript (sem tipos do TypeScript), curto, em bloco ```js. Se aparecer TypeScript, diga que as etiquetas de tipo podem ser ignoradas na leitura.',
+  '- Use exemplos do mundo dele: peças, tratores, ordens de serviço, requisições, estoque.',
+  '- Em desafio da Oficina ou pergunta de quiz ainda não respondida: dê pistas e aponte onde está o problema, mas NÃO entregue a resposta pronta, a não ser que o aluno peça a resposta com todas as letras.',
+  '- Leia a pergunta com cuidado e responda EXATAMENTE o que foi perguntado, começando pela resposta direta (sim / não / é isso). Se o aluno disser "eu sei que…" ou corrigir você, ele já entendeu aquela parte: não repita, avance para o que ele quer saber.',
+  '- Não corrija erro de digitação óbvio do aluno (ex.: ele escreveu 14 querendo dizer 140). Só aponte erro quando for de entendimento.',
+  '- Se o aluno pedir para não usar uma comparação (ex.: "sem ficha"), não use mais essa comparação na conversa.',
+  '- Você não consegue criar nem enviar arquivos. Se pedirem um arquivo, diga que no topo deste painel tem o botão "Baixar conversa (.md)".',
+  '- Ligue o que ele lembra das aulas antigas (Java + SQL: criar variáveis no programa, colunas com o mesmo nome no banco, conectar, gravar e puxar) com como o portal faz: é a mesma ideia, e no portal quem faz a ponte é o supabase.',
+  '- Você só enxerga o que vem em "O QUE ESTÁ NA TELA AGORA" e os trechos reais abaixo. Não diga repetidamente que não tem acesso ao portal: use os trechos reais. Se não souber algo específico, diga uma vez que não tem certeza.',
+  '',
+  'TRECHOS REAIS DO PORTAL (pode mostrar ao aluno; tipos do TypeScript já removidos):',
+  '1) A conexão com o banco, src/lib/supabase.ts:',
+  "   const supabase = createClient(endereçoDoBanco, chave)   // o endereço e a chave vêm do arquivo .env",
+  '2) BUSCAR do banco, src/lib/ajustes/boletos-fornecedor-db.ts (função obterBoleto):',
+  "   const { data, error } = await supabase.from('boletos_fornecedor').select('*').eq('id', id).maybeSingle();",
+  "   // lê-se: no banco, na tabela boletos_fornecedor, selecione todas as colunas, da linha cujo id é igual a id, uma linha só.",
+  '   // a linha chega em data como um OBJETO: data.numero, data.status, data.valor_total… (um campo por coluna da tabela)',
+  '3) GUARDAR no banco, mesmo arquivo (salvar regra de fornecedor): o código monta um objeto com os nomes das colunas e manda gravar:',
+  "   const linha = { nome: r.nome.trim(), ativo: r.ativo !== false, dias_tolerancia: 10, updated_at: new Date().toISOString() };",
+  "   const { data, error } = await supabase.from('fornecedores_regra_boleto').update(linha).eq('id', r.id).select('*').single();",
+  "   // os nomes dos campos do objeto (nome, ativo, dias_tolerancia) são os nomes das colunas da tabela. É isso que liga o objeto ao banco.",
+  '4) await = "espere o banco responder antes de seguir". { data, error } = desestruturação: tira data e error da resposta.'
+].join('\n');
+const SUGESTOES = {
+  geral: ['Por onde eu começo?', 'O que é TypeScript, bem simples?', 'Qual a diferença entre map e filter?'],
+  trilha: ['Por onde eu começo?', 'O que é TypeScript, bem simples?', 'Qual a diferença entre map e filter?'],
+  basico: ['Explica de outro jeito, bem simples', 'Como era isso no Java?', 'Me dá um exercício pequeno sobre isso', 'O que esse erro quer dizer?'],
+  cards: ['Explica de um jeito mais simples', 'Me dá outro exemplo com peças de trator', 'Como fica isso por extenso, sem atalho?'],
+  quiz: ['Por que essa é a resposta certa?', 'Explica passo a passo', 'Me faz uma pergunta parecida para treinar'],
+  camera: ['Explica esse passo com outras palavras', 'Como ficaria essa linha por extenso, com for?', 'Por que o reduce começa com 0?'],
+  oficina: ['Por que meu código não passou?', 'Me dá uma dica sem entregar a resposta', 'O que esse erro quer dizer?'],
+  mapa: ['O que eu encontraria dentro dessa pasta?', 'Me dá um exemplo de manutenção aqui', 'Como eu acho esse arquivo no VS Code?']
+};
+// a conversa fica salva neste navegador: recarregar a página (ou sair versão nova) não apaga nada
+const CH = S.chat || {};
+let sampleFn = null, turnos = CH.turnos || [], hist = CH.hist || [], ultimoCtx = CH.ultimoCtx || '', ctlTutor = null, ocupado = false;
+const elTutor = document.getElementById('tutor'), elMsgs = document.getElementById('tutorMsgs'), elPerg = document.getElementById('pergunta');
+function guardarChat(){
+  S.chat = {turnos: turnos.slice(-30), hist: hist.slice(-60), ultimoCtx: ultimoCtx};
+  try { localStorage.setItem(LS, JSON.stringify(S)); } catch(e) {}
+}
+function guardarRascPergunta(){
+  S.rasc.pergunta = elPerg.value;
+  clearTimeout(window._rp); window._rp = setTimeout(() => { try { localStorage.setItem(LS, JSON.stringify(S)); } catch(e) {} }, 400);
+}
+
+function contexto(){
+  if (atual === 'basico') {
+    const t = TOPICOS[tIdx], ed = document.getElementById('basEditor'), sd = document.getElementById('basSaida');
+    const tmp = document.createElement('div'); tmp.innerHTML = t.h;
+    return {rotulo:'O básico: ' + t.t, texto:'Tópico da Lição 0: ' + t.t + '\nExplicação mostrada: ' + tmp.textContent.replace(/\s+/g, ' ').trim().slice(0, 2500) +
+      '\n\nCódigo no editor do aluno:\n' + (ed ? ed.value.slice(0, 3000) : t.cod) + '\n\nSaída da última vez que rodou:\n' + ((sd && sd.innerText.trim().slice(0, 1200)) || '(ainda não rodou)')};
+  }
+  if (atual === 'cards') {
+    const c = fila[pos];
+    if (!c) return {rotulo:'Flashcards', texto:'O aluno terminou o baralho de flashcards.'};
+    return {rotulo:'Flashcard: ' + c.t, texto:'Frente do cartão (código):\n' + c.f + '\n\nVerso: ' + c.t + '. ' + c.d + (c.ex ? '\nExemplo:\n' + c.ex : '') + (c.onde ? '\nNo portal: ' + c.onde : '')};
+  }
+  if (atual === 'quiz') {
+    const q = qi < qOrdem.length ? QUIZ[qOrdem[qi]] : null;
+    if (!q) return {rotulo:'Quiz', texto:'Fim do quiz: ' + qAcertos + ' de ' + qOrdem.length + ' certas.'};
+    return {rotulo:'Quiz: pergunta ' + (qi + 1), texto:'Pergunta: ' + q.p + (q.c ? '\nCódigo:\n' + q.c : '') + '\nOpções: ' + q.o.map((o, i) => 'ABCD'[i] + ') ' + o).join(' | ') +
+      (qEscolha === null ? '\nO aluno AINDA NÃO respondeu.' : '\nO aluno escolheu ' + 'ABCD'[qEscolha] + ') ' + q.o[qEscolha] + '. A certa é ' + 'ABCD'[q.a] + ') ' + q.o[q.a] + '. Explicação mostrada: ' + q.e)};
+  }
+  if (atual === 'camera') {
+    const p = CAM[camP], st = p.passos[camS];
+    return {rotulo:'Câmera lenta: ' + p.nome + ', passo ' + (camS + 1), texto:'Código:\n' + p.partes.map(x => x[1]).join('') + '\n\nPasso ' + (camS + 1) + ' de ' + p.passos.length + ': ' + st.t + '. ' + st.x};
+  }
+  if (atual === 'oficina') {
+    const d = DESAFIOS[dIdx];
+    return {rotulo:'Oficina: ' + d.t, texto:'Desafio: ' + d.t + '\n' + d.e + (d.setup ? '\nCódigo que já existe:\n' + d.setup : '') +
+      '\n\nCódigo do aluno:\n' + document.getElementById('editor').value.slice(0, 4000) +
+      '\n\nResultado da última vez que rodou:\n' + (document.getElementById('saida').innerText.trim().slice(0, 1500) || '(ainda não rodou)') +
+      '\nTestes que precisam passar: ' + d.tests.map(t => t[1] + ' deve dar ' + JSON.stringify(t[2])).join('; ')};
+  }
+  if (atual === 'mapa') {
+    const n = ARVORE.find(x => x.id === noAtual);
+    return {rotulo:'Mapa: ' + n.n, texto:'Pasta/arquivo: ' + n.n + '\nO que é: ' + n.o + (n.ex ? '\nExemplo: ' + n.ex : '') + (n.q ? '\nQuando mexer: ' + n.q : '')};
+  }
+  return {rotulo:'Trilha da Lição 1', texto:'O aluno está na tela inicial da Lição 1. Etapas: ler a lição, flashcards, quiz, câmera lenta e oficina de código.'};
+}
+const inl = s => esc(s).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>');
+function mdTexto(t){
+  const L = t.replace(/^\n+|\n+$/g, '').split('\n'), out = [], ehLinhaTab = l => /^\s*\|.*\|\s*$/.test(l);
+  let i = 0;
+  while (i < L.length) {
+    if (ehLinhaTab(L[i])) {
+      const bloco = []; while (i < L.length && ehLinhaTab(L[i])) bloco.push(L[i++]);
+      const rows = bloco.filter(l => !/^\s*\|[\s:|-]+\|\s*$/.test(l)).map(l => l.trim().replace(/^\||\|$/g, '').split('|').map(c => inl(c.trim())));
+      if (rows.length) out.push('<div class="tab-wrap"><table class="abrev"><thead><tr>' + rows[0].map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' + rows.slice(1).map(r => '<tr>' + r.map(c => '<td>' + c + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>');
+      continue;
+    }
+    const l = L[i++], h = l.match(/^#{1,4} (.*)$/), b = l.match(/^\s*[-*] (.*)$/);
+    out.push((h ? '<b>' + inl(h[1]) + '</b>' : b ? '• ' + inl(b[1]) : inl(l)) + (i < L.length && !ehLinhaTab(L[i]) ? '<br>' : ''));
+  }
+  return out.join('');
+}
+function md(t){
+  const p = t.split(/```(\w*)\n?([\s\S]*?)(?:```|$)/g);
+  let h = '';
+  for (let i = 0; i < p.length; i++) {
+    if (i % 3 === 0) h += mdTexto(p[i]);
+    else if (i % 3 === 2) h += '<pre class="cod" translate="no">' + hl(p[i].replace(/\n$/, '')) + '</pre>';
+  }
+  return h;
+}
+function bolha(quem, html){
+  const v = elMsgs.querySelector('.tutor-vazio'); if (v) v.remove();
+  const d = document.createElement('div'); d.className = 'msg ' + quem; d.innerHTML = html; elMsgs.appendChild(d);
+  elMsgs.scrollTop = elMsgs.scrollHeight; return d;
+}
+function vazio(){ elMsgs.innerHTML = '<p class="tutor-vazio">Pergunte qualquer coisa sobre o que está na tela. Eu vejo o cartão, a pergunta, o passo ou o seu código, então dá para perguntar direto: "por que deu errado?".</p>'; }
+function abrirTutor(tipo){
+  const ctx = contexto();
+  document.getElementById('tutorSobre').innerHTML = 'Vendo agora: <b>' + esc(ctx.rotulo) + '</b>';
+  const sug = SUGESTOES[tipo] || SUGESTOES[atual] || SUGESTOES.geral;
+  const el = document.getElementById('tutorSug');
+  el.innerHTML = sug.map(s => '<button class="chip" type="button">' + esc(s) + '</button>').join('');
+  el.querySelectorAll('.chip').forEach(b => b.onclick = () => perguntar(b.textContent));
+  if (!elMsgs.children.length) vazio();
+  elTutor.hidden = false; document.getElementById('fab').hidden = true;
+  if (matchMedia('(pointer: fine)').matches) elPerg.focus();
+}
+function fecharTutor(){ elTutor.hidden = true; document.getElementById('fab').hidden = false; }
+function modoOcupado(on){ ocupado = on; document.getElementById('tutorEnviar').disabled = on; document.getElementById('tutorParar').hidden = !on; }
+async function perguntar(texto){
+  const q = texto.trim(); if (!q || ocupado || !sampleFn) return;
+  elPerg.value = ''; elPerg.style.height = ''; guardarRascPergunta();
+  const ctx = contexto();
+  document.getElementById('tutorSobre').innerHTML = 'Vendo agora: <b>' + esc(ctx.rotulo) + '</b>';
+  let conteudo = q;
+  if (ctx.texto !== ultimoCtx) { conteudo = 'O QUE ESTÁ NA TELA AGORA (' + ctx.rotulo + '):\n' + ctx.texto + '\n\nMINHA PERGUNTA:\n' + q; ultimoCtx = ctx.texto; }
+  turnos.push({role:'user', content:conteudo});
+  hist.push({quem:'eu', texto:q}); guardarChat();
+  bolha('eu', esc(q));
+  const b = bolha('claude', '<i>Pensando…</i>');
+  ctlTutor = new AbortController(); modoOcupado(true);
+  try {
+    const r = await sampleFn([{role:'user', content:REGRAS}].concat(turnos.slice(-16)), {
+      cache:false, modelTier:'default', effort:'low', signal:ctlTutor.signal,
+      onText: ({text}) => {
+        const perto = elMsgs.scrollHeight - elMsgs.scrollTop - elMsgs.clientHeight < 60;
+        b.innerHTML = md(text);
+        if (perto) elMsgs.scrollTop = elMsgs.scrollHeight;
+      }
+    });
+    b.innerHTML = md(r.text) + (r.truncated ? '<span class="nota">A resposta foi cortada. Peça para continuar.</span>' : '');
+    turnos.push({role:'assistant', content:r.text});
+    hist.push({quem:'claude', texto:r.text}); guardarChat();
+    premiar('primeira-pergunta', 5);
+  } catch(e) {
+    turnos.pop(); ultimoCtx = '';
+    if (e && e.text) hist.push({quem:'claude', texto:e.text});
+    guardarChat();
+    const code = e && e.code;
+    if (code === 'cancelled') { b.innerHTML = (e.text ? md(e.text) : '') + '<span class="nota">Resposta parada.</span>'; }
+    else if (['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed'].includes(code)) {
+      b.innerHTML = 'Esta página não tem permissão para perguntar ao Claude. Dá para liberar no menu de permissões da página e recarregar.';
+      setTimeout(() => { document.body.dataset.claude = 'off'; fecharTutor(); }, 4000);
+    }
+    else if (code === 'rate_limited') b.innerHTML = 'Muitas perguntas seguidas. Espere um pouco e pergunte de novo.';
+    else if (code === 'session_expired') b.innerHTML = 'Sua sessão no claude.ai expirou. Entre de novo e recarregue a página.';
+    else if (code === 'refused') b.innerHTML = 'Não consegui responder essa. Tente perguntar de outro jeito.';
+    else b.innerHTML = (e && e.text ? md(e.text) : '') + '<span class="nota">A conexão falhou. Tente perguntar de novo.</span>';
+  } finally { modoOcupado(false); }
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-perguntar]');
+  if (!b) return;
+  e.stopPropagation(); e.preventDefault();
+  abrirTutor(b.dataset.perguntar);
+}, true);
+document.getElementById('tutorFechar').onclick = fecharTutor;
+document.getElementById('tutorAmpliar').onclick = e => { const on = elTutor.classList.toggle('largo'); e.currentTarget.textContent = on ? 'Reduzir' : 'Ampliar'; };
+elPerg.addEventListener('input', () => { elPerg.style.height = 'auto'; elPerg.style.height = Math.min(elPerg.scrollHeight, 160) + 'px'; });
+document.getElementById('tutorNova').onclick = () => { if (ctlTutor) ctlTutor.abort(); turnos = []; hist = []; ultimoCtx = ''; guardarChat(); vazio(); };
+elPerg.addEventListener('input', guardarRascPergunta);
+// baixar a conversa como arquivo .md (só aparece onde o navegador deixa salvar arquivos)
+let downloadsFn = null;
+(async () => {
+  try {
+    const d = window.claude && window.claude.use ? await window.claude.use('downloads') : null;
+    if (d) { downloadsFn = d; document.getElementById('tutorBaixar').hidden = false; }
+  } catch(e) {}
+})();
+document.getElementById('tutorBaixar').onclick = async () => {
+  if (!hist.length) { toast('A conversa ainda está vazia'); return; }
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  const md = '# Conversa com o Claude — Escola do Portal\n\n_' + hoje + '_\n\n' +
+    hist.map(m => (m.quem === 'eu' ? '## Eu perguntei\n\n' : '### Claude respondeu\n\n') + m.texto.trim()).join('\n\n') + '\n';
+  try {
+    await downloadsFn.save({filename: 'conversa-escola-do-portal-' + new Date().toISOString().slice(0, 10) + '.md', data: md});
+    toast('Arquivo salvo');
+  } catch(e) {
+    if (e && e.code === 'declined') return;
+    if (e && e.code === 'rate_limited') { toast('Já tem uma janela de salvar aberta'); return; }
+    toast('Não deu para salvar o arquivo aqui');
+    if (e && ['unavailable','not_granted','capability_disabled','capability_removed'].includes(e.code)) document.getElementById('tutorBaixar').hidden = true;
+  }
+};
+// devolve a conversa e o rascunho salvos
+if (hist.length) hist.forEach(m => bolha(m.quem, m.quem === 'eu' ? esc(m.texto) : md(m.texto)));
+if (S.rasc.pergunta) elPerg.value = S.rasc.pergunta;
+document.getElementById('tutorParar').onclick = () => { if (ctlTutor) ctlTutor.abort(); };
+document.getElementById('tutorForm').addEventListener('submit', e => { e.preventDefault(); perguntar(elPerg.value); });
+elPerg.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); perguntar(elPerg.value); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !elTutor.hidden) fecharTutor(); });
+(async () => {
+  try {
+    const s = window.claude && window.claude.use ? await window.claude.use('sample') : null;
+    if (s) { sampleFn = s; document.body.dataset.claude = 'on'; }
+  } catch(e) {}
+})();
+
+/* =====================================================================
+   TELA CHEIA, ALTURA DO TOPO, PULAR PARA O CONTEÚDO
+   ===================================================================== */
+const btnTela = document.getElementById('btnTela');
+btnTela.onclick = async () => {
+  try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); }
+  catch(e) { toast('Aperte F11 para tela cheia'); }
+};
+document.addEventListener('fullscreenchange', () => { btnTela.textContent = document.fullscreenElement ? 'Sair da tela cheia' : 'Tela cheia'; });
+function medirTopo(){ document.documentElement.style.setProperty('--topo-h', document.querySelector('.topo').offsetHeight + 'px'); }
+window.addEventListener('resize', medirTopo); medirTopo();
+document.getElementById('pular').onclick = () => document.getElementById('conteudo').focus();
+
+/* ===================================================================== */
+hud(); renderPassos(); abrirTopico(); montarFila(); renderQLicoes(); renderQuiz(); renderCam(); abrirDesafio(); renderMapa();
+mostrar(location.hash.slice(1));
+</script>
