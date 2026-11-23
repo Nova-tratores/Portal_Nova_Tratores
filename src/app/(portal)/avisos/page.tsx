@@ -10,8 +10,9 @@ import {
   Plus, X, Paperclip, Send, Trash2, Eye, EyeOff,
   AlertTriangle, ChevronDown, ChevronUp, FileText,
   Download, CheckCircle2, Clock, Users, Megaphone,
-  Calendar, Building2, Globe, Wrench, UserCheck
+  Calendar, Building2, Globe, Wrench, UserCheck, Printer
 } from 'lucide-react'
+import { htmlComunicado } from '@/lib/avisos/impressao'
 import { SETORES, montarDestino, lerDestino, rotuloDestino, podeVerAviso as podeVerAvisoRegra } from '@/lib/avisos/destino'
 
 // Público-alvo: 'todos' + as categorias de portal_permissoes + 'tecnicos'
@@ -288,6 +289,20 @@ export default function AvisosPage() {
     carregar()
   }
 
+  // Comunicado timbrado (A4) numa janela nova; setor e assinatura editáveis lá.
+  const imprimirAviso = (a: Aviso) => {
+    const { setor } = lerDestino(a.destino)
+    const html = htmlComunicado({
+      titulo: a.titulo, conteudo: a.conteudo, prioridade: a.prioridade,
+      setor: setor === 'todos' || setor === 'tecnicos' ? 'Administração' : destinoLabel(setor),
+      data: new Date(a.created_at),
+      logoUrl: `${window.location.origin}/Logo_Nova.png`,
+    })
+    const w = window.open('', '_blank')
+    if (!w) { alert('O navegador bloqueou a janela. Libere os pop-ups do portal para imprimir.'); return }
+    w.document.open(); w.document.write(html); w.document.close()
+  }
+
   const removerArquivo = (idx: number) => {
     setArquivos(prev => prev.filter((_, i) => i !== idx))
   }
@@ -536,9 +551,17 @@ export default function AvisosPage() {
                       </div>
                     )}
 
-                    {/* Acoes admin */}
-                    {(podeStatus || podeExcluir) && (
+                    {/* Ações: imprimir (todos que veem) + admin */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16, paddingTop: 14, borderTop: '1px solid #f5f5f5' }}>
+                      <button onClick={(e) => { e.stopPropagation(); imprimirAviso(aviso) }} title="Gera o comunicado timbrado (A4) para imprimir" style={{
+                        display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', minHeight: 40,
+                        borderRadius: 6, border: '1px solid #E4E4E7', background: '#fff',
+                        fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#111',
+                      }}>
+                        <Printer size={13} /> Imprimir comunicado
+                      </button>
+                    {(podeStatus || podeExcluir) && (
+                    <>
                       <button onClick={(e) => { e.stopPropagation(); toggleAtivo(aviso) }} {...gateBtn(podeStatus)} style={{
                         display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px',
                         borderRadius: 6, border: '1px solid #E4E4E7', background: '#fff',
@@ -556,8 +579,9 @@ export default function AvisosPage() {
                       }}>
                         <Trash2 size={13} /> Excluir
                       </button>
-                    </div>
+                    </>
                     )}
+                    </div>
                   </div>
                 )}
                 </div>{/* fecha o wrapper flex ao lado do filete */}
