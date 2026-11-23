@@ -11,7 +11,7 @@ import SubAbas from '@/components/marketing/redes/SubAbas';
 import { ABAS_ACESSOS } from '@/components/marketing/redes/abasAcessos';
 import type { Resumo, Visita } from '@/lib/marketing/redes/acessos';
 import type { ResumoPedidos } from '@/app/api/marketing/acessos/route';
-import { Aviso, ComoLer, Conta, Numero, botao, cartao, duracao, grade, quando, real, tela } from '@/components/marketing/redes/ui';
+import { Aviso, Conta, Numero, botao, cartao, duracao, grade, quando, real, tela } from '@/components/marketing/redes/ui';
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 const parte = (a: number, b: number) => (b ? pct(a / b) : '0%');
@@ -422,12 +422,6 @@ export default function AcessosSitePage() {
             </Cartao>
           </div>
 
-          <ComoLer>
-            Cada <b>visita</b> é uma pessoa navegando no site; <b>pessoas</b> conta aparelhos diferentes (sem nome: o site não sabe quem é,
-            só que é o mesmo celular ou computador voltando). <b>Chamaram</b> = tocou no WhatsApp, no telefone ou mandou o pedido de proposta.
-            As setas (▲ ▼) comparam com o período do mesmo tamanho logo antes. Em <b>Procuraram e não acharam</b> está o que o cliente
-            quis e o site não mostrou. Toque numa visita lá embaixo para ver o caminho dela: páginas na ordem, tempo em cada uma, até onde rolou e o que clicou.
-          </ComoLer>
 
           <div style={{ ...cartao, padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', fontWeight: 500, borderBottom: '1px solid var(--border)' }}>

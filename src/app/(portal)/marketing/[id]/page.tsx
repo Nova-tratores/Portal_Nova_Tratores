@@ -128,8 +128,17 @@ export default function FichaAcaoPage() {
           borderRadius: 16, marginBottom: 14, overflow: 'hidden',
         }}
       >
-        <div style={{ maxHeight: 260, overflow: 'hidden' }}>
+        <div style={{ maxHeight: 260, overflow: 'hidden', position: 'relative' }}>
           <CapaCampanha acao={acao} roleta={ficha.roleta} proporcao="16 / 5" />
+          {/* Sem foto: o quadro lilás sozinho não dizia que dá pra pôr uma capa */}
+          {!acao.capa_url && !ficha.roleta?.capa && podeEditar && (
+            <button
+              onClick={() => { setErroForm(null); setEditando(true); }}
+              style={{ ...estiloBotaoContorno, position: 'absolute', top: 12, right: 12 }}
+            >
+              <i className="fa-solid fa-image" /> Colocar capa
+            </button>
+          )}
         </div>
         <div style={{ padding: '16px 18px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between' }}>

@@ -7,6 +7,7 @@
 import { AlertTriangle } from 'lucide-react';
 import { STATUS_APOIO, rotulo, cor } from '@/lib/marketing/tipos';
 import { rankingCategorias } from '@/lib/marketing/custos';
+import { textoDaPergunta } from '@/lib/marketing/questionario';
 import { Painel, Titulo, Kpi, brl, pct, multiplicador, Vazio, ROSA } from '../ui';
 
 const ETAPAS = STATUS_APOIO.filter((s) => s.etapa > 0);
@@ -17,7 +18,8 @@ export default function ResumoAba({ ficha, roi }: { ficha: any; roi: any }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {/* Grade de 4 por linha: com 8 cartões numa linha só, "R$ 503.500,00" não cabia e era cortado */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 8 }}>
         <Kpi rotulo="Investido" valor={brl(roi.custoConfirmado)} dica="Custos confirmados. Previstos não entram." />
         <Kpi rotulo="Apoio recebido" valor={brl(roi.apoioRecebido)} cor="#16a34a" dica="Só o que já entrou. Aprovado e não recebido fica em 'a receber'." />
         <Kpi rotulo="Custo líquido" valor={brl(roi.custoLiquido)} dica="O que a revenda pôs do próprio bolso: investido menos apoio recebido." />
@@ -124,8 +126,21 @@ export default function ResumoAba({ ficha, roi }: { ficha: any; roi: any }) {
             </div>
           )}
           {ficha.acao.observacoes && (
-            <div style={{ fontSize: 13, color: 'var(--portal-text)', whiteSpace: 'pre-wrap' }}>
-              {ficha.acao.observacoes}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* A importação do questionário grava "q05: resposta". Aqui o código vira a
+                  pergunta de verdade — ninguém precisa saber o que é "q05". */}
+              {String(ficha.acao.observacoes).split('\n').filter((l: string) => l.trim()).map((linha: string, i: number) => {
+                const m = linha.match(/^(q\d{2}):\s*(.*)$/);
+                if (!m) {
+                  return <div key={i} style={{ fontSize: 13, color: 'var(--portal-text)', whiteSpace: 'pre-wrap' }}>{linha}</div>;
+                }
+                return (
+                  <div key={i}>
+                    <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>{textoDaPergunta(m[1])}</div>
+                    <div style={{ fontSize: 13, color: 'var(--portal-text)', whiteSpace: 'pre-wrap', marginTop: 1 }}>{m[2]}</div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </Painel>

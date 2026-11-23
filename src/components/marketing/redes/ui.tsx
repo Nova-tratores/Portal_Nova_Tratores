@@ -66,18 +66,6 @@ export function grade(min: number): React.CSSProperties {
   return { display: 'grid', gap: 12, gridTemplateColumns: `repeat(auto-fit, minmax(min(${min}px, 100%), 1fr))` };
 }
 
-/** "Como ler esta tela" — fechado, abre ao tocar. */
-export function ComoLer({ children }: { children: ReactNode }) {
-  return (
-    <details style={{ ...cartao, padding: '10px 16px' }}>
-      <summary style={{ cursor: 'pointer', fontWeight: 500, color: 'var(--portal-text)' }}>
-        <i className="fa-solid fa-circle-question" style={{ fontWeight: 900, color: '#d97706', marginRight: 8 }} />Como ler esta tela
-      </summary>
-      <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.6, color: 'var(--portal-text)' }}>{children}</div>
-    </details>
-  );
-}
-
 export function Aviso({ children, tom = 'erro' }: { children: ReactNode; tom?: 'erro' | 'info' }) {
   const cor = tom === 'erro' ? '#dc2626' : '#0284c7';
   return (

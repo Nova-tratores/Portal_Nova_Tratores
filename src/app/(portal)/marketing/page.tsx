@@ -211,8 +211,20 @@ export default function MarketingPage() {
             : 'Nenhuma campanha cadastrada ainda. Comece pela feira que está devendo relatório.'}
         </Vazio>
       ) : (
+        // 19/11/2026 (José): as que ainda estão rolando vêm primeiro; realizada e cancelada vão
+        // para "Encerradas", embaixo. Dentro de cada grupo continua da mais antiga para a mais nova.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+        {([
+          ['Abertas', acoes.filter((a) => a.status !== 'realizada' && a.status !== 'cancelada')],
+          ['Encerradas', acoes.filter((a) => a.status === 'realizada' || a.status === 'cancelada')],
+        ] as const).filter(([, lista]) => lista.length > 0).map(([titulo, lista]) => (
+        <section key={titulo}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>
+          {titulo}
+          <span style={{ fontSize: 12, padding: '1px 8px', borderRadius: 999, color: 'var(--portal-text-muted, #64748b)', border: '1px solid var(--portal-border)' }}>{lista.length}</span>
+        </div>
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(min(330px, 100%), 1fr))' }}>
-          {acoes.map((a) => {
+          {lista.map((a) => {
             const r = resumos[a.id];
             const dias = diasAte(r?.prazoMaisProximo);
             const semDono = !!a.responsavel_id && inativos.has(a.responsavel_id);
@@ -311,6 +323,9 @@ export default function MarketingPage() {
               </div>
             );
           })}
+        </div>
+        </section>
+        ))}
         </div>
       )}
 

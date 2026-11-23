@@ -52,9 +52,10 @@ export const PAGINAS_MARKETING: PaginaMkt[] = [
 export interface AbaMkt { label: string; telas: string[]; grupo: GrupoMkt }
 export const ABAS_MARKETING: AbaMkt[] = [
   ...[
+    // 19/11/2026 (José): Acessos é a primeira guia de Redes sociais
+    { label: 'Acessos', telas: ['marketing:acessos'] },
     { label: 'Pedidos e catálogo', telas: ['marketing:pedidos', 'marketing:catalogo'] },
     { label: 'Promoções', telas: ['marketing:promocoes'] },
-    { label: 'Acessos', telas: ['marketing:acessos'] },
     { label: 'Conteúdo e publicar', telas: ['marketing:conteudo'] },
   ].map((a) => ({ ...a, grupo: 'Redes sociais' as GrupoMkt })),
   ...PAGINAS_MARKETING.filter((p) => p.grupo === 'Eventos')

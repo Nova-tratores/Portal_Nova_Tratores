@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchAuth } from '@/lib/auth/client';
 import { SECOES, type Campo as CampoDef, type GrupoConteudo } from '@/lib/marketing/redes/conteudo';
-import { Aviso, ComoLer, quando, tela } from '@/components/marketing/redes/ui';
+import { Aviso, quando, tela } from '@/components/marketing/redes/ui';
 import PublicarBarra from '@/components/marketing/redes/PublicarBarra';
 import SubAbas from '@/components/marketing/redes/SubAbas';
 import { ABAS_CONTEUDO } from '@/components/marketing/redes/abasConteudo';
@@ -177,12 +177,6 @@ export default function TextosSite() {
         </div>
       )}
 
-      <ComoLer>
-        Cada cartão é uma parte do site, na ordem em que aparecem de cima para baixo. Toque em <b>Mudar</b>, troque o texto (embaixo de
-        cada campo diz para que serve e o que está no site hoje), confira na <b>prévia</b> e toque em <b>Gravar</b>. As mudanças só vão
-        para o site quando alguém toca em <b>Publicar site</b>, no alto da tela; leva uns 2 minutos. Campo vazio volta ao texto original.
-        Máquinas, preços e fotos ficam na aba <b>Catálogo do site</b>; o carrossel de ofertas, na aba <b>Promoções</b>.
-      </ComoLer>
     </div>
   );
 }

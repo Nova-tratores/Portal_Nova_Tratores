@@ -5,7 +5,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fetchAuth } from '@/lib/auth/client';
 import SubAbas, { ABAS_PEDIDOS_CATALOGO } from '@/components/marketing/redes/SubAbas';
-import { Aviso, ComoLer, Conta, Numero, botao, campo, cartao, grade, quando, real, tela } from '@/components/marketing/redes/ui';
+import { Aviso, Conta, Numero, botao, campo, cartao, grade, quando, real, tela } from '@/components/marketing/redes/ui';
 
 type Pedido = {
   id: string; criado_em: string; nome: string; telefone: string; cidade: string | null; interesse: string | null
@@ -84,12 +84,6 @@ function Pedidos() {
         <Numero icone="fa-handshake" cor="#16a34a" rotulo="Vendidos" valor={<Conta valor={conta.ganho || 0} />} ativo={filtro === 'ganho'} onClick={() => setFiltro(filtro === 'ganho' ? 'abertos' : 'ganho')} />
       </div>
 
-      <ComoLer>
-        Cada linha é um pedido de proposta feito na página de <b>Crédito</b> do site. O cliente já foi levado ao WhatsApp da loja com a
-        mensagem pronta; aqui fica o registro. Toque num pedido para ver a simulação, <b>assumir</b> e mudar a fase
-        (Novo → Em contato → Proposta enviada → Vendido/Perdido). Os cartões de cima filtram a lista. Quem tem o módulo Site recebe o
-        aviso no sino e no celular a cada pedido novo.
-      </ComoLer>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {[['abertos', 'Em aberto'], ['todos', 'Todos'], ['perdido', 'Perdidos'], ['descartado', 'Descartados']].map(([id, r]) => (

@@ -94,9 +94,17 @@ export default function CalendarioRedes() {
       return u;
     });
   }, []);
-  const abrirPost = (p: Post) => { abriuAqui.current = true; ir({ post: p.id, novo: null, promo: null }); window.scrollTo({ top: 0 }); };
+  // 19/11/2026 (José): a tela abre na SEMANA; o mês inteiro abre num modal, se a pessoa quiser.
+  const segundaDe = (d: string) => somaDias(d, -((new Date(`${d}T12:00:00Z`).getUTCDay() + 6) % 7));
+  const [semana, setSemana] = useState(() => segundaDe(hoje()));
+  const [mesAberto, setMesAberto] = useState(false);
+  // o mês da tela acompanha a semana (pela quinta-feira, que decide de que mês a semana "é") —
+  // é ele que define o que o carregar() busca e as temporadas mostradas
+  const irSemana = (seg: string) => { setSemana(seg); ir({ mes: somaDias(seg, 3).slice(0, 7) }, true); };
+  const fecharMes = () => { setMesAberto(false); ir({ mes: somaDias(semana, 3).slice(0, 7) }, true); };
+  const abrirPost = (p: Post) => { setMesAberto(false); abriuAqui.current = true; ir({ post: p.id, novo: null, promo: null }); window.scrollTo({ top: 0 }); };
   const tema = useRef<DataAgro | null>(null);
-  const novoPost = (dia: string, t: DataAgro | null = null) => { tema.current = t; abriuAqui.current = true; ir({ post: null, novo: dia || 'sem-data', promo: null }); window.scrollTo({ top: 0 }); };
+  const novoPost = (dia: string, t: DataAgro | null = null) => { setMesAberto(false); tema.current = t; abriuAqui.current = true; ir({ post: null, novo: dia || 'sem-data', promo: null }); window.scrollTo({ top: 0 }); };
   const fechar = () => { if (abriuAqui.current) { abriuAqui.current = false; window.history.back(); } else ir({ post: null, novo: null, promo: null }, true); };
 
   // ---- dados: o mês da tela + os próximos 31 dias (para a conta do "1 mês adiantado")
@@ -269,12 +277,15 @@ export default function CalendarioRedes() {
     );
   };
 
-  function grade7() {
-    const dias = Array.from({ length: 42 }, (_, i) => somaDias(inicioGrade, i));
+  /** Sem argumento: o mês da tela. Com a segunda-feira: só aquela semana, com os dias mais altos. */
+  function grade7(seg?: string) {
+    const dias = seg
+      ? Array.from({ length: 7 }, (_, i) => somaDias(seg, i))
+      : Array.from({ length: 42 }, (_, i) => somaDias(inicioGrade, i));
     const h = hoje();
     // só o mês da tela: dias de outro mês viram espaço vazio e a última semana sem dia do mês sai
     const ultimo = dias.map((d) => d.startsWith(rota.mes)).lastIndexOf(true);
-    const visiveis = dias.slice(0, Math.ceil((ultimo + 1) / 7) * 7);
+    const visiveis = seg ? dias : dias.slice(0, Math.ceil((ultimo + 1) / 7) * 7);
     // grade de calendário de parede: linhas finas entre os dias (o fundo do quadro aparece no vão de 1px)
     const LINHA = 'color-mix(in srgb, var(--portal-text, #0f172a) 16%, transparent)';
     const FUNDO = 'var(--portal-bg-secondary, #ffffff)';
@@ -282,18 +293,18 @@ export default function CalendarioRedes() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 1, background: LINHA, border: `1px solid ${LINHA}`, borderRadius: 14, overflow: 'hidden' }}>
         {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => <span key={d} style={{ fontSize: 13, color: T2, padding: '8px 10px', background: 'color-mix(in srgb, var(--portal-text, #0f172a) 5%, var(--portal-bg, #f8fafc))' }}>{d}</span>)}
         {visiveis.map((d) => {
-          if (!d.startsWith(rota.mes)) return <div key={d} style={{ background: 'color-mix(in srgb, var(--portal-text, #0f172a) 3%, var(--portal-bg, #f8fafc))' }} />;
+          if (!seg && !d.startsWith(rota.mes)) return <div key={d} style={{ background: 'color-mix(in srgb, var(--portal-text, #0f172a) 3%, var(--portal-bg, #f8fafc))' }} />;
           const lista = porDia.get(d) || [];
           const passado = d < h;
           const vazioFuturo = !lista.length && !passado && d <= prox30[29];
           const fimDeSemana = [5, 6].includes(visiveis.indexOf(d) % 7);
           return (
             <div key={d} onClick={() => podeEditar && !passado && novoPost(d)}
-              style={{ minHeight: 118, padding: '8px 10px', display: 'grid', alignContent: 'start', gap: 6, cursor: podeEditar && !passado ? 'pointer' : 'default', minWidth: 0,
+              style={{ minHeight: seg ? 260 : 118, padding: '8px 10px', display: 'grid', alignContent: 'start', gap: 6, cursor: podeEditar && !passado ? 'pointer' : 'default', minWidth: 0,
                 boxShadow: d === h ? 'inset 0 0 0 2px #d97706' : 'none',
                 background: passado ? 'color-mix(in srgb, var(--portal-text, #0f172a) 3%, var(--portal-bg, #f8fafc))' : fimDeSemana ? 'color-mix(in srgb, var(--portal-text, #0f172a) 1.5%, ' + FUNDO + ')' : FUNDO }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 15, color: d === h ? '#d97706' : passado ? T3 : T1 }}>{Number(d.slice(8))}</span>
+                <span style={{ fontSize: 15, color: d === h ? '#d97706' : passado ? T3 : T1 }}>{Number(d.slice(8))}{seg && d.slice(8) === '01' ? ` ${nomeDia(d, { month: 'short' })}` : ''}</span>
                 {d === h && <span style={{ fontSize: 12, color: '#d97706' }}>hoje</span>}
                 {vazioFuturo && <span style={{ marginLeft: 'auto', fontSize: 11, color: T3 }}>sem post</span>}
               </span>
@@ -320,7 +331,7 @@ export default function CalendarioRedes() {
           const datas = DATAS_AGRO.filter((x) => x.prior >= 2 && x.d.startsWith(m));
           const temp = temporadasDoMes(m);
           return (
-            <section key={m} onClick={() => ir({ mes: m, ano: false })} style={{ ...cartaoNP, display: 'grid', gap: 10, alignContent: 'start', cursor: 'pointer' }}>
+            <section key={m} onClick={() => { ir({ mes: m, ano: false }); setMesAberto(true); }} style={{ ...cartaoNP, display: 'grid', gap: 10, alignContent: 'start', cursor: 'pointer' }}>
               <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                 <span style={{ fontSize: 16, textTransform: 'capitalize', color: m === h.slice(0, 7) ? '#d97706' : T1 }}>{nomeMes(m)}</span>
                 <span style={{ marginLeft: 'auto', fontSize: 12.5, color: nPosts ? '#16a34a' : T3 }}>{nPosts ? `${nPosts} post${nPosts > 1 ? 's' : ''}` : 'sem posts'}</span>
@@ -494,13 +505,23 @@ export default function CalendarioRedes() {
           <section style={{ ...cartaoNP, display: 'grid', gap: 12 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ display: 'inline-flex', padding: 3, borderRadius: 10, border: '1px solid var(--border)', gap: 2 }}>
-                {([[false, 'Mês', 'fa-calendar'], [true, 'Ano todo', 'fa-calendar-days']] as const).map(([v, nome, icone]) => (
+                {([[false, largo ? 'Semana' : 'Mês', largo ? 'fa-calendar-week' : 'fa-calendar'], [true, 'Ano todo', 'fa-calendar-days']] as const).map(([v, nome, icone]) => (
                   <button key={nome} type="button" onClick={() => ir({ ano: v })}
                     style={{ font: 'inherit', fontSize: 13, padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', display: 'inline-flex', gap: 6, alignItems: 'center',
                       background: rota.ano === v ? '#d97706' : 'transparent', color: rota.ano === v ? '#fefefe' : T2 }}>{ic(icone)}{nome}</button>
                 ))}
               </span>
-              {rota.ano ? <span style={{ fontSize: 17 }}>Próximos 12 meses</span> : (
+              {rota.ano ? <span style={{ fontSize: 17 }}>Próximos 12 meses</span> : largo ? (
+                <>
+                  <button style={bt('#64748b')} onClick={() => irSemana(somaDias(semana, -7))} aria-label="Semana anterior">{ic('fa-chevron-left')}</button>
+                  <span style={{ fontSize: 17, minWidth: 210, textAlign: 'center' }}>
+                    {nomeDia(semana, { day: 'numeric', month: 'short' })} a {nomeDia(somaDias(semana, 6), { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                  <button style={bt('#64748b')} onClick={() => irSemana(somaDias(semana, 7))} aria-label="Próxima semana">{ic('fa-chevron-right')}</button>
+                  {semana !== segundaDe(hoje()) && <button style={bt(AZUL)} onClick={() => irSemana(segundaDe(hoje()))}>Hoje</button>}
+                  <button style={bt('#d97706')} onClick={() => setMesAberto(true)}>{ic('fa-calendar')}Ver o mês</button>
+                </>
+              ) : (
                 <>
                   <button style={bt('#64748b')} onClick={mesAnt} aria-label="Mês anterior">{ic('fa-chevron-left')}</button>
                   <span style={{ fontSize: 17, minWidth: 170, textAlign: 'center', textTransform: 'capitalize' }}>{nomeMes(rota.mes)}</span>
@@ -525,10 +546,27 @@ export default function CalendarioRedes() {
                 ))}
               </div>
             )}
-            {posts === null ? <p>Carregando…</p> : rota.ano ? anoTodo() : largo ? grade7() : agenda()}
+            {posts === null ? <p>Carregando…</p> : rota.ano ? anoTodo() : largo ? grade7(semana) : agenda()}
             {rota.ano && <span style={{ fontSize: 12, color: T3 }}><span style={{ color: '#16a34a' }}>●</span> dia com post · <span style={{ color: '#dc2626' }}>○</span> data obrigatória · <span style={{ color: '#2563eb' }}>○</span> data boa. Toque num mês para abrir.</span>}
             {!rota.ano && largo && podeEditar && <span style={{ fontSize: 12, color: T3 }}>Toque num dia para criar um post nele. {ic('fa-wheat-awn')} = data do agro: tocar cria o post já com a ideia.</span>}
           </section>
+
+          {/* O mês inteiro, num modal por cima da semana */}
+          {mesAberto && largo && !rota.ano && (
+            <div onClick={fecharMes} onKeyDown={(e) => e.key === 'Escape' && fecharMes()} tabIndex={-1}
+              style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15, 23, 42, .45)', display: 'grid', placeItems: 'center', padding: 16 }}>
+              <div onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Calendário do mês"
+                style={{ ...cartaoNP, width: 'min(1200px, 100%)', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', display: 'grid', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button style={bt('#64748b')} onClick={mesAnt} aria-label="Mês anterior">{ic('fa-chevron-left')}</button>
+                  <span style={{ fontSize: 17, minWidth: 170, textAlign: 'center', textTransform: 'capitalize' }}>{nomeMes(rota.mes)}</span>
+                  <button style={bt('#64748b')} onClick={mesProx} aria-label="Próximo mês">{ic('fa-chevron-right')}</button>
+                  <button style={{ ...bt('#64748b'), marginLeft: 'auto' }} onClick={fecharMes} aria-label="Fechar">{ic('fa-xmark')}Fechar</button>
+                </div>
+                {grade7()}
+              </div>
+            </div>
+          )}
 
           <Secao icone="fa-wheat-awn" cor="#dc2626" titulo={proximasAgro.length ? `${proximasAgro.filter((x) => !porDia.get(x.d)?.length).length} das ${proximasAgro.length} datas do agro dos próximos 60 dias ainda sem post` : 'Nenhuma data importante nos próximos 60 dias'}
             sub="Obrigatórias: planejar 2 a 3 semanas antes, de preferência com vídeo ou foto própria">
