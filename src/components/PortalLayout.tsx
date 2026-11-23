@@ -30,6 +30,8 @@ import IlhaNotificacao, { AjustesIlha, type AvisoIlha } from '@/components/notif
 import { AvisosAparelho } from '@/components/notif/AvisosAparelho'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { fetchAuth } from '@/lib/auth/client'
+import { podeVerAviso } from '@/lib/avisos/destino'
 import LembreteAlerta from './lembretes/LembreteAlerta'
 import OrcamentoVencidoAlerta from './orcamentos/OrcamentoVencidoAlerta'
 import OpaLembrete from './opa/OpaLembrete'
@@ -533,15 +535,32 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     const carregarPendentes = async () => {
       const { data: avisos } = await supabase
         .from('portal_avisos')
-        .select('id, titulo, conteudo, prioridade, criado_por_nome, created_at')
+        .select('id, titulo, conteudo, prioridade, criado_por, criado_por_nome, created_at, destino, publicado')
         .eq('ativo', true)
         .order('created_at', { ascending: true })
       if (!avisos || avisos.length === 0) { setAvisosPendentes([]); return }
+      // 23/11/2026: o pop-up respeita o destino do aviso (setor, técnicos ou só o
+      // gestor — lib/avisos/destino) e não mostra agendado que ainda não saiu.
+      // Aqui admin NÃO vê tudo: o pop-up pede confirmação, e aviso de outro setor
+      // não é para ele confirmar.
+      let setoresQueGere: string[] = []
+      if (avisos.some((a: any) => String(a.destino || '').startsWith('gestores'))) {
+        try {
+          const r = await fetchAuth('/api/avisos/gestores')
+          if (r.ok) { const j = await r.json(); setoresQueGere = Array.isArray(j.meusSetores) ? j.meusSetores : [] }
+        } catch { /* sem a lista, aviso "só gestor" não aparece */ }
+      }
+      const quem = {
+        userId: userProfile.id, isAdmin: false,
+        categoria: permissoes?.categoria ?? null, mecanicoRole: permissoes?.mecanico_role ?? null,
+        setoresQueGere,
+      }
+      const paraMim = avisos.filter((a: any) => a.publicado !== false && podeVerAviso(a, quem))
       // 09/11/2026: usuário novo não recebe avisos publicados antes de ele ter conta
       // (data de criação do login no Supabase Auth; 1 dia de folga p/ quem foi cadastrado pouco antes do aviso)
       const { data: authData } = await supabase.auth.getUser()
       const criadoEm = authData?.user?.created_at ? new Date(authData.user.created_at).getTime() - 86400000 : 0
-      const avisosValidos = criadoEm ? avisos.filter((a: any) => !a.created_at || new Date(a.created_at).getTime() >= criadoEm) : avisos
+      const avisosValidos = criadoEm ? paraMim.filter((a: any) => !a.created_at || new Date(a.created_at).getTime() >= criadoEm) : paraMim
       const { data: lidos } = await supabase
         .from('portal_avisos_lidos')
         .select('aviso_id')
@@ -551,10 +570,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     }
     carregarPendentes()
     const ch = supabase.channel('portal_aviso_popup')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'portal_avisos' }, () => carregarPendentes())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'portal_avisos' }, () => carregarPendentes())
       .subscribe()
     return () => { supabase.removeChannel(ch) }
-  }, [userProfile?.id])
+  }, [userProfile?.id, permissoes?.categoria, permissoes?.mecanico_role])
 
   const confirmarAviso = async () => {
     if (!userProfile?.id || avisosPendentes.length === 0) return

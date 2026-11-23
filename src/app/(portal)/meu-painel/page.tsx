@@ -227,8 +227,9 @@ export default function MeuPainelPage() {
     const carregarAvisos = async () => {
       const { data } = await supabase
         .from('portal_avisos')
-        .select('id, titulo, conteudo, prioridade, created_at, criado_por_nome')
+        .select('id, titulo, conteudo, prioridade, created_at, criado_por_nome, destino')
         .eq('ativo', true)
+        .not('destino', 'like', 'gestores%') // aviso só para o gestor não aparece no painel do técnico
         .order('created_at', { ascending: false })
         .limit(10)
       if (!data) return
