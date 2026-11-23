@@ -31,6 +31,8 @@ export interface CampoSpec {
   obrigatorio?: boolean;
   /** Tipos aceitos no campo de arquivo. Padrão: só imagem. */
   aceita?: string;
+  /** Campo de arquivo aceita VÁRIOS de uma vez; cada arquivo vira um registro (23/11/2026: "precisa ser ilimitado"). */
+  varios?: boolean;
   /** Aparece na linha da lista (além do título). */
   naLista?: boolean;
 }
@@ -122,9 +124,9 @@ export const SPEC_MIDIAS: Spec = {
   pastaFoto: 'marketing/midias',
   campos: [
     {
-      k: 'url', label: 'Arquivo ou link', tipo: 'foto', obrigatorio: true,
-      aceita: 'image/*,video/*',
-      ajuda: 'Foto ou vídeo. Vídeo grande demora pra subir — se falhar, mande o link do Drive ou do post.',
+      k: 'url', label: 'Arquivos ou link', tipo: 'foto', obrigatorio: true, varios: true,
+      aceita: 'image/*,video/*,audio/*,application/pdf',
+      ajuda: 'Fotos, vídeos, áudios ou PDF — quantos quiser de uma vez; cada um vira um registro com os dados abaixo. Vídeo grande demora pra subir: se falhar, mande o link do Drive ou do post.',
     },
     { k: 'tipo', label: 'Tipo', tipo: 'select', opcoes: TIPOS_MIDIA, naLista: true },
     { k: 'legenda', label: 'Legenda', tipo: 'texto' },
@@ -159,7 +161,7 @@ export default function ListaSimples({
     for (const c of spec.campos) {
       base[c.k] = c.tipo === 'bool' ? (c.k === 'planejado') : c.tipo === 'select' ? (c.opcoes?.[0]?.id ?? '') : '';
     }
-    setEditando(null); setF(base); setErro(null); setAberto(true);
+    setEditando(null); setF(base); setErro(null); setEnviados([]); setAberto(true);
   };
 
   const abrirEdicao = (it: any) => {
@@ -170,18 +172,42 @@ export default function ListaSimples({
     setEditando(it); setF(base); setErro(null); setAberto(true);
   };
 
+  // Vários arquivos (campo com `varios`): cada um enviado vira um registro ao salvar
+  const [enviados, setEnviados] = useState<{ url: string; nome: string; tipo: string | null }[]>([]);
+  const [progresso, setProgresso] = useState('');
+  /** tipo pelo arquivo: vídeo/áudio/PDF se impõem; foto segue o tipo escolhido (pode ser "Post em rede") */
+  const tipoDoArquivo = (a: File) => (a.type.startsWith('video/') ? 'video' : a.type.startsWith('audio/') ? 'audio' : a.type === 'application/pdf' ? 'documento' : null);
+
+  const subir = async (arquivo: File): Promise<string> => {
+    const ehVideo = arquivo.type.startsWith('video/');
+    const nome = `${spec.pastaFoto || 'marketing/anexos'}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_') || (ehVideo ? 'video.mp4' : 'foto.jpg')}`;
+    const { error } = await supabase.storage.from('anexos').upload(nome, arquivo, { contentType: arquivo.type || undefined });
+    if (error) throw error;
+    return supabase.storage.from('anexos').getPublicUrl(nome).data.publicUrl;
+  };
+
+  const enviarVarios = async (arquivos: File[]) => {
+    setEnviandoFoto(true); setErro(null);
+    const falhas: string[] = [];
+    for (let i = 0; i < arquivos.length; i++) {
+      const a = arquivos[i];
+      setProgresso(`Enviando ${i + 1} de ${arquivos.length}…`);
+      try {
+        const url = await subir(a);
+        setEnviados((s) => [...s, { url, nome: a.name, tipo: tipoDoArquivo(a) }]);
+      } catch (e: any) { falhas.push(`${a.name} (${(a.size / 1024 / 1024).toFixed(0)} MB): ${e?.message || 'erro'}`); }
+    }
+    setProgresso(''); setEnviandoFoto(false);
+    if (falhas.length) setErro(`Não subiram: ${falhas.join(' · ')}. Vídeo muito grande costuma ser recusado — publique no Drive e cole o link.`);
+  };
+
   // Upload direto pro bucket público `anexos`, como no /pendencias.
   const enviarArquivo = async (campo: string, arquivo: File) => {
     setEnviandoFoto(true);
     setErro(null);
     const ehVideo = arquivo.type.startsWith('video/');
     try {
-      const nome = `${spec.pastaFoto || 'marketing/anexos'}/${Date.now()}-${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_') || (ehVideo ? 'video.mp4' : 'foto.jpg')}`;
-      const { error } = await supabase.storage.from('anexos').upload(nome, arquivo, {
-        contentType: arquivo.type || undefined,
-      });
-      if (error) throw error;
-      set(campo, supabase.storage.from('anexos').getPublicUrl(nome).data.publicUrl);
+      set(campo, await subir(arquivo));
       // Mandou vídeo mas o tipo ficou em "foto": corrige sozinho, senão o
       // registro sai classificado errado e o PDF tenta desenhar um .mp4.
       if (ehVideo && spec.campos.some((c) => c.k === 'tipo' && c.opcoes?.some((o) => o.id === 'video'))) {
@@ -205,8 +231,19 @@ export default function ListaSimples({
     try {
       const corpo: any = { ...f };
       for (const c of spec.campos) if (c.tipo === 'apoio' && !corpo[c.k]) corpo[c.k] = null;
+      const campoVarios = spec.campos.find((c) => c.varios);
       if (editando) await apiEnviar(`/api/marketing/${spec.rota}`, 'PATCH', { ...corpo, id: editando.id });
+      else if (campoVarios && enviados.length) {
+        // um registro por arquivo enviado (+ o link colado, se houver), todos com os mesmos dados do formulário
+        const lista = [...enviados];
+        const link = String(corpo[campoVarios.k] || '').trim();
+        if (link && !lista.some((x) => x.url === link)) lista.unshift({ url: link, nome: link, tipo: null });
+        for (const x of lista) {
+          await apiEnviar(`/api/marketing/${spec.rota}`, 'POST', { ...corpo, [campoVarios.k]: x.url, ...(x.tipo ? { tipo: x.tipo } : {}), acao_id: acaoId });
+        }
+      }
       else await apiEnviar(`/api/marketing/${spec.rota}`, 'POST', { ...corpo, acao_id: acaoId });
+      setEnviados([]);
       setAberto(false);
       onMudou();
     } catch (e2: any) {
@@ -256,7 +293,8 @@ export default function ListaSimples({
             // Classifica pela EXTENSÃO do arquivo, não pelo campo `tipo`: o
             // registro pode ter vindo com o tipo errado, e aí o <img> some.
             const ehVideo = ehLink && (/\.(mp4|mov|webm|m4v)(\?|$)/i.test(anexo) || it.tipo === 'video');
-            const ehImagem = ehLink && !ehVideo && !/\.(pdf|docx?|xlsx?)(\?|$)/i.test(anexo);
+            const ehAudio = ehLink && !ehVideo && (/\.(mp3|m4a|ogg|opus|wav|aac)(\?|$)/i.test(anexo) || it.tipo === 'audio');
+            const ehImagem = ehLink && !ehVideo && !ehAudio && !/\.(pdf|docx?|xlsx?)(\?|$)/i.test(anexo);
             return (
               <Painel key={it.id} style={{ borderLeft: `3px solid ${ROSA}` }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
@@ -278,6 +316,14 @@ export default function ListaSimples({
                 {resumo(it) && (
                   <div style={{ marginTop: 5, fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>{resumo(it)}</div>
                 )}
+                {/* quem colocou e quando (23/11/2026) */}
+                {(it.criado_em || it.criado_por_nome) && (
+                  <div style={{ marginTop: 3, fontSize: 11.5, color: 'var(--portal-text-muted, #94a3b8)' }}>
+                    {it.criado_por_nome ? `Colocado por ${it.criado_por_nome}` : 'Colocado'}
+                    {it.criado_em ? ` em ${new Date(it.criado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+                  </div>
+                )}
+                {ehAudio && <audio src={anexo} controls preload="none" style={{ marginTop: 8, width: '100%' }} />}
                 {ehVideo && (
                   <video
                     src={anexo}
@@ -340,10 +386,27 @@ export default function ListaSimples({
                     <input
                       type="file"
                       accept={c.aceita ?? 'image/*'}
-                      onChange={(e) => { const a = e.target.files?.[0]; if (a) enviarArquivo(c.k, a); }}
+                      multiple={!!c.varios && !editando}
+                      onChange={(e) => {
+                        const fs = Array.from(e.target.files || []);
+                        e.target.value = '';   // deixa escolher de novo (mais arquivos)
+                        if (!fs.length) return;
+                        if (c.varios && !editando) enviarVarios(fs); else enviarArquivo(c.k, fs[0]);
+                      }}
                       style={{ fontSize: 13, color: 'var(--portal-text)' }}
                     />
-                    {enviandoFoto && <span style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>Enviando…</span>}
+                    {enviandoFoto && <span style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>{progresso || 'Enviando…'}</span>}
+                    {c.varios && !editando && enviados.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{enviados.length} arquivo(s) prontos — ao salvar, cada um vira um registro. Pode escolher mais.</span>
+                        {enviados.map((x, i) => (
+                          <span key={x.url} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>
+                            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.nome}{x.tipo ? ` · ${x.tipo === 'video' ? 'vídeo' : x.tipo === 'audio' ? 'áudio' : 'PDF'}` : ''}</span>
+                            <button type="button" onClick={() => setEnviados((s) => s.filter((_, j) => j !== i))} title="Tirar" style={{ border: 'none', background: 'none', color: '#dc2626', cursor: 'pointer' }}>✕</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </Campo>
               );

@@ -166,6 +166,7 @@ export const TIPOS_REALIZADA = [
 export const TIPOS_MIDIA = [
   { id: 'foto',      label: 'Foto' },
   { id: 'video',     label: 'Vídeo' },
+  { id: 'audio',     label: 'Áudio' },   // 23/11/2026 — sql/marketing-midias-audio.sql
   { id: 'post',      label: 'Post em rede' },
   { id: 'clipping',  label: 'Imprensa' },
   { id: 'banner',    label: 'Banner / peça gráfica' },

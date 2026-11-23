@@ -13,7 +13,7 @@
 import { NextResponse } from 'next/server';
 import { guardar, erroResposta, apenas, num, dataOuNull } from './rota';
 import { db } from './db';
-import { logMarketing } from './server';
+import { logMarketing, nomeDoUsuario } from './server';
 
 export interface DefCrud {
   tabela: string;
@@ -33,6 +33,8 @@ export interface DefCrud {
   ordem?: string;
   /** Campo usado como rótulo no audit_log. */
   label?: string;
+  /** true = grava criado_por_nome com quem está logado (23/11/2026: 'mostrar quem colocou'). */
+  registraAutor?: boolean;
 }
 
 function normalizar(body: any, d: DefCrud) {
@@ -75,7 +77,7 @@ export function criarRotasCrud(d: DefCrud) {
       const dados = normalizar(body, d);
       const { data, error } = await db
         .from(d.tabela)
-        .insert([{ ...dados, acao_id: body.acao_id }])
+        .insert([{ ...dados, acao_id: body.acao_id, ...(d.registraAutor ? { criado_por_nome: await nomeDoUsuario(g.auth) } : {}) }])
         .select('*')
         .single();
       if (error) throw Object.assign(new Error(error.message), { code: error.code });

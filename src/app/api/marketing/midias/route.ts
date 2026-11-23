@@ -12,7 +12,9 @@ export const { GET, POST, PATCH, DELETE } = criarRotasCrud({
   label: 'legenda',
   ordem: 'ordem',
   campos: ['apoio_id', 'tipo', 'url', 'legenda', 'veiculo', 'alcance', 'data',
-           'contrapartida', 'ordem', 'criado_por_nome'],
+           'contrapartida', 'ordem'],
+  // quem colocou vem do login (não do formulário)
+  registraAutor: true,
   numericos: ['alcance', 'ordem'],
   // `ordem` e `contrapartida` são NOT NULL com padrão no banco: em branco,
   // omitir em vez de mandar null.
