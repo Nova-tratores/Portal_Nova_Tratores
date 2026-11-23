@@ -42,6 +42,12 @@ function isoHoje(): string {
 async function fetchSelicBCB(deISO: string, ateISO: string): Promise<BCBRow[]> {
   const url = `${BCB_SGS_SELIC}?formato=json&dataInicial=${toBCBDate(deISO)}&dataFinal=${toBCBDate(ateISO)}`;
   const res = await fetch(url);
+  // Período sem taxa publicada (fim de semana, feriado, dia ainda não divulgado): o BCB
+  // responde 404 "Value(s) not found". Não é erro — só não há taxa nova.
+  if (res.status === 404) {
+    const corpo = await res.text().catch(() => '');
+    if (/not found/i.test(corpo)) return [];
+  }
   if (!res.ok) throw new Error(`API BCB retornou ${res.status}`);
   const data = (await res.json()) as BCBRow[];
   return Array.isArray(data) ? data : [];
