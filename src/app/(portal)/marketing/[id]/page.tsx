@@ -18,7 +18,7 @@ import { ArrowLeft, Pencil, UserX } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui';
-import { STATUS_ACAO, TIPOS_ACAO, rotulo, cor, ehEventoInterno, ABAS_FORA_EVENTO_INTERNO } from '@/lib/marketing/tipos';
+import { STATUS_ACAO, TIPOS_ACAO, rotulo, cor, ehEventoInterno } from '@/lib/marketing/tipos';
 import AcaoForm from '@/components/marketing/AcaoForm';
 import CapaCampanha from '@/components/marketing/CapaCampanha';
 import Modal from '@/components/marketing/Modal';
@@ -36,12 +36,20 @@ import {
   apiGet, apiEnviar, periodoBR, Selo, Vazio, AvisoMigracao, Erro, ROSA, IconeTipoAcao, estiloBotaoContorno,
 } from '@/components/marketing/ui';
 
-const ABAS = [
-  'Resumo', 'Linha do tempo', 'Apoio de fábrica', 'Investimento', 'Leads', 'Propostas',
-  'Equipe', 'Itens expostos', 'Ações realizadas', 'Concorrentes', 'Mídia',
-  'Avaliação', 'Questionário', 'Relatório',
-] as const;
+// Revisão da tela de campanha (23/11/2026): eram 14 abas em duas linhas, quase todas vazias.
+// Viraram 5; dentro de cada uma, blocos que aparecem conforme o tipo da campanha.
+const ABAS = ['Resumo', 'Dinheiro', 'Vendas', 'Execução', 'Fechamento'] as const;
 type Aba = (typeof ABAS)[number];
+
+/** Um bloco dentro de uma aba (ex.: "Investimento" e "Apoio de fábrica" dentro de Dinheiro). */
+function Bloco({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 500, color: 'var(--portal-text)' }}>{titulo}</h2>
+      {children}
+    </section>
+  );
+}
 
 export default function FichaAcaoPage() {
   const params = useParams();
@@ -75,6 +83,19 @@ export default function FichaAcaoPage() {
 
   useEffect(() => { carregar(); }, [carregar]);
 
+  const [relatorioAberto, setRelatorioAberto] = useState(false);
+  const [avisoRoleta, setAvisoRoleta] = useState<string | null>(null);
+
+  // inscrições da roleta que ainda não viraram lead (o gatilho do banco faz isso sozinho; isto cobre o que ficou para trás)
+  const converterRoleta = async () => {
+    setAvisoRoleta(null);
+    try {
+      const r = await apiEnviar<any>('/api/marketing/leads/da-roleta', 'POST', { acao_id: id });
+      setAvisoRoleta(r?.criados ? `${r.criados} lead(s) criados a partir da roleta.` : 'Nada novo para converter.');
+      carregar();
+    } catch (e: any) { setAvisoRoleta(e?.message || 'Não consegui converter.'); }
+  };
+
   const salvarEdicao = async (dados: Record<string, any>) => {
     setSalvando(true);
     setErroForm(null);
@@ -97,24 +118,36 @@ export default function FichaAcaoPage() {
   const { acao, roi } = ficha;
   const semDono = !!acao.responsavel_id && ficha.inativos.has(acao.responsavel_id);
 
-  // Evento interno (confraternização etc.) não tem stand, leads, propostas nem apoio de fábrica (23/11/2026).
+  // Revisão da tela (23/11/2026): o TIPO decide o que aparece.
+  //   evento interno → sem Vendas; feira/dia de campo → equipe, itens expostos e concorrentes;
+  //   apoio de fábrica só se houver apoio ou for feira; relatório da fábrica vira botão quando há apoio.
   const interno = ehEventoInterno(acao.tipo);
-  const abasVisiveis = interno ? ABAS.filter((a) => !(ABAS_FORA_EVENTO_INTERNO as readonly string[]).includes(a)) : ABAS;
+  const ehFeira = acao.tipo === 'feira' || acao.tipo === 'dia_de_campo';
+  const mostraApoio = ficha.apoios.length > 0 || ehFeira;
+  const terminou = !!acao.data_fim && String(acao.data_fim).slice(0, 10) < new Date().toISOString().slice(0, 10);
+  const abasVisiveis = ABAS.filter((a) => !(interno && a === 'Vendas'));
   const abaAtual: Aba = abasVisiveis.includes(aba) ? aba : 'Resumo';   // trocou o tipo com uma aba escondida aberta
 
   // Contador por aba: o número que faz a pessoa saber onde falta preencher.
   const contagem: Partial<Record<Aba, number>> = {
-    'Apoio de fábrica': ficha.apoios.length,
-    Investimento: ficha.custos.length,
-    Leads: ficha.leads.length,
-    Propostas: ficha.propostas.length,
-    Equipe: ficha.equipe.length,
-    'Itens expostos': ficha.itens.length,
-    'Ações realizadas': ficha.realizadas.length,
-    Concorrentes: ficha.concorrentes.length,
-    Mídia: ficha.midias.length,
-    Avaliação: ficha.avaliacoes.length,
+    Dinheiro: ficha.custos.length + (mostraApoio ? ficha.apoios.length : 0),
+    Vendas: ficha.leads.length + ficha.propostas.length,
+    Execução: ficha.realizadas.length + ficha.midias.length + ((ehFeira || interno) ? ficha.equipe.length : 0) + (ehFeira ? ficha.itens.length + ficha.concorrentes.length : 0),
+    Fechamento: ficha.avaliacoes.length,
   };
+
+  // "O que falta" no topo do Resumo: cada pendência com o botão que resolve
+  type Pend = { texto: string; botao?: string; acao?: () => void; precisaEditar?: boolean };
+  const pendencias: Pend[] = [];
+  if (acao.status !== 'cancelada') {
+    if (!acao.responsavel_id) pendencias.push({ texto: 'Responsável não definido.', botao: 'Definir', acao: () => { setErroForm(null); setEditando(true); }, precisaEditar: true });
+    if (ficha.custos.length === 0) pendencias.push({ texto: 'Nenhum custo lançado: sem custo, o retorno não vale nada.', botao: 'Lançar custo', acao: () => setAba('Dinheiro') });
+    const naRoleta = ficha.roleta?.participantes ?? 0;
+    const daRoleta = ficha.leads.filter((l: any) => l.origem === 'roleta').length;
+    if (!interno && naRoleta > daRoleta) pendencias.push({ texto: `${naRoleta - daRoleta} participante(s) da roleta ainda não viraram lead.`, botao: 'Converter em leads', acao: converterRoleta });
+    if (!interno && ficha.propostas.length === 0 && acao.status !== 'planejada') pendencias.push({ texto: 'Nenhuma proposta vinculada: é o que liga a campanha à venda.', botao: 'Vincular', acao: () => setAba('Vendas') });
+    if (terminou && ficha.avaliacoes.length === 0) pendencias.push({ texto: 'A campanha terminou e ainda não foi avaliada.', botao: 'Avaliar', acao: () => setAba('Fechamento') });
+  }
 
   return (
     <div style={{ padding: 16, maxWidth: 1400, margin: '0 auto' }}>
@@ -133,8 +166,9 @@ export default function FichaAcaoPage() {
           borderRadius: 16, marginBottom: 14, overflow: 'hidden',
         }}
       >
-        <div style={{ maxHeight: 260, overflow: 'hidden', position: 'relative' }}>
-          <CapaCampanha acao={acao} roleta={ficha.roleta} proporcao="16 / 5" />
+        {/* capa em faixa baixa (revisão 23/11/2026): antes ocupava meia tela e empurrava os números para baixo */}
+        <div style={{ maxHeight: 120, overflow: 'hidden', position: 'relative' }}>
+          <CapaCampanha acao={acao} roleta={ficha.roleta} proporcao="16 / 3" />
           {/* Sem foto: o quadro lilás sozinho não dizia que dá pra pôr uma capa */}
           {!acao.capa_url && !ficha.roleta?.capa && podeEditar && (
             <button
@@ -153,6 +187,12 @@ export default function FichaAcaoPage() {
             <h1 style={{ margin: 0, fontSize: 22, fontWeight: 500, letterSpacing: '-.01em', color: 'var(--portal-text)' }}>{acao.nome}</h1>
             <div style={{ fontSize: 13, color: 'var(--portal-text-muted, #64748b)', marginTop: 3 }}>
               {rotulo(TIPOS_ACAO, acao.tipo)} · {periodoBR(acao.data_inicio, acao.data_fim)}
+              {(() => {
+                if (!acao.data_fim || acao.status === 'cancelada' || acao.status === 'realizada') return null;
+                const dias = Math.round((Date.parse(String(acao.data_fim).slice(0, 10)) - Date.parse(new Date().toISOString().slice(0, 10))) / 86_400_000);
+                if (dias < 0) return <b style={{ fontWeight: 500, color: '#dc2626' }}> · terminou há {-dias} dia(s)</b>;
+                return <b style={{ fontWeight: 500, color: dias <= 3 ? '#d97706' : '#16a34a' }}> · {dias === 0 ? 'último dia' : `faltam ${dias} dia(s)`}</b>;
+              })()}
               {acao.cidade ? ` · ${acao.cidade}${acao.uf ? `/${acao.uf}` : ''}` : ''}
               {acao.local_nome ? ` · ${acao.local_nome}` : ''}
             </div>
@@ -172,6 +212,11 @@ export default function FichaAcaoPage() {
               >
                 <i className="fa-solid fa-dharmachakra" /> Abrir a roleta
               </Link>
+            )}
+            {ficha.apoios.length > 0 && (
+              <button onClick={() => setRelatorioAberto(true)} style={estiloBotaoContorno}>
+                <i className="fa-solid fa-file-lines" /> Relatório para a fábrica
+              </button>
             )}
             <button
               onClick={() => { setErroForm(null); setEditando(true); }}
@@ -231,20 +276,63 @@ export default function FichaAcaoPage() {
         })}
       </div>
 
-      {abaAtual === 'Resumo' && <ResumoAba ficha={ficha} roi={roi} />}
-      {abaAtual === 'Linha do tempo' && <LinhaDoTempoAba acaoId={id} />}
-      {abaAtual === 'Apoio de fábrica' && <ApoiosAba acaoId={id} apoios={ficha.apoios} inativos={ficha.inativos} onMudou={carregar} />}
-      {abaAtual === 'Investimento' && <CustosAba acaoId={id} custos={ficha.custos} onMudou={carregar} />}
-      {abaAtual === 'Leads' && <LeadsAba acaoId={id} leads={ficha.leads} onMudou={carregar} />}
-      {abaAtual === 'Propostas' && <PropostasAba acaoId={id} propostas={ficha.propostas} onMudou={carregar} />}
-      {abaAtual === 'Equipe' && <ListaSimples spec={SPEC_EQUIPE} acaoId={id} itens={ficha.equipe} onMudou={carregar} />}
-      {abaAtual === 'Itens expostos' && <ListaSimples spec={SPEC_ITENS} acaoId={id} itens={ficha.itens} onMudou={carregar} />}
-      {abaAtual === 'Ações realizadas' && <ListaSimples spec={SPEC_REALIZADAS} acaoId={id} itens={ficha.realizadas} apoios={ficha.apoios} onMudou={carregar} />}
-      {abaAtual === 'Concorrentes' && <ListaSimples spec={SPEC_CONCORRENTES} acaoId={id} itens={ficha.concorrentes} onMudou={carregar} />}
-      {abaAtual === 'Mídia' && <ListaSimples spec={SPEC_MIDIAS} acaoId={id} itens={ficha.midias} apoios={ficha.apoios} onMudou={carregar} />}
-      {abaAtual === 'Avaliação' && <AvaliacaoAba acaoId={id} avaliacoes={ficha.avaliacoes} onMudou={carregar} />}
-      {abaAtual === 'Questionário' && <QuestionarioAba acaoId={id} acaoNome={acao.nome} onMudou={carregar} />}
-      {abaAtual === 'Relatório' && <RelatorioAba apoios={ficha.apoios} onMudou={carregar} />}
+      {/* Revisão da tela (23/11/2026): 14 abas viraram 5; o tipo da campanha decide o que aparece em cada uma */}
+      {abaAtual === 'Resumo' && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: '3 1 560px', minWidth: 0 }}>
+            {pendencias.length > 0 && (
+              <div style={{ border: '1px solid #fcd34d', background: 'color-mix(in srgb, #f59e0b 8%, var(--portal-bg-card))', borderRadius: 14, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text)' }}>O que falta</div>
+                {avisoRoleta && <div style={{ fontSize: 13, color: 'var(--portal-text-muted, #64748b)' }}>{avisoRoleta}</div>}
+                {pendencias.map((p) => (
+                  <div key={p.texto} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13.5, color: 'var(--portal-text)' }}>
+                    <i className="fa-solid fa-triangle-exclamation" style={{ color: '#d97706' }} />
+                    <span style={{ flex: '1 1 240px' }}>{p.texto}</span>
+                    {p.botao && <button onClick={p.acao} disabled={!podeEditar && p.precisaEditar} style={{ ...estiloBotaoContorno, padding: '6px 11px' }}>{p.botao}</button>}
+                  </div>
+                ))}
+              </div>
+            )}
+            <ResumoAba ficha={ficha} roi={roi} />
+          </div>
+          <div style={{ flex: '1 1 300px', minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text)', marginBottom: 8 }}>Linha do tempo</div>
+            <div style={{ maxHeight: 640, overflowY: 'auto' }}><LinhaDoTempoAba acaoId={id} /></div>
+          </div>
+        </div>
+      )}
+      {abaAtual === 'Dinheiro' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <Bloco titulo="Investimento"><CustosAba acaoId={id} custos={ficha.custos} onMudou={carregar} /></Bloco>
+          {mostraApoio && <Bloco titulo="Apoio de fábrica"><ApoiosAba acaoId={id} apoios={ficha.apoios} inativos={ficha.inativos} onMudou={carregar} /></Bloco>}
+        </div>
+      )}
+      {abaAtual === 'Vendas' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <Bloco titulo="Leads"><LeadsAba acaoId={id} leads={ficha.leads} onMudou={carregar} /></Bloco>
+          <Bloco titulo="Propostas"><PropostasAba acaoId={id} propostas={ficha.propostas} onMudou={carregar} /></Bloco>
+        </div>
+      )}
+      {abaAtual === 'Execução' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <Bloco titulo="Ações realizadas"><ListaSimples spec={SPEC_REALIZADAS} acaoId={id} itens={ficha.realizadas} apoios={ficha.apoios} onMudou={carregar} /></Bloco>
+          <Bloco titulo="Mídia (fotos, vídeos, posts)"><ListaSimples spec={SPEC_MIDIAS} acaoId={id} itens={ficha.midias} apoios={ficha.apoios} onMudou={carregar} /></Bloco>
+          {(ehFeira || interno) && <Bloco titulo="Equipe"><ListaSimples spec={SPEC_EQUIPE} acaoId={id} itens={ficha.equipe} onMudou={carregar} /></Bloco>}
+          {ehFeira && <Bloco titulo="Itens expostos"><ListaSimples spec={SPEC_ITENS} acaoId={id} itens={ficha.itens} onMudou={carregar} /></Bloco>}
+          {ehFeira && <Bloco titulo="Concorrentes"><ListaSimples spec={SPEC_CONCORRENTES} acaoId={id} itens={ficha.concorrentes} onMudou={carregar} /></Bloco>}
+        </div>
+      )}
+      {abaAtual === 'Fechamento' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {!terminou && <div style={{ fontSize: 13.5, color: 'var(--portal-text-muted, #64748b)' }}>A campanha ainda não terminou. Use esta parte depois do fim, para registrar o que funcionou.</div>}
+          <Bloco titulo="Avaliação"><AvaliacaoAba acaoId={id} avaliacoes={ficha.avaliacoes} onMudou={carregar} /></Bloco>
+          <Bloco titulo="Pedir para alguém preencher (questionário)"><QuestionarioAba acaoId={id} acaoNome={acao.nome} onMudou={carregar} /></Bloco>
+        </div>
+      )}
+
+      <Modal titulo="Relatório para a fábrica" aberto={relatorioAberto} onFechar={() => setRelatorioAberto(false)}>
+        <RelatorioAba apoios={ficha.apoios} onMudou={carregar} />
+      </Modal>
 
       <Modal titulo="Editar campanha" aberto={editando} onFechar={() => setEditando(false)}>
         <AcaoForm

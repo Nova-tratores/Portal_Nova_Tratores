@@ -274,7 +274,7 @@ export interface Acao {
 }
 
 /** A roleta do site ligada a uma campanha (tabela `campanhas`, campanhas.acao_id). */
-export interface RoletaLigada { slug: string; capa: string | null }
+export interface RoletaLigada { slug: string; capa: string | null; /** inscrições na roleta (só na ficha) */ participantes?: number }
 
 export interface Apoio {
   id: string;

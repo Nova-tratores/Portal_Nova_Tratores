@@ -61,6 +61,14 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     });
 
     const roleta = (await roletasDas([id]))[id] ?? null;
+    // quantos giraram a roleta — entra no funil do Resumo (revisão da tela, 23/11/2026)
+    if (roleta) {
+      const { data: camp } = await db.from('campanhas').select('id').eq('acao_id', id).limit(1).maybeSingle();
+      if (camp) {
+        const { count } = await db.from('campanha_participacoes').select('id', { count: 'exact', head: true }).eq('campanha_id', camp.id);
+        roleta.participantes = count ?? 0;
+      }
+    }
 
     return NextResponse.json({ ...ficha, roi, inativos: [...inativos], roleta });
   } catch (e) {

@@ -12,6 +12,49 @@ import { Painel, Titulo, Kpi, brl, pct, multiplicador, Vazio, ROSA } from '../ui
 
 const ETAPAS = STATUS_APOIO.filter((s) => s.etapa > 0);
 
+/**
+ * Funil da campanha (revisão da tela, 23/11/2026) no lugar dos 9 quadros — uma linha só:
+ * Custo líquido → Participantes (roleta) → Leads → Propostas → Vendas → Margem → Retorno,
+ * com a conversão entre as etapas embaixo de cada seta. O detalhe de custo/apoio fica na aba Dinheiro.
+ */
+function Funil({ ficha, roi }: { ficha: any; roi: any }) {
+  const part = ficha.roleta ? Number(ficha.roleta.participantes ?? 0) : null;
+  const conv = (a: number, b: number | null) => (b && b > 0 ? `${Math.round((a / b) * 100)}%` : '—');
+  type Etapa = { rotulo: string; valor: string; dica?: string; cor?: string; conv?: string };
+  const etapas: Etapa[] = [
+    { rotulo: 'Custo líquido', valor: brl(roi.custoLiquido), dica: `Investido ${brl(roi.custoConfirmado)} menos apoio recebido ${brl(roi.apoioRecebido)}.` },
+    ...(part !== null ? [{ rotulo: 'Giraram a roleta', valor: String(part) }] : []),
+    { rotulo: 'Leads', valor: String(roi.leads), conv: part !== null ? `${conv(roi.leads, part)} → lead` : undefined,
+      dica: roi.metaLeadsPercent !== null ? `${pct(roi.metaLeadsPercent)} da meta` : undefined },
+    { rotulo: 'Propostas', valor: String(roi.propostasN), conv: `${conv(roi.propostasN, roi.leads)} → proposta`,
+      dica: `${roi.pipelineAbertoN} ainda em aberto · ${brl(roi.pipelineAbertoValor)}` },
+    { rotulo: 'Vendas', valor: String(roi.vendasN), cor: '#16a34a', conv: `${conv(roi.vendasN, roi.propostasN)} → venda`,
+      dica: [roi.vendasNaAcao ? `${roi.vendasNaAcao} na ação` : '', roi.vendasDepois ? `${roi.vendasDepois} depois (até ${roi.janelaDias} dias)` : '',
+        roi.vendasForaJanela ? `${roi.vendasForaJanela} fora do prazo, não conta` : ''].filter(Boolean).join(' · ') || undefined },
+    { rotulo: roi.margemEstimada ? 'Margem (estimada)' : 'Margem', valor: brl(roi.margemAtribuida ?? 0), cor: '#16a34a',
+      dica: `Receita ${brl(roi.receitaAtribuida)}. ${roi.margemEstimada ? 'Venda sem custo cadastrado usa o % padrão do tipo.' : ''}` },
+    { rotulo: 'Retorno', valor: multiplicador(roi.roi), cor: '#7c3aed', dica: 'Margem dividida pelo custo líquido.' },
+  ];
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'stretch', gap: 4, padding: 12, borderRadius: 14, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)' }}>
+      {etapas.map((e, i) => (
+        <div key={e.rotulo} style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '1 1 120px' }}>
+          {i > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--portal-text-muted, #94a3b8)', fontSize: 11, minWidth: 20 }}>
+              <span style={{ fontSize: 16 }}>→</span>
+              {e.conv && <span style={{ whiteSpace: 'nowrap' }}>{e.conv}</span>}
+            </div>
+          )}
+          <div title={e.dica} style={{ flex: 1, minWidth: 0, padding: '4px 6px' }}>
+            <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>{e.rotulo}</div>
+            <div style={{ fontSize: 22, fontWeight: 500, color: e.cor || 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{e.valor}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ResumoAba({ ficha, roi }: { ficha: any; roi: any }) {
   const categorias = rankingCategorias(roi.custoPorCategoria ?? {});
   const maior = categorias[0]?.valor ?? 0;
@@ -34,23 +77,7 @@ export default function ResumoAba({ ficha, roi }: { ficha: any; roi: any }) {
           </div>
         )
       })() : (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 8 }}>
-        <Kpi rotulo="Investido" valor={brl(roi.custoConfirmado)} dica="Custos confirmados. Previstos não entram." />
-        <Kpi rotulo="Apoio recebido" valor={brl(roi.apoioRecebido)} cor="#16a34a" dica="Só o que já entrou. Aprovado e não recebido fica em 'a receber'." />
-        <Kpi rotulo="Custo líquido" valor={brl(roi.custoLiquido)} dica="O que a revenda pôs do próprio bolso: investido menos apoio recebido." />
-        <Kpi rotulo="Leads" valor={String(roi.leads)} dica={roi.metaLeadsPercent !== null ? `${pct(roi.metaLeadsPercent)} da meta` : undefined} />
-        <Kpi rotulo="Propostas" valor={String(roi.propostasN)} dica={`${roi.pipelineAbertoN} ainda em aberto · ${brl(roi.pipelineAbertoValor)}`} />
-        <Kpi rotulo="Vendas" valor={String(roi.vendasN)} cor="#16a34a"
-          dica={[
-            roi.vendasNaAcao ? `${roi.vendasNaAcao} fechou na ação` : '',
-            roi.vendasDepois ? `${roi.vendasDepois} depois, dentro de ${roi.janelaDias} dias` : '',
-            roi.vendasForaJanela ? `${roi.vendasForaJanela} fora do prazo (não conta)` : '',
-          ].filter(Boolean).join(' · ') || undefined} />
-        <Kpi rotulo="Receita atribuída" valor={brl(roi.receitaAtribuida)} cor="#16a34a" />
-        <Kpi rotulo="Margem atribuída" valor={brl(roi.margemAtribuida ?? 0)} cor="#16a34a"
-          dica={roi.margemEstimada ? 'Estimada: venda sem custo cadastrado usa o % padrão do tipo (tela Resultados).' : 'Valor da venda menos o custo da máquina.'} />
-        <Kpi rotulo={roi.margemEstimada ? 'Retorno (margem estimada)' : 'Retorno'} valor={multiplicador(roi.roi)} dica="Margem atribuída dividida pelo custo líquido. Travessão quando não há custo líquido." cor="#7c3aed" />
-      </div>
+      <Funil ficha={ficha} roi={roi} />
       )}
 
       {roi.alertas?.length > 0 && (
