@@ -419,3 +419,16 @@ export function mostraBloco(tipo: string | null | undefined, bloco: BlocoCampanh
   const m = (LINHAS[String(tipo)] ?? LINHAS.outro)[ORDEM_BLOCOS.indexOf(bloco)];
   return m === 'sim' || (m === 'dado' && temDado);
 }
+
+// ── Origem do lead (Fase 5, 23/11/2026): um funil só para todas as entradas ──
+export const ORIGENS_LEAD = [
+  { id: 'site', label: 'Site (pedido de proposta)' },
+  { id: 'site-whatsapp', label: 'Site (WhatsApp)' },
+  { id: 'feira', label: 'Feira / evento' },
+  { id: 'roleta', label: 'Roleta' },
+  { id: 'post', label: 'Post nas redes' },
+  { id: 'anuncio-meta', label: 'Anúncio Meta' },
+  { id: 'anuncio-google', label: 'Anúncio Google' },
+  { id: 'balcao', label: 'Balcão' },
+  { id: 'telefone', label: 'Telefone' },
+] as const;

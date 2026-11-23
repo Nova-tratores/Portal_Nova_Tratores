@@ -6,7 +6,7 @@
 // uma semana depois é lead esfriando.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { QUALIFICACOES_LEAD, TEMPERATURAS, rotulo, cor } from '@/lib/marketing/tipos';
+import { QUALIFICACOES_LEAD, TEMPERATURAS, ORIGENS_LEAD, rotulo, cor } from '@/lib/marketing/tipos';
 import {
   apiGet, apiEnviar, dataBR, diasAte, Painel, Selo, Kpi, Vazio, AvisoMigracao, Erro, estiloInput,
 } from '@/components/marketing/ui';
@@ -27,6 +27,7 @@ export default function LeadsGeraisPage() {
   const [busca, setBusca] = useState('');
   const [fQual, setFQual] = useState('');
   const [fAcao, setFAcao] = useState('');
+  const [fOrigem, setFOrigem] = useState('');   // Fase 5: funil único — site, roleta, feira, balcão…
 
   const carregar = useCallback(async () => {
     try {
@@ -48,11 +49,18 @@ export default function LeadsGeraisPage() {
     return leads.filter((l) => {
       if (fQual && l.qualificacao !== fQual) return false;
       if (fAcao && l.acao_id !== fAcao) return false;
+      if (fOrigem && (l.origem || 'feira') !== fOrigem) return false;
       if (!t) return true;
       return [l.texto, l.nome, l.telefone, l.cidade, l.interesse, l.cliente_nome]
         .some((v) => v && String(v).toLowerCase().includes(t));
     });
-  }, [leads, busca, fQual, fAcao]);
+  }, [leads, busca, fQual, fAcao, fOrigem]);
+
+  // Fase 5.3: tempo médio até a 1ª resposta (capturado → saiu de 'novo'), em horas
+  const resposta = useMemo(() => {
+    const t = lista.filter((l) => l.primeiro_contato_em).map((l) => (Date.parse(l.primeiro_contato_em) - Date.parse(l.capturado_em)) / 3_600_000).filter((h) => h >= 0);
+    return t.length ? t.reduce((a, b) => a + b, 0) / t.length : null;
+  }, [lista]);
 
   const contagem = useMemo(() => {
     const m: Record<string, number> = {};
@@ -75,6 +83,7 @@ export default function LeadsGeraisPage() {
     <div style={{ padding: 16, maxWidth: 1400, margin: '0 auto' }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
         <Kpi rotulo="Leads" valor={String(lista.length)} />
+        <Kpi rotulo="1ª resposta (média)" valor={resposta === null ? '—' : resposta < 1 ? `${Math.round(resposta * 60)} min` : resposta < 48 ? `${resposta.toFixed(1).replace('.', ',')} h` : `${Math.round(resposta / 24)} dias`} dica="Do contato chegar até sair de Novo. Lead novo há mais de 1 hora de expediente gera aviso no sino." />
         {QUALIFICACOES_LEAD.filter((q) => contagem[q.id]).map((q) => (
           <Kpi key={q.id} rotulo={q.label} valor={String(contagem[q.id])} cor={q.cor} />
         ))}
@@ -89,6 +98,10 @@ export default function LeadsGeraisPage() {
         <select style={{ ...estiloInput, flex: '1 1 240px' }} value={fAcao} onChange={(e) => setFAcao(e.target.value)}>
           <option value="">Todas as ações</option>
           {Object.values(acoes).map((a: any) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+        </select>
+        <select style={{ ...estiloInput, flex: '0 1 200px' }} value={fOrigem} onChange={(e) => setFOrigem(e.target.value)}>
+          <option value="">Todas as origens</option>
+          {ORIGENS_LEAD.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
         </select>
       </div>
 
@@ -105,9 +118,12 @@ export default function LeadsGeraisPage() {
             const esfriando = l.qualificacao === 'novo' && idade !== null && idade < -7;
             return (
               <Painel key={l.id} style={{ borderLeft: `3px solid ${esfriando ? '#dc2626' : cor(QUALIFICACOES_LEAD, l.qualificacao)}` }}>
-                <Link href={`/marketing/${l.acao_id}`} style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none' }}>
-                  {acoes[l.acao_id]?.nome ?? 'ação'}
-                </Link>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 12 }}>
+                  <span style={{ padding: '1px 8px', borderRadius: 999, background: 'color-mix(in srgb, #0891b2 11%, transparent)', color: '#0891b2' }}>{rotulo(ORIGENS_LEAD, l.origem || 'feira')}</span>
+                  {l.acao_id
+                    ? <Link href={`/marketing/${l.acao_id}`} style={{ color: '#2563eb', textDecoration: 'none' }}>{acoes[l.acao_id]?.nome ?? 'campanha'}</Link>
+                    : l.pedido_id ? <Link href="/marketing/pedidos" style={{ color: '#2563eb', textDecoration: 'none' }}>ver o pedido</Link> : null}
+                </div>
                 <div style={{ marginTop: 5, fontSize: 13, color: 'var(--portal-text)', whiteSpace: 'pre-wrap' }}>{l.texto}</div>
                 <div style={{ marginTop: 6, fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>
                   {[l.nome, l.telefone, l.cidade].filter(Boolean).join(' · ') || 'sem contato registrado'}

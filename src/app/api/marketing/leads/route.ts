@@ -11,6 +11,7 @@ import { NextResponse } from 'next/server';
 import { guardar, erroResposta, apenas, num, dataOuNull } from '@/lib/marketing/rota';
 import { db } from '@/lib/marketing/db';
 import { logMarketing, nomeDoUsuario, podeMarketing } from '@/lib/marketing/server';
+import { ORIGENS_LEAD } from '@/lib/marketing/tipos';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -18,13 +19,14 @@ export const dynamic = 'force-dynamic';
 const CAMPOS = [
   'texto', 'nome', 'telefone', 'cidade', 'interesse', 'foto_url',
   'cliente_cod_cli', 'cliente_empresa', 'cliente_nome',
-  'qualificacao', 'temperatura', 'responsavel_nome', 'proximo_contato', 'observacoes',
+  'qualificacao', 'temperatura', 'responsavel_nome', 'proximo_contato', 'observacoes', 'origem',
 ] as const;
 
 function normalizar(body: any) {
   const d: any = apenas(body, CAMPOS);
   if ('cliente_cod_cli' in d) d.cliente_cod_cli = num(d.cliente_cod_cli);
   if ('proximo_contato' in d) d.proximo_contato = dataOuNull(d.proximo_contato);
+  if ('origem' in d) d.origem = ORIGENS_LEAD.some((o) => o.id === d.origem) ? d.origem : null;   // Fase 5
   // O CHECK do banco: cod_cli sem empresa é proibido, porque o mesmo número
   // existe na NOVA e na CASTRO — a chave real é o PAR.
   if (d.cliente_cod_cli && !d.cliente_empresa) {
@@ -60,14 +62,15 @@ export async function GET(req: Request) {
     if (error) throw Object.assign(new Error(error.message), { code: error.code });
 
     const leads = data ?? [];
-    const acaoIds = [...new Set(leads.map((l: any) => l.acao_id))];
+    const acaoIds = [...new Set(leads.map((l: any) => l.acao_id).filter(Boolean))];
     const acoes: Record<string, any> = {};
     if (acaoIds.length > 0) {
       const { data: as } = await db
         .from('mkt_acoes').select('id, nome, tipo, data_inicio, deleted_at').in('id', acaoIds);
       for (const a of as ?? []) acoes[a.id] = a;
     }
-    const vivos = leads.filter((l: any) => acoes[l.acao_id] && !acoes[l.acao_id].deleted_at);
+    // Fase 5: lead sem campanha (site, balcão, telefone) também entra no funil único
+    const vivos = leads.filter((l: any) => !l.acao_id || (acoes[l.acao_id] && !acoes[l.acao_id].deleted_at));
     return NextResponse.json({ itens: vivos, acoes });
   } catch (e) {
     return erroResposta(e, 'GET /leads');
@@ -80,8 +83,10 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    if (!body?.acao_id) return NextResponse.json({ error: 'Escolha a ação' }, { status: 400 });
     const dados = normalizar(body);
+    // Fase 5: sem campanha vale, desde que diga de onde veio (balcão, telefone…)
+    if (!body?.acao_id && !dados.origem) return NextResponse.json({ error: 'Escolha a campanha ou de onde o contato veio' }, { status: 400 });
+    if (body?.acao_id && !dados.origem) dados.origem = 'feira';
     if (!dados.texto || !String(dados.texto).trim()) {
       return NextResponse.json({ error: 'Escreva o que o visitante quer' }, { status: 400 });
     }
@@ -91,7 +96,7 @@ export async function POST(req: Request) {
       .from('mkt_leads')
       .insert([{
         ...dados,
-        acao_id: body.acao_id,
+        acao_id: body.acao_id || null,
         capturado_por_id: g.auth.userId,
         capturado_por_nome: autor,
         responsavel_nome: dados.responsavel_nome || autor,
@@ -133,6 +138,13 @@ export async function PATCH(req: Request) {
       .select('*')
       .single();
     if (error) throw Object.assign(new Error(error.message), { code: error.code });
+
+    // Fase 5: lead que veio do site leva a situação de volta para o pedido (tela Pedidos fica igual)
+    if (data?.pedido_id && 'qualificacao' in dados) {
+      const st = dados.qualificacao === 'qualificado' ? 'em_contato' : dados.qualificacao;
+      await db.from('site_pedidos').update({ status: st, atualizado_em: new Date().toISOString() }).eq('id', data.pedido_id).neq('status', st);
+      if (st !== 'novo') await db.from('site_pedidos').update({ atendido_em: data.primeiro_contato_em || new Date().toISOString() }).eq('id', data.pedido_id).is('atendido_em', null);
+    }
 
     await logMarketing(g.auth, {
       acao: 'editar',

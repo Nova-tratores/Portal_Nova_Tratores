@@ -167,9 +167,13 @@ export const TAREFAS: Record<string, Tarefa> = {
   'marketing-contatos-posts': async () => {
     if (desligada('MARKETING_CONTATOS_POSTS')) return { pular: 'desligado (MARKETING_CONTATOS_POSTS=off)' };
     const { cronContatosPosts } = await import('@/lib/marketing/contatos-posts');
-    const r = await cronContatosPosts();
-    if (r.pulado) return { pular: r.pulado };
-    return { resumo: `${r.lidas} conversas lidas · ${r.achadas} vieram de post` };
+    const { alertarLeadsSemResposta } = await import('@/lib/marketing/leads-alerta');
+    // Fase 5.3 (23/11/2026): no mesmo ritmo, avisa lead "novo" há mais de 1 h de horário comercial
+    const [r, al] = await Promise.all([cronContatosPosts(), alertarLeadsSemResposta()]);
+    const partes = [r.pulado ? `posts: ${r.pulado}` : `${r.lidas} conversas lidas · ${r.achadas} vieram de post`,
+      al.pulado ? `leads: ${al.pulado}` : `${al.avisados} lead(s) sem resposta avisados`];
+    if (r.pulado && al.pulado) return { pular: partes.join(' · ') };
+    return { resumo: partes.join(' · ') };
   },
 
   // Reuniões: gravações ao vivo ficam 60 dias no bucket `reunioes-gravacoes` (José, 17/11/2026).
