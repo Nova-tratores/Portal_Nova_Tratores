@@ -13,13 +13,16 @@ import { ArtesDasRedes, EscolherRedes, IconeRede, LegendaRedes } from '@/compone
 import { REDE, STATUS_POST, faltas, type Arte, type Midia, type RedeId, type StatusPost } from '@/lib/marketing/redes/redes';
 import { COR_PRIOR, NOME_PRIOR, DATAS_AGRO, datasDoDia, guiaDe, temporadasDoMes, type DataAgro } from '@/lib/marketing/redes/datasAgro';
 import { AZUL, Campo, Secao, T1, T2, T3, Voltar, bt, campoNP, cartaoNP, grade, ic } from '@/components/marketing/redes/np';
+import { TIPOS_POST, FORMATOS_POST, GANCHOS, linkWhatsDoPost, linkSiteDoPost } from '@/lib/marketing/redes/etiquetas';
 
 type Resultado = Partial<Record<RedeId, { ok: boolean; link?: string | null; em?: string; manual?: boolean; erro?: string | null }>>;
 type Post = {
   id: string; titulo: string; legenda: string | null; redes: RedeId[]; formato: string; midia: Midia; quando: string | null
   status: StatusPost; promocao_id: string | null; resultado: Resultado; notas: string | null; criado_por: string | null; atualizado_por: string | null
-};
-type Rascunho = { id?: string; titulo: string; legenda: string; redes: RedeId[]; formato: string; midia: Midia; data: string; hora: string; notas: string; promocao_id: string | null; status: StatusPost; resultado: Resultado; chave: string };
+} & Etq & { codigo?: string | null };
+/** Fase 4 (23/11/2026): etiquetas de seleção rápida (lib/marketing/redes/etiquetas.ts) */
+type Etq = { etiqueta_tipo?: string | null; gente_real?: boolean | null; maquina?: string | null; gancho?: string | null };
+type Rascunho = { id?: string; titulo: string; legenda: string; redes: RedeId[]; formato: string; midia: Midia; data: string; hora: string; notas: string; promocao_id: string | null; status: StatusPost; resultado: Resultado; chave: string } & Etq & { codigo?: string | null };
 type Conta = { rede: RedeId; nome: string | null };
 
 const SOCIAIS: RedeId[] = ['instagram', 'facebook', 'tiktok', 'youtube'];
@@ -98,6 +101,10 @@ export default function CalendarioRedes() {
   const segundaDe = (d: string) => somaDias(d, -((new Date(`${d}T12:00:00Z`).getUTCDay() + 6) % 7));
   const [semana, setSemana] = useState(() => segundaDe(hoje()));
   const [mesAberto, setMesAberto] = useState(false);
+  const [whats, setWhats] = useState<string | null>(null);   // WhatsApp da empresa (link do post)
+  const [siteUrl, setSiteUrl] = useState('');
+  const [linkPara, setLinkPara] = useState<RedeId | null>(null);   // 'Já postei' pedindo o link do post
+  const [linkPost, setLinkPost] = useState('');
   // o mês da tela acompanha a semana (pela quinta-feira, que decide de que mês a semana "é") —
   // é ele que define o que o carregar() busca e as temporadas mostradas
   const irSemana = (seg: string) => { setSemana(seg); ir({ mes: somaDias(seg, 3).slice(0, 7) }, true); };
@@ -116,6 +123,7 @@ export default function CalendarioRedes() {
     const j = await res.json().catch(() => ({}));
     if (!res.ok || !j.ok) { setErro(j.erro || 'Não consegui carregar o calendário.'); setPosts([]); return; }
     setErro(''); setPosts(j.posts); setIdeias(j.ideias); setContas(j.contas || []); setPodeEditar(!!j.podeEditar);
+    setWhats(j.whatsapp || null); setSiteUrl(j.siteUrl || '');
   }, [inicioGrade, rota.ano]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { carregar(); }, [carregar]);
@@ -159,7 +167,8 @@ export default function CalendarioRedes() {
 
   function rascunhoDe(p: Post, k: string): Rascunho {
     return { id: p.id, chave: k, titulo: p.titulo, legenda: p.legenda || '', redes: p.redes || [], formato: p.formato, midia: p.midia || {}, data: p.quando ? diaDe(p.quando) : '',
-      hora: p.quando ? horaDe(p.quando) : '09:00', notas: p.notas || '', promocao_id: p.promocao_id, status: p.status, resultado: p.resultado || {} };
+      hora: p.quando ? horaDe(p.quando) : '09:00', notas: p.notas || '', promocao_id: p.promocao_id, status: p.status, resultado: p.resultado || {},
+      etiqueta_tipo: p.etiqueta_tipo ?? null, gente_real: p.gente_real ?? null, maquina: p.maquina ?? null, gancho: p.gancho ?? null, codigo: p.codigo ?? null };
   }
 
   async function chamar(metodo: string, corpo?: unknown, q = '') {
@@ -172,7 +181,8 @@ export default function CalendarioRedes() {
   }
   function corpoDe(x: Rascunho) {
     return { id: x.id, titulo: x.titulo, legenda: x.legenda, redes: x.redes, formato: x.formato, midia: x.midia, notas: x.notas, promocao_id: x.promocao_id,
-      quando: x.data ? `${x.data}T${x.hora || '09:00'}:00-03:00` : null, status: statusDe(x), resultado: x.resultado };
+      quando: x.data ? `${x.data}T${x.hora || '09:00'}:00-03:00` : null, status: statusDe(x), resultado: x.resultado,
+      etiqueta_tipo: x.etiqueta_tipo ?? null, gente_real: x.gente_real ?? null, maquina: x.maquina ?? null, gancho: x.gancho ?? null };
   }
   async function salvar(fecharDepois = true) {
     if (!r) return null;
@@ -188,10 +198,12 @@ export default function CalendarioRedes() {
     if (!r?.id || !confirm('Apagar este post do calendário? (O que já saiu nas redes continua lá.)')) return;
     if (await chamar('DELETE', undefined, `?id=${r.id}`)) { carregar(); fechar(); }
   }
-  async function marcar(rede: RedeId, ok: boolean) {
+  async function marcar(rede: RedeId, ok: boolean, link?: string) {
     if (!r) return;
     const resultado = { ...r.resultado };
-    if (ok) resultado[rede] = { ok: true, manual: true, em: new Date().toISOString() }; else delete resultado[rede];
+    // Fase 3.1: guarda o link do post (com ele dá para puxar as métricas quando a Meta for ligada)
+    if (ok) resultado[rede] = { ok: true, manual: true, em: new Date().toISOString(), link: (link || '').startsWith('https://') ? link : null }; else delete resultado[rede];
+    setLinkPara(null); setLinkPost('');
     const novo = { ...r, resultado };
     setR(novo);
     if (novo.id) { await chamar('PATCH', corpoDe(novo)); carregar(); }
@@ -443,15 +455,63 @@ export default function CalendarioRedes() {
           <div style={grade(180)}>
             <Campo rotulo="Dia"><input type="date" style={campoNP} value={r.data} onChange={(e) => setR({ ...r, data: e.target.value })} /></Campo>
             <Campo rotulo="Hora" ajuda="Melhores horários no agro: 7h, 12h e 19h."><input type="time" style={campoNP} value={r.hora} onChange={(e) => setR({ ...r, hora: e.target.value })} /></Campo>
-            <Campo rotulo="Formato no Insta e no Face">
-              <select style={campoNP} value={r.formato} onChange={(e) => setR({ ...r, formato: e.target.value })}>
-                <option value="feed">Post no feed (arte do feed)</option>
-                <option value="reels">Reels (vídeo em pé)</option>
-                <option value="story">Story (arte em pé)</option>
-              </select>
+          </div>
+        </Secao>
+
+        {/* Fase 4 (23/11/2026): etiquetas de seleção rápida — obrigatórias para o post sair; é com elas que
+            depois dá para ver "que tipo de post traz contato" */}
+        <Secao icone="fa-tags" cor="#0891b2" titulo="Etiquetas" sub="Obrigatórias para o post sair. Servem para descobrir que tipo de post traz cliente">
+          {([
+            ['Tipo do post', TIPOS_POST, r.etiqueta_tipo, (v: string) => setR({ ...r, etiqueta_tipo: v })],
+            ['Formato', FORMATOS_POST, r.formato, (v: string) => setR({ ...r, formato: v })],
+            ['Gancho (o começo do post)', GANCHOS, r.gancho, (v: string) => setR({ ...r, gancho: v })],
+          ] as const).map(([rot, ops, val, muda]) => (
+            <Campo key={rot} rotulo={rot}>
+              <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {ops.map((o) => (
+                  <button key={o.id} type="button" onClick={() => muda(o.id)}
+                    style={{ ...bt(val === o.id ? '#0891b2' : '#64748b', val === o.id), minHeight: 36, fontSize: 13 }}>{o.label}</button>
+                ))}
+              </span>
+            </Campo>
+          ))}
+          <div style={grade(220)}>
+            <Campo rotulo="Tem gente real? (cliente, técnico, operador)">
+              <span style={{ display: 'flex', gap: 6 }}>
+                {([[true, 'Sim'], [false, 'Não']] as const).map(([v, t]) => (
+                  <button key={t} type="button" onClick={() => setR({ ...r, gente_real: v })} style={{ ...bt(r.gente_real === v ? '#0891b2' : '#64748b', r.gente_real === v), minHeight: 36 }}>{t}</button>
+                ))}
+              </span>
+            </Campo>
+            <Campo rotulo="Máquina (opcional)" ajuda="Ex.: Mahindra 6075. Também vira o começo do código do post.">
+              <input style={campoNP} maxLength={120} value={r.maquina || ''} onChange={(e) => setR({ ...r, maquina: e.target.value })} />
             </Campo>
           </div>
         </Secao>
+
+        {/* Fase 4.3: código do post + links que contam quem veio dele */}
+        {r.codigo && (
+          <Secao icone="fa-link" cor="#16a34a" titulo={`Código do post: ${r.codigo}`} sub="Use estes links no post: quem chamar por eles conta como contato deste post">
+            {(() => {
+              const zap = whats ? linkWhatsDoPost(whats, r.codigo!, r.titulo) : null;
+              const site = siteUrl ? linkSiteDoPost(siteUrl, r.redes[0] || 'instagram', r.codigo!) : null;
+              const linha = (rot: string, url: string | null, falta: string) => (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, color: T2, minWidth: 120 }}>{rot}</span>
+                  {url ? <>
+                    <code style={{ flex: '1 1 240px', fontSize: 12, padding: '6px 8px', borderRadius: 8, background: 'var(--surface-2, rgba(100,116,139,.08))', overflowWrap: 'anywhere' }}>{url}</code>
+                    <button type="button" style={bt('#16a34a')} onClick={() => navigator.clipboard.writeText(url).catch(() => {})}>{ic('fa-copy')}Copiar</button>
+                  </> : <span style={{ fontSize: 12.5, color: T3 }}>{falta}</span>}
+                </div>
+              );
+              return <div style={{ display: 'grid', gap: 8 }}>
+                {linha('WhatsApp', zap, 'Falta o WhatsApp da empresa em Textos do site.')}
+                {linha(`Site (${r.redes[0] ? REDE[r.redes[0]].nome : 'Instagram'})`, site, 'Endereço do site não configurado.')}
+                <span style={{ fontSize: 12, color: T3 }}>No texto do post: “Chama no WhatsApp e fala o código {r.codigo}”. O link do site leva a etiqueta do post para a tela Acessos.</span>
+              </div>;
+            })()}
+          </Secao>
+        )}
 
         {r.redes.length > 0 && (
           <Secao icone="fa-paper-plane" cor="#16a34a" titulo="Postar" sub="Por enquanto pelo celular em 1 toque. Instagram e Facebook vão sair sozinhos quando a conta for ligada">
@@ -473,8 +533,23 @@ export default function CalendarioRedes() {
                       </button>
                     )}
                     {podeEditar && (rs?.ok
-                      ? <button type="button" style={bt('#64748b')} onClick={() => marcar(id, false)}>{ic('fa-rotate-left')}Desmarcar</button>
-                      : <button type="button" style={bt('#16a34a')} disabled={semArte} onClick={() => marcar(id, true)}>{ic('fa-check')}Já postei</button>)}
+                      ? <>
+                          {rs.link ? <a href={rs.link} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: '#16a34a' }}>{ic('fa-arrow-up-right-from-square')}Ver o post</a> : <span style={{ fontSize: 12, color: '#b45309' }}>sem link</span>}
+                          <button type="button" style={bt('#64748b')} onClick={() => marcar(id, false)}>{ic('fa-rotate-left')}Desmarcar</button>
+                        </>
+                      : <button type="button" style={bt('#16a34a')} disabled={semArte} onClick={() => { setLinkPara(id); setLinkPost(''); }}>{ic('fa-check')}Já postei</button>)}
+                    {/* Fase 3.1: pede o link do post (opcional, mas destacado) — sem ele o histórico manual vira dado morto */}
+                    {linkPara === id && !rs?.ok && (
+                      <div style={{ flexBasis: '100%', display: 'grid', gap: 6, padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, #16a34a 7%, var(--surface))' }}>
+                        <span style={{ fontSize: 13 }}>Cole o <b style={{ fontWeight: 500 }}>link do post</b> no {REDE[id].nome}. Com ele, o portal puxa os números do post quando a conta for ligada.</span>
+                        <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <input autoFocus style={{ ...campoNP, flex: '1 1 260px' }} placeholder="https://www.instagram.com/p/…" value={linkPost} onChange={(e) => setLinkPost(e.target.value.trim())}
+                            onKeyDown={(e) => { if (e.key === 'Enter') marcar(id, true, linkPost); }} />
+                          <button type="button" style={bt('#16a34a', true)} disabled={!linkPost.startsWith('https://')} onClick={() => marcar(id, true, linkPost)}>Gravar com o link</button>
+                          <button type="button" style={bt('#64748b')} onClick={() => marcar(id, true)}>Sem link</button>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })}

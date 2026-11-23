@@ -3,8 +3,28 @@
 // GET ?de=AAAA-MM-DD&ate=AAAA-MM-DD → posts no período + ideias sem data + contas ligadas (sem token).
 // POST cria · PATCH muda · DELETE ?id= apaga (o que já saiu nas redes não é apagado lá).
 import { NextResponse } from 'next/server'
-import { guardarSite, sb } from '@/lib/marketing/redes/server'
+import { guardarSite, sb, SITE_URL } from '@/lib/marketing/redes/server'
 import { STATUS_POST, ehRede, type Arte } from '@/lib/marketing/redes/redes'
+import { TIPOS_POST, FORMATOS_POST, GANCHOS, etiquetasFaltando, gerarCodigo, numeroWhats } from '@/lib/marketing/redes/etiquetas'
+
+/** Fase 4 (23/11/2026): post que sai (não é mais ideia) precisa das etiquetas — é o que permite comparar depois. */
+function semEtiqueta(final: Record<string, unknown>): string | null {
+  if (!final.status || final.status === 'ideia') return null
+  const f = etiquetasFaltando(final as never)
+  return f.length ? `Antes de deixar o post pronto, marque: ${f.join(', ')}.` : null
+}
+
+/** WhatsApp da empresa para o link do post: o gravado em Textos do site, senão o texto do site. */
+async function whatsDaEmpresa(): Promise<string | null> {
+  try {
+    const { data } = await sb.from('site_conteudo').select('valor').eq('grupo', 'contato').maybeSingle()
+    const salvo = numeroWhats((data?.valor as Record<string, unknown> | null)?.whatsapp)
+    if (salvo) return salvo
+    const r = await fetch(`${SITE_URL}/conteudo-padrao.json`, { cache: 'no-store', signal: AbortSignal.timeout(8000) })
+    const j = await r.json()
+    return numeroWhats(j?.padrao?.contato?.whatsapp)
+  } catch { return null }
+}
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,7 +42,13 @@ function limpar(b: Linha): { ok: true; v: Linha } | { ok: false; erro: string } 
   if ('legenda' in b) v.legenda = t(b.legenda, 5000)
   if ('notas' in b) v.notas = t(b.notas, 1000)
   if ('redes' in b) v.redes = (Array.isArray(b.redes) ? b.redes : []).filter(ehRede).filter((x, i, a) => a.indexOf(x) === i)
-  if ('formato' in b) v.formato = ['feed', 'reels', 'story', 'video'].includes(String(b.formato)) ? b.formato : 'feed'
+  if ('formato' in b) v.formato = FORMATOS_POST.some((f) => f.id === b.formato) ? b.formato : 'feed'
+  // Fase 4 (23/11/2026): etiquetas de seleção rápida + campanha ligada (sql/marketing-fase4.sql)
+  if ('etiqueta_tipo' in b) v.etiqueta_tipo = TIPOS_POST.some((x) => x.id === b.etiqueta_tipo) ? b.etiqueta_tipo : null
+  if ('gancho' in b) v.gancho = GANCHOS.some((x) => x.id === b.gancho) ? b.gancho : null
+  if ('gente_real' in b) v.gente_real = typeof b.gente_real === 'boolean' ? b.gente_real : null
+  if ('maquina' in b) v.maquina = t(b.maquina, 120)
+  if ('acao_id' in b) v.acao_id = /^[0-9a-f-]{36}$/i.test(String(b.acao_id || '')) ? b.acao_id : null
   if ('midia' in b) {
     const m = (b.midia || {}) as Linha
     const out: Partial<Record<Arte, string>> = {}
@@ -69,6 +95,7 @@ export async function GET(req: Request) {
   if (erro) return NextResponse.json({ ok: false, erro: falta(erro.message) ? MSG_SQL : erro.message }, { status: falta(erro.message) ? 503 : 500 })
   return NextResponse.json({
     ok: true, posts: noPeriodo.data || [], ideias: ideias.data || [], contas: contas.data || [], podeEditar: podeEditar(g.user),
+    whatsapp: await whatsDaEmpresa(), siteUrl: SITE_URL,
     metaConfigurada: !!(process.env.META_APP_ID && process.env.META_APP_SECRET),
   })
 }
@@ -81,7 +108,16 @@ export async function POST(req: Request) {
   const l = limpar({ titulo: '', ...b })
   if (!l.ok) return NextResponse.json({ ok: false, erro: l.erro }, { status: 400 })
   const por = g.user.nome || g.user.email || 'Portal'
-  const { data, error } = await sb.from('site_posts').insert({ ...l.v, criado_por: por, atualizado_por: por }).select('*').single()
+  const faltaEtq = semEtiqueta(l.v)
+  if (faltaEtq) return NextResponse.json({ ok: false, erro: faltaEtq }, { status: 400 })
+  // código curto do post (Fase 4): sorteia de novo se por acaso repetir (coluna única)
+  let data: Linha | null = null
+  let error: { message: string } | null = null
+  for (let i = 0; i < 4; i++) {
+    const codigo = gerarCodigo(String(l.v.maquina || l.v.titulo || ''))
+    ;({ data, error } = await sb.from('site_posts').insert({ ...l.v, codigo, criado_por: por, atualizado_por: por }).select('*').single())
+    if (!error || !/duplicate|unique/i.test(error.message)) break
+  }
   if (error) return NextResponse.json({ ok: false, erro: falta(error.message) ? MSG_SQL : error.message }, { status: 500 })
   return NextResponse.json({ ok: true, post: data })
 }
@@ -95,6 +131,12 @@ export async function PATCH(req: Request) {
   if (!id) return NextResponse.json({ ok: false, erro: 'post inválido' }, { status: 400 })
   const l = limpar(b)
   if (!l.ok) return NextResponse.json({ ok: false, erro: l.erro }, { status: 400 })
+  const { data: atual } = await sb.from('site_posts').select('*').eq('id', id).maybeSingle()
+  const faltaEtq = semEtiqueta({ ...((atual as Linha | null) || {}), ...l.v })
+  if (faltaEtq) return NextResponse.json({ ok: false, erro: faltaEtq }, { status: 400 })
+  // post de antes da Fase 4 ganha código na primeira edição
+  const a = (atual || {}) as Linha
+  if (atual && !a.codigo) l.v.codigo = gerarCodigo(String(l.v.maquina || a.maquina || l.v.titulo || a.titulo || ''))
   const { data, error } = await sb.from('site_posts')
     .update({ ...l.v, atualizado_em: new Date().toISOString(), atualizado_por: g.user.nome || g.user.email || 'Portal' })
     .eq('id', id).select('*').single()
