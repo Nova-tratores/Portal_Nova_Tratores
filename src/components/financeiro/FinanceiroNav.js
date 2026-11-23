@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import FinanceiroTopoNovo from './FinanceiroTopoNovo'
 import { temAlgumaAba } from './areasFinanceiro'
+import { entraEmVencidos, hojeLocal } from '@/lib/financeiro/vencidos'
 import {
   Columns3, BarChart3, Receipt, Users,
   FileText, DollarSign, AlertTriangle, Search, Wallet, FileSignature, Calculator, FilePen, CircleCheck, Barcode
@@ -104,20 +105,16 @@ export default function FinanceiroNav({ children = null }) {
   useEffect(() => {
     const contarVencidos = async () => {
       try {
+        // Mesma regra da lista de Vencidos (entraEmVencidos): antes o contador somava
+        // Boleto 30 dias, PIX/cartão/cheque e parcelas já pagas que a lista não mostra
+        // (27 no contador × 5 na lista em 10/11/2026).
         const { data } = await supabase
           .from('Chamado_NF')
-          .select('id, vencimento_boleto, forma_pagamento, status')
+          .select('*')
           .in('status', ['vencido', 'aguardando_vencimento'])
-        const hoje = new Date(); hoje.setHours(0,0,0,0)
-        const count = (data || []).filter(c => {
-          if (c.status === 'vencido') return true
-          if (c.status === 'aguardando_vencimento' && c.vencimento_boleto) {
-            const venc = new Date(c.vencimento_boleto); venc.setHours(0,0,0,0)
-            return venc < hoje
-          }
-          return false
-        }).length
-        setVencidosCount(count)
+          .is('grupo_pai_id', null)
+        const hoje = hojeLocal()
+        setVencidosCount((data || []).filter(c => entraEmVencidos(c, hoje)).length)
       } catch {}
     }
     contarVencidos()

@@ -3,8 +3,9 @@
 // /api/avisos/publicar) quanto pelo cron dos agendados — assim a regra de quem
 // recebe fica num lugar só.
 import { supabase } from '@/lib/pos/supabase';
+import { destinatarios, vaiParaMecanicos, type LinhaOrg } from './destino';
 
-// destino guarda ou 'todos', ou uma categoria de portal_permissoes, ou 'tecnicos'.
+// destino: 'todos' | categoria | 'tecnicos' | 'gestores[:<setor>]' (ver lib/avisos/destino.ts).
 export interface ResultadoPublicacao { ok: boolean; alvos?: number; erro?: string }
 
 export async function publicarAviso(
@@ -21,17 +22,18 @@ export async function publicarAviso(
   const destino: string = aviso.destino || 'todos';
   const titulo: string = aviso.titulo;
   const conteudo: string = aviso.conteudo || '';
-  const paraMecanicos = destino === 'todos' || destino === 'tecnicos';
+  const paraMecanicos = vaiParaMecanicos(destino);
 
   // ── Alvos no portal (sino) ──
   const { data: perms } = await supabase
     .from('portal_permissoes')
     .select('user_id, categoria, mecanico_role');
-  let alvos = perms || [];
-  if (destino === 'tecnicos') alvos = alvos.filter((p: any) => p.mecanico_role === 'tecnico');
-  else if (destino !== 'todos') alvos = alvos.filter((p: any) => p.categoria === destino);
-
-  const userIds = [...new Set(alvos.map((p: any) => p.user_id))].filter(
+  let org: LinhaOrg[] = [];
+  if (destino.startsWith('gestores')) {
+    const { data } = await supabase.from('org_pessoas').select('pessoa_chave, gestor_chave, fora');
+    org = (data || []) as LinhaOrg[];
+  }
+  const userIds = destinatarios(destino, (perms || []) as any[], org).filter(
     (uid) => uid && uid !== aviso.criado_por,
   );
   if (userIds.length) {

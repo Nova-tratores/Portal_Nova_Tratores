@@ -79,6 +79,9 @@ export async function POST(req: NextRequest) {
   // V2 é a fonte (10/11/2026): a lista vira extras/bloqueios por cima dos
   // departamentos/pacotes da pessoa e a lista gravada é a REGERADA da v2.
   const fonteV2 = fonteV2Ligada() && Array.isArray(patch.modulos_permitidos)
+  // Como estava antes, para o registro (o vigia de atividade avisa mudança de permissão; 11/2026)
+  const { data: antesRow } = await supabase.from('portal_permissoes')
+    .select('is_admin, is_dev, is_diretor, categoria, modulos_permitidos').eq('user_id', userId).maybeSingle()
   let mudancas: { ganha: string[]; perde: string[] } | null = null
   if (fonteV2) {
     try {
@@ -103,6 +106,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  await registrarMudanca(auth, userId, (antesRow || {}) as Record<string, unknown>, patch, fonteV2)
+
   // Fonte da verdade do setor = Categoria do Admin. Ao mudar a Categoria, sincroniza
   // a função do financeiro (financeiro_usu.funcao), que é o que aparece em Configurações
   // e o que decide o roteamento por setor (Peças/Financeiro/Pós-Vendas).
@@ -114,4 +119,36 @@ export async function POST(req: NextRequest) {
   if (espelhoLigado()) void espelharPermissoes([userId]).catch(() => {})
 
   return NextResponse.json({ ok: true, ...(mudancas ? { mudancas } : {}) })
+}
+
+/** Nível (Usuário/Admin/Dev), Diretor e categoria — e os módulos quando a v2 está desligada (a v2 já
+ *  registra `permissoes_pessoa`). Antes essas mudanças não iam para o audit_log. Nunca derruba a gravação. */
+async function registrarMudanca(
+  auth: { userId: string; email?: string | null },
+  userId: string, antes: Record<string, unknown>, patch: Record<string, unknown>, fonteV2: boolean,
+) {
+  try {
+    const nivel = (r: Record<string, unknown>) => (r.is_dev ? 'dev' : r.is_admin ? 'admin' : 'usuario')
+    const depois = { ...antes, ...patch }
+    const det: Record<string, unknown> = {}
+    if (('is_admin' in patch || 'is_dev' in patch) && nivel(antes) !== nivel(depois)) det.nivel = { de: nivel(antes), para: nivel(depois) }
+    if ('is_diretor' in patch && !!antes.is_diretor !== !!patch.is_diretor) det.diretor = { de: !!antes.is_diretor, para: !!patch.is_diretor }
+    if ('categoria' in patch && (antes.categoria || '') !== (patch.categoria || '')) det.categoria = { de: antes.categoria || null, para: patch.categoria || null }
+    if (!fonteV2 && Array.isArray(patch.modulos_permitidos)) {
+      const a = new Set<string>((antes.modulos_permitidos as string[] | null) || [])
+      const d = new Set<string>(patch.modulos_permitidos as string[])
+      const ganha = [...d].filter((k) => !a.has(k)); const perde = [...a].filter((k) => !d.has(k))
+      if (ganha.length || perde.length) det.modulos = { ganha, perde }
+    }
+    if (!Object.keys(det).length) return
+    const { data: alvo } = await supabase.from('financeiro_usu').select('nome').eq('id', userId).maybeSingle()
+    const { data: autor } = await supabase.from('financeiro_usu').select('nome').eq('id', auth.userId).maybeSingle()
+    await supabase.from('audit_log').insert({
+      user_id: auth.userId, user_nome: autor?.nome || auth.email || auth.userId,
+      sistema: 'permissoes', acao: det.nivel ? 'nivel_alterado' : 'permissoes_pessoa',
+      entidade: 'usuario', entidade_id: userId, entidade_label: alvo?.nome || null, detalhes: det,
+    })
+  } catch (e) {
+    console.warn('[admin/permissoes] registro:', (e as Error).message)
+  }
 }

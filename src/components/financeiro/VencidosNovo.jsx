@@ -11,7 +11,7 @@ import { useAuditLog } from '@/hooks/useAuditLog'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
 import { exigeComprovantePago, temComprovantePago } from '@/lib/financeiro/constants'
-import { entraEmVencidos, diasDeAtraso, hojeLocal, vencimentoDeReferencia } from '@/lib/financeiro/vencidos'
+import { entraEmVencidos, diasDeAtraso, hojeLocal, vencimentoDeReferencia, boletosDoCard } from '@/lib/financeiro/vencidos'
 import { formatarDataBR } from '@/lib/financeiro/utils'
 import { podeRecobrar, hojeBR } from '@/lib/financeiro/fases-automaticas'
 import { pedirRecobranca } from '@/lib/financeiro/recobranca-client'
@@ -38,7 +38,7 @@ const OMIE = {
   aberto: { rotulo: 'Em aberto no Omie', cor: '#d97706' },
   sem_titulo: { rotulo: 'Não achado no Omie', cor: '#64748b' },
 }
-const semBoleto = (c) => /sem boleto/i.test(c.tarefa || '') || (!c.anexo_boleto && !c.anexo_boleto_2 && !c.anexo_boleto_3)
+const semBoleto = (c) => /sem boleto/i.test(c.tarefa || '') || boletosDoCard(c).length === 0
 const setorDe = (c) => (c.setor_destino === 'pecas' ? 'pecas' : 'oficina')
 
 const CSS = `
@@ -366,8 +366,9 @@ export default function VencidosNovo() {
 
             <div className="vn-card">
               <h3 className="vn-tit"><span className="vn-ico p" style={{ '--c': '#475569' }}><FileText size={15} /></span>Documentos</h3>
-              {[['Boleto', aberto.anexo_boleto], ['Boleto (2)', aberto.anexo_boleto_2], ['NF de serviço', aberto.anexo_nf_servico], ['NF de peças', aberto.anexo_nf_peca]]
-                .flatMap(([r, u]) => String(u || '').split(',').map((x) => x.trim()).filter(Boolean).map((x, i) => [i ? `${r} ${i + 1}` : r, x]))
+              {[...boletosDoCard(aberto).map((u, i, l) => [l.length > 1 ? `Boleto ${i + 1}` : 'Boleto', u]),
+                ...[['NF de serviço', aberto.anexo_nf_servico], ['NF de peças', aberto.anexo_nf_peca]]
+                  .flatMap(([r, u]) => String(u || '').split(',').map((x) => x.trim()).filter(Boolean).map((x, i) => [i ? `${r} ${i + 1}` : r, x]))]
                 .map(([r, u]) => <a key={u} className="vn-link" href={u} target="_blank" rel="noopener noreferrer"><FileText size={14} />{r}<ExternalLink size={12} style={{ marginLeft: 'auto', opacity: .6 }} /></a>)}
               {semBoleto(aberto) && <div className="vn-sub" style={{ marginTop: 8, color: '#7c3aed' }}>Este card venceu sem boleto gerado no portal.</div>}
             </div>

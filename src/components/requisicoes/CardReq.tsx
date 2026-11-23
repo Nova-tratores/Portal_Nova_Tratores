@@ -334,9 +334,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
           'financeiro',
           `${userProfile?.nome || 'Usuário'} enviou conta a pagar da Req #${req.id}`,
           `Rascunho criado${r.reqsIncluidas.length > 1 ? ` com ${r.reqsIncluidas.length} requisições da mesma nota` : ''} — revisar e enviar ao Omie`,
-          `/financeiro/home-financeiro?id=${r.conta.id}`,
+          `/financeiro/home-financeiro?id=${r.conta.id}&tipo=pagar`,
         );
-        window.open(`/financeiro/home-financeiro?id=${r.conta.id}`, '_blank');
+        window.open(`/financeiro/home-financeiro?id=${r.conta.id}&tipo=pagar`, '_blank');
       }
     } catch (e: any) {
       setErroConta(e?.message || 'Erro ao criar a conta a pagar.');
@@ -955,7 +955,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               </div>
               {localData.status === 'financeiro' && podeCriarConta && (
                 contaFin ? (
-                  <a href={`/financeiro/home-financeiro?id=${contaFin.id}`} target="_blank" rel="noreferrer"
+                  <a href={`/financeiro/home-financeiro?id=${contaFin.id}&tipo=pagar`} target="_blank" rel="noreferrer"
                     title={`Conta a pagar #${contaFin.id}${contaFin.omie_cod_lancamento ? ' (já no Omie)' : ' (rascunho)'} — abrir no painel do financeiro`}
                     className="h-10 w-10 md:w-auto md:px-4 flex items-center justify-center gap-2 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-700 text-sm font-semibold hover:bg-emerald-100 transition-all shrink-0">
                     <CheckCheck size={16}/> <span className="hidden md:inline">Conta #{contaFin.id}</span>

@@ -10,21 +10,18 @@ import {
   Plus, X, Paperclip, Send, Trash2, Eye, EyeOff,
   AlertTriangle, ChevronDown, ChevronUp, FileText,
   Download, CheckCircle2, Clock, Users, Megaphone,
-  Calendar, Building2, Globe, Wrench
+  Calendar, Building2, Globe, Wrench, UserCheck, Printer
 } from 'lucide-react'
+import { htmlComunicado } from '@/lib/avisos/impressao'
+import { SETORES, montarDestino, lerDestino, rotuloDestino, podeVerAviso as podeVerAvisoRegra } from '@/lib/avisos/destino'
 
-// Público-alvo. 'todos' + as categorias de portal_permissoes + 'tecnicos'
-// (mecanico_role). Os labels de setor batem com o Admin.
-const DESTINOS: { key: string; label: string; Icon: any }[] = [
-  { key: 'todos', label: 'Todos', Icon: Globe },
-  { key: 'Peças', label: 'Peças', Icon: Building2 },
-  { key: 'Pós Vendas', label: 'Pós-Vendas', Icon: Building2 },
-  { key: 'Comercial', label: 'Comercial', Icon: Building2 },
-  { key: 'Financeiro', label: 'Financeiro', Icon: Building2 },
-  { key: 'T.I.', label: 'T.I.', Icon: Building2 },
-  { key: 'tecnicos', label: 'Técnicos', Icon: Wrench },
-]
-const destinoLabel = (k: string | null | undefined) => DESTINOS.find(d => d.key === k)?.label || 'Todos'
+// Público-alvo: 'todos' + as categorias de portal_permissoes + 'tecnicos'
+// (mecanico_role). "Só o gestor" grava 'gestores[:<setor>]' (lib/avisos/destino).
+const ICONE_SETOR: Record<string, any> = { todos: Globe, tecnicos: Wrench }
+const DESTINOS = SETORES.map(s => ({ ...s, Icon: ICONE_SETOR[s.key] || Building2 }))
+const destinoLabel = (k: string | null | undefined) => rotuloDestino(k)
+
+interface GestorSetor { setor: string; nomes: string[] }
 
 interface ConfirmacaoInfo {
   nome: string
@@ -83,7 +80,10 @@ export default function AvisosPage() {
   const [titulo, setTitulo] = useState('')
   const [conteudo, setConteudo] = useState('')
   const [prioridade, setPrioridade] = useState('normal')
-  const [destino, setDestino] = useState('todos')
+  const [destino, setDestino] = useState('todos')        // setor escolhido
+  const [soGestor, setSoGestor] = useState(false)        // só o gestor do(s) setor(es)
+  const [meusSetoresGestor, setMeusSetoresGestor] = useState<string[]>([])
+  const [gestores, setGestores] = useState<GestorSetor[]>([])
   const [agendar, setAgendar] = useState(false)          // publicar agora x agendar
   const [agendarData, setAgendarData] = useState('')     // datetime-local
   const [arquivos, setArquivos] = useState<File[]>([])
@@ -183,6 +183,23 @@ export default function AvisosPage() {
 
   useEffect(() => { carregar() }, [carregar])
 
+  // Quem gere cada departamento (Organograma). Sem isso, aviso "só gestor" fica
+  // invisível para quem não é admin/criador — nunca aparece para a pessoa errada.
+  useEffect(() => {
+    if (!userProfile?.id) return
+    fetchAuth('/api/avisos/gestores').then(r => r.ok ? r.json() : null).then(j => {
+      if (!j) return
+      setMeusSetoresGestor(Array.isArray(j.meusSetores) ? j.meusSetores : [])
+      setGestores(Array.isArray(j.gestores) ? j.gestores : [])
+    }).catch(() => {})
+  }, [userProfile?.id])
+
+  // Nomes de quem recebe quando "Só o gestor" está ligado.
+  const nomesGestores = (setor: string): GestorSetor[] => {
+    if (setor === 'todos') return gestores.filter(g => g.setor !== 'tecnicos')
+    return gestores.filter(g => g.setor === setor)
+  }
+
   // Realtime
   useEffect(() => {
     const ch = supabase.channel('avisos_rt')
@@ -213,7 +230,7 @@ export default function AvisosPage() {
       titulo: titulo.trim(),
       conteudo: conteudo.trim(),
       prioridade,
-      destino,
+      destino: montarDestino(destino, soGestor),
       agendar_para: quando ? quando.toISOString() : null,
       publicado: !agendado,
       criado_por: userProfile.id,
@@ -249,7 +266,7 @@ export default function AvisosPage() {
     }
 
     // Reset
-    setTitulo(''); setConteudo(''); setPrioridade('normal'); setDestino('todos')
+    setTitulo(''); setConteudo(''); setPrioridade('normal'); setDestino('todos'); setSoGestor(false)
     setAgendar(false); setAgendarData('')
     setArquivos([]); setShowModal(false); setEnviando(false)
     if (agendado) alert(`Aviso agendado para ${quando!.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}. Você será avisado quando ele sair.`)
@@ -272,6 +289,20 @@ export default function AvisosPage() {
     carregar()
   }
 
+  // Comunicado timbrado (A4) numa janela nova; setor e assinatura editáveis lá.
+  const imprimirAviso = (a: Aviso) => {
+    const { setor } = lerDestino(a.destino)
+    const html = htmlComunicado({
+      titulo: a.titulo, conteudo: a.conteudo, prioridade: a.prioridade,
+      setor: setor === 'todos' || setor === 'tecnicos' ? 'Administração' : destinoLabel(setor),
+      data: new Date(a.created_at),
+      logoUrl: `${window.location.origin}/Logo_Nova.png`,
+    })
+    const w = window.open('', '_blank')
+    if (!w) { alert('O navegador bloqueou a janela. Libere os pop-ups do portal para imprimir.'); return }
+    w.document.open(); w.document.write(html); w.document.close()
+  }
+
   const removerArquivo = (idx: number) => {
     setArquivos(prev => prev.filter((_, i) => i !== idx))
   }
@@ -290,16 +321,15 @@ export default function AvisosPage() {
     return `${(bytes / 1048576).toFixed(1)} MB`
   }
 
-  // Quem VÊ o aviso: 'todos' → todo mundo; setor → só a categoria; 'tecnicos' →
-  // quem é técnico. Admin e o próprio criador sempre veem.
-  const podeVerAviso = useCallback((a: Aviso) => {
-    const d = a.destino || 'todos'
-    if (d === 'todos') return true
-    if (isAdmin) return true
-    if (userProfile && a.criado_por === userProfile.id) return true
-    if (d === 'tecnicos') return permissoes?.mecanico_role === 'tecnico'
-    return permissoes?.categoria === d
-  }, [isAdmin, userProfile, permissoes])
+  // Quem VÊ o aviso: regra única em lib/avisos/destino (setor, técnicos ou só o
+  // gestor do setor). Admin e o próprio criador sempre veem.
+  const podeVerAviso = useCallback((a: Aviso) => podeVerAvisoRegra(a, {
+    userId: userProfile?.id ?? null,
+    isAdmin,
+    categoria: permissoes?.categoria ?? null,
+    mecanicoRole: permissoes?.mecanico_role ?? null,
+    setoresQueGere: meusSetoresGestor,
+  }), [isAdmin, userProfile, permissoes, meusSetoresGestor])
 
   // Feed: só publicados, respeitando o destino. Agendados ficam à parte.
   const avisosFiltrados = avisos
@@ -431,7 +461,7 @@ export default function AvisosPage() {
                       </span>
                       {(aviso.destino && aviso.destino !== 'todos') && (
                         <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#EEF2FF', color: '#4338CA', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}>
-                          <Users size={10} /> {destinoLabel(aviso.destino)}
+                          {lerDestino(aviso.destino).soGestor ? <UserCheck size={10} /> : <Users size={10} />} {destinoLabel(aviso.destino)}
                         </span>
                       )}
                       {!aviso.ativo && (
@@ -521,9 +551,17 @@ export default function AvisosPage() {
                       </div>
                     )}
 
-                    {/* Acoes admin */}
-                    {(podeStatus || podeExcluir) && (
+                    {/* Ações: imprimir (todos que veem) + admin */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16, paddingTop: 14, borderTop: '1px solid #f5f5f5' }}>
+                      <button onClick={(e) => { e.stopPropagation(); imprimirAviso(aviso) }} title="Gera o comunicado timbrado (A4) para imprimir" style={{
+                        display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', minHeight: 40,
+                        borderRadius: 6, border: '1px solid #E4E4E7', background: '#fff',
+                        fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#111',
+                      }}>
+                        <Printer size={13} /> Imprimir comunicado
+                      </button>
+                    {(podeStatus || podeExcluir) && (
+                    <>
                       <button onClick={(e) => { e.stopPropagation(); toggleAtivo(aviso) }} {...gateBtn(podeStatus)} style={{
                         display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px',
                         borderRadius: 6, border: '1px solid #E4E4E7', background: '#fff',
@@ -541,8 +579,9 @@ export default function AvisosPage() {
                       }}>
                         <Trash2 size={13} /> Excluir
                       </button>
-                    </div>
+                    </>
                     )}
+                    </div>
                   </div>
                 )}
                 </div>{/* fecha o wrapper flex ao lado do filete */}
@@ -594,6 +633,43 @@ export default function AvisosPage() {
                   )
                 })}
               </div>
+              {/* Só o gestor do departamento (Organograma) */}
+              <button onClick={() => setSoGestor(v => !v)} aria-pressed={soGestor} style={{
+                marginTop: 10, width: '100%', minHeight: 44, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 9,
+                border: `1.5px solid ${soGestor ? '#dc2626' : '#E4E4E7'}`, background: soGestor ? '#FEF2F2' : '#fff',
+                cursor: 'pointer', textAlign: 'left',
+              }}>
+                <span style={{ width: 18, height: 18, borderRadius: 4, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: `2px solid ${soGestor ? '#dc2626' : '#C4C4C4'}`, background: soGestor ? '#dc2626' : '#fefefe' }}>
+                  {soGestor && <CheckCircle2 size={12} color="#fefefe" />}
+                </span>
+                <UserCheck size={16} color={soGestor ? '#dc2626' : '#666'} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: soGestor ? '#dc2626' : '#333' }}>
+                    Só o gestor {destino === 'todos' ? 'de cada departamento' : `de ${destinoLabel(destino)}`}
+                  </span>
+                  <span style={{ display: 'block', fontSize: 11.5, color: '#737373', marginTop: 2 }}>
+                    Quem é o gestor vem do Organograma. A equipe não recebe nem vê.
+                  </span>
+                </span>
+              </button>
+              {soGestor && (() => {
+                const lista = nomesGestores(destino)
+                const comNome = lista.filter(g => g.nomes.length > 0)
+                const semGestor = lista.filter(g => g.nomes.length === 0)
+                return (
+                  <div style={{ marginTop: 8, fontSize: 12, color: '#555', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    {comNome.length === 0
+                      ? <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#B91C1C' }}><AlertTriangle size={13} /> Nenhum gestor definido no Organograma para {destinoLabel(destino)}.</span>
+                      : comNome.map(g => (
+                        <span key={g.setor}><strong>{destinoLabel(g.setor)}:</strong> {g.nomes.join(', ')}</span>
+                      ))}
+                    {comNome.length > 0 && semGestor.length > 0 && (
+                      <span style={{ color: '#B45309' }}>Sem gestor no Organograma: {semGestor.map(g => destinoLabel(g.setor)).join(', ')}</span>
+                    )}
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Prioridade */}
@@ -669,8 +745,8 @@ export default function AvisosPage() {
               {agendar ? <Calendar size={16} color="#0284C7" /> : <Users size={16} color="#0284C7" />}
               <span style={{ fontSize: 12, color: '#075985', fontWeight: 500 }}>
                 {agendar
-                  ? <>Será publicado {agendarData ? <strong>em {new Date(agendarData).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</strong> : 'na data escolhida'} para <strong>{destinoLabel(destino)}</strong>. Você é avisado quando sair.</>
-                  : <>Vai agora para <strong>{destinoLabel(destino)}</strong>{(destino === 'todos' || destino === 'tecnicos') ? <> (portal e app dos mecânicos)</> : <> (portal)</>}.</>}
+                  ? <>Será publicado {agendarData ? <strong>em {new Date(agendarData).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</strong> : 'na data escolhida'} para <strong>{destinoLabel(montarDestino(destino, soGestor))}</strong>. Você é avisado quando sair.</>
+                  : <>Vai agora para <strong>{destinoLabel(montarDestino(destino, soGestor))}</strong>{(!soGestor && (destino === 'todos' || destino === 'tecnicos')) ? <> (portal e app dos mecânicos)</> : <> (portal)</>}.</>}
               </span>
             </div>
 

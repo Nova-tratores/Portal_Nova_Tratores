@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   dataLocal, hojeLocal, entraEmVencidos, diasDeAtraso, ehBoleto30,
-  parcelaVencidaSemComprovante, resumoDashboard, dataDiasAtras,
+  parcelaVencidaSemComprovante, resumoDashboard, dataDiasAtras, boletosDoCard,
 } from '../vencidos';
 
 const hoje = new Date(2026, 9, 29); // 29/10/2026 local
@@ -71,10 +71,18 @@ describe('resumoDashboard', () => {
       { status: 'vencido', grupo_pai_id: 3 },
     ]);
     expect(r.totalBoletos).toBe(3);
-    expect(r.boletosEmAberto).toBe(2);
+    expect(r.boletosEmAberto).toBe(1); // pago e concluído não são em aberto
     expect(r.boletosConfirmados).toBe(2);
     expect(r.totalFaturado).toBeCloseTo(21.5);
     expect(r.statusCount.excluido).toBeUndefined();
+  });
+});
+
+describe('boletosDoCard', () => {
+  it('junta a lista com vírgula e as colunas extras, sem repetir', () => {
+    expect(boletosDoCard({ anexo_boleto: 'a.pdf, b.pdf ,', anexo_boleto2: 'b.pdf', anexo_boleto_p3: 'c.pdf' })).toEqual(['a.pdf', 'b.pdf', 'c.pdf']);
+    expect(boletosDoCard({})).toEqual([]);
+    expect(boletosDoCard(null)).toEqual([]);
   });
 });
 
