@@ -439,7 +439,7 @@ export async function montarObsOS(os: Record<string, unknown>, idOrdem: string):
 }
 
 // --- Função principal: criar OS no Omie ---
-export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean; nCodOS?: number; cNumOS?: string; erro?: string; pedidoVenda?: string; pedidoVendaErro?: string; interna?: boolean }> {
+export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean; nCodOS?: number; cNumOS?: string; erro?: string; pedidoVenda?: string; pedidoVendaErro?: string }> {
   if (!OMIE_APP_KEY || !OMIE_APP_SECRET) {
     return { sucesso: false, erro: "Credenciais Omie não configuradas" };
   }
