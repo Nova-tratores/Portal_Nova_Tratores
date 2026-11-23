@@ -355,6 +355,27 @@ export const TAREFAS: Record<string, Tarefa> = {
   },
 
   // Remessas: aviso no sino das demonstrações que vencem em 5 dias / venceram (uma vez cada nível).
+  // Links de arquivo com o endereço antigo do Supabase → midia.novatratores.com
+  // (sql/midia-links-dominio.sql). Rede de segurança para o que outros sistemas e
+  // cópias (relatório de despesas) gravam com o endereço antigo. O resumo leva o que
+  // ESTE serviço enxerga, para descobrir por que o worker gravou recibos antigos.
+  'midia-links-trocar': async () => {
+    if (desligada('MIDIA_LINKS_TROCAR')) return { pular: 'desligado (MIDIA_LINKS_TROCAR=off)' };
+    const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
+    const { urlMidia, hostMidia } = await import('@/lib/midia');
+    const base = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const teste = urlMidia(`${base.replace(/\/+$/, '')}/storage/v1/object/public/x.pdf`);
+    const diag = `env=${JSON.stringify(base)} midia=${hostMidia() ?? 'off'} troca_local=${teste.includes('midia.') ? 'ok' : 'NAO'}`;
+    const { data, error } = await supabaseAdmin.rpc('midia_links_trocar');
+    if (error) throw new Error(`${error.message} · ${diag}`);
+    const linhas = (data || []) as { tabela: string; coluna: string; linhas: number; erro: string | null }[];
+    const ok = linhas.filter((l) => !l.erro);
+    const total = ok.reduce((s, l) => s + Number(l.linhas || 0), 0);
+    const onde = ok.sort((a, b) => b.linhas - a.linhas).slice(0, 6).map((l) => `${l.tabela}.${l.coluna} ${l.linhas}`).join(', ');
+    const erros = linhas.filter((l) => l.erro).map((l) => `${l.tabela}.${l.coluna}: ${String(l.erro).slice(0, 80)}`).join('; ');
+    return { resumo: `${total} links trocados${onde ? ` (${onde})` : ''}${erros ? ` · erros: ${erros}` : ''} · ${diag}` };
+  },
+
   'remessas-avisos-prazo': async () => {
     if (desligada('REMESSAS_AVISOS')) return { pular: 'desligado (REMESSAS_AVISOS=off)' };
     const { avisarPrazos } = await import('@/lib/remessas/server');
@@ -381,25 +402,25 @@ export const TAREFAS: Record<string, Tarefa> = {
   },
 
   // Robô: produto recém-recebido sem família vira "Peças" + sugestão de Tipo + tarefa.
-  // Conserto da TELA da Omie (11/11/2026): características alteradas pela API não
-  // aparecem na tela; locações incluídas pelo portal sem "Onde será exibida". Regrava
-  // com o valor que a API já tem (excluir + incluir). Retoma sozinha no dia seguinte e
-  // SE DESLIGA quando uma rodada termina sem pendência. parametros { tipo: true } inclui "Tipo:".
-  'caract-tela-omie': async (p, ctx) => {
-    if (desligada('CARACT_TELA_OMIE')) return { pular: 'desligado (CARACT_TELA_OMIE=off)' };
-    const { consertarTelaOmie } = await import('@/lib/ajustes/caract-tela-omie');
-    const r = await consertarTelaOmie({ contas: ['NOVA', 'CASTRO'], incluirTipo: p.tipo === true, gravar: true, limiteMin: Number(p.limite_min) || 100 });
-    const progresso: Record<string, string> = Object.fromEntries(Object.entries(r).map(([c, x]) =>
-      [c, `${x.lidos} lidos · ${x.achados} achados · ${x.consertados} consertados · ${x.falhas} falhas${x.restantes ? ` · ${x.restantes} produtos para a próxima rodada` : ''}${x.bloqueio ? ` · BLOQUEIO: ${x.bloqueio}` : ''}`]));
-    const terminou = Object.values(r).every((x) => !x.restantes && !x.bloqueio && !x.falhas && !x.falhasLeitura);
-    if (terminou) {
-      const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
-      await supabaseAdmin.from('agendamentos').update({ ativo: false }).eq('chave', ctx.chave);
-    }
-    const tot = Object.values(r).reduce((a, x) => ({ ach: a.ach + x.achados, ok: a.ok + x.consertados, f: a.f + x.falhas }), { ach: 0, ok: 0, f: 0 });
-    return { resumo: `${tot.ok} de ${tot.ach} consertadas · ${tot.f} falhas${terminou ? ' · tudo em dia: tarefa desligada' : ' · continua na próxima rodada'}`, progresso };
-  },
-
+  // Conserto da TELA da Omie (11/11/2026): características alteradas pela API não
+  // aparecem na tela; locações incluídas pelo portal sem "Onde será exibida". Regrava
+  // com o valor que a API já tem (excluir + incluir). Retoma sozinha no dia seguinte e
+  // SE DESLIGA quando uma rodada termina sem pendência. parametros { tipo: true } inclui "Tipo:".
+  'caract-tela-omie': async (p, ctx) => {
+    if (desligada('CARACT_TELA_OMIE')) return { pular: 'desligado (CARACT_TELA_OMIE=off)' };
+    const { consertarTelaOmie } = await import('@/lib/ajustes/caract-tela-omie');
+    const r = await consertarTelaOmie({ contas: ['NOVA', 'CASTRO'], incluirTipo: p.tipo === true, gravar: true, limiteMin: Number(p.limite_min) || 100 });
+    const progresso: Record<string, string> = Object.fromEntries(Object.entries(r).map(([c, x]) =>
+      [c, `${x.lidos} lidos · ${x.achados} achados · ${x.consertados} consertados · ${x.falhas} falhas${x.restantes ? ` · ${x.restantes} produtos para a próxima rodada` : ''}${x.bloqueio ? ` · BLOQUEIO: ${x.bloqueio}` : ''}`]));
+    const terminou = Object.values(r).every((x) => !x.restantes && !x.bloqueio && !x.falhas && !x.falhasLeitura);
+    if (terminou) {
+      const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
+      await supabaseAdmin.from('agendamentos').update({ ativo: false }).eq('chave', ctx.chave);
+    }
+    const tot = Object.values(r).reduce((a, x) => ({ ach: a.ach + x.achados, ok: a.ok + x.consertados, f: a.f + x.falhas }), { ach: 0, ok: 0, f: 0 });
+    return { resumo: `${tot.ok} de ${tot.ach} consertadas · ${tot.f} falhas${terminou ? ' · tudo em dia: tarefa desligada' : ' · continua na próxima rodada'}`, progresso };
+  },
+
   'ajustes-classificar-recebidos': async () => {
     if (desligada('AJUSTES_CLASSIFICAR_RECEBIDOS')) return { pular: 'desligado (AJUSTES_CLASSIFICAR_RECEBIDOS=off)' };
     const { classificarRecebidosTodasContas } = await import('@/lib/ajustes/robo-recebidos');
