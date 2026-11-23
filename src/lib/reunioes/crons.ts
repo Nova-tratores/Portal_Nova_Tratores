@@ -10,7 +10,7 @@ import type { Ticket } from '@/lib/tickets/constantes'
 import { hojeSP } from '@/lib/trabalho/cronograma-server'
 import { diaSP } from '@/lib/trabalho/agenda-server'
 import { corteFechado, proximaDataDaSerie, addDias, somaTempo, ETAPA_INFO, type Serie } from './regras'
-import { carregarReuniao, blocoPendencias, criarReuniao, carregarSerie } from './server'
+import { carregarReuniao, blocoPendencias, criarReuniao, carregarSerie, mudarEtapa } from './server'
 
 function ok<T>(res: { data: T | null; error: { message: string; code?: string } | null }): T {
   if (res.error) throw Object.assign(new Error(res.error.message), { code: res.error.code })
@@ -89,6 +89,56 @@ export async function cronLembreteAta(agora = new Date()) {
         `A reunião começou ${br(r.ticket.prazo)} e a ata ainda não foi publicada (prazo: 24 h). Feche o rascunho e publique.`)
       await registrarEvento(t.id, null, 'edicao', { campo: 'lembrete_ata', auto: true, para: alvo })
       resultado.lembradas++
+    } catch (e) { resultado.erros.push(`${t.numero}: ${e instanceof Error ? e.message : String(e)}`) }
+  }
+  return resultado
+}
+
+// ------------------------------------------------ lembrete "começa em breve"
+/**
+ * (23/11/2026) Roda de hora em hora junto com o lembrete de ata: reunião que começa nos próximos 75 min
+ * → aviso no sino para quem está nela (menos quem recusou o convite). Uma vez por reunião (evento-marcador).
+ */
+export async function cronLembreteInicio(agora = new Date()) {
+  const ate = new Date(agora.getTime() + 75 * 60_000).toISOString()
+  const reunioes = ok(await supabaseAdmin.from('tickets').select('*').eq('tipo', 'reuniao')
+    .in('reuniao_etapa', ['agendada', 'pauta_fechada']).gt('reuniao_inicio', agora.toISOString()).lte('reuniao_inicio', ate).limit(100)) as Ticket[]
+  const resultado = { avaliadas: reunioes.length, lembradas: 0, erros: [] as string[] }
+  for (const t of reunioes) {
+    try {
+      const { data: ja } = await supabaseAdmin.from('tickets_eventos').select('id')
+        .eq('ticket_id', t.id).eq('tipo', 'edicao').eq('payload->>campo', 'lembrete_inicio').limit(1)
+      if (ja?.length) continue
+      const { data: pres } = await supabaseAdmin.from('reunioes_presencas').select('*').eq('reuniao_id', t.id)
+      const alvo = ((pres || []) as { usuario_id: string; resposta?: string | null }[]).filter((p) => p.resposta !== 'recusado').map((p) => p.usuario_id)
+      const hora = new Date(t.reuniao_inicio!).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
+      await notificarTicket(t, alvo, null, `Reunião às ${hora}: ${t.titulo}`, 'Começa daqui a pouco.')
+      await registrarEvento(t.id, null, 'edicao', { campo: 'lembrete_inicio', auto: true, para: alvo })
+      resultado.lembradas++
+    } catch (e) { resultado.erros.push(`${t.numero}: ${e instanceof Error ? e.message : String(e)}`) }
+  }
+  return resultado
+}
+
+// ------------------------------------------------ "Sem registro" esquecidas
+/**
+ * (23/11/2026) Reunião que nunca começou (agendada/pauta fechada) e já passou há mais de 7 dias vira
+ * cancelada com motivo "Não registrada" — senão o "Sem registro" acumula para sempre. Quem conduz recebe aviso
+ * e pode Reabrir se ela aconteceu.
+ */
+export async function cronFecharSemRegistro(agora = new Date(), dias = 7) {
+  const limite = new Date(agora.getTime() - dias * 24 * 3600_000).toISOString()
+  const reunioes = ok(await supabaseAdmin.from('tickets').select('*').eq('tipo', 'reuniao')
+    .in('reuniao_etapa', ['agendada', 'pauta_fechada']).lt('reuniao_inicio', limite).limit(100)) as Ticket[]
+  const resultado = { avaliadas: reunioes.length, fechadas: 0, erros: [] as string[] }
+  for (const t of reunioes) {
+    try {
+      const r = await carregarReuniao(t.id)
+      if (!r) continue
+      const condutor = r.presencas.find((p) => p.papel === 'condutor')?.usuario_id || t.solicitante_id
+      await mudarEtapa(atorSistema(condutor || ''), r, 'cancelada', `Não registrada: ninguém marcou se aconteceu em ${dias} dias (automático)`)
+      if (condutor) await notificarTicket(t, [condutor], null, `Reunião fechada como não registrada: ${t.titulo}`, `Era ${br(t.prazo)} e ninguém registrou. Se ela aconteceu, abra e clique em Reabrir.`)
+      resultado.fechadas++
     } catch (e) { resultado.erros.push(`${t.numero}: ${e instanceof Error ? e.message : String(e)}`) }
   }
   return resultado

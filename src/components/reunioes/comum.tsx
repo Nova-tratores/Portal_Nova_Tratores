@@ -15,8 +15,8 @@ export async function chamar<T = Record<string, unknown>>(url: string, init?: { 
   })
   const j = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const e = new Error(j.error || `Falha (${res.status})`) as Error & { status?: number; pendentes?: string[] }
-    e.status = res.status; e.pendentes = j.pendentes
+    const e = new Error(j.error || `Falha (${res.status})`) as Error & { status?: number; pendentes?: string[]; dados?: Record<string, unknown> }
+    e.status = res.status; e.pendentes = j.pendentes; e.dados = j
     throw e
   }
   return j as T

@@ -5,7 +5,7 @@
 // Clique abre a janela com o botão do próximo passo e as Tarefas da reunião (TarefasRapidas).
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, ChevronLeft, ChevronRight, Play, ListPlus, FileText, Check, X, CalendarDays, MapPin, CalendarCheck, CircleCheck, CircleHelp, Ban, ArrowRight, CalendarClock, Pencil } from 'lucide-react'
+import { Users, ChevronLeft, ChevronRight, Play, ListPlus, FileText, Check, X, CalendarDays, MapPin, CalendarCheck, CircleCheck, CircleHelp, Ban, ArrowRight, CalendarClock, Pencil, Trash2 } from 'lucide-react'
 import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
 import type { ReuniaoEtapa, Serie } from '@/lib/reunioes/regras'
 import type { PresencaRow } from '@/lib/reunioes/server'
@@ -145,6 +145,7 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
   const [remarcar, setRemarcar] = useState<Ticket | null>(null)
   const [editar, setEditar] = useState<Ticket | null>(null)
   const [filtroHist, setFiltroHist] = useState<FiltroHist>('todas')
+  const [busca, setBusca] = useState('')
   const [semanasHist, setSemanasHist] = useState(8)
 
   const carregar = useCallback(async () => {
@@ -199,12 +200,22 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
     } catch (e) { onAviso(e instanceof Error ? e.message : 'Falha') } finally { setOcupado(false) }
   }
 
+  const excluir = async (t: Ticket) => {
+    if (!window.confirm(`Excluir "${titulo(t)}" de vez? Não dá para desfazer.`)) return
+    setOcupado(true)
+    try {
+      await chamar(`/api/reunioes/${t.id}`, { method: 'DELETE' })
+      window.dispatchEvent(new Event('central-trabalho-mudou'))
+      setAberta(null); await carregar()
+    } catch (e) { onAviso(e instanceof Error ? e.message : 'Falha ao excluir') } finally { setOcupado(false) }
+  }
+
   const botoes = (t: Ticket) => {
     const p = passo(t); const info = PASSO[p]
     return (
       <>
         <button className="ag-btn cheio" style={{ ['--c' as string]: info.cor, ['--cb' as string]: FUNDO_ESCURO[info.cor] || info.cor }} onClick={() => router.push(`/reunioes/${t.id}`)}>{info.icone} {info.botao}</button>
-        {p === 'aconteceu' && conduzo(t) && <button className="ag-btn" disabled={ocupado} onClick={() => naoAconteceu(t)}><X size={15} /> Não aconteceu</button>}
+        {p === 'aconteceu' && (conduzo(t) || (det?.reuniao.id === t.id && det.criador_id === meuId)) &&<button className="ag-btn" disabled={ocupado} onClick={() => naoAconteceu(t)}><X size={15} /> Não aconteceu</button>}
       </>
     )
   }
@@ -261,7 +272,7 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
               {t.descricao && !/^Reunião( da série ".*")? em \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}\.$/.test(t.descricao) && (
                 <div style={{ fontSize: 13.5, color: 'var(--portal-text-secondary,#475569)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{t.descricao}</div>
               )}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{botoes(t)}{det?.posso_editar && <button className="ag-btn" onClick={() => setEditar(t)}><Pencil size={15} /> Editar</button>}{det?.posso_remarcar &&<button className="ag-btn" onClick={() => setRemarcar(t)}><CalendarClock size={15} /> Remarcar</button>}</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{botoes(t)}{det?.posso_editar && <button className="ag-btn" onClick={() => setEditar(t)}><Pencil size={15} /> Editar</button>}{det?.posso_remarcar &&<button className="ag-btn" onClick={() => setRemarcar(t)}><CalendarClock size={15} /> Remarcar</button>}{det?.posso_excluir && det.reuniao.id === t.id && <button className="ag-btn" style={{ color: '#dc2626' }} disabled={ocupado} title="Apaga de vez (reunião de teste ou marcada por engano)" onClick={() => excluir(t)}><Trash2 size={15} /> Excluir</button>}</div>
               {det && p !== 'cancelada' && (
                 <ConviteReuniao reuniaoId={t.id} presencas={det.presencas} usuarios={usuarios} meuId={meuId} convite={det.convite}
                   encerrada={['ata_publicada', 'cancelada'].includes(t.reuniao_etapa || '')} onMudou={() => carregarDet(t.id)} />
@@ -332,8 +343,17 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
 
   // Histórico: só o que já passou (ou foi encerrado), agrupado por semana, mais nova primeiro.
   const passadas = d.todas.filter((t) => t.reuniao_inicio && ((fimDe(t) || '') < agora || ['cancelada', 'ata_publicada'].includes(t.reuniao_etapa || '')))
-  const contaHist = (f: FiltroHist) => passadas.filter((t) => f === 'todas' || passo(t) === f).length
-  const filtroH = (t: Ticket) => passadas.includes(t) && (filtroHist === 'todas' || passo(t) === filtroHist)
+  // Busca (23/11/2026): título, descrição, o que foi escrito na ata e nome de quem participou — sem acento/maiúscula
+  const sem = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const termos = sem(busca).split(/\s+/).filter(Boolean)
+  const casaBusca = (t: Ticket) => {
+    if (!termos.length) return true
+    const pessoasTxt = (d.presencas[t.id] || []).map((p) => d.usuarios[p.usuario_id]?.nome || '').join(' ')
+    const alvo = sem(`${t.titulo} ${t.descricao || ''} ${String((t.payload as { ata_texto?: unknown } | null)?.ata_texto || '')} ${pessoasTxt} #${t.numero}`)
+    return termos.every((x) => alvo.includes(x))
+  }
+  const contaHist = (f: FiltroHist) => passadas.filter((t) => (f === 'todas' || passo(t) === f) && casaBusca(t)).length
+  const filtroH = (t: Ticket) => passadas.includes(t) && (filtroHist === 'todas' || passo(t) === filtroHist) && casaBusca(t)
   const semanasComReuniao = [...new Set(passadas.filter(filtroH).map((t) => segundaDe(diaSP(t.reuniao_inicio!))))].sort().reverse()
 
   if (modo === 'historico') return (
@@ -346,6 +366,9 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
             {f.rotulo} <span style={{ fontSize: 12, opacity: .8 }}>{contaHist(f.id)}</span>
           </button>
         ))}
+        <span style={{ flex: 1 }} />
+        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar: assunto, ata, pessoa…" aria-label="Buscar no histórico"
+          style={{ height: 34, minWidth: 0, flex: '0 1 280px', padding: '0 12px', borderRadius: 10, border: '1px solid var(--portal-border,#e2e8f0)', background: 'var(--portal-surface,#fefefe)', color: 'var(--portal-text,#0f172a)', fontFamily: 'inherit', fontSize: 13.5 }} />
       </div>
       {semanasComReuniao.length === 0 && <div className="ag-vazio">Nenhuma reunião aqui.</div>}
       {semanasComReuniao.slice(0, semanasHist).map((seg) => (

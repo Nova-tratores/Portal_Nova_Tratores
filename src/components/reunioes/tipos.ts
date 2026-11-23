@@ -34,6 +34,8 @@ export interface ReuniaoUI {
   posso_remarcar?: boolean
   /** muda título e descrição até publicar a ata (quem conduz, quem criou ou admin) */
   posso_editar?: boolean
+  /** admin ou quem marcou, e reunião vazia (sem ata, tarefas nem gravação; não começou ou cancelada) */
+  posso_excluir?: boolean
   /** reunião avulsa → série (quem conduz, quem criou ou admin) */
   posso_virar_serie?: boolean
   /** marcar reunião seguinte (ramificação) a partir desta */

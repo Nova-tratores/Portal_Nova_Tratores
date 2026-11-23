@@ -1,8 +1,8 @@
 // REUNIÕES — uma reunião: ticket + itens + presenças + bloco de pendências + ata.
-// GET /api/reunioes/:id
+// GET /api/reunioes/:id · DELETE /api/reunioes/:id (só reunião vazia — ver motivoNaoExcluir)
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
-import { temModuloTickets } from '@/lib/tickets/server'
+import { temModuloTickets, notificarTicket } from '@/lib/tickets/server'
 import { avisoMesmaPessoa, corteEm, podeConduzir, podeReabrir, somaTempo, REABRIR_PARA, type ReuniaoEtapa } from '@/lib/reunioes/regras'
 import {
   carregarReuniao, podeVerReuniao, blocoPendencias, condutorDe, secretarioDe, papelNaReuniao, usuariosMin, proximaReuniaoDaSerie,
@@ -60,6 +60,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       meu_papel: papelNaReuniao(r, auth.userId),
       posso_conduzir: podeConduzir(r.presencas, auth.userId, auth.isAdmin),
       criador_id: criador,
+      posso_excluir: (auth.isAdmin || criador === auth.userId) && !motivoNaoExcluir(r.ticket.reuniao_etapa, !!r.ata, (acoes.data || []).length, ((r.ticket.payload as { gravacoes?: unknown[] } | null)?.gravacoes || []).length),
       posso_continuar: r.ticket.reuniao_etapa !== 'cancelada' && (podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId),
       posso_virar_serie:!r.serie && r.ticket.reuniao_etapa !== 'cancelada' && (podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId),
       posso_remarcar:['agendada', 'pauta_fechada'].includes(r.ticket.reuniao_etapa || '') && (podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId),
@@ -107,4 +108,48 @@ async function reagendamentos(r: NonNullable<Awaited<ReturnType<typeof carregarR
   for (const x of v) { const t = ref.get(x.reuniao_id); if (t) origens[x.id] = t }
   const proxima: Ref | null = prox ? { reuniao_id: prox.id, numero: prox.numero, prazo: prox.prazo } : null
   return { destinos, origens, proxima }
+}
+
+// ------------------------------------------------------------------ excluir
+// (José, 23/11/2026) Reunião de teste não precisa ficar para sempre no histórico. Só admin ou quem marcou,
+// e só reunião "vazia": sem ata, sem tarefas e sem gravação, que ainda não começou (ou foi cancelada).
+// Presenças, pauta e reserva de sala saem junto (on delete cascade).
+function motivoNaoExcluir(etapa: string | null | undefined, temAta: boolean, nAcoes: number, nGravacoes: number): string | null {
+  if (temAta) return 'Esta reunião já tem ata publicada.'
+  if (nAcoes > 0) return `Esta reunião tem ${nAcoes} ${nAcoes === 1 ? 'tarefa' : 'tarefas'}. Cancele em vez de excluir.`
+  if (nGravacoes > 0) return 'Esta reunião tem gravação. Cancele em vez de excluir.'
+  if (!['agendada', 'pauta_fechada', 'cancelada'].includes(etapa || '')) return 'Só dá para excluir reunião que ainda não começou ou que foi cancelada.'
+  return null
+}
+
+async function contarAcoes(id: string): Promise<number> {
+  const { count } = await supabaseAdmin.from('tickets').select('id', { count: 'exact', head: true }).eq('origem_reuniao_id', id)
+  return count || 0
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await autenticar(req)
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  if (!temModuloTickets(auth)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+  const { id } = await params
+  try {
+    const r = await carregarReuniao(id)
+    if (!r || !(await podeVerReuniao(r, auth))) return NextResponse.json({ error: 'Reunião não encontrada' }, { status: 404 })
+    const criador = await criadorDaReuniao(id).catch(() => null)
+    if (!auth.isAdmin && criador !== auth.userId) return NextResponse.json({ error: 'Só quem marcou a reunião (ou admin) pode excluir.' }, { status: 403 })
+    const gravacoes = ((r.ticket.payload as { gravacoes?: unknown[] } | null)?.gravacoes || []).length
+    const motivo = motivoNaoExcluir(r.ticket.reuniao_etapa, !!r.ata, await contarAcoes(id), gravacoes)
+    if (motivo) return NextResponse.json({ error: motivo }, { status: 409 })
+    // avisa quem estava nela (se ainda estava marcada) ANTES de apagar
+    if (r.ticket.reuniao_etapa !== 'cancelada') {
+      await notificarTicket(r.ticket, r.presencas.map((p) => p.usuario_id), auth.userId, `Reunião excluída: ${r.ticket.titulo}`).catch(() => {})
+    }
+    const { error } = await supabaseAdmin.from('tickets').delete().eq('id', id).eq('tipo', 'reuniao')
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    console.info('[reunioes] excluida', { id, numero: r.ticket.numero, titulo: r.ticket.titulo, por: auth.userId })
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    console.error('[reunioes] DELETE', e)
+    return NextResponse.json({ error: 'Falha ao excluir a reunião' }, { status: 500 })
+  }
 }

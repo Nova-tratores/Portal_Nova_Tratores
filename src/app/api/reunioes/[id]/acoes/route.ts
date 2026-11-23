@@ -54,8 +54,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // ------------------------------------------------------------- etapa
     if (acao === 'etapa') {
-      if (!conduz) return erro('Só condutor, secretário ou admin movem a reunião.', 403)
       const para = String(body.para || '') as ReuniaoEtapa
+      // quem marcou também cancela / marca "Não aconteceu" (23/11/2026); o resto continua só de quem conduz
+      if (!conduz && !(para === 'cancelada' && (await criadorDaReuniao(id)) === auth.userId)) return erro('Só condutor, secretário ou admin movem a reunião.', 403)
       if (!ETAPA_INFO[para]) return erro('Etapa inválida')
       if (!podeMoverEtapa(etapa, para)) return erro(`Não dá para ir de "${ETAPA_INFO[etapa].label}" para "${ETAPA_INFO[para].label}".`, 409)
       if (para === 'ata_publicada') return erro('Use a ação publicar_ata.', 409)
@@ -98,7 +99,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (publicada) return erro('A ata já foi publicada — use um adendo.', 409)
       if (etapa === 'cancelada') return erro('Reunião cancelada.', 409)
       const texto = String(body.texto ?? '').slice(0, 20000)
-      const payload = { ...((r.ticket.payload as Record<string, unknown>) || {}), ata_texto: texto, ata_texto_em: new Date().toISOString(), ata_texto_por: auth.userId }
+      // Relê o payload NA HORA (23/11/2026): antes usava o lido no começo e podia apagar a gravação registrada
+      // no meio do caminho. E se OUTRA pessoa salvou depois da versão que esta tela tinha (base_em), não
+      // sobrescreve: devolve 409 com o texto atual para a tela perguntar (a menos que venha forcar: true).
+      const { data: fresco } = await supabaseAdmin.from('tickets').select('payload').eq('id', id).single()
+      const atual = ((fresco?.payload as Record<string, unknown>) || {})
+      const baseEm = body.base_em ? String(body.base_em) : null
+      if (!body.forcar && atual.ata_texto_em && atual.ata_texto_em !== baseEm && atual.ata_texto_por !== auth.userId && atual.ata_texto !== texto) {
+        const { data: quem } = await supabaseAdmin.from('financeiro_usu').select('nome').eq('id', String(atual.ata_texto_por || '')).maybeSingle()
+        return NextResponse.json({ error: `${quem?.nome || 'Outra pessoa'} mudou a ata enquanto você escrevia.`, conflito: true, texto: atual.ata_texto ?? '', em: atual.ata_texto_em }, { status: 409 })
+      }
+      const payload = { ...atual, ata_texto: texto, ata_texto_em: new Date().toISOString(), ata_texto_por: auth.userId }
       const { error } = await supabaseAdmin.from('tickets').update({ payload }).eq('id', id)
       if (error) return erro(error.message, 500)
       return NextResponse.json({ ok: true, em: payload.ata_texto_em })

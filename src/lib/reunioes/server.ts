@@ -322,7 +322,9 @@ export async function remarcarReuniao(auth: Autenticado, r: ReuniaoCarregada, n:
     const res = await editarReserva(auth, reserva, { inicio, fim, titulo, descricao: reserva.descricao ?? null })
     if ('conflito' in res) throw Object.assign(new Error(`${res.mensagem}. Escolha outro horário.`), { code: 'SALA_OCUPADA' })
   }
-  const payload = { ...((t.payload as Record<string, unknown>) || {}), duracao_min: n.duracao_min }
+  // relê o payload na hora: a ata/gravação podem ter sido salvas depois que a reunião foi carregada
+  const { data: fresco } = await supabaseAdmin.from('tickets').select('payload').eq('id', t.id).single()
+  const payload = { ...((fresco?.payload as Record<string, unknown>) || {}), duracao_min: n.duracao_min }
   ok(await supabaseAdmin.from('tickets').update({
     prazo: n.dia, reuniao_inicio: inicio, titulo, payload,
     ...(t.reuniao_etapa === 'pauta_fechada' ? { reuniao_etapa: 'agendada', status: ETAPA_INFO.agendada.status } : {}),
@@ -378,7 +380,10 @@ export async function listarReunioes(auth: Autenticado, visao: VisaoReunioes, se
   const jaPassou = (t: Ticket) => !!t.reuniao_inicio && t.reuniao_etapa !== 'em_andamento' && fimDe(t) < agora
   let q = supabaseAdmin.from('tickets').select('*').eq('tipo', 'reuniao').limit(300)
   if (visao === 'historico') q = q.or(`reuniao_etapa.in.(${ETAPAS_ENCERRADAS.join(',')}),reuniao_inicio.lt.${agora}`).order('reuniao_inicio', { ascending: false })
-  else q = q.not('reuniao_etapa', 'in', `(${ETAPAS_ENCERRADAS.join(',')})`).order('reuniao_inicio')
+  // Próximas: corta no banco o que começou há mais de 12 h (reunião vai até 8 h) — senão as "Sem registro"
+  // antigas ocupavam o limit(300) e as próximas sumiam da lista (23/11/2026). Em andamento entra sempre.
+  else q = q.not('reuniao_etapa', 'in', `(${ETAPAS_ENCERRADAS.join(',')})`)
+    .or(`reuniao_inicio.gte.${new Date(Date.now() - 12 * 3600_000).toISOString()},reuniao_etapa.eq.em_andamento`).order('reuniao_inicio')
   if (serieId && uuidValido(serieId)) q = q.eq('reuniao_serie_id', serieId)
   const tickets = (ok(await q) as Ticket[]).filter((t) => {
     const encerrada = ETAPAS_ENCERRADAS.includes(t.reuniao_etapa as ReuniaoEtapa)
