@@ -64,6 +64,8 @@ export default function TextosSite() {
     const v = valoresDe(g);
     if (g === 'aviso') return v.ligado === true && String(v.texto || '').trim() ? `Ligada: “${v.texto}”` : 'Desligada: não aparece no site';
     if (g === 'home') return `“${v.titulo}”`;
+    // Sem o texto do site (SITE_URL não respondeu) e nada gravado aqui, a prévia virava "WhatsApp · , /" (23/11/2026)
+    if ((g === 'contato' || g === 'horario') && !Object.values(v).some((x) => String(x ?? '').trim())) return erroSite ? 'Sem prévia: o portal não conseguiu ler o site (aviso acima)' : 'Nada preenchido ainda';
     if (g === 'contato') return `WhatsApp ${v.whatsapp} · ${v.endereco}, ${v.cidade}/${v.uf}`;
     if (g === 'horario') return `Seg a sex ${String(v.manha).replace('-', '–')} e ${String(v.tarde).replace('-', '–')} · sábado ${v.sabado ? String(v.sabado).replace('-', '–') : 'fechado'}`;
     return '5 páginas: Crédito, Pós-venda, Peças, Contato, Implementos';
