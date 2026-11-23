@@ -19,10 +19,10 @@ type Resultado = Partial<Record<RedeId, { ok: boolean; link?: string | null; em?
 type Post = {
   id: string; titulo: string; legenda: string | null; redes: RedeId[]; formato: string; midia: Midia; quando: string | null
   status: StatusPost; promocao_id: string | null; resultado: Resultado; notas: string | null; criado_por: string | null; atualizado_por: string | null
-} & Etq & { codigo?: string | null };
+} & Etq & { codigo?: string | null; contatos?: number };
 /** Fase 4 (23/11/2026): etiquetas de seleção rápida (lib/marketing/redes/etiquetas.ts) */
 type Etq = { etiqueta_tipo?: string | null; gente_real?: boolean | null; maquina?: string | null; gancho?: string | null };
-type Rascunho = { id?: string; titulo: string; legenda: string; redes: RedeId[]; formato: string; midia: Midia; data: string; hora: string; notas: string; promocao_id: string | null; status: StatusPost; resultado: Resultado; chave: string } & Etq & { codigo?: string | null };
+type Rascunho = { id?: string; titulo: string; legenda: string; redes: RedeId[]; formato: string; midia: Midia; data: string; hora: string; notas: string; promocao_id: string | null; status: StatusPost; resultado: Resultado; chave: string } & Etq & { codigo?: string | null; contatos?: number };
 type Conta = { rede: RedeId; nome: string | null };
 
 const SOCIAIS: RedeId[] = ['instagram', 'facebook', 'tiktok', 'youtube'];
@@ -168,7 +168,7 @@ export default function CalendarioRedes() {
   function rascunhoDe(p: Post, k: string): Rascunho {
     return { id: p.id, chave: k, titulo: p.titulo, legenda: p.legenda || '', redes: p.redes || [], formato: p.formato, midia: p.midia || {}, data: p.quando ? diaDe(p.quando) : '',
       hora: p.quando ? horaDe(p.quando) : '09:00', notas: p.notas || '', promocao_id: p.promocao_id, status: p.status, resultado: p.resultado || {},
-      etiqueta_tipo: p.etiqueta_tipo ?? null, gente_real: p.gente_real ?? null, maquina: p.maquina ?? null, gancho: p.gancho ?? null, codigo: p.codigo ?? null };
+      etiqueta_tipo: p.etiqueta_tipo ?? null, gente_real: p.gente_real ?? null, maquina: p.maquina ?? null, gancho: p.gancho ?? null, codigo: p.codigo ?? null, contatos: p.contatos };
   }
 
   async function chamar(metodo: string, corpo?: unknown, q = '') {
@@ -491,7 +491,7 @@ export default function CalendarioRedes() {
 
         {/* Fase 4.3: código do post + links que contam quem veio dele */}
         {r.codigo && (
-          <Secao icone="fa-link" cor="#16a34a" titulo={`Código do post: ${r.codigo}`} sub="Use estes links no post: quem chamar por eles conta como contato deste post">
+          <Secao icone="fa-link" cor="#16a34a" titulo={`Código do post: ${r.codigo}${typeof r.contatos === "number" ? ` · ${r.contatos} ${r.contatos === 1 ? "contato" : "contatos"} pelo WhatsApp` : ""}`} sub="Use estes links no post: quem chamar por eles conta como contato deste post">
             {(() => {
               const zap = whats ? linkWhatsDoPost(whats, r.codigo!, r.titulo) : null;
               const site = siteUrl ? linkSiteDoPost(siteUrl, r.redes[0] || 'instagram', r.codigo!) : null;

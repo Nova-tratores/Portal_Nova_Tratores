@@ -98,6 +98,15 @@ export async function GET(req: Request) {
   ])
   const erro = noPeriodo.error || ideias.error
   if (erro) return NextResponse.json({ ok: false, erro: falta(erro.message) ? MSG_SQL : erro.message }, { status: falta(erro.message) ? 503 : 500 })
+  // Fase 4.3: quantos contatos cada post trouxe (conversas que começaram com o código dele)
+  const todos = [...(noPeriodo.data || []), ...(ideias.data || [])] as Linha[]
+  const cods = todos.map((p) => p.codigo).filter(Boolean) as string[]
+  if (cods.length) {
+    const { data: cs } = await sb.from('mkt_conversas_lidas').select('codigo').in('codigo', cods)   // sem a tabela: segue sem contar
+    const n = new Map<string, number>()
+    for (const c of (cs || []) as { codigo: string }[]) n.set(c.codigo, (n.get(c.codigo) || 0) + 1)
+    for (const p of todos) if (p.codigo) p.contatos = n.get(String(p.codigo)) || 0
+  }
   return NextResponse.json({
     ok: true, posts: noPeriodo.data || [], ideias: ideias.data || [], contas: contas.data || [], podeEditar: podeEditar(g.user),
     whatsapp: await whatsDaEmpresa(), siteUrl: SITE_URL,

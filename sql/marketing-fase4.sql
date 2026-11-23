@@ -13,6 +13,26 @@ create unique index if not exists site_posts_codigo_uk on site_posts (codigo) wh
 create index if not exists site_posts_acao_idx on site_posts (acao_id);
 -- formato agora aceita também 'carrossel' (a coluna não tem CHECK; quem valida é a API)
 
+-- 4.3) conversas do NovaZap já lidas pelo robô; codigo preenchido = o cliente chegou pelo post
+create table if not exists mkt_conversas_lidas (
+  conversa_id       bigint primary key,
+  codigo            text,             -- código do post achado na 1ª mensagem do cliente (null = não veio de post)
+  contato_nome      text,
+  contato_telefone  text,
+  primeira_mensagem text,
+  conversa_em       timestamptz,
+  lida_em           timestamptz not null default now()
+);
+create index if not exists mkt_conversas_lidas_codigo_idx on mkt_conversas_lidas (codigo) where codigo is not null;
+alter table mkt_conversas_lidas enable row level security;   -- só a API (service role)
+revoke all on mkt_conversas_lidas from anon, authenticated;
+
+insert into agendamentos (chave, handler, nome, modulo, descricao, tipo, intervalo_min, prioridade, usa_omie, duracao_max_min, ativo) values
+  ('marketing-contatos-posts', 'marketing-contatos-posts', 'Marketing — contatos que vieram de post', 'Marketing',
+   'Lê as conversas novas do NovaZap e, se a 1ª mensagem do cliente tem o código de um post (ex.: 6075CAB), conta como contato daquele post.',
+   'intervalo', 15, 'rapido', false, 5, true)
+on conflict (chave) do nothing;
+
 notify pgrst, 'reload schema';
 
 -- Desfazer (se precisar):

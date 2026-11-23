@@ -163,6 +163,15 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: r.erros.length ? `${resumo} · ${r.erros.join(' | ')}` : resumo };
   },
 
+  // Marketing (Fase 4.3, 23/11/2026): conversa que começou com o código de um post conta como contato dele.
+  'marketing-contatos-posts': async () => {
+    if (desligada('MARKETING_CONTATOS_POSTS')) return { pular: 'desligado (MARKETING_CONTATOS_POSTS=off)' };
+    const { cronContatosPosts } = await import('@/lib/marketing/contatos-posts');
+    const r = await cronContatosPosts();
+    if (r.pulado) return { pular: r.pulado };
+    return { resumo: `${r.lidas} conversas lidas · ${r.achadas} vieram de post` };
+  },
+
   // Reuniões: gravações ao vivo ficam 60 dias no bucket `reunioes-gravacoes` (José, 17/11/2026).
   'reunioes-gravacoes-limpar': async () => {
     if (desligada('REUNIOES_GRAVACOES_LIMPAR')) return { pular: 'desligado (REUNIOES_GRAVACOES_LIMPAR=off)' };
