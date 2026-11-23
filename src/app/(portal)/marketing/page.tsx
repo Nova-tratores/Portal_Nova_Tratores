@@ -17,7 +17,7 @@ import { Plus, Search, AlertTriangle, UserX, Trash2, RotateCcw, CalendarDays, Us
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui';
-import { STATUS_ACAO, TIPOS_ACAO, rotulo, cor } from '@/lib/marketing/tipos';
+import { STATUS_ACAO, TIPOS_ACAO, rotulo, cor, ehEventoInterno } from '@/lib/marketing/tipos';
 import type { Acao, RoletaLigada } from '@/lib/marketing/tipos';
 import CapaCampanha from '@/components/marketing/CapaCampanha';
 import AcaoForm from '@/components/marketing/AcaoForm';
@@ -295,6 +295,12 @@ export default function MarketingPage() {
                         {brl(r?.custo ?? 0)}
                       </div>
                     </div>
+                    {ehEventoInterno(a.tipo) ? (
+                      // evento interno: não tem apoio/leads/propostas — mostra convidados (publico_total_evento)
+                      <div style={{ fontSize: 13, color: 'var(--portal-text-muted, #475569)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        <span style={{ display: 'block', fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{(a as { publico_total_evento?: number | null }).publico_total_evento ?? '—'}</span>convidados
+                      </div>
+                    ) : (
                     <div style={{ display: 'flex', gap: 14, fontSize: 13, color: 'var(--portal-text-muted, #475569)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       <span title="Apoio de fábrica recebido">
                         <span style={{ display: 'block', fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{brl(r?.apoioRecebido ?? 0)}</span>apoio
@@ -306,6 +312,7 @@ export default function MarketingPage() {
                         <span style={{ display: 'block', fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{r?.propostas ?? 0}</span>propostas
                       </span>
                     </div>
+                    )}
                   </div>
                 </Link>
 

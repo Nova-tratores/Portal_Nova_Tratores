@@ -17,8 +17,17 @@ export const TIPOS_ACAO = [
   { id: 'patrocinio',   label: 'Patrocínio' },
   { id: 'midia',        label: 'Mídia / publicidade' },
   { id: 'brinde',       label: 'Brindes' },
+  // 23/11/2026: confraternização, festa de fim de ano, aniversário, almoço da equipe (sql/marketing-evento-interno.sql)
+  { id: 'evento_interno', label: 'Evento interno' },
   { id: 'outro',        label: 'Outro' },
 ] as const;
+
+/**
+ * Evento interno não é venda: sem stand, leads, propostas, apoio de fábrica nem contrapartida.
+ * Uma lista só, usada pelo formulário, pelas abas da ficha e pelo cartão da lista.
+ */
+export const ehEventoInterno = (tipo: string | null | undefined) => tipo === 'evento_interno';
+export const ABAS_FORA_EVENTO_INTERNO = ['Apoio de fábrica', 'Leads', 'Propostas', 'Itens expostos', 'Ações realizadas', 'Concorrentes', 'Relatório'] as const;
 
 export const STATUS_ACAO = [
   { id: 'planejada',    label: 'Planejada',    cor: '#64748b' },

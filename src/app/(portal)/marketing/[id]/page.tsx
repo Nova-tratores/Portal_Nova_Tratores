@@ -18,7 +18,7 @@ import { ArrowLeft, Pencil, UserX } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui';
-import { STATUS_ACAO, TIPOS_ACAO, rotulo, cor } from '@/lib/marketing/tipos';
+import { STATUS_ACAO, TIPOS_ACAO, rotulo, cor, ehEventoInterno, ABAS_FORA_EVENTO_INTERNO } from '@/lib/marketing/tipos';
 import AcaoForm from '@/components/marketing/AcaoForm';
 import CapaCampanha from '@/components/marketing/CapaCampanha';
 import Modal from '@/components/marketing/Modal';
@@ -96,6 +96,11 @@ export default function FichaAcaoPage() {
 
   const { acao, roi } = ficha;
   const semDono = !!acao.responsavel_id && ficha.inativos.has(acao.responsavel_id);
+
+  // Evento interno (confraternização etc.) não tem stand, leads, propostas nem apoio de fábrica (23/11/2026).
+  const interno = ehEventoInterno(acao.tipo);
+  const abasVisiveis = interno ? ABAS.filter((a) => !(ABAS_FORA_EVENTO_INTERNO as readonly string[]).includes(a)) : ABAS;
+  const abaAtual: Aba = abasVisiveis.includes(aba) ? aba : 'Resumo';   // trocou o tipo com uma aba escondida aberta
 
   // Contador por aba: o número que faz a pessoa saber onde falta preencher.
   const contagem: Partial<Record<Aba, number>> = {
@@ -191,8 +196,8 @@ export default function FichaAcaoPage() {
       {/* Abas no jeito das do POS: escolhida com fundo clarinho e sublinhado cheio,
           contador em pílula na cor do módulo. */}
       <div className="mkt-abas" style={{ display: 'flex', flexWrap: 'wrap', gap: 2, borderBottom: '1px solid var(--portal-border)', marginBottom: 14 }}>
-        {ABAS.map((a) => {
-          const ativa = aba === a;
+        {abasVisiveis.map((a) => {
+          const ativa = abaAtual === a;
           const n = contagem[a];
           return (
             <button
@@ -226,20 +231,20 @@ export default function FichaAcaoPage() {
         })}
       </div>
 
-      {aba === 'Resumo' && <ResumoAba ficha={ficha} roi={roi} />}
-      {aba === 'Linha do tempo' && <LinhaDoTempoAba acaoId={id} />}
-      {aba === 'Apoio de fábrica' && <ApoiosAba acaoId={id} apoios={ficha.apoios} inativos={ficha.inativos} onMudou={carregar} />}
-      {aba === 'Investimento' && <CustosAba acaoId={id} custos={ficha.custos} onMudou={carregar} />}
-      {aba === 'Leads' && <LeadsAba acaoId={id} leads={ficha.leads} onMudou={carregar} />}
-      {aba === 'Propostas' && <PropostasAba acaoId={id} propostas={ficha.propostas} onMudou={carregar} />}
-      {aba === 'Equipe' && <ListaSimples spec={SPEC_EQUIPE} acaoId={id} itens={ficha.equipe} onMudou={carregar} />}
-      {aba === 'Itens expostos' && <ListaSimples spec={SPEC_ITENS} acaoId={id} itens={ficha.itens} onMudou={carregar} />}
-      {aba === 'Ações realizadas' && <ListaSimples spec={SPEC_REALIZADAS} acaoId={id} itens={ficha.realizadas} apoios={ficha.apoios} onMudou={carregar} />}
-      {aba === 'Concorrentes' && <ListaSimples spec={SPEC_CONCORRENTES} acaoId={id} itens={ficha.concorrentes} onMudou={carregar} />}
-      {aba === 'Mídia' && <ListaSimples spec={SPEC_MIDIAS} acaoId={id} itens={ficha.midias} apoios={ficha.apoios} onMudou={carregar} />}
-      {aba === 'Avaliação' && <AvaliacaoAba acaoId={id} avaliacoes={ficha.avaliacoes} onMudou={carregar} />}
-      {aba === 'Questionário' && <QuestionarioAba acaoId={id} acaoNome={acao.nome} onMudou={carregar} />}
-      {aba === 'Relatório' && <RelatorioAba apoios={ficha.apoios} onMudou={carregar} />}
+      {abaAtual === 'Resumo' && <ResumoAba ficha={ficha} roi={roi} />}
+      {abaAtual === 'Linha do tempo' && <LinhaDoTempoAba acaoId={id} />}
+      {abaAtual === 'Apoio de fábrica' && <ApoiosAba acaoId={id} apoios={ficha.apoios} inativos={ficha.inativos} onMudou={carregar} />}
+      {abaAtual === 'Investimento' && <CustosAba acaoId={id} custos={ficha.custos} onMudou={carregar} />}
+      {abaAtual === 'Leads' && <LeadsAba acaoId={id} leads={ficha.leads} onMudou={carregar} />}
+      {abaAtual === 'Propostas' && <PropostasAba acaoId={id} propostas={ficha.propostas} onMudou={carregar} />}
+      {abaAtual === 'Equipe' && <ListaSimples spec={SPEC_EQUIPE} acaoId={id} itens={ficha.equipe} onMudou={carregar} />}
+      {abaAtual === 'Itens expostos' && <ListaSimples spec={SPEC_ITENS} acaoId={id} itens={ficha.itens} onMudou={carregar} />}
+      {abaAtual === 'Ações realizadas' && <ListaSimples spec={SPEC_REALIZADAS} acaoId={id} itens={ficha.realizadas} apoios={ficha.apoios} onMudou={carregar} />}
+      {abaAtual === 'Concorrentes' && <ListaSimples spec={SPEC_CONCORRENTES} acaoId={id} itens={ficha.concorrentes} onMudou={carregar} />}
+      {abaAtual === 'Mídia' && <ListaSimples spec={SPEC_MIDIAS} acaoId={id} itens={ficha.midias} apoios={ficha.apoios} onMudou={carregar} />}
+      {abaAtual === 'Avaliação' && <AvaliacaoAba acaoId={id} avaliacoes={ficha.avaliacoes} onMudou={carregar} />}
+      {abaAtual === 'Questionário' && <QuestionarioAba acaoId={id} acaoNome={acao.nome} onMudou={carregar} />}
+      {abaAtual === 'Relatório' && <RelatorioAba apoios={ficha.apoios} onMudou={carregar} />}
 
       <Modal titulo="Editar campanha" aberto={editando} onFechar={() => setEditando(false)}>
         <AcaoForm

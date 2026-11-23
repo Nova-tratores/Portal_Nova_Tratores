@@ -12,7 +12,7 @@
 // que o dark NÃO converte, e o resto sai das vars do tema.
 // =============================================================================
 import {
-  AlertTriangle, BarChart3, CalendarDays, ClipboardCheck, FileText, Gift, HandCoins, Handshake, Megaphone,
+  AlertTriangle, BarChart3, PartyPopper, CalendarDays, ClipboardCheck, FileText, Gift, HandCoins, Handshake, Megaphone,
   BadgePercent, Percent, Sprout, Store, Tent, TrendingUp, Users, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
@@ -198,7 +198,7 @@ export function Selo({ texto, cor, titulo }: { texto: string; cor: string; titul
 
 const ICONE_TIPO: Record<string, LucideIcon> = {
   campanha: BadgePercent, feira: Tent, dia_de_campo: Sprout, acao_loja: Store, patrocinio: Handshake,
-  midia: Megaphone, brinde: Gift, outro: CalendarDays,
+  midia: Megaphone, brinde: Gift, evento_interno: PartyPopper, outro: CalendarDays,
 };
 
 /** Ícone do tipo da ação (feira, dia de campo…) em quadradinho, na cor da situação. */

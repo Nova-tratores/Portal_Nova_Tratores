@@ -5,7 +5,7 @@
 // A linha do tempo existe porque o processo de verba co-op trava em etapas
 // diferentes (documento, faturamento, crédito) e ninguém lembra em qual parou.
 import { AlertTriangle } from 'lucide-react';
-import { STATUS_APOIO, rotulo, cor } from '@/lib/marketing/tipos';
+import { STATUS_APOIO, rotulo, cor, ehEventoInterno } from '@/lib/marketing/tipos';
 import { rankingCategorias } from '@/lib/marketing/custos';
 import { textoDaPergunta } from '@/lib/marketing/questionario';
 import { Painel, Titulo, Kpi, brl, pct, multiplicador, Vazio, ROSA } from '../ui';
@@ -19,6 +19,21 @@ export default function ResumoAba({ ficha, roi }: { ficha: any; roi: any }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Grade de 4 por linha: com 8 cartões numa linha só, "R$ 503.500,00" não cabia e era cortado */}
+      {ehEventoInterno(ficha.acao?.tipo) ? (() => {
+        // Evento interno (23/11/2026): não tem venda; o que importa é gasto x orçamento e por pessoa.
+        const orc = Number(ficha.acao.orcamento_previsto) || 0
+        const conv = Number(ficha.acao.publico_total_evento) || 0
+        const gasto = Number(roi.custoConfirmado) || 0
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 8 }}>
+            <Kpi rotulo="Investido" valor={brl(gasto)} dica="Custos confirmados (aba Investimento). Previstos não entram." />
+            <Kpi rotulo="Orçamento previsto" valor={orc ? brl(orc) : '—'} />
+            <Kpi rotulo="Saldo do orçamento" valor={orc ? brl(orc - gasto) : '—'} alerta={!!orc && gasto > orc} cor={orc && gasto > orc ? '#dc2626' : '#16a34a'} dica={orc && gasto > orc ? 'Passou do orçamento.' : undefined} />
+            <Kpi rotulo="Convidados" valor={conv ? String(conv) : '—'} />
+            <Kpi rotulo="Custo por convidado" valor={conv && gasto ? brl(gasto / conv) : '—'} />
+          </div>
+        )
+      })() : (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 8 }}>
         <Kpi rotulo="Investido" valor={brl(roi.custoConfirmado)} dica="Custos confirmados. Previstos não entram." />
         <Kpi rotulo="Apoio recebido" valor={brl(roi.apoioRecebido)} cor="#16a34a" dica="Só o que já entrou. Aprovado e não recebido fica em 'a receber'." />
@@ -29,6 +44,7 @@ export default function ResumoAba({ ficha, roi }: { ficha: any; roi: any }) {
         <Kpi rotulo="Receita atribuída" valor={brl(roi.receitaAtribuida)} cor="#16a34a" />
         <Kpi rotulo="Retorno" valor={multiplicador(roi.roi)} dica="Receita atribuída dividida pelo custo líquido. Travessão quando não há custo líquido." cor="#7c3aed" />
       </div>
+      )}
 
       {roi.alertas?.length > 0 && (
         <Painel style={{ borderLeft: '3px solid #dc2626' }}>

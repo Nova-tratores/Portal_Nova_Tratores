@@ -4,7 +4,7 @@
 // (na ficha). Um só, pra os dois caminhos não divergirem.
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { TIPOS_ACAO, STATUS_ACAO, EMPRESAS } from '@/lib/marketing/tipos';
+import { TIPOS_ACAO, STATUS_ACAO, EMPRESAS, ehEventoInterno } from '@/lib/marketing/tipos';
 import type { Acao } from '@/lib/marketing/tipos';
 import { Campo, estiloInput, BotaoRosa, ROSA } from './ui';
 import EnviarFoto from './redes/EnviarFoto';
@@ -73,6 +73,7 @@ export default function AcaoForm({
   };
 
   const respAtual = usuarios.find((u) => u.id === f.responsavel_id);
+  const interno = ehEventoInterno(f.tipo);
 
   return (
     <form onSubmit={submeter} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -108,7 +109,7 @@ export default function AcaoForm({
       </Campo>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-        <Campo label="Tipo *" ajuda="Feira é um tipo — o módulo cobre também mídia, brinde e patrocínio.">
+        <Campo label="Tipo *" ajuda={interno ? 'Confraternização, festa, aniversário, almoço da equipe. Sem leads nem stand.' : 'Feira é um tipo — o módulo cobre também mídia, brinde e patrocínio.'}>
           <select style={estiloInput} value={f.tipo} onChange={(e) => set('tipo', e.target.value)}>
             {TIPOS_ACAO.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
@@ -133,7 +134,7 @@ export default function AcaoForm({
           <input type="date" style={estiloInput} value={(f.data_fim ?? '').slice(0, 10)} onChange={(e) => set('data_fim', e.target.value)} />
         </Campo>
         <Campo label="Local">
-          <input style={estiloInput} value={f.local_nome ?? ''} onChange={(e) => set('local_nome', e.target.value)} placeholder="Parque de exposições" />
+          <input style={estiloInput} value={f.local_nome ?? ''} onChange={(e) => set('local_nome', e.target.value)} placeholder={interno ? 'Ex.: salão de festas, chácara' : 'Parque de exposições'} />
         </Campo>
         <Campo label="Cidade">
           <input style={estiloInput} value={f.cidade ?? ''} onChange={(e) => set('cidade', e.target.value)} />
@@ -175,7 +176,21 @@ export default function AcaoForm({
         )}
       </div>
 
+      {/* Evento interno (23/11/2026): sem stand, público de feira nem metas de venda — só convidados.
+          Convidados ficam em publico_total_evento (a mesma coluna; o rótulo é que muda). */}
+      {interno && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          <Campo label="Convidados" ajuda="Quantas pessoas devem participar. Serve para o custo por pessoa.">
+            <input type="number" min={0} style={estiloInput} value={f.publico_total_evento ?? ''} onChange={(e) => set('publico_total_evento', e.target.value)} />
+          </Campo>
+          <Campo label="Orçamento previsto (R$)">
+            <input type="number" step="0.01" min={0} style={estiloInput} value={f.orcamento_previsto ?? ''} onChange={(e) => set('orcamento_previsto', e.target.value)} />
+          </Campo>
+        </div>
+      )}
+
       {/* Dois públicos diferentes, e confundir os dois enganava o relatório. */}
+      {!interno && <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <Campo label="Visitantes no nosso stand (por dia)" ajuda="Estimativa de quem passou no estande.">
           <input type="number" min={0} style={estiloInput} value={f.publico_estimado ?? ''} onChange={(e) => set('publico_estimado', e.target.value)} />
@@ -191,6 +206,7 @@ export default function AcaoForm({
       <Campo label="Stand" ajuda="Tamanho, localização, e se era próprio ou dentro do espaço da fábrica." largura="1 1 100%">
         <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f.stand_descricao ?? ''} onChange={(e) => set('stand_descricao', e.target.value)} />
       </Campo>
+      </>}
 
       {/* Projeto do Omie — a ponte com o financeiro */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
@@ -237,7 +253,7 @@ export default function AcaoForm({
         </div>
       )}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+      {!interno && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <Campo label="Orçamento previsto (R$)">
           <input type="number" step="0.01" min={0} style={estiloInput} value={f.orcamento_previsto ?? ''} onChange={(e) => set('orcamento_previsto', e.target.value)} />
         </Campo>
@@ -256,7 +272,7 @@ export default function AcaoForm({
         <Campo label="Meta de receita (R$)">
           <input type="number" step="0.01" min={0} style={estiloInput} value={f.meta_receita ?? ''} onChange={(e) => set('meta_receita', e.target.value)} />
         </Campo>
-      </div>
+      </div>}
 
       <Campo label="Objetivo" largura="1 1 100%">
         <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f.objetivo ?? ''} onChange={(e) => set('objetivo', e.target.value)} />
