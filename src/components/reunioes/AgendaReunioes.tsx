@@ -5,7 +5,7 @@
 // Clique abre a janela com o botão do próximo passo e as Tarefas da reunião (TarefasRapidas).
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, ChevronLeft, ChevronRight, Play, ListPlus, FileText, Check, X, CalendarDays, MapPin, CalendarCheck, CircleCheck, CircleHelp, Ban, ArrowRight, CalendarClock, Pencil, Trash2 } from 'lucide-react'
+import { Users, ChevronLeft, ChevronRight, Play, ListPlus, FileText, Check, X, CalendarDays, MapPin, CalendarCheck, CircleCheck, CircleHelp, Ban, ArrowRight, CalendarClock, Pencil, Trash2, Lock, Globe } from 'lucide-react'
 import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
 import type { ReuniaoEtapa, Serie } from '@/lib/reunioes/regras'
 import type { PresencaRow } from '@/lib/reunioes/server'
@@ -15,7 +15,7 @@ import RemarcarReuniao from './RemarcarReuniao'
 import EditarReuniao from './EditarReuniao'
 import ConviteReuniao from './ConviteReuniao'
 import TicketModal from '@/components/tickets/TicketModal'
-import { chamar, horaDe, primeiroNome, hojeISO } from './comum'
+import { chamar, horaDe, primeiroNome, hojeISO, CronometroReuniao } from './comum'
 
 type Lista = { reunioes: Ticket[]; presencas: Record<string, PresencaRow[]>; itens: Record<string, number>; usuarios: Record<string, UsuarioMin>; series: Serie[]; salas?: Record<string, string> }
 
@@ -200,6 +200,16 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
     } catch (e) { onAviso(e instanceof Error ? e.message : 'Falha') } finally { setOcupado(false) }
   }
 
+  const trocarVisibilidade = async (t: Ticket) => {
+    const priv = t.visibilidade === 'privado'
+    if (!window.confirm(priv ? 'Deixar a reunião PÚBLICA? Todo mundo do portal vai ver.' : 'Deixar a reunião PRIVADA? Só quem está nela vai ver.')) return
+    setOcupado(true)
+    try {
+      await chamar(`/api/reunioes/${t.id}/acoes`, { json: { acao: 'titulo', titulo: t.titulo, visibilidade: priv ? 'publico' : 'privado' } })
+      setAberta({ ...t, visibilidade: priv ? 'publico' : 'privado' }); await carregar()
+    } catch (e) { onAviso(e instanceof Error ? e.message : 'Falha') } finally { setOcupado(false) }
+  }
+
   const excluir = async (t: Ticket) => {
     if (!window.confirm(`Excluir "${titulo(t)}" de vez? Não dá para desfazer.`)) return
     setOcupado(true)
@@ -264,6 +274,18 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5, color: 'var(--portal-text-secondary,#475569)' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Av u={d.usuarios[c]} nome={nome(c)} /> {nome(c)} conduz</span>
+                {(() => {
+                  const priv = t.visibilidade === 'privado'
+                  const cor = priv ? '#7c3aed' : '#0891b2'
+                  const rotulo = <>{priv ? <Lock size={13} /> : <Globe size={13} />} {priv ? 'Privada · só quem está nela vê' : 'Pública · todo mundo do portal vê'}</>
+                  return det?.posso_editar && det.reuniao.id === t.id ? (
+                    <button className="ag-btn peq" disabled={ocupado} style={{ alignSelf: 'flex-start', color: cor, borderColor: `color-mix(in srgb,${cor} 35%,var(--portal-border,#e2e8f0))` }}
+                      onClick={() => trocarVisibilidade(t)} title="Clique para trocar">{rotulo} <span style={{ opacity: .7 }}>· trocar</span></button>
+                  ) : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: cor }}>{rotulo}</span>
+                })()}
+                {t.reuniao_etapa === 'em_andamento' && (
+                  <span><CronometroReuniao inicio={(t.payload as { iniciada_em?: string } | null)?.iniciada_em || t.reuniao_inicio!} duracaoMin={durDe(t)} /></span>
+                )}
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Users size={14} /> {pessoas(t, 8)}</span>
                 {d.salas[t.id] && <span><MapPin size={14} style={{ verticalAlign: -2 }} /> {d.salas[t.id]}</span>}
                 <span>{n ? `${n} ${n === 1 ? 'assunto' : 'assuntos'} na pauta` : 'Nenhum assunto na pauta'}</span>

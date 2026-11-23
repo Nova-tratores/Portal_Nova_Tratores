@@ -6,7 +6,7 @@
 // Pendências de reuniões anteriores só aparecem quando existem. Dados de GET /api/reunioes/[id].
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Play, Square, FileCheck2, Copy, Repeat, AlertTriangle, Check, Ban, MessageSquarePlus, RotateCcw, MapPin, CalendarClock, NotebookPen, Users, CircleCheck, Video, CalendarPlus, Pencil, Trash2, Printer } from 'lucide-react'
+import { ArrowLeft, Play, Square, FileCheck2, Copy, Repeat, AlertTriangle, Check, Ban, MessageSquarePlus, RotateCcw, MapPin, CalendarClock, NotebookPen, Users, CircleCheck, Video, CalendarPlus, Pencil, Trash2, Printer, Lock, Globe } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -23,7 +23,7 @@ import EditarReuniao from './EditarReuniao'
 import ConviteReuniao from './ConviteReuniao'
 import VirarSerie from './VirarSerie'
 import AoVivo, { type Gravacao } from './AoVivo'
-import { chamar, horaDe, brCurto, primeiroNome } from './comum'
+import { chamar, horaDe, brCurto, primeiroNome, CronometroReuniao } from './comum'
 
 // situação em palavras simples (a etapa técnica fica escondida)
 const SITUACAO: Record<string, { texto: string; cor: string }> = {
@@ -245,6 +245,20 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
           <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span className="rd-pill"><i />{sit.texto}</span>
             {d.serie && <span className="rd-pill" style={{ ['--c' as string]: '#4f46e5' }}><Repeat size={12} /> {d.serie.nome}</span>}
+            {/* pública/privada à vista; quem pode editar troca com um clique (José, 23/11/2026: "não acho onde muda") */}
+            {(() => {
+              const priv = r.visibilidade === 'privado'
+              const conteudo = <>{priv ? <Lock size={12} /> : <Globe size={12} />} {priv ? 'Privada' : 'Pública'}</>
+              const estilo = { ['--c' as string]: priv ? '#7c3aed' : '#0891b2' }
+              if (!d.posso_editar) return <span className="rd-pill" style={estilo} title={priv ? 'Só quem está na reunião vê' : 'Todo mundo do portal vê'}>{conteudo}</span>
+              return (
+                <button className="rd-pill" disabled={ocupado} style={{ ...estilo, cursor: 'pointer', border: 'none', fontFamily: 'inherit' }}
+                  title={priv ? 'Só quem está na reunião vê. Clique para deixar pública.' : 'Todo mundo do portal vê. Clique para deixar privada.'}
+                  onClick={() => { if (window.confirm(priv ? 'Deixar a reunião PÚBLICA? Todo mundo do portal vai ver.' : 'Deixar a reunião PRIVADA? Só quem está nela vai ver.')) acao({ acao: 'titulo', titulo: r.titulo, visibilidade: priv ? 'publico' : 'privado' }).catch(() => {}) }}>
+                  {conteudo} <span style={{ opacity: .7 }}>· trocar</span>
+                </button>
+              )
+            })()}
           </span>
           {editandoTitulo ? (
             <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -268,6 +282,13 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Av u={d.usuarios[condutor]} nome={nome(condutor)} /> {primeiroNome(nome(condutor))} conduz</span>
             {d.sala && <a href="/salas" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'inherit', textDecoration: 'none' }}><MapPin size={14} /> {d.sala.nome}</a>}
           </span>
+          {/* cronômetro da reunião toda: rodando durante, parado mostrando quanto durou depois */}
+          {(() => {
+            const pl = (r.payload || {}) as { iniciada_em?: string; encerrada_em?: string }
+            const ini = pl.iniciada_em || r.reuniao_inicio
+            if (!ini || !(conducao || (pl.iniciada_em && pl.encerrada_em))) return null
+            return <span><CronometroReuniao inicio={ini} fim={conducao ? null : pl.encerrada_em} duracaoMin={d.duracao_min} /></span>
+          })()}
         </span>
         <span className="rd-topo-acoes" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {d.posso_remarcar && <button className="rd-btn" disabled={ocupado} onClick={() => setRemarcando(true)}><CalendarClock size={15} /> Remarcar</button>}

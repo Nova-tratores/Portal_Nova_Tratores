@@ -454,6 +454,15 @@ export async function mudarEtapa(auth: Autenticado, r: ReuniaoCarregada, para: R
   if (!gravou?.length) throw Object.assign(new Error('Alguém mudou esta reunião agora — recarregue.'), { code: 'CONFLITO' })
   if (STATUS_FINAIS.includes(ETAPA_INFO[para].status as TicketStatus)) await supabaseAdmin.from('tickets_plano').delete().eq('ticket_id', r.ticket.id)
   await registrarEvento(r.ticket.id, auth.userId, 'reuniao_etapa', { de, para, ...(motivo ? { motivo } : {}) })
+  // Cronômetro da reunião (José, 23/11/2026): guarda quando começou de verdade e quando encerrou.
+  // Reabrir (ata → condução) mantém o início e apaga o fim. Payload relido na hora (ata/gravação).
+  if (para === 'em_andamento' || para === 'ata_rascunho') {
+    const { data: fresco } = await supabaseAdmin.from('tickets').select('payload').eq('id', r.ticket.id).single()
+    const p = { ...((fresco?.payload as Record<string, unknown>) || {}) }
+    if (para === 'em_andamento') { if (!p.iniciada_em) p.iniciada_em = agoraISO(); delete p.encerrada_em }
+    else if (!p.encerrada_em) p.encerrada_em = agoraISO()
+    await supabaseAdmin.from('tickets').update({ payload: p }).eq('id', r.ticket.id)
+  }
   if (para === 'cancelada') await liberarSalaDaReuniao(auth, r.ticket.id).catch((e) => console.error('[reunioes] liberar sala', e))
 }
 
