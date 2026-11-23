@@ -393,3 +393,29 @@ export function exigeResponsavel(status: unknown, responsavelId: unknown): strin
   }
   return null;
 }
+
+// ── O que cada tipo de campanha mostra (revisão geral das telas, 23/11/2026) ──
+// Um mapa só, em vez de `if` espalhado por aba. Tipo novo = uma linha aqui.
+//   'sim' = sempre · 'dado' = só se já houver registro naquele bloco · 'nao' = não aparece
+export type BlocoCampanha = 'apoio' | 'funil' | 'roleta' | 'realizadas' | 'equipe' | 'itens' | 'concorrentes' | 'midia' | 'questionario';
+type Mostra = 'sim' | 'dado' | 'nao';
+const S = 'sim', D = 'dado', N = 'nao';
+//                                   apoio funil roleta realiz equipe itens conc  midia quest
+const LINHAS: Record<string, Mostra[]> = {
+  campanha:       [D, S, S, S, N, N, N, S, N],
+  feira:          [S, S, D, S, S, S, S, S, S],
+  dia_de_campo:   [S, S, D, S, S, S, D, S, S],
+  acao_loja:      [D, S, S, S, S, D, N, S, D],
+  patrocinio:     [S, D, N, D, N, N, N, S, S],
+  midia:          [D, S, N, D, N, N, N, S, N],
+  brinde:         [D, D, N, N, N, N, N, N, N],
+  evento_interno: [N, N, D, D, S, N, N, S, S],
+  outro:          [D, D, D, D, D, D, D, D, D],
+};
+const ORDEM_BLOCOS: BlocoCampanha[] = ['apoio', 'funil', 'roleta', 'realizadas', 'equipe', 'itens', 'concorrentes', 'midia', 'questionario'];
+
+/** O bloco aparece nesta campanha? `temDado` = já existe algum registro nele. */
+export function mostraBloco(tipo: string | null | undefined, bloco: BlocoCampanha, temDado = false): boolean {
+  const m = (LINHAS[String(tipo)] ?? LINHAS.outro)[ORDEM_BLOCOS.indexOf(bloco)];
+  return m === 'sim' || (m === 'dado' && temDado);
+}

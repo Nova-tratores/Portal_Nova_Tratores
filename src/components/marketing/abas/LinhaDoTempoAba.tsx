@@ -23,9 +23,13 @@ const diaBR = (d: string) => {
   return t.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-export default function LinhaDoTempoAba({ acaoId }: { acaoId: string }) {
-  const [eventos, setEventos] = useState<EventoLinha[] | null>(null);
+/** `limite` (revisão da tela, 23/11/2026): coluna do Resumo mostra só os N mais recentes, com "Ver tudo". */
+export default function LinhaDoTempoAba({ acaoId, limite }: { acaoId: string; limite?: number }) {
+  const [todosEventos, setEventos] = useState<EventoLinha[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [tudo, setTudo] = useState(false);
+  const cortado = !!limite && !tudo && (todosEventos?.length ?? 0) > limite;
+  const eventos = todosEventos && cortado ? todosEventos.slice(-limite!) : todosEventos;
 
   useEffect(() => {
     let vivo = true;
@@ -49,7 +53,12 @@ export default function LinhaDoTempoAba({ acaoId }: { acaoId: string }) {
 
   return (
     <div style={{ display: 'grid', gap: 14 }}>
-      {!temReuniao && (
+      {cortado && (
+        <button onClick={() => setTudo(true)} style={{ justifySelf: 'start', border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer', padding: 0, font: 'inherit', fontSize: 13 }}>
+          Ver tudo ({todosEventos!.length} eventos)
+        </button>
+      )}
+      {!temReuniao && !limite && (
         <div style={{ fontSize: 13.5, padding: '10px 14px', borderRadius: 12, background: 'color-mix(in srgb, #2563eb 7%, var(--portal-bg-card))', border: '1px solid color-mix(in srgb, #2563eb 20%, transparent)', color: 'var(--portal-text)' }}>
           Nenhuma reunião ligada ainda. Na pauta da reunião, em cada assunto, toque em <b style={{ fontWeight: 500 }}>📣 campanha?</b> e escolha esta campanha: o assunto e o que foi decidido aparecem aqui.
         </div>
