@@ -19,6 +19,8 @@ import PautaItens, { type CampanhaPauta } from './PautaItens'
 import FormAcaoReuniao from './FormAcaoReuniao'
 import TarefasRapidas from './TarefasRapidas'
 import RemarcarReuniao from './RemarcarReuniao'
+import EditarReuniao from './EditarReuniao'
+import ConviteReuniao from './ConviteReuniao'
 import VirarSerie from './VirarSerie'
 import AoVivo, { type Gravacao } from './AoVivo'
 import { chamar, horaDe, brCurto, primeiroNome } from './comum'
@@ -111,6 +113,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   const [remarcando, setRemarcando] = useState(false)
   const [repetindo, setRepetindo] = useState(false)
   const [editandoTitulo, setEditandoTitulo] = useState(false)
+  const [editandoTudo, setEditandoTudo] = useState(false)
   const [novoTitulo, setNovoTitulo] = useState('')
   const [aviso, setAviso] = useState('')
   // campanhas de marketing para ligar os assuntos da pauta (linha do tempo da campanha, 18/11/2026)
@@ -214,8 +217,8 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
           ) : (
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <h1 style={{ margin: 0, fontSize: isMobile ? 20 : 24, fontWeight: 500, letterSpacing: '-.01em', lineHeight: 1.25 }}>{r.titulo}</h1>
-              {!publicada && (conduz || d.criador_id === userProfile?.id) && (
-                <button title="Editar o título" aria-label="Editar o título" onClick={() => { setNovoTitulo(r.titulo); setEditandoTitulo(true) }}
+              {d.posso_editar && (
+                <button title="Editar título, descrição, pessoas e quem pode ver" aria-label="Editar a reunião" onClick={() => setEditandoTudo(true)}
                   style={{ flex: 'none', width: 34, height: 34, borderRadius: 9, border: '1px solid var(--portal-border,#e2e8f0)', background: 'var(--portal-surface,#fefefe)', color: 'var(--portal-text-muted,#64748b)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Pencil size={15} /></button>
               )}
             </span>
@@ -339,6 +342,18 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
             </section>
           )}
 
+          {/* Convite (23/11/2026): aceitar/recusar + WhatsApp por pessoa — só antes de a reunião acabar */}
+          {!publicada && !cancelada && (d.convite || (d.meu_papel && d.meu_papel !== 'condutor')) && (
+            <section className="rd-card">
+              <div className="rd-sec" style={{ ['--c' as string]: '#16a34a' }}>
+                <span className="ic"><MessageSquarePlus size={16} /></span>
+                <span><b>Convite</b><small>{d.convite ? 'Quem confirmou e o aviso pelo WhatsApp' : 'Confirme se vai participar'}</small></span>
+              </div>
+              <ConviteReuniao reuniaoId={id} presencas={d.presencas} usuarios={d.usuarios} meuId={userProfile?.id || ''} convite={d.convite}
+                encerrada={false} onMudou={() => carregar()} />
+            </section>
+          )}
+
           <section className="rd-card">
             <div className="rd-sec" style={{ ['--c' as string]: '#0891b2' }}>
               <span className="ic"><Users size={16} /></span>
@@ -389,6 +404,12 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
         <VirarSerie reuniaoId={id} inicio={r.reuniao_inicio ?? null} titulo={r.titulo} pessoas={d.presencas.map((p) => p.usuario_id)} condutorId={d.condutor_id}
           podeRepetir={!!d.posso_virar_serie} onFechar={() => setRepetindo(false)}
           onFeito={(msg, novaId) => { setRepetindo(false); setAviso(msg); if (novaId) router.push(`/reunioes/${novaId}`); else carregar() }} />
+      )}
+      {editandoTudo && (
+        <EditarReuniao reuniaoId={id} titulo={r.titulo} descricao={r.descricao ?? null} visibilidade={r.visibilidade ?? null}
+          pessoas={d.presencas.map((p) => p.usuario_id)} condutorId={d.condutor_id}
+          onFechar={() => { setEditandoTudo(false); carregar() }}
+          onFeito={() => { setEditandoTudo(false); carregar() }} />
       )}
       {remarcando && (
         <RemarcarReuniao reuniaoId={id} inicio={r.reuniao_inicio ?? null} duracaoMin={d.duracao_min}

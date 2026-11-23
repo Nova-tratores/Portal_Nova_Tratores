@@ -10,6 +10,7 @@ import {
 } from '@/lib/reunioes/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { reservaDaReuniao } from '@/lib/salas/server'
+import { textoConviteWhats } from '@/lib/reunioes/convite'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -39,20 +40,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       ...((acoes.data || []) as { responsavel_id: string }[]).map((a) => a.responsavel_id),
     ]
     const usuarios = await usuariosMin(ids)
-    const corte = r.ticket.reuniao_inicio ? corteEm(r.ticket.reuniao_inicio, r.serie?.corte_antecedencia_horas ?? 18).toISOString() : null
+    // Convite por WhatsApp (23/11/2026): só quem conduz/criou recebe celulares e o texto pronto de cada pessoa.
+    const gere = podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId
+    const convite: { celulares: Record<string, string | null>; textos: Record<string, string> } | null = gere ? { celulares: {}, textos: {} } : null
+    if (convite) {
+      const pessoas = r.presencas.map((p) => p.usuario_id)
+      const { data: cel } = await supabaseAdmin.from('financeiro_usu').select('id, celular').in('id', pessoas)   // sem a coluna: data null, segue sem celular
+      for (const c of (cel || []) as { id: string; celular: string | null }[]) convite.celulares[c.id] = c.celular
+      const quem = usuarios[auth.userId]?.nome || (await usuariosMin([auth.userId]))[auth.userId]?.nome || 'Alguém'
+      for (const u of pessoas) if (u !== auth.userId) convite.textos[u] = textoConviteWhats(r.ticket, usuarios[u]?.nome || '', quem)
+    }
+    const corte = r.ticket.reuniao_inicio ?corteEm(r.ticket.reuniao_inicio, r.serie?.corte_antecedencia_horas ?? 18).toISOString() : null
     return NextResponse.json({
       reuniao: r.ticket, serie: r.serie, itens: r.itens, presencas: r.presencas, ata: r.ata,
       etapa_efetiva: r.etapaEfetiva, corte_em: corte,
       pendencias: pend, acoes: acoes.data || [], usuarios,
       destinos, origens, proxima, sala,
-      condutor_id: condutor, secretario_id: secretario,
+      condutor_id: condutor, secretario_id: secretario, convite,
       meu_papel: papelNaReuniao(r, auth.userId),
       posso_conduzir: podeConduzir(r.presencas, auth.userId, auth.isAdmin),
       criador_id: criador,
       posso_continuar: r.ticket.reuniao_etapa !== 'cancelada' && (podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId),
       posso_virar_serie:!r.serie && r.ticket.reuniao_etapa !== 'cancelada' && (podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId),
       posso_remarcar:['agendada', 'pauta_fechada'].includes(r.ticket.reuniao_etapa || '') && (podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId),
-      posso_reabrir: !!REABRIR_PARA[r.ticket.reuniao_etapa as ReuniaoEtapa] && podeReabrir(criador, r.ticket.solicitante_id, auth.userId, auth.isAdmin),
+      posso_editar: !['ata_publicada', 'cancelada'].includes(r.ticket.reuniao_etapa || '') && (podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId),
+      posso_reabrir:!!REABRIR_PARA[r.ticket.reuniao_etapa as ReuniaoEtapa] && podeReabrir(criador, r.ticket.solicitante_id, auth.userId, auth.isAdmin),
       aviso: avisoMesmaPessoa(condutor, secretario),
       tempo_previsto: somaTempo(r.itens),
       duracao_min: Number((r.ticket.payload as { duracao_min?: unknown })?.duracao_min) || r.serie?.duracao_min || 30,

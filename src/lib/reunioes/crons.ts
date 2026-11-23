@@ -109,16 +109,19 @@ export async function cronGerarInstancias(diasAFrente = 14, agora = new Date()) 
       if (!s0.hora || s0.dia_semana == null) continue
       const hora = s0.hora.slice(0, 5)
       let serie = s0
-      // Última instância (qualquer etapa menos cancelada) para encadear o passo.
-      const ult = ok(await supabaseAdmin.from('tickets').select('prazo, reuniao_inicio').eq('tipo', 'reuniao').eq('reuniao_serie_id', serie.id)
-        .neq('reuniao_etapa', 'cancelada').order('reuniao_inicio', { ascending: false }).limit(1)) as { prazo: string | null; reuniao_inicio: string | null }[]
-      let ultimaData = ult[0]?.prazo || (ult[0]?.reuniao_inicio ? diaSP(ult[0].reuniao_inicio) : null)
+      // Última instância para encadear o passo. Cancelada CONTA (23/11/2026): cancelar a de terça não pode
+      // fazer o cron recriar a terça. Vale o dia "da vez" (payload.serie_dia), que remarcar não muda.
+      const ult = ok(await supabaseAdmin.from('tickets').select('prazo, reuniao_inicio, payload').eq('tipo', 'reuniao').eq('reuniao_serie_id', serie.id)
+        .order('reuniao_inicio', { ascending: false }).limit(1)) as { prazo: string | null; reuniao_inicio: string | null; payload: { serie_dia?: string } | null }[]
+      let ultimaData = ult[0]?.payload?.serie_dia || ult[0]?.prazo || (ult[0]?.reuniao_inicio ? diaSP(ult[0].reuniao_inicio) : null)
       let dia = proximaDataDaSerie(serie, ultimaData && ultimaData > hoje ? ultimaData : hoje, ultimaData)
       let guarda = 0
       while (dia && dia <= teto && guarda++ < 8) {
-        const existe = ok(await supabaseAdmin.from('tickets').select('id').eq('tipo', 'reuniao').eq('reuniao_serie_id', serie.id).eq('prazo', dia).neq('reuniao_etapa', 'cancelada').limit(1)) as { id: string }[]
+        // "Já existe" = tem reunião da série nesse dia, OU que era desse dia e foi remarcada, mesmo cancelada.
+        const existe = ok(await supabaseAdmin.from('tickets').select('id').eq('tipo', 'reuniao').eq('reuniao_serie_id', serie.id)
+          .or(`prazo.eq.${dia},payload->>serie_dia.eq.${dia}`).limit(1)) as { id: string }[]
         if (!existe.length) {
-          const r = await criarReuniao(atorSistema(serie.condutor_id), { serie, dia, hora })
+          const r = await criarReuniao(atorSistema(serie.condutor_id), { serie, dia, hora, semConvite: true })
           resultado.criadas.push(`${serie.nome} ${dia} (#${r.ticket.numero})`)
           serie = (await carregarSerie(serie.id)) || serie
         }

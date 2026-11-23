@@ -23,6 +23,7 @@ import { mensagemIndisponiveis } from '@/lib/agenda/bloqueios'
 import { isoDe, fimDaReuniao, localDe } from '@/lib/salas/regras'
 import type { Ticket } from '@/lib/tickets/constantes'
 import { hojeSP } from '@/lib/trabalho/cronograma-server'
+import { enviarConvitesEmail, normalizarCelular } from '@/lib/reunioes/convite'
 import { erroFimDeSemana, dataMinima } from '@/lib/trabalho/agenda'
 import {
   podeMoverEtapa, podeConduzir, podeReabrir, REABRIR_PARA, validarResultado, validarPublicacao, validarSaida, ETAPA_INFO,
@@ -74,9 +75,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (publicada) return erro('A ata já foi publicada — use um adendo.', 409)
       const titulo = String(body.titulo || '').trim().slice(0, 200)
       if (!titulo) return erro('Escreva o título.')
-      const { error } = await supabaseAdmin.from('tickets').update({ titulo }).eq('id', id)
+      // descrição opcional junto (José, 23/11/2026: editar título e descrição pelo botão Editar)
+      const descricao = body.descricao === undefined ? undefined : String(body.descricao || '').trim().slice(0, 4000)
+      // pública/privada (José, 23/11/2026). Privada continua visível para quem está na reunião (tickets_participantes).
+      const visibilidade = body.visibilidade === 'privado' || body.visibilidade === 'publico' ? body.visibilidade : undefined
+      const { error } = await supabaseAdmin.from('tickets').update({ titulo, ...(descricao !== undefined ? { descricao } : {}), ...(visibilidade ? { visibilidade } : {}) }).eq('id', id)
       if (error) return erro(error.message, 500)
-      await registrarEvento(id, auth.userId, 'edicao', { mudancas: { titulo: { de: r.ticket.titulo, para: titulo } } })
+      const mudancas: Record<string, { de: unknown; para: unknown }> = {}
+      if (visibilidade && visibilidade !== r.ticket.visibilidade) mudancas.visibilidade = { de: r.ticket.visibilidade, para: visibilidade }
+      if (titulo !== r.ticket.titulo) mudancas.titulo = { de: r.ticket.titulo, para: titulo }
+      if (descricao !== undefined && descricao !== (r.ticket.descricao || '')) mudancas.descricao = { de: r.ticket.descricao, para: descricao }
+      if (Object.keys(mudancas).length) await registrarEvento(id, auth.userId, 'edicao', { mudancas })
       return NextResponse.json({ ok: true })
     }
 
@@ -118,6 +127,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return erro('Informe o dia.')
       if (!/^\d{2}:\d{2}$/.test(hora)) return erro('Informe a hora (HH:MM).')
       if (dia < hojeSP()) return erro('A data não pode ser no passado.')
+      if (r.ticket.reuniao_inicio && new Date(isoDe(dia, hora)).getTime() === new Date(r.ticket.reuniao_inicio).getTime()) return erro('Esse é o mesmo dia e hora desta reunião. Escolha outro horário para a próxima.')
       const parts = Array.isArray(body.participantes) ? (body.participantes as unknown[]).filter((u): u is string => uuidValido(u)) : r.presencas.map((p) => p.usuario_id)
       const res = await continuarReuniao(auth, r, { dia, hora, titulo: String(body.titulo || ''), participantes: parts })
       return NextResponse.json({ ok: true, reuniao_id: res.ticket.id })
@@ -150,6 +160,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (publicada) return erro('Ata publicada — presença não muda mais.', 409)
       if (!uuidValido(body.usuario_id)) return erro('usuario_id inválido')
       if (!conduz && body.usuario_id !== auth.userId) return erro('Só quem conduz marca presença dos outros.', 403)
+      // Sem isto, marcar a própria presença numa reunião pública virava "entrar na reunião" (e mexer na ata) — 23/11/2026.
+      // Quem não foi chamado entra pelo "Chamar mais alguém…" de quem conduz.
+      if (!r.presencas.some((p) => p.usuario_id === body.usuario_id)) return erro('Essa pessoa não está na reunião. Quem conduz pode chamá-la.', 403)
       const presente = body.presente === null ? null : !!body.presente
       const { error } = await supabaseAdmin.from('reunioes_presencas')
         .upsert({ reuniao_id: id, usuario_id: body.usuario_id, presente, marcado_em: new Date().toISOString(), papel: r.presencas.find((p) => p.usuario_id === body.usuario_id)?.papel || 'participante' }, { onConflict: 'reuniao_id,usuario_id' })
@@ -162,7 +175,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Pessoa de última hora: entra nas presenças E nos participantes do ticket
     // (senão não enxerga reunião privada) e recebe o aviso.
     if (acao === 'adicionar_participante') {
-      if (!conduz) return erro('Só quem conduz inclui pessoas na reunião.', 403)
+      if (!conduz && (await criadorDaReuniao(id)) !== auth.userId) return erro('Só quem conduz ou quem marcou a reunião inclui pessoas.', 403)
       if (publicada || etapa === 'cancelada') return erro('Reunião encerrada — não dá mais para incluir pessoas.', 409)
       const uid = String(body.usuario_id || '')
       if (!uuidValido(uid)) return erro('usuario_id inválido')
@@ -184,6 +197,59 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         ? `${inicio.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' })} às ${inicio.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}`
         : ''
       await notificarTicket(r.ticket, [uid], auth.userId, `Você foi incluído na reunião: ${r.ticket.titulo}`, quando ? `${quando}.` : undefined)
+      await enviarConvitesEmail(r.ticket, [uid], auth.userId)
+      return NextResponse.json({ ok: true })
+    }
+
+    // ----------------------------------------------------------- responder
+    // { resposta: aceito|recusado } — a própria pessoa responde o convite (sql/reunioes-convite.sql).
+    if (acao === 'responder') {
+      const resposta = body.resposta === 'aceito' || body.resposta === 'recusado' ? body.resposta : null
+      if (!resposta) return erro('Responda: aceito ou recusado.')
+      if (!r.presencas.some((p) => p.usuario_id === auth.userId)) return erro('Você não está nesta reunião.', 403)
+      if (publicada || etapa === 'cancelada') return erro('Reunião encerrada.', 409)
+      const { error } = await supabaseAdmin.from('reunioes_presencas').update({ resposta, respondido_em: new Date().toISOString() })
+        .eq('reuniao_id', id).eq('usuario_id', auth.userId)
+      if (error) return erro(/resposta/.test(error.message) ? 'Falta rodar sql/reunioes-convite.sql no Supabase.' : error.message, 500)
+      await registrarEvento(id, auth.userId, 'edicao', { campo: 'convite_resposta', resposta })
+      const { data: eu } = await supabaseAdmin.from('financeiro_usu').select('nome').eq('id', auth.userId).maybeSingle()
+      const avisar = [...new Set([r.presencas.find((p) => p.papel === 'condutor')?.usuario_id, await criadorDaReuniao(id)].filter((x): x is string => !!x))]
+      await notificarTicket(r.ticket, avisar, auth.userId, `${eu?.nome || 'Alguém'} ${resposta === 'aceito' ? 'aceitou' : 'recusou'}: ${r.ticket.titulo}`)
+      return NextResponse.json({ ok: true })
+    }
+
+    // ------------------------------------------------------ salvar_celular
+    // { usuario_id, celular } — o botão de WhatsApp do convite pede o número quando falta e grava no cadastro.
+    if (acao === 'salvar_celular') {
+      const uid = String(body.usuario_id || '')
+      if (!uuidValido(uid)) return erro('usuario_id inválido')
+      if (uid !== auth.userId && !conduz && (await criadorDaReuniao(id)) !== auth.userId) return erro('Só quem conduz ou quem marcou a reunião cadastra o celular dos outros.', 403)
+      const celular = normalizarCelular(body.celular)
+      if (!celular) return erro('Celular inválido. Use DDD + número, ex.: (15) 99999-1234.')
+      const { error } = await supabaseAdmin.from('financeiro_usu').update({ celular }).eq('id', uid)
+      if (error) return erro(/celular/.test(error.message) ? 'Falta rodar sql/reunioes-convite.sql no Supabase.' : error.message, 500)
+      return NextResponse.json({ ok: true, celular })
+    }
+
+    // ------------------------------------------ remover_participante
+    // { usuario_id } — José, 23/11/2026: "não consigo remover alguém que eu já coloquei".
+    // Quem conduz ou quem criou; até a ata ser publicada. Quem conduz não sai (troque o condutor antes).
+    if (acao === 'remover_participante') {
+      const criador = await criadorDaReuniao(id)
+      if (!conduz && criador !== auth.userId) return erro('Só quem conduz ou quem marcou a reunião tira pessoas.', 403)
+      if (publicada || etapa === 'cancelada') return erro('Reunião encerrada — não dá mais para tirar pessoas.', 409)
+      const uid = String(body.usuario_id || '')
+      if (!uuidValido(uid)) return erro('usuario_id inválido')
+      const pres = r.presencas.find((p) => p.usuario_id === uid)
+      if (!pres) return erro('Essa pessoa não está na reunião.', 404)
+      if (pres.papel === 'condutor') return erro('Quem conduz não pode ser tirado da reunião.', 409)
+      if (pres.presente === true) return erro('Essa pessoa já foi marcada como presente. Desmarque a presença antes de tirar.', 409)
+      const { error } = await supabaseAdmin.from('reunioes_presencas').delete().eq('reuniao_id', id).eq('usuario_id', uid)
+      if (error) return erro(error.message, 500)
+      // sai também dos participantes do ticket (reunião privada deixa de aparecer para ela)
+      await supabaseAdmin.from('tickets_participantes').update({ removido_em: new Date().toISOString() }).eq('ticket_id', id).eq('user_id', uid).is('removido_em', null)
+      await registrarEvento(id, auth.userId, 'edicao', { campo: 'participante_removido', user_id: uid, papel: pres.papel })
+      await notificarTicket(r.ticket, [uid], auth.userId, `Você não está mais na reunião: ${r.ticket.titulo}`)
       return NextResponse.json({ ok: true })
     }
 

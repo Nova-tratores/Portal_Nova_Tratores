@@ -5,13 +5,15 @@
 // Clique abre a janela com o botão do próximo passo e as Tarefas da reunião (TarefasRapidas).
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, ChevronLeft, ChevronRight, Play, ListPlus, FileText, Check, X, CalendarDays, MapPin, CalendarCheck, CircleCheck, CircleHelp, Ban, ArrowRight, CalendarClock } from 'lucide-react'
+import { Users, ChevronLeft, ChevronRight, Play, ListPlus, FileText, Check, X, CalendarDays, MapPin, CalendarCheck, CircleCheck, CircleHelp, Ban, ArrowRight, CalendarClock, Pencil } from 'lucide-react'
 import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
 import type { ReuniaoEtapa, Serie } from '@/lib/reunioes/regras'
 import type { PresencaRow } from '@/lib/reunioes/server'
 import type { ReuniaoUI } from './tipos'
 import TarefasRapidas from './TarefasRapidas'
 import RemarcarReuniao from './RemarcarReuniao'
+import EditarReuniao from './EditarReuniao'
+import ConviteReuniao from './ConviteReuniao'
 import TicketModal from '@/components/tickets/TicketModal'
 import { chamar, horaDe, primeiroNome, hojeISO } from './comum'
 
@@ -141,6 +143,7 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
   const [ticketAberto, setTicketAberto] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [remarcar, setRemarcar] = useState<Ticket | null>(null)
+  const [editar, setEditar] = useState<Ticket | null>(null)
   const [filtroHist, setFiltroHist] = useState<FiltroHist>('todas')
   const [semanasHist, setSemanasHist] = useState(8)
 
@@ -254,7 +257,15 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
                 {d.salas[t.id] && <span><MapPin size={14} style={{ verticalAlign: -2 }} /> {d.salas[t.id]}</span>}
                 <span>{n ? `${n} ${n === 1 ? 'assunto' : 'assuntos'} na pauta` : 'Nenhum assunto na pauta'}</span>
               </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{botoes(t)}{det?.posso_remarcar && <button className="ag-btn" onClick={() => setRemarcar(t)}><CalendarClock size={15} /> Remarcar</button>}</div>
+              {/* descrição escrita pela pessoa (a automática "Reunião em dd/mm/aaaa às hh:mm." não aparece) */}
+              {t.descricao && !/^Reunião( da série ".*")? em \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}\.$/.test(t.descricao) && (
+                <div style={{ fontSize: 13.5, color: 'var(--portal-text-secondary,#475569)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{t.descricao}</div>
+              )}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{botoes(t)}{det?.posso_editar && <button className="ag-btn" onClick={() => setEditar(t)}><Pencil size={15} /> Editar</button>}{det?.posso_remarcar &&<button className="ag-btn" onClick={() => setRemarcar(t)}><CalendarClock size={15} /> Remarcar</button>}</div>
+              {det && p !== 'cancelada' && (
+                <ConviteReuniao reuniaoId={t.id} presencas={det.presencas} usuarios={usuarios} meuId={meuId} convite={det.convite}
+                  encerrada={['ata_publicada', 'cancelada'].includes(t.reuniao_etapa || '')} onMudou={() => carregarDet(t.id)} />
+              )}
               {p !== 'cancelada' && (
                 <div style={{ borderTop: '1px solid var(--portal-border,#e2e8f0)', paddingTop: 12 }}>
                   {!det ? <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#64748b)' }}>Carregando tarefas…</div> : (
@@ -268,6 +279,12 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
         )
       })()}
       {ticketAberto && <TicketModal id={ticketAberto} zIndex={1500} onFechar={() => setTicketAberto(null)} onMudou={() => aberta && carregarDet(aberta.id)} />}
+      {editar && (
+        <EditarReuniao reuniaoId={editar.id} titulo={editar.titulo} descricao={editar.descricao ?? null} visibilidade={editar.visibilidade ?? null}
+          pessoas={(det?.presencas || d.presencas[editar.id] || []).map((x) => x.usuario_id)} condutorId={det?.condutor_id || condutor(editar)}
+          onFechar={() => setEditar(null)}
+          onFeito={() => { setEditar(null); setAberta(null); carregar() }} />
+      )}
       {remarcar && (
         <RemarcarReuniao reuniaoId={remarcar.id} inicio={remarcar.reuniao_inicio ?? null} duracaoMin={durDe(remarcar)}
           onFechar={() => setRemarcar(null)}

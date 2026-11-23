@@ -2,6 +2,7 @@
 // Regras puras em ./regras.ts. Migration: sql/reunioes.sql.
 // Toda escrita passa pelas rotas /api/reunioes/*; o navegador só lê (RLS).
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
+import { enviarConvitesEmail } from './convite'
 import { migrationFaltou } from '@/lib/marketing/erros'
 import type { Autenticado } from '@/lib/auth/server'
 import {
@@ -217,6 +218,8 @@ export interface NovaReuniao {
   salaObrigatoria?: boolean
   /** true (marcação manual): participante com horário bloqueado na agenda pessoal = erro PARTICIPANTE_INDISPONIVEL. Série/cron: cria e avisa o condutor. */
   bloquearIndisponiveis?: boolean
+  /** true = não manda o convite por e-mail (o cron da série: senão todo mundo recebe toda semana). */
+  semConvite?: boolean
 }
 
 /**
@@ -233,7 +236,14 @@ export async function criarReuniao(auth: Autenticado, n: NovaReuniao): Promise<R
   const participantes = [...new Set([condutor, ...(secretario ? [secretario] : []), ...(n.participantes || []), ...(serie?.participantes_padrao || [])])]
   const inicio = inicioISO(n.dia, n.hora)
   const titulo = tituloReuniao(serie?.nome || null, n.dia, n.titulo)
-  const payload: Record<string, unknown> = { duracao_min: n.duracao_min ?? serie?.duracao_min ?? 30 }
+  // serie_dia = dia "da vez" na série; remarcar muda o prazo, mas este fica — o cron não recria a semana (23/11/2026)
+  const payload: Record<string, unknown> = { duracao_min: n.duracao_min ?? serie?.duracao_min ?? 30, ...(serie ? { serie_dia: n.dia } : {}) }
+
+  // Já existe igual (mesmo condutor, início e título, não cancelada)? Devolve a mesma em vez de duplicar:
+  // é o caso de "deu erro, cliquei de novo" (José, 23/11/2026 — duas "Reunião teste" às 10:00).
+  const { data: igual } = await supabaseAdmin.from('tickets').select('id').eq('tipo', 'reuniao').eq('solicitante_id', condutor)
+    .eq('reuniao_inicio', inicio).eq('titulo', titulo).neq('reuniao_etapa', 'cancelada').limit(1)
+  if (igual?.[0]) { const ja = await carregarReuniao(igual[0].id); if (ja) return ja }
 
   // Agenda pessoal (sql/agenda-bloqueios.sql): quem bloqueou o horário não pode ser posto na reunião.
   const ocupados = await indisponiveis(participantes, inicio, isoDe(n.dia, fimDaReuniao(n.hora, Number(payload.duracao_min) || 30)))
@@ -249,11 +259,17 @@ export async function criarReuniao(auth: Autenticado, n: NovaReuniao): Promise<R
     solicitante_id: condutor, responsavel_id: condutor, aceite: 'ok', payload,
   }).select('*').single()) as Ticket
 
-  for (const u of participantes) await garantirParticipante(ticket.id, u, auth.userId)
-  await supabaseAdmin.from('reunioes_presencas').insert(participantes.map((u) => ({
-    reuniao_id: ticket.id, usuario_id: u,
-    papel: u === condutor ? 'condutor' : u === secretario ? 'secretario' : 'participante',
-  })))
+  // Presenças são o essencial: se falhar, desfaz a reunião (senão ela fica salva e a tela mostra erro → clique de novo = duplicata)
+  try {
+    for (const u of participantes) await garantirParticipante(ticket.id, u, auth.userId)
+    ok(await supabaseAdmin.from('reunioes_presencas').insert(participantes.map((u) => ({
+      reuniao_id: ticket.id, usuario_id: u,
+      papel: u === condutor ? 'condutor' : u === secretario ? 'secretario' : 'participante',
+    }))).select('reuniao_id'))
+  } catch (e) {
+    await supabaseAdmin.from('tickets').delete().eq('id', ticket.id)
+    throw e
+  }
   // Sala: reserva no mesmo passo. Ocupada → marcação manual desfaz tudo; série segue sem sala e avisa.
   const salaId = n.sala_id !== undefined ? n.sala_id : (serie?.sala_id ?? null)
   let avisoSala: string | null = null
@@ -270,12 +286,19 @@ export async function criarReuniao(auth: Autenticado, n: NovaReuniao): Promise<R
   if (serie) await supabaseAdmin.from('reunioes_series').update({ instancias_geradas: serie.instancias_geradas + 1 }).eq('id', serie.id)
   await registrarEvento(ticket.id, auth.userId, 'criacao', { titulo, reuniao: true, inicio, condutor, secretario, participantes })
 
+  // Daqui para baixo é extra (sugestões e avisos): a reunião JÁ está criada, então erro aqui só vai para o log —
+  // não pode virar "Falha ao criar" na tela.
+  const extra = async (nomePasso: string, f: () => Promise<unknown>) => { try { await f() } catch (e) { console.error(`[reunioes] criar: ${nomePasso}`, e) } }
   // Sugestões da reunião anterior da série (R13 + adiados).
-  if (serie) await puxarSugestoes(ticket, serie, auth.userId)
+  if (serie) await extra('sugestoes', () => puxarSugestoes(ticket, serie, auth.userId))
 
-  await notificarTicket(ticket, participantes, auth.userId, `Reunião marcada: ${titulo}`, `${n.dia.split('-').reverse().join('/')} às ${n.hora}. Inclua os itens da pauta até o corte.`)
-  if (ocupados.length) await notificarTicket(ticket, [condutor], null, `Participante indisponível: ${titulo}`, `${mensagemIndisponiveis(ocupados)} (bloqueou na agenda pessoal). Veja se dá para mudar o horário.`)
-  if (avisoSala) await notificarTicket(ticket, [condutor], null, `Sala ocupada: ${titulo}`, `${avisoSala}. A reunião foi marcada sem sala — escolha outro horário ou local.`)
+  await extra('aviso', () => notificarTicket(ticket, participantes, auth.userId, `Reunião marcada: ${titulo}`, `${n.dia.split('-').reverse().join('/')} às ${n.hora}. Inclua os itens da pauta até o corte.`))
+  // Convite (23/11/2026): quem conduz já conta como aceito; os outros recebem e-mail pedindo para aceitar no portal.
+  // Sem a coluna `resposta` (sql/reunioes-convite.sql ainda não rodou) o update só falha em silêncio.
+  await supabaseAdmin.from('reunioes_presencas').update({ resposta: 'aceito', respondido_em: agoraISO() }).eq('reuniao_id', ticket.id).eq('usuario_id', condutor)
+  if (!n.semConvite) await extra('convite', () => enviarConvitesEmail(ticket, participantes.filter((u) => u !== condutor), auth.userId))
+  if (ocupados.length) await extra('aviso-ocupado', () => notificarTicket(ticket, [condutor], null, `Participante indisponível: ${titulo}`, `${mensagemIndisponiveis(ocupados)} (bloqueou na agenda pessoal). Veja se dá para mudar o horário.`))
+  if (avisoSala) await extra('aviso-sala', () => notificarTicket(ticket, [condutor], null, `Sala ocupada: ${titulo}`, `${avisoSala}. A reunião foi marcada sem sala — escolha outro horário ou local.`))
   return (await carregarReuniao(ticket.id))!
 }
 
