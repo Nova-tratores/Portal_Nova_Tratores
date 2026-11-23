@@ -4,6 +4,7 @@
 // abrem a janela/tela que já existe para decidir. O limite da requisição é editável no fim.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
+import { HistoricoAutorizacoes } from './autorizacoes-historico'
 
 type Item = {
   fonte: 'requisicao' | 'comissao' | 'ficha' | 'compra'
@@ -58,6 +59,8 @@ export function PainelAutorizacoes({ exemplo }: { exemplo?: Resp } = {}) {
   const [gravando, setGravando] = useState<string | null>(null)
   const [limite, setLimite] = useState('')
   const [salvandoRegra, setSalvandoRegra] = useState(false)
+  // "Esperando" = a fila de hoje; "Histórico" = o que já foi decidido (19/11/2026)
+  const [vista, setVista] = useState<'esperando' | 'historico'>('esperando')
 
   const carregar = useCallback(async () => {
     if (exemplo) { setD(exemplo); setLimite(String(exemplo.regras[0]?.limite ?? '')); return }
@@ -118,8 +121,27 @@ export function PainelAutorizacoes({ exemplo }: { exemplo?: Resp } = {}) {
   if (!d) return <div className="p-6 text-zinc-500">Carregando autorizações…</div>
   const regraReq = d.regras.find((x) => x.assunto === 'requisicao_compra')
 
+  const seletor = (
+    <div className="flex gap-1 p-1 rounded-xl bg-zinc-100 w-fit">
+      {([['esperando', `Esperando${d.itens.length ? ` (${d.itens.length})` : ''}`], ['historico', 'Histórico']] as const).map(([v, txt]) => (
+        <button key={v} onClick={() => setVista(v)}
+          className={`h-9 px-4 rounded-lg text-[13.5px] ${vista === v ? 'bg-white text-zinc-900 shadow-sm font-medium' : 'text-zinc-600 hover:text-zinc-900'}`}>
+          {txt}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (vista === 'historico') return (
+    <div className="p-3 md:p-5 flex flex-col gap-4 min-w-0 max-w-full overflow-x-hidden">
+      {seletor}
+      {exemplo ? <div className="text-[14px] text-zinc-500">(exemplo) O histórico só aparece com o banco ligado.</div> : <HistoricoAutorizacoes />}
+    </div>
+  )
+
   return (
     <div className="p-3 md:p-5 flex flex-col gap-4 min-w-0 max-w-full overflow-x-hidden">
+      {seletor}
       {d.avisos.map((a) => <div key={a} className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 text-[13.5px] px-4 py-2.5">{a}</div>)}
 
       {/* título = conclusão */}
@@ -202,21 +224,6 @@ export function PainelAutorizacoes({ exemplo }: { exemplo?: Resp } = {}) {
         </section>
       )}
 
-      {d.decididas.length > 0 && (
-        <details className="rounded-2xl border border-zinc-200 bg-white">
-          <summary className="px-4 py-3 cursor-pointer text-[14px] text-zinc-700 select-none">Requisições decididas por último ({d.decididas.length})</summary>
-          <ul className="divide-y divide-zinc-100">
-            {d.decididas.map((x) => (
-              <li key={x.id} className="px-4 py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px]">
-                <span className={`px-2 py-0.5 rounded-full text-[12px] ${x.autorizacao_status === 'autorizada' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{x.autorizacao_status === 'autorizada' ? 'Autorizada' : 'Recusada'}</span>
-                <a href={`/requisicoes?req=${x.id}`} target="_blank" rel="noreferrer" className="text-zinc-900 hover:underline flex-1 min-w-0 truncate">#{x.id} {x.titulo}</a>
-                <span className="text-zinc-500">{x.autorizacao_por} · {x.autorizacao_em ? new Date(x.autorizacao_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}</span>
-                {x.autorizacao_obs && <span className="w-full text-zinc-600 text-[12.5px]">“{x.autorizacao_obs}”</span>}
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
     </div>
   )
 }
