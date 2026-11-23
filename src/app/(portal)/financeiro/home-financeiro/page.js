@@ -194,10 +194,14 @@ function HomeFinanceiroContent() {
  useEffect(() => {
   const id = searchParams.get('id');
   const tipo = searchParams.get('tipo');
-  if (!id || !tipo) return;
+  if (!id) return;
   const listas = { boleto: [...listaBoletos, ...listaSemBoleto, ...listaPagos], pagar: listaPagar, rh: listaRH };
-  const card = (listas[tipo] || []).find(t => String(t.id) === id);
-  if (card) setTarefaSelecionada(card);
+  // Link antigo sem ?tipo= (Novo Registro e Requisições, até 11/2026): procura nas três listas
+  // e só abre se o nº achar UM card só (o mesmo nº pode existir em tabelas diferentes).
+  const achados = tipo
+    ? (listas[tipo] || []).filter(t => String(t.id) === id)
+    : Object.values(listas).flat().filter(t => String(t.id) === id);
+  if (achados.length === 1) setTarefaSelecionada(achados[0]);
  }, [searchParams, listaBoletos, listaSemBoleto, listaPagos, listaPagar, listaRH]);
 
  const getCardLabel = (t) => {

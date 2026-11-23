@@ -354,6 +354,15 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: resumoJson(await cronSyncRemessas()) };
   },
 
+  // Vigia de atividade suspeita (11/2026): permissão alterada, exportação em volume e ação sensível
+  // em lote → sino do Henri. Só avisa. VIGIA_ATIVIDADE=off desliga.
+  'vigia-atividade': async () => {
+    if (desligada('VIGIA_ATIVIDADE')) return { pular: 'desligado (VIGIA_ATIVIDADE=off)' };
+    const { rodarVigiaAtividade } = await import('@/lib/vigia-atividade/server');
+    const r = await rodarVigiaAtividade();
+    return r.pular ? { pular: r.pular } : { resumo: r.resumo };
+  },
+
   // Remessas: aviso no sino das demonstrações que vencem em 5 dias / venceram (uma vez cada nível).
   // Links de arquivo com o endereço antigo do Supabase → midia.novatratores.com
   // (sql/midia-links-dominio.sql). Rede de segurança para o que outros sistemas e

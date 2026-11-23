@@ -636,7 +636,7 @@ Painel com os números dos chamados de nota fiscal (boletos de clientes): quanto
 
 **Cartões do topo**
 - Total de processos: todos os chamados, menos os excluídos. Cards juntados num boleto único contam uma vez só.
-- Em aberto: tudo que ainda não está Concluído (inclui os que estão em Pago).
+- Em aberto: o que ainda não foi pago (Pago e Concluído ficam de fora).
 - Em atraso: os que estão em Vencido.
 - Confirmados / pagos: Pago + Concluído.
 - Total faturado: soma do valor dos que estão em Pago ou Concluído.
@@ -653,8 +653,8 @@ Painel com os números dos chamados de nota fiscal (boletos de clientes): quanto
 
 **Tabela de processos**
 - Colunas: Processo/Tarefa, Setor, Forma de pagamento, Vencimento, Status e Valor, com o total no rodapé.
-- A tabela deixa de fora os que estão em Pago. Por isso escolher "Pago" no filtro de Status não traz nada.
-- Ordem: Vencidos primeiro, depois Gerar boleto, Enviar ao cliente, Aguardando e Concluído.
+- Com o Status em "Todos", a tabela deixa de fora os que estão em Pago. Escolher "Pago" no filtro traz só os pagos.
+- Ordem: Vencidos primeiro, depois Gerar boleto, Enviar ao cliente, Aguardando, Pago e Concluído.
 
 **Botão Imprimir**
 - Fica na faixa verde, ao lado das abas.

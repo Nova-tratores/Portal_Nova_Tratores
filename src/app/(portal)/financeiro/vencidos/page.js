@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { exigeComprovantePago, temComprovantePago } from '@/lib/financeiro/constants'
-import { entraEmVencidos, diasDeAtraso, hojeLocal } from '@/lib/financeiro/vencidos'
+import { entraEmVencidos, diasDeAtraso, hojeLocal, boletosDoCard } from '@/lib/financeiro/vencidos'
 import { podeRecobrar, hojeBR } from '@/lib/financeiro/fases-automaticas'
 import { pedirRecobranca } from '@/lib/financeiro/recobranca-client'
 import { useAuth } from '@/hooks/useAuth'
@@ -346,17 +346,11 @@ export default function VencidosPage() {
             )}
 
             {/* Boletos anexados */}
-            {(selecionado.anexo_boleto || selecionado.anexo_boleto_2 || selecionado.anexo_boleto_3) && (
+            {boletosDoCard(selecionado).length > 0 && (
               <div style={sectionStyle}>
                 <div style={labelStyle}>Boletos</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                  {(() => {
-                    const urls = []
-                    if (selecionado.anexo_boleto) selecionado.anexo_boleto.split(',').forEach(u => { const t = u.trim(); if (t) urls.push(t) })
-                    if (selecionado.anexo_boleto_2) { const t = selecionado.anexo_boleto_2.trim(); if (t && !urls.includes(t)) urls.push(t) }
-                    if (selecionado.anexo_boleto_3) { const t = selecionado.anexo_boleto_3.trim(); if (t && !urls.includes(t)) urls.push(t) }
-                    return urls
-                  })().map((url, i) => (
+                  {boletosDoCard(selecionado).map((url, i) => (
                     <AnexoLink key={i} label={`Boleto ${i + 1}`} url={url} />
                   ))}
                 </div>

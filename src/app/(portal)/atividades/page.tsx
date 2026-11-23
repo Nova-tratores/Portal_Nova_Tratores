@@ -7,11 +7,13 @@ import SemPermissao from '@/components/SemPermissao'
 import { supabase } from '@/lib/supabase'
 import UsoAba from '@/components/atividades/UsoAba'
 import PadroesAba from '@/components/atividades/PadroesAba'
+import AlertasAba from '@/components/atividades/AlertasAba'
+import { podeVerAlertas } from '@/lib/vigia-atividade/regras'
 import ProcessosAba from '@/components/atividades/ProcessosAba'
 import s from './atividades.module.css'
 import {
   Activity, Search, Filter, ChevronDown, ChevronLeft, ChevronRight,
-  Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText, Tags, BarChart3, Puzzle, Package, Workflow
+  Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText, Tags, BarChart3, Puzzle, Package, Workflow, ShieldAlert
 } from 'lucide-react'
 
 interface AuditEntry {
@@ -131,7 +133,10 @@ function AtividadesPageInner() {
   // Aba: 'atividades' (audit_log) | 'uso' (monitor de uso) | 'padroes' (onde o usuário monta quebra-cabeça)
   // | 'processos' (fluxograma real das OS). Deep-link ?tab=uso|padroes|processos
   const tabInicial = searchParams.get('tab')
-  const [aba, setAba] = useState<'atividades' | 'uso' | 'padroes' | 'processos'>(tabInicial === 'uso' || tabInicial === 'padroes' || tabInicial === 'processos' ? tabInicial : 'atividades')
+  const [aba, setAba] = useState<'atividades' | 'uso' | 'padroes' | 'processos' | 'alertas'>(tabInicial === 'uso' || tabInicial === 'padroes' || tabInicial === 'processos' || tabInicial === 'alertas' ? tabInicial : 'atividades')
+  // Aba Alertas (vigia de atividade suspeita): só quem recebe o aviso e os Devs
+  const { isDev } = usePermissoes(userProfile?.id)
+  const verAlertas = !!userProfile?.id && podeVerAlertas({ userId: userProfile.id, isDev })
   const [logs, setLogs] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
@@ -262,7 +267,7 @@ function AtividadesPageInner() {
 
       {/* Abas */}
       <div className={s.abas}>
-        {([['atividades', 'Atividades', <Activity key="a" size={14} />], ['uso', 'Uso do portal', <BarChart3 key="u" size={14} />], ['padroes', 'Padrões', <Puzzle key="p" size={14} />], ['processos', 'Processos', <Workflow key="f" size={14} />]] as const).map(([k, label, icon]) => (
+        {([['atividades', 'Atividades', <Activity key="a" size={14} />], ['uso', 'Uso do portal', <BarChart3 key="u" size={14} />], ['padroes', 'Padrões', <Puzzle key="p" size={14} />], ['processos', 'Processos', <Workflow key="f" size={14} />], ...(verAlertas ? [['alertas', 'Alertas', <ShieldAlert key="al" size={14} />]] as const : [])] as const).map(([k, label, icon]) => (
           <button key={k} onClick={() => setAba(k)} className={`${s.aba} ${aba === k ? s.ativa : ''}`}>{icon}{label}</button>
         ))}
       </div>
@@ -270,6 +275,7 @@ function AtividadesPageInner() {
       {aba === 'uso' && <UsoAba usuarios={usuarios} />}
       {aba === 'padroes' && <PadroesAba usuarios={usuarios} />}
       {aba === 'processos' && <ProcessosAba />}
+      {aba === 'alertas' && verAlertas && <AlertasAba />}
 
       {aba === 'atividades' && (<>
       {/* Filtros */}

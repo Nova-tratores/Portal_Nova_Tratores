@@ -316,7 +316,7 @@ export default function NovoPagarReceber() {
       alert("Rascunho criado. Abrindo o painel para você validar e enviar ao Omie.");
       const novoId = inserido?.id
       if (novoId) {
-        router.push(`/financeiro/home-financeiro?id=${novoId}`)
+        router.push(`/financeiro/home-financeiro?id=${novoId}&tipo=pagar`)
       } else {
         router.push('/financeiro')
       }

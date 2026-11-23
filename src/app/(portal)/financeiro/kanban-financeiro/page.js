@@ -92,6 +92,17 @@ useEffect(() => {
 const irParaColuna = (id) => document.getElementById(`fin-k-col-${id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
 const andarQuadro = (lado) => quadroRef.current?.scrollBy({ left: lado * 316, behavior: 'smooth' });
 
+// Link com ?id= (avisos do sino e do card): abre o card quando a lista chega (11/2026).
+// Sem useSearchParams para não precisar de <Suspense>; card concluído há mais de 60 dias
+// não está na lista e o quadro abre normal.
+const idDoLinkRef = useRef(null);
+useEffect(() => {
+  const id = new URLSearchParams(window.location.search).get('id');
+  if (!id || idDoLinkRef.current === id || chamados.length === 0) return;
+  const card = chamados.find((c) => String(c.id) === id);
+  if (card) { idDoLinkRef.current = id; setTarefaSelecionada(card); }
+}, [chamados]);
+
 const carregarDados = async () => {
   try {
     // Pago/Vencido automáticos rodam no servidor: conferem o Omie e ficam no histórico (29/10/2026)
@@ -234,7 +245,7 @@ const handleUpdateField = async (id, field, value) => {
       if (tarefaSelecionada && String(tarefaSelecionada.id) === String(id) && String(tarefaSelecionada[field] ?? '') === String(value ?? '')) return;
       const { error } = await supabase.from('Chamado_NF').update({ [field]: value }).eq('id', id);
       if (error) { alert('Erro ao salvar: ' + error.message); carregarDados(); return; }
-      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-financeiro`)
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-financeiro?id=${id}`)
       await auditLog({ sistema: 'financeiro', acao: 'editar', entidade: 'Chamado_NF', entidade_id: String(id), entidade_label: `NF #${id} - ${tarefaSelecionada?.nom_cliente || ''}`, detalhes: { campo: field, valor: value } });
       carregarCardLogs(id);
       carregarDados();
@@ -261,7 +272,7 @@ const excluirCard = async (t) => {
       const { error } = await supabase.from('Chamado_NF').update({ status: 'excluido' }).eq('id', t.id);
       if (error) { alert('Erro ao excluir: ' + error.message); return; }
       await auditLog({ sistema: 'financeiro', acao: 'excluir', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}` });
-      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} excluiu NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} excluiu NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro?id=${t.id}`)
       setTarefaSelecionada(null);
       carregarDados();
 };
@@ -294,10 +305,10 @@ const handleUpdateFileDirect = async (id, field, file) => {
         if (updateData.status === 'enviar_cliente' && tarefaSelecionada) {
           auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(id), entidade_label: `NF #${id} - ${tarefaSelecionada.nom_cliente || ''}`, detalhes: { de: tarefaSelecionada.status, para: 'enviar_cliente', acao_desc: 'Boleto anexado' } });
           notificarMovimento(tarefaSelecionada, 'enviar_cliente', `NF #${id} - ${tarefaSelecionada.nom_cliente || ''} — Boleto anexado, enviar ao cliente`);
-          notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} anexou boleto NF #${id}`, `Cliente: ${tarefaSelecionada.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+          notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} anexou boleto NF #${id}`, `Cliente: ${tarefaSelecionada.nom_cliente || ''}`, `/financeiro/kanban-financeiro?id=${id}`)
           dispararEnvioAuto({ ...tarefaSelecionada, ...updateData });
         } else {
-          notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} atualizou arquivo NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-financeiro`)
+          notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} atualizou arquivo NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-financeiro?id=${id}`)
         }
 
         if (tarefaSelecionada) {
@@ -320,7 +331,7 @@ const handleActionMoveStatus = async (t, newStatus) => {
       const { error } = await supabase.from('Chamado_NF').update(upd).eq('id', t.id);
       if (error) { alert('Erro ao mover o card: ' + error.message); return; }
       notificarMovimento(t, newStatus);
-      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} → ${newStatus}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} → ${newStatus}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro?id=${t.id}`)
       await auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}`, detalhes: { de: t.status, para: newStatus } });
       carregarCardLogs(t.id);
       alert(newStatus === 'concluido' ? "Card Concluido!" : "Card movido!");
@@ -336,7 +347,7 @@ const recobrarPelaRota = async (t, moverParaVencido) => {
     if (!r.ok) { alert(r.mensagem); return false; }
     const newVal = r.numero || (t.recombrancas_qtd || 0) + 1;
     notificarMovimento(t, moverParaVencido ? 'vencido' : t.status, `NF #${t.id} - ${t.nom_cliente || ''} — Recobrança #${newVal}`);
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} solicitou recobrança #${newVal}`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} solicitou recobrança #${newVal}`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro?id=${t.id}`)
     alert(r.mensagem);
     return true;
 };
@@ -365,7 +376,7 @@ const handleActionSomenteVencido = async (t) => {
     if (error) { alert('Erro ao mover para Vencido: ' + error.message); return; }
     notificarMovimento(t, 'vencido');
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}`, detalhes: { de: t.status, para: 'vencido', acao_desc: 'Movido para Vencido — Pós-Vendas cobra' } });
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} para Vencido`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} para Vencido`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro?id=${t.id}`)
     alert("Card movido para Vencido!");
     carregarDados();
 };
@@ -390,7 +401,7 @@ const handleGerarBoletoFaturamentoFinal = async (id, fileArg) => {
     if (error) { alert('Erro ao gravar o boleto no card: ' + error.message); return; }
     notificarMovimento(t, 'enviar_cliente', `NF #${id} - ${t.nom_cliente || ''} — Boleto gerado`);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(id), entidade_label: `NF #${id} - ${t.nom_cliente || ''}`, detalhes: { de: t.status, para: 'enviar_cliente', acao_desc: 'Boleto gerado e enviado ao Pós-Vendas' } });
-    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} gerou boleto NF #${id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} gerou boleto NF #${id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro?id=${id}`)
     dispararEnvioAuto({ ...t, ...updateData });
     setTarefaSelecionada(null); carregarDados();
 };
