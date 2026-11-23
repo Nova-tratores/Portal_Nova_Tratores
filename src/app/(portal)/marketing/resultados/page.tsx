@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { TIPOS_ACAO, rotulo } from '@/lib/marketing/tipos';
+import RegrasRetorno from '@/components/marketing/RegrasRetorno';
 import {
   apiGet, brl, multiplicador, pct, periodoBR, Painel, Kpi, Vazio, AvisoMigracao, Erro, estiloInput,
 } from '@/components/marketing/ui';
@@ -54,16 +55,19 @@ export default function ResultadosPage() {
   }, [linhas, ordem]);
 
   const totais = useMemo(() => {
-    let custo = 0, apoio = 0, receita = 0, leads = 0, vendas = 0;
+    let custo = 0, apoio = 0, receita = 0, margem = 0, leads = 0, vendas = 0, estimada = false;
     for (const l of linhas) {
       custo += l.roi.custoConfirmado;
       apoio += l.roi.apoioRecebido;
       receita += l.roi.receitaAtribuida;
+      margem += l.roi.margemAtribuida ?? 0;
+      estimada = estimada || !!l.roi.margemEstimada;
       leads += l.roi.leads;
       vendas += l.roi.vendasN;
     }
     const liquido = custo - apoio;
-    return { custo, apoio, receita, leads, vendas, liquido, roi: liquido > 0 ? receita / liquido : null };
+    // Retorno pela MARGEM (23/11/2026) — mesma fórmula de lib/marketing/roi.ts
+    return { custo, apoio, receita, margem, estimada, leads, vendas, liquido, roi: liquido > 0 ? margem / liquido : null };
   }, [linhas]);
 
   const anos = useMemo(() => {
@@ -79,10 +83,11 @@ export default function ResultadosPage() {
         <Kpi rotulo="Investido" valor={brl(totais.custo)} />
         <Kpi rotulo="Apoio recebido" valor={brl(totais.apoio)} cor="#16a34a" />
         <Kpi rotulo="Custo líquido" valor={brl(totais.liquido)} dica="O que a empresa pôs do próprio bolso." />
-        <Kpi rotulo="Receita atribuída" valor={brl(totais.receita)} cor="#16a34a" />
+        <Kpi rotulo="Receita atribuída" valor={brl(totais.receita)} cor="#16a34a" dica="Vendas que fecharam dentro da janela de cada ação." />
+        <Kpi rotulo="Margem atribuída" valor={brl(totais.margem)} cor="#16a34a" dica={totais.estimada ? 'Estimada: venda sem custo cadastrado usa o % padrão do tipo.' : 'Valor da venda menos o custo da máquina.'} />
         <Kpi rotulo="Leads" valor={String(totais.leads)} />
         <Kpi rotulo="Vendas" valor={String(totais.vendas)} />
-        <Kpi rotulo="Retorno" valor={multiplicador(totais.roi)} cor="#7c3aed" />
+        <Kpi rotulo={totais.estimada ? 'Retorno (margem estimada)' : 'Retorno'} valor={multiplicador(totais.roi)} cor="#7c3aed" dica="Margem atribuída dividida pelo custo líquido." />
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
@@ -101,6 +106,8 @@ export default function ResultadosPage() {
           <option value="custo">Maior custo</option>
           <option value="leads">Mais leads</option>
         </select>
+        <span style={{ flex: 1 }} />
+        <RegrasRetorno onSalvo={carregar} />
       </div>
 
       {erro && <Erro>{erro}</Erro>}

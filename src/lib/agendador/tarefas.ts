@@ -153,6 +153,16 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: `abertas ${a.abertas} (${a.pecasNovas} peças) · fechadas ${a.fechadas}${erros.length ? ` · ${erros.join(' | ')}` : ''}` };
   },
 
+  // Marketing (Fase 2, 23/11/2026): desliga promoção vencida, avisa a que vence em 3 dias e a campanha parada.
+  'marketing-diario': async () => {
+    if (desligada('MARKETING_DIARIO')) return { pular: 'desligado (MARKETING_DIARIO=off)' };
+    const { cronMarketingDiario } = await import('@/lib/marketing/diario');
+    const r = await cronMarketingDiario();
+    const resumo = `promoções desligadas ${r.promocoesDesligadas} · avisadas ${r.promocoesAvisadas} · campanhas paradas ${r.campanhasAvisadas}`;
+    if (r.erros.length === 3) throw new Error(r.erros.join(' | '));
+    return { resumo: r.erros.length ? `${resumo} · ${r.erros.join(' | ')}` : resumo };
+  },
+
   // Reuniões: gravações ao vivo ficam 60 dias no bucket `reunioes-gravacoes` (José, 17/11/2026).
   'reunioes-gravacoes-limpar': async () => {
     if (desligada('REUNIOES_GRAVACOES_LIMPAR')) return { pular: 'desligado (REUNIOES_GRAVACOES_LIMPAR=off)' };

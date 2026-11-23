@@ -18,6 +18,8 @@ import {
   PROPOSTA_EM_ABERTO,
   PROPOSTA_VENDIDA,
   RELATORIO_EM_ABERTO,
+  REGRAS_RETORNO_PADRAO,
+  type RegrasRetorno,
   type Acao,
   type Apoio,
   type Custo,
@@ -27,13 +29,15 @@ import {
 
 export interface EntradaROI {
   acao: Pick<Acao, 'id' | 'nome' | 'orcamento_previsto' | 'meta_leads' | 'meta_vendas'
-    | 'meta_receita' | 'data_fim' | 'responsavel_id' | 'leads_declarados'>;
+    | 'meta_receita' | 'data_fim' | 'responsavel_id' | 'leads_declarados'> & Partial<Pick<Acao, 'tipo' | 'data_inicio'>>;
   custos: Custo[];
   apoios: Apoio[];
   leads: Lead[];
   propostas: PropostaVinculada[];
   /** Hoje, em ISO (YYYY-MM-DD). Injetável pra o teste não depender do relógio. */
   hoje?: string;
+  /** Margem padrão e janela de atribuição (mkt_parametros 'retorno'); sem isto vale REGRAS_RETORNO_PADRAO. */
+  regras?: RegrasRetorno;
 }
 
 export type TipoAlerta =
@@ -78,6 +82,18 @@ export interface ResultadoROI {
   pipelineAbertoValor: number;
   vendasN: number;
   receitaAtribuida: number;
+  /** Margem das vendas atribuídas (R$). É ela que entra no Retorno (23/11/2026). */
+  margemAtribuida: number;
+  /** true = pelo menos uma venda usou o % padrão do tipo (não tinha custo cadastrado). */
+  margemEstimada: boolean;
+  /** vendas que fecharam até o fim da ação / depois do fim, dentro da janela */
+  vendasNaAcao: number;
+  vendasDepois: number;
+  /** vendas ligadas à ação mas fechadas fora da janela: NÃO contam */
+  vendasForaJanela: number;
+  receitaForaJanela: number;
+  /** dias da janela usada (null = sem janela) */
+  janelaDias: number | null;
 
   // Indicadores (null quando o denominador é zero)
   roi: number | null;
@@ -99,6 +115,13 @@ function div(a: number, b: number): number | null {
   if (!Number.isFinite(a) || !Number.isFinite(b) || b === 0) return null;
   const r = a / b;
   return Number.isFinite(r) ? r : null;
+}
+
+/** 'AAAA-MM-DD' + n dias (UTC, sem fuso). */
+function somarDias(iso: string, n: number): string {
+  const d = new Date(String(iso).slice(0, 10) + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
 }
 
 function diasEntre(deISO: string, ateISO: string): number {
@@ -180,15 +203,40 @@ export function calcularROI(e: EntradaROI): ResultadoROI {
   let pipelineAbertoValor = 0;
   let vendasN = 0;
   let receitaAtribuida = 0;
+  let margemAtribuida = 0;
+  let margemEstimada = false;
+  let vendasNaAcao = 0;
+  let vendasDepois = 0;
+  let vendasForaJanela = 0;
+  let receitaForaJanela = 0;
 
-  for (const p of e.propostas ?? []) {
+  // Janela de atribuição: [início da ação, fim + N dias]. Sem data de início (ou tipo sem janela) não filtra.
+  const regras = e.regras ?? REGRAS_RETORNO_PADRAO;
+  const janelaDias = e.acao?.tipo && e.acao.tipo in regras.janelaDias ? regras.janelaDias[e.acao.tipo] : null;
+  const ini = e.acao?.data_inicio || null;
+  const fimAcao = e.acao?.data_fim || ini;
+  const limite = janelaDias !== null && fimAcao ? somarDias(fimAcao, janelaDias) : null;
+
+  const propostasValidas = (e.propostas ?? []).filter((p) => !p.na_lixeira);   // lixeira do Comercial não conta
+  for (const p of propostasValidas) {
     const peso = Number.isFinite(p.peso) && p.peso > 0 ? Math.min(p.peso, 1) : 1;
     const valor = parseValorMisto(p.valor_total) * peso;
     propostasValor += valor;
 
     if (p.status === PROPOSTA_VENDIDA) {
+      const dia = p.fechado_em ? String(p.fechado_em).slice(0, 10) : null;
+      // sem data de fechamento: dá o benefício da dúvida e conta "na ação"
+      if (dia && ini && limite && (dia < ini || dia > limite)) { vendasForaJanela += 1; receitaForaJanela += valor; continue; }
+      if (dia && fimAcao && dia > fimAcao) vendasDepois += 1; else vendasNaAcao += 1;
       vendasN += 1;
       receitaAtribuida += valor;
+      const m = p.margem_prevista;
+      if (m !== null && m !== undefined && Number.isFinite(Number(m))) margemAtribuida += Number(m) * peso;
+      else {
+        const pct = regras.margemPadraoPct[String(p.tipo || '')] ?? regras.margemPadraoPct.outro ?? 0;
+        margemAtribuida += valor * (pct / 100);
+        margemEstimada = true;
+      }
     } else if ((PROPOSTA_EM_ABERTO as readonly string[]).includes(String(p.status))) {
       pipelineAbertoN += 1;
       pipelineAbertoValor += valor;
@@ -237,16 +285,24 @@ export function calcularROI(e: EntradaROI): ResultadoROI {
     leads: totalLeads,
     leadsQualificados,
     leadsInformados: usaInformado,
-    propostasN: (e.propostas ?? []).length,
+    propostasN: propostasValidas.length,
     propostasValor,
     pipelineAbertoN,
     pipelineAbertoValor,
     vendasN,
     receitaAtribuida,
+    margemAtribuida,
+    margemEstimada,
+    vendasNaAcao,
+    vendasDepois,
+    vendasForaJanela,
+    receitaForaJanela,
+    janelaDias,
 
-    // ROI sobre o custo LÍQUIDO: o que a casa pôs do bolso. Custo líquido <= 0
-    // (a fábrica pagou tudo) não tem ROI definido — mostrar travessão.
-    roi: custoLiquido > 0 ? div(receitaAtribuida, custoLiquido) : null,
+    // ROI = MARGEM sobre o custo LÍQUIDO (o que a casa pôs do bolso). Até 23/11/2026 era a receita bruta,
+    // o que dava 13x numa feira que na verdade devolveu ~1,5x. Custo líquido <= 0 (a fábrica pagou tudo)
+    // não tem ROI definido — mostrar travessão.
+    roi: custoLiquido > 0 ? div(margemAtribuida, custoLiquido) : null,
     custoPorLead: div(c.confirmado, totalLeads),
     cac: div(c.confirmado, vendasN),
     taxaConversaoLead: div(vendasN, totalLeads),

@@ -12,7 +12,8 @@
 // =============================================================================
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { migrationFaltou } from './erros';
-import type { Acao, Apoio, Custo, Lead, PropostaVinculada, RoletaLigada } from './tipos';
+import { PROPOSTA_VENDIDA, REGRAS_RETORNO_PADRAO } from './tipos';
+import type { Acao, Apoio, Custo, Lead, PropostaVinculada, RoletaLigada, RegrasRetorno } from './tipos';
 
 export const db = supabaseAdmin;
 
@@ -154,7 +155,7 @@ export async function propostasDaAcao(acaoId: string): Promise<PropostaVinculada
   const props = ok<any[]>(
     await db
       .from('v_formulario')
-      .select('id, status, "Valor_Total", "Cliente", vendedor_nome, criado_em')
+      .select('id, status, "Valor_Total", "Cliente", vendedor_nome, criado_em, tipo, margem_prevista, fechado_em, status_desde, deleted_at, status_ui')
       .in('id', ids),
   );
   const porId = new Map(props.map((p) => [Number(p.id), p]));
@@ -169,8 +170,30 @@ export async function propostasDaAcao(acaoId: string): Promise<PropostaVinculada
       cliente: p?.Cliente ?? null,
       vendedor_nome: p?.vendedor_nome ?? null,
       criado_em: p?.criado_em ?? null,
+      // Fase 2 (23/11/2026): margem, data da venda e lixeira entram no Retorno (lib/marketing/roi.ts)
+      tipo: p?.tipo ?? null,
+      margem_prevista: p?.margem_prevista ?? null,
+      fechado_em: p?.fechado_em ?? (p?.status === PROPOSTA_VENDIDA ? p?.status_desde : null) ?? null,
+      na_lixeira: !!p?.deleted_at || p?.status_ui === 'Lixeira',
     };
   });
+}
+
+/**
+ * Regras do Retorno da empresa (margem padrão por tipo de máquina e janela de atribuição por tipo de ação),
+ * gravadas na tela Resultados em mkt_parametros 'retorno'. Sem a tabela/linha: o padrão de tipos.ts.
+ */
+export async function obterRegrasRetorno(): Promise<RegrasRetorno> {
+  try {
+    const { data } = await db.from('mkt_parametros').select('valor').eq('chave', 'retorno').maybeSingle();
+    const v = (data?.valor ?? {}) as Partial<RegrasRetorno>;
+    return {
+      margemPadraoPct: { ...REGRAS_RETORNO_PADRAO.margemPadraoPct, ...(v.margemPadraoPct ?? {}) },
+      janelaDias: { ...REGRAS_RETORNO_PADRAO.janelaDias, ...(v.janelaDias ?? {}) },
+    };
+  } catch {
+    return REGRAS_RETORNO_PADRAO;
+  }
 }
 
 /**

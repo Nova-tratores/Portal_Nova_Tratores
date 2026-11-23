@@ -19,6 +19,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui';
 import { CATEGORIAS_CUSTO, ORIGENS_CUSTO, STATUS_CUSTO, rotulo, cor } from '@/lib/marketing/tipos';
 import { totaisCusto, divergente, parseValorMisto, rankingCategorias } from '@/lib/marketing/custos';
+import { sugerirCategoria } from '@/lib/marketing/categorizar';
 import Modal from '../Modal';
 import {
   apiGet, apiEnviar, brl, dataBR, Painel, Titulo, Selo, Kpi, Campo, estiloInput,
@@ -68,7 +69,8 @@ export default function CustosAba({
     setSalvando(true);
     setErro(null);
     try {
-      if (editando) await apiEnviar('/api/marketing/custos', 'PATCH', { ...f, id: editando.id });
+      // editou e salvou = viu a categoria: deixa de ser "sugerida"
+      if (editando) await apiEnviar('/api/marketing/custos', 'PATCH', { ...f, id: editando.id, categoria_sugerida: false });
       else await apiEnviar('/api/marketing/custos', 'POST', { ...f, acao_id: acaoId });
       setAberto(false);
       onMudou();
@@ -77,6 +79,11 @@ export default function CustosAba({
     } finally {
       setSalvando(false);
     }
+  };
+
+  const confirmarCategoria = async (c: any) => {
+    try { await apiEnviar('/api/marketing/custos', 'PATCH', { id: c.id, categoria_sugerida: false }); onMudou(); }
+    catch (e: any) { setErro(e?.message || 'Não foi possível confirmar.'); }
   };
 
   const excluir = async (c: any) => {
@@ -99,7 +106,9 @@ export default function CustosAba({
       await apiEnviar('/api/marketing/custos', 'POST', {
         acao_id: acaoId,
         descricao: doc.titulo,
-        categoria: 'outro',
+        // sugerida pela descrição / tipo da requisição / fornecedor; fica marcada até alguém confirmar (23/11/2026)
+        categoria: sugerirCategoria({ descricao: doc.titulo, tipoRequisicao: doc.tipoRequisicao, fornecedor: doc.fornecedor }),
+        categoria_sugerida: true,
         fornecedor: doc.fornecedor || null,
         data: doc.data ? String(doc.data).slice(0, 10) : null,
         valor: parseValorMisto(doc.valorCru),
@@ -212,7 +221,16 @@ export default function CustosAba({
                         </span>
                       )}
                     </td>
-                    <td style={{ padding: '8px 10px', color: 'var(--portal-text)' }}>{rotulo(CATEGORIAS_CUSTO, c.categoria)}</td>
+                    <td style={{ padding: '8px 10px', color: 'var(--portal-text)' }}>
+                      {rotulo(CATEGORIAS_CUSTO, c.categoria)}
+                      {c.categoria_sugerida && (
+                        <button type="button" disabled={!podeEditar} onClick={() => confirmarCategoria(c)}
+                          title="O portal adivinhou pela descrição. Clique para confirmar (ou edite a linha para trocar)."
+                          style={{ marginLeft: 6, fontSize: 11.5, padding: '1px 8px', borderRadius: 999, border: '1px dashed #d97706', background: 'transparent', color: '#b45309', cursor: podeEditar ? 'pointer' : 'default' }}>
+                          sugerida · confirmar
+                        </button>
+                      )}
+                    </td>
                     <td style={{ padding: '8px 10px', color: 'var(--portal-text)' }}>{c.fornecedor || '—'}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{dataBR(c.data)}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>

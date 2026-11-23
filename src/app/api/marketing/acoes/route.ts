@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 import { guardar, erroResposta, apenas, num, dataOuNull } from '@/lib/marketing/rota';
 import { db, listarAcoes, lerOuVazio, idsInativos, roletasDas } from '@/lib/marketing/db';
 import { logMarketing, nomeDoUsuario } from '@/lib/marketing/server';
-import type { Acao } from '@/lib/marketing/tipos';
+import { exigeResponsavel, type Acao } from '@/lib/marketing/tipos';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -119,6 +119,8 @@ export async function POST(req: Request) {
     if (!dados.nome || !String(dados.nome).trim()) {
       return NextResponse.json({ error: 'Informe o nome da ação' }, { status: 400 });
     }
+    const semDono = exigeResponsavel(dados.status, dados.responsavel_id);   // Fase 2 (23/11/2026)
+    if (semDono) return NextResponse.json({ error: semDono }, { status: 400 });
 
     const autor = await nomeDoUsuario(g.auth);
     const { data, error } = await db

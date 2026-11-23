@@ -22,11 +22,13 @@ const CAMPOS = [
   'descricao', 'categoria', 'fornecedor', 'data',
   'vinculo_tipo', 'vinculo_ref', 'vinculo_label',
   'valor', 'valor_fonte', 'rateio_percent', 'status', 'observacoes', 'anexo_url',
+  'categoria_sugerida',   // true = o portal adivinhou a categoria (lib/marketing/categorizar.ts) e ninguém confirmou ainda
 ] as const;
 
 function normalizar(body: any) {
   const d: any = apenas(body, CAMPOS);
   for (const k of ['valor', 'valor_fonte', 'rateio_percent']) if (k in d) d[k] = num(d[k]);
+  if ('categoria_sugerida' in d) d.categoria_sugerida = d.categoria_sugerida === true;
   if ('data' in d) d.data = dataOuNull(d.data);
 
   // O CHECK do banco exige os dois nulos ou os dois preenchidos. Sem esta

@@ -4,9 +4,10 @@
 // DELETE /api/marketing/acoes/[id]  — lixeira (soft delete); ?restaurar=1 volta
 import { NextResponse } from 'next/server';
 import { guardar, erroResposta, apenas, num, dataOuNull } from '@/lib/marketing/rota';
-import { db, carregarAcaoCompleta, idsInativos, roletasDas } from '@/lib/marketing/db';
+import { db, carregarAcaoCompleta, idsInativos, roletasDas, obterRegrasRetorno } from '@/lib/marketing/db';
 import { logMarketing } from '@/lib/marketing/server';
 import { calcularROI } from '@/lib/marketing/roi';
+import { exigeResponsavel } from '@/lib/marketing/tipos';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,6 +57,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       apoios: ficha.apoios,
       leads: ficha.leads,
       propostas: ficha.propostas,
+      regras: await obterRegrasRetorno(),
     });
 
     const roleta = (await roletasDas([id]))[id] ?? null;
@@ -79,6 +81,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     }
     if (Object.keys(dados).length === 0) {
       return NextResponse.json({ error: 'Nada para alterar' }, { status: 400 });
+    }
+    // Fase 2 (23/11/2026): aprovada / em andamento precisa de dono — as duas campanhas estavam sem responsável
+    if ('status' in dados || 'responsavel_id' in dados) {
+      const { data: atual } = await db.from('mkt_acoes').select('status, responsavel_id').eq('id', id).maybeSingle();
+      const status = 'status' in dados ? dados.status : atual?.status;
+      const resp = 'responsavel_id' in dados ? dados.responsavel_id : atual?.responsavel_id;
+      const msg = exigeResponsavel(status, resp);
+      if (msg) return NextResponse.json({ error: msg }, { status: 400 });
     }
 
     const { data, error } = await db

@@ -40,9 +40,16 @@ export default function ResumoAba({ ficha, roi }: { ficha: any; roi: any }) {
         <Kpi rotulo="Custo líquido" valor={brl(roi.custoLiquido)} dica="O que a revenda pôs do próprio bolso: investido menos apoio recebido." />
         <Kpi rotulo="Leads" valor={String(roi.leads)} dica={roi.metaLeadsPercent !== null ? `${pct(roi.metaLeadsPercent)} da meta` : undefined} />
         <Kpi rotulo="Propostas" valor={String(roi.propostasN)} dica={`${roi.pipelineAbertoN} ainda em aberto · ${brl(roi.pipelineAbertoValor)}`} />
-        <Kpi rotulo="Vendas" valor={String(roi.vendasN)} cor="#16a34a" />
+        <Kpi rotulo="Vendas" valor={String(roi.vendasN)} cor="#16a34a"
+          dica={[
+            roi.vendasNaAcao ? `${roi.vendasNaAcao} fechou na ação` : '',
+            roi.vendasDepois ? `${roi.vendasDepois} depois, dentro de ${roi.janelaDias} dias` : '',
+            roi.vendasForaJanela ? `${roi.vendasForaJanela} fora do prazo (não conta)` : '',
+          ].filter(Boolean).join(' · ') || undefined} />
         <Kpi rotulo="Receita atribuída" valor={brl(roi.receitaAtribuida)} cor="#16a34a" />
-        <Kpi rotulo="Retorno" valor={multiplicador(roi.roi)} dica="Receita atribuída dividida pelo custo líquido. Travessão quando não há custo líquido." cor="#7c3aed" />
+        <Kpi rotulo="Margem atribuída" valor={brl(roi.margemAtribuida ?? 0)} cor="#16a34a"
+          dica={roi.margemEstimada ? 'Estimada: venda sem custo cadastrado usa o % padrão do tipo (tela Resultados).' : 'Valor da venda menos o custo da máquina.'} />
+        <Kpi rotulo={roi.margemEstimada ? 'Retorno (margem estimada)' : 'Retorno'} valor={multiplicador(roi.roi)} dica="Margem atribuída dividida pelo custo líquido. Travessão quando não há custo líquido." cor="#7c3aed" />
       </div>
       )}
 

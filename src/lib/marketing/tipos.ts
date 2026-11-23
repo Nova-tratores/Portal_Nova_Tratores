@@ -186,6 +186,27 @@ export const REPETIR_OPCOES = [
 // final do "não vendido". Um typo aqui zera a receita atribuída sem erro
 // nenhum aparecer na tela.
 // =============================================================================
+// ── Retorno (Fase 2 do plano do Marketing, 23/11/2026) ───────────────────────
+// Retorno = MARGEM atribuída / custo líquido (antes era a receita bruta: 13x enganoso).
+// Os valores abaixo são o padrão; a tela Resultados grava os da empresa em mkt_parametros ('retorno').
+
+/** % de margem por tipo de proposta, usado quando a proposta não tem custo/margem cadastrados. */
+export const MARGEM_PADRAO_PCT: Record<string, number> = { trator: 10, implemento: 15, autopropelido: 10, outro: 12 };
+
+/**
+ * Janela de atribuição: a venda conta para a ação se fechou entre o início da ação e o FIM + estes dias.
+ * null = sem janela (conta qualquer data). 0 = só durante a ação.
+ */
+export const JANELA_ATRIBUICAO_DIAS: Record<string, number | null> = {
+  feira: 90, dia_de_campo: 90, acao_loja: 30, campanha: 15, patrocinio: 60, midia: 30, brinde: 60, evento_interno: 0, outro: 60,
+};
+
+export interface RegrasRetorno {
+  margemPadraoPct: Record<string, number>;
+  janelaDias: Record<string, number | null>;
+}
+export const REGRAS_RETORNO_PADRAO: RegrasRetorno = { margemPadraoPct: MARGEM_PADRAO_PCT, janelaDias: JANELA_ATRIBUICAO_DIAS };
+
 export const PROPOSTA_VENDIDA = 'Concluida-Vendido';
 export const PROPOSTA_PERDIDA = 'Concluida- Não vendido.';
 /** Propostas ainda vivas (não concluídas) — o pipeline em aberto da ação. */
@@ -338,6 +359,15 @@ export interface PropostaVinculada {
   cliente: string | null;
   vendedor_nome: string | null;
   criado_em: string | null;
+  // Fase 2 (23/11/2026) — opcionais para os testes antigos continuarem valendo
+  /** trator | implemento | autopropelido | null */
+  tipo?: string | null;
+  /** margem em R$ (líquido − custo da máquina), quando a proposta tem custo cadastrado */
+  margem_prevista?: number | null;
+  /** quando virou "vendida" (fechado_em, ou status_desde como reserva) */
+  fechado_em?: string | null;
+  /** proposta na lixeira do Comercial: não conta para nada */
+  na_lixeira?: boolean;
 }
 
 // ── Helpers de rótulo (usados na tela e no PDF) ──────────────────────────────
@@ -351,4 +381,15 @@ export function rotulo(lista: readonly Opcao[], id: string | null | undefined): 
 export function cor(lista: readonly Opcao[], id: string | null | undefined, padrao = '#64748b'): string {
   if (!id) return padrao;
   return lista.find((o) => o.id === id)?.cor ?? padrao;
+}
+
+/**
+ * Fase 2 (23/11/2026): campanha "Aprovada" ou "Em andamento" precisa de responsável.
+ * Devolve a mensagem de erro, ou null se está tudo certo. Usado na criação e na edição.
+ */
+export function exigeResponsavel(status: unknown, responsavelId: unknown): string | null {
+  if ((status === 'aprovada' || status === 'em_andamento') && !String(responsavelId ?? '').trim()) {
+    return 'Escolha o responsável antes de deixar a campanha "Aprovada" ou "Em andamento".';
+  }
+  return null;
 }

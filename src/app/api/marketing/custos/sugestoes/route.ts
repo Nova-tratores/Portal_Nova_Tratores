@@ -106,6 +106,7 @@ export async function GET(req: Request) {
           data: r.data,
           valorCru: r.valor_despeza,   // texto BR/US — converter no cliente
           extra: [r.tipo, r.setor, r.numero_nota ? `NF ${r.numero_nota}` : null].filter(Boolean).join(' · '),
+          tipoRequisicao: r.tipo,   // ajuda a sugerir a categoria (lib/marketing/categorizar.ts)
           status: r.status,
         })),
       contas: contas

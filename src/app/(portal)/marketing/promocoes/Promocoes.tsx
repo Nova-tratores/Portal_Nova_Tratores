@@ -239,7 +239,7 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
           })}
         </span>)}
         {linha('fa-hand-pointer', <>Botão leva {p.link ? <>para {p.link}</> : p.produto_slug ? 'à página da máquina' : 'ao WhatsApp do vendedor'}</>)}
-        {linha('fa-calendar-days', p.inicio || p.fim ? `${p.inicio ? `De ${dataBR(p.inicio)}` : 'Desde já'} ${p.fim ? `até ${dataBR(p.fim)}` : 'sem data para sair'}` : 'Sem datas: fica até alguém desligar')}
+        {linha('fa-calendar-days', p.inicio || p.fim ? `${p.inicio ? `De ${dataBR(p.inicio)}` : 'Desde já'} ${p.fim ? `até ${dataBR(p.fim)}` : 'sem data para sair'}` : 'Sem data de fim: preencha na próxima edição')}
       </span>
     );
   }
@@ -593,12 +593,12 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
           )}
         </Secao>
 
-        <Secao icone="fa-calendar-days" cor={AZUL_CLARO} titulo="Quando aparece" sub="Sem datas, fica no ar até alguém tirar">
+        <Secao icone="fa-calendar-days" cor={AZUL_CLARO} titulo="Quando aparece" sub="Toda promoção precisa de data para sair">
           <div style={grade(200)}>
             <Campo rotulo="Começa em (opcional)" ajuda="Antes deste dia não aparece.">
               <input type="date" style={campoNP} value={r.inicio || ''} onChange={(e) => setR({ ...r, inicio: e.target.value || null })} />
             </Campo>
-            <Campo rotulo="Termina em (opcional)" ajuda="Depois deste dia sai sozinha.">
+            <Campo rotulo="Termina em *" ajuda="Obrigatório. Depois deste dia sai do site sozinha; 3 dias antes o portal avisa.">
               <input type="date" style={campoNP} value={r.fim || ''} onChange={(e) => setR({ ...r, fim: e.target.value || null })} />
             </Campo>
           </div>
