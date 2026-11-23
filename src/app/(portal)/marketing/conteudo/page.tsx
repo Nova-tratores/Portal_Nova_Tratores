@@ -21,7 +21,11 @@ type Post = {
   status: StatusPost; promocao_id: string | null; resultado: Resultado; notas: string | null; criado_por: string | null; atualizado_por: string | null
 } & Etq & { codigo?: string | null; contatos?: number };
 /** Fase 4 (23/11/2026): etiquetas de seleção rápida (lib/marketing/redes/etiquetas.ts) */
-type Etq = { etiqueta_tipo?: string | null; gente_real?: boolean | null; maquina?: string | null; gancho?: string | null };
+type Etq = { etiqueta_tipo?: string | null; gente_real?: boolean | null; maquina?: string | null; gancho?: string | null;
+  /** Fase 3.2: texto por rede (vazio = o texto único), primeiro comentário, hashtags, título do YouTube */
+  textos?: Partial<Record<RedeId, string>>; primeiro_comentario?: string | null; hashtags?: string | null; titulo_youtube?: string | null;
+  /** Fase 3.5: aprovação de post de preço */
+  aprovado_por?: string | null; aprovado_em?: string | null };
 type Rascunho = { id?: string; titulo: string; legenda: string; redes: RedeId[]; formato: string; midia: Midia; data: string; hora: string; notas: string; promocao_id: string | null; status: StatusPost; resultado: Resultado; chave: string } & Etq & { codigo?: string | null; contatos?: number };
 type Conta = { rede: RedeId; nome: string | null };
 
@@ -51,6 +55,12 @@ function useLargo(min: number) {
 }
 
 /** Situação calculada: sem data = ideia; com data e arte para tudo = pronto; o que já saiu manda. */
+/** Fase 3.2: o texto que vai para a rede — o ajustado dela, senão o texto único — com as hashtags no fim. */
+function textoDaRede(r: Pick<Rascunho, 'legenda' | 'textos' | 'hashtags'>, rede: RedeId): string {
+  const base = (r.textos?.[rede] || r.legenda || '').trim();
+  return r.hashtags ? base + String.fromCharCode(10, 10) + r.hashtags : base;
+}
+
 function statusDe(r: Pick<Rascunho, 'data' | 'redes' | 'midia' | 'resultado'>): StatusPost {
   const saiu = r.redes.filter((x) => r.resultado[x]?.ok).length;
   if (saiu && saiu === r.redes.length) return 'publicado';
@@ -101,6 +111,8 @@ export default function CalendarioRedes() {
   const segundaDe = (d: string) => somaDias(d, -((new Date(`${d}T12:00:00Z`).getUTCDay() + 6) % 7));
   const [semana, setSemana] = useState(() => segundaDe(hoje()));
   const [mesAberto, setMesAberto] = useState(false);
+  const [podeAprovar, setPodeAprovar] = useState(false);   // Fase 3.5
+  const [ajustar, setAjustar] = useState<RedeId | null>(null);   // Fase 3.2: rede com texto próprio aberta
   const [whats, setWhats] = useState<string | null>(null);   // WhatsApp da empresa (link do post)
   const [siteUrl, setSiteUrl] = useState('');
   const [linkPara, setLinkPara] = useState<RedeId | null>(null);   // 'Já postei' pedindo o link do post
@@ -123,7 +135,7 @@ export default function CalendarioRedes() {
     const j = await res.json().catch(() => ({}));
     if (!res.ok || !j.ok) { setErro(j.erro || 'Não consegui carregar o calendário.'); setPosts([]); return; }
     setErro(''); setPosts(j.posts); setIdeias(j.ideias); setContas(j.contas || []); setPodeEditar(!!j.podeEditar);
-    setWhats(j.whatsapp || null); setSiteUrl(j.siteUrl || '');
+    setWhats(j.whatsapp || null); setSiteUrl(j.siteUrl || ''); setPodeAprovar(!!j.podeAprovar);
   }, [inicioGrade, rota.ano]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { carregar(); }, [carregar]);
@@ -168,7 +180,9 @@ export default function CalendarioRedes() {
   function rascunhoDe(p: Post, k: string): Rascunho {
     return { id: p.id, chave: k, titulo: p.titulo, legenda: p.legenda || '', redes: p.redes || [], formato: p.formato, midia: p.midia || {}, data: p.quando ? diaDe(p.quando) : '',
       hora: p.quando ? horaDe(p.quando) : '09:00', notas: p.notas || '', promocao_id: p.promocao_id, status: p.status, resultado: p.resultado || {},
-      etiqueta_tipo: p.etiqueta_tipo ?? null, gente_real: p.gente_real ?? null, maquina: p.maquina ?? null, gancho: p.gancho ?? null, codigo: p.codigo ?? null, contatos: p.contatos };
+      etiqueta_tipo: p.etiqueta_tipo ?? null, gente_real: p.gente_real ?? null, maquina: p.maquina ?? null, gancho: p.gancho ?? null, codigo: p.codigo ?? null, contatos: p.contatos,
+      textos: p.textos || {}, primeiro_comentario: p.primeiro_comentario ?? null, hashtags: p.hashtags ?? null, titulo_youtube: p.titulo_youtube ?? null,
+      aprovado_por: p.aprovado_por ?? null, aprovado_em: p.aprovado_em ?? null };
   }
 
   async function chamar(metodo: string, corpo?: unknown, q = '') {
@@ -182,7 +196,8 @@ export default function CalendarioRedes() {
   function corpoDe(x: Rascunho) {
     return { id: x.id, titulo: x.titulo, legenda: x.legenda, redes: x.redes, formato: x.formato, midia: x.midia, notas: x.notas, promocao_id: x.promocao_id,
       quando: x.data ? `${x.data}T${x.hora || '09:00'}:00-03:00` : null, status: statusDe(x), resultado: x.resultado,
-      etiqueta_tipo: x.etiqueta_tipo ?? null, gente_real: x.gente_real ?? null, maquina: x.maquina ?? null, gancho: x.gancho ?? null };
+      etiqueta_tipo: x.etiqueta_tipo ?? null, gente_real: x.gente_real ?? null, maquina: x.maquina ?? null, gancho: x.gancho ?? null,
+      textos: x.textos || {}, primeiro_comentario: x.primeiro_comentario ?? null, hashtags: x.hashtags ?? null, titulo_youtube: x.titulo_youtube ?? null };
   }
   async function salvar(fecharDepois = true) {
     if (!r) return null;
@@ -198,6 +213,13 @@ export default function CalendarioRedes() {
     if (!r?.id || !confirm('Apagar este post do calendário? (O que já saiu nas redes continua lá.)')) return;
     if (await chamar('DELETE', undefined, `?id=${r.id}`)) { carregar(); fechar(); }
   }
+  /** Fase 3.5: aprovar (ou desfazer) post de preço/condição. */
+  async function aprovar(sim: boolean) {
+    if (!r?.id) return;
+    const j = await chamar('PATCH', { id: r.id, aprovar: sim });
+    if (j?.post) { setR({ ...r, aprovado_por: j.post.aprovado_por ?? null, aprovado_em: j.post.aprovado_em ?? null }); carregar(); }
+  }
+
   async function marcar(rede: RedeId, ok: boolean, link?: string) {
     if (!r) return;
     const resultado = { ...r.resultado };
@@ -214,12 +236,13 @@ export default function CalendarioRedes() {
     if (!r) return;
     const url = REDE[rede].artes.map((a) => r.midia[a]).find(Boolean);
     if (!url) return;
-    try { await navigator.clipboard.writeText(r.legenda); setCopiado(rede); } catch { /* sem permissão de copiar */ }
+    const texto = textoDaRede(r, rede);   // Fase 3.2: o texto daquela rede + hashtags
+    try { await navigator.clipboard.writeText(texto); setCopiado(rede); } catch { /* sem permissão de copiar */ }
     try {
       const blob = await (await fetch(url)).blob();
       const nome = `nova-tratores-${rede}.${blob.type.includes('mp4') ? 'mp4' : blob.type.includes('quicktime') ? 'mov' : blob.type.includes('png') ? 'png' : 'jpg'}`;
       const arq = new File([blob], nome, { type: blob.type });
-      if (navigator.canShare?.({ files: [arq] })) { await navigator.share({ files: [arq], text: r.legenda }); return; }
+      if (navigator.canShare?.({ files: [arq] })) { await navigator.share({ files: [arq], text: texto }); return; }
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; a.click();
     } catch { /* cancelou */ }
   }
@@ -438,6 +461,37 @@ export default function CalendarioRedes() {
           <Campo rotulo="Texto do post" ajuda="O mesmo texto vai para todas as redes escolhidas. O contador fica vermelho quando passa do limite da rede.">
             <LegendaRedes valor={r.legenda} onChange={(v) => setR({ ...r, legenda: v })} redes={r.redes} />
           </Campo>
+          {/* Fase 3.2 (23/11/2026): texto único é o padrão; cada rede pode ter o seu */}
+          {r.redes.length > 1 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 12.5, color: T3 }}>Ajustar o texto para uma rede:</span>
+              {r.redes.map((id) => (
+                <button key={id} type="button" onClick={() => setAjustar(ajustar === id ? null : id)}
+                  style={{ ...bt(r.textos?.[id] ? REDE[id].cor : '#64748b', ajustar === id), minHeight: 32, fontSize: 12.5 }}>
+                  <IconeRede id={id} tam={13} /> {REDE[id].nome}{r.textos?.[id] ? ' · ajustado' : ''}
+                </button>
+              ))}
+            </div>
+          )}
+          {ajustar && r.redes.includes(ajustar) && (
+            <Campo rotulo={`Texto só para o ${REDE[ajustar].nome}`} ajuda="Vazio = usa o texto de cima.">
+              <textarea style={{ ...campoNP, minHeight: 90, resize: 'vertical' }} maxLength={5000} value={r.textos?.[ajustar] || ''}
+                placeholder={r.legenda} onChange={(e) => setR({ ...r, textos: { ...(r.textos || {}), [ajustar]: e.target.value } })} />
+            </Campo>
+          )}
+          <div style={grade(260)}>
+            <Campo rotulo="Hashtags" ajuda="Vão no fim do texto, em todas as redes. Ex.: #mahindra #agro #piraju">
+              <input style={campoNP} maxLength={500} value={r.hashtags || ''} onChange={(e) => setR({ ...r, hashtags: e.target.value })} />
+            </Campo>
+            {r.redes.includes('youtube') && (
+              <Campo rotulo="Título no YouTube" ajuda="Até 100 letras. Sem ele, o YouTube usa o começo do texto.">
+                <input style={campoNP} maxLength={100} value={r.titulo_youtube || ''} onChange={(e) => setR({ ...r, titulo_youtube: e.target.value })} />
+              </Campo>
+            )}
+          </div>
+          <Campo rotulo="Primeiro comentário (opcional)" ajuda="Postar logo depois, como comentário: link, mais hashtags ou o WhatsApp.">
+            <textarea style={{ ...campoNP, minHeight: 54, resize: 'vertical' }} maxLength={2200} value={r.primeiro_comentario || ''} onChange={(e) => setR({ ...r, primeiro_comentario: e.target.value })} />
+          </Campo>
           <Campo rotulo="Anotações (não vai para as redes)" ajuda="Ideia do post, quem gravar, material que falta.">
             <textarea style={{ ...campoNP, minHeight: 64, resize: 'vertical' }} maxLength={1000} value={r.notas} onChange={(e) => setR({ ...r, notas: e.target.value })} />
           </Campo>
@@ -516,16 +570,37 @@ export default function CalendarioRedes() {
         {r.redes.length > 0 && (
           <Secao icone="fa-paper-plane" cor="#16a34a" titulo="Postar" sub="Por enquanto pelo celular em 1 toque. Instagram e Facebook vão sair sozinhos quando a conta for ligada">
             <div style={{ display: 'grid', gap: 8 }}>
+              {/* Fase 3.5: post de preço/condição só sai depois de aprovado */}
+              {r.etiqueta_tipo === 'promocao' && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px', borderRadius: 12,
+                  background: r.aprovado_em ? 'color-mix(in srgb, #16a34a 8%, var(--surface))' : 'color-mix(in srgb, #d97706 10%, var(--surface))' }}>
+                  <span style={{ flex: '1 1 240px', fontSize: 13.5 }}>
+                    {r.aprovado_em
+                      ? <>{ic('fa-circle-check')} Aprovado por {r.aprovado_por} em {new Date(r.aprovado_em).toLocaleString('pt-BR', { timeZone: FUSO, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</>
+                      : <>{ic('fa-hourglass-half')} <b style={{ fontWeight: 500 }}>Aguardando aprovação</b>: post de preço ou condição só sai depois de alguém aprovar.{!r.id && ' Grave o post primeiro.'}</>}
+                  </span>
+                  {podeAprovar && r.id && (r.aprovado_em
+                    ? <button type="button" style={bt('#64748b')} onClick={() => aprovar(false)}>Desfazer aprovação</button>
+                    : <button type="button" style={bt('#16a34a', true)} onClick={() => aprovar(true)}>{ic('fa-check')}Aprovar</button>)}
+                </div>
+              )}
+              {r.primeiro_comentario && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+                  <span style={{ color: T2 }}>Depois de postar, cole o primeiro comentário:</span>
+                  <button type="button" style={bt('#0891b2')} onClick={() => navigator.clipboard.writeText(r.primeiro_comentario || '').catch(() => {})}>{ic('fa-copy')}Copiar comentário</button>
+                </div>
+              )}
               {r.redes.map((id) => {
                 const rs = r.resultado[id];
-                const semArte = f.some((x) => x.rede === id);
+                // sem arte, ou post de preço ainda não aprovado: não dá para marcar que saiu
+                const semArte = f.some((x) => x.rede === id) || (r.etiqueta_tipo === 'promocao' && !r.aprovado_em);
                 const ligada = !!conta(id);
                 return (
                   <div key={id} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)', background: rs?.ok ? 'color-mix(in srgb, #16a34a 6%, var(--surface))' : 'var(--surface)' }}>
                     <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', minWidth: 150 }}><IconeRede id={id} tam={18} />{REDE[id].nome}</span>
                     <span style={{ fontSize: 12.5, color: rs?.ok ? '#16a34a' : semArte ? '#b45309' : T3, flex: '1 1 160px' }}>
                       {rs?.ok ? `Postado ${rs.manual ? 'pelo celular' : 'sozinho'} em ${new Date(rs.em || '').toLocaleString('pt-BR', { timeZone: FUSO, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
-                        : semArte ? 'Falta a arte desta rede' : REDE[id].envio === 'automatico' && ligada ? 'Sai sozinho no dia e hora marcados' : 'Pelo celular: toque em Postar, escolha o app e cole o texto'}
+                        : semArte ? (r.etiqueta_tipo === 'promocao' && !r.aprovado_em ? 'Espera a aprovação' : 'Falta a arte desta rede') : REDE[id].envio === 'automatico' && ligada ? 'Sai sozinho no dia e hora marcados' : 'Pelo celular: toque em Postar, escolha o app e cole o texto'}
                     </span>
                     {!rs?.ok && !semArte && (
                       <button type="button" style={bt(REDE[id].cor)} onClick={() => compartilhar(id)} title="Abre o compartilhar do celular com o arquivo; o texto já fica copiado">

@@ -14,8 +14,9 @@ function semEtiqueta(final: Record<string, unknown>): string | null {
   return f.length ? `Antes de deixar o post pronto, marque: ${f.join(', ')}.` : null
 }
 
-/** Colunas da Fase 4 (sql/marketing-fase4.sql). Enquanto o SQL não roda, o post grava sem elas. */
-const COLUNAS_FASE4 = ['etiqueta_tipo', 'gente_real', 'maquina', 'gancho', 'codigo', 'acao_id']
+/** Colunas novas (sql/marketing-fase4.sql e sql/marketing-fase3.sql). Enquanto o SQL não roda, o post grava sem elas. */
+const COLUNAS_FASE4 = ['etiqueta_tipo', 'gente_real', 'maquina', 'gancho', 'codigo', 'acao_id',
+  'textos', 'primeiro_comentario', 'hashtags', 'titulo_youtube', 'aprovado_por', 'aprovado_em']
 const faltaColunaFase4 = (msg: string) => COLUNAS_FASE4.some((c) => msg.includes(c))
 const semFase4 = (v: Record<string, unknown>) => Object.fromEntries(Object.entries(v).filter(([k]) => !COLUNAS_FASE4.includes(k)))
 
@@ -39,6 +40,10 @@ const falta = (m: string) => /site_posts|site_redes|does not exist|schema cache/
 type Linha = Record<string, unknown>
 const podeEditar = (u: { isAdmin: boolean; modulos: string[] }) =>
   u.isAdmin || u.modulos.includes('marketing') || u.modulos.includes('marketing:conteudo:editar')
+/** Fase 3.5 (23/11/2026): quem aprova post de preço/condição — admin ou a permissão dada na tela de permissões. */
+const podeAprovar = (u: { isAdmin: boolean; modulos: string[] }) => u.isAdmin || u.modulos.includes('marketing:conteudo:aprovar')
+/** Post de preço/condição precisa de aprovação antes de sair. */
+const precisaAprovar = (p: Linha) => p.etiqueta_tipo === 'promocao'
 
 function limpar(b: Linha): { ok: true; v: Linha } | { ok: false; erro: string } {
   const v: Linha = {}
@@ -53,7 +58,16 @@ function limpar(b: Linha): { ok: true; v: Linha } | { ok: false; erro: string } 
   if ('gancho' in b) v.gancho = GANCHOS.some((x) => x.id === b.gancho) ? b.gancho : null
   if ('gente_real' in b) v.gente_real = typeof b.gente_real === 'boolean' ? b.gente_real : null
   if ('maquina' in b) v.maquina = t(b.maquina, 120)
-  if ('acao_id' in b) v.acao_id = /^[0-9a-f-]{36}$/i.test(String(b.acao_id || '')) ? b.acao_id : null
+  // Fase 3.2: texto ajustado por rede (vazio = usa o texto único), primeiro comentário, hashtags, título do YouTube
+  if ('textos' in b) {
+    const o: Linha = {}
+    for (const [k, x] of Object.entries((b.textos || {}) as Linha)) { if (!ehRede(k)) continue; const s = t(x, 5000); if (s) o[k] = s }
+    v.textos = o
+  }
+  if ('primeiro_comentario' in b) v.primeiro_comentario = t(b.primeiro_comentario, 2200)
+  if ('hashtags' in b) v.hashtags = t(String(b.hashtags ?? '').split(/[\s,]+/).filter(Boolean).map((h) => (h.startsWith('#') ? h : `#${h}`)).join(' '), 500)
+  if ('titulo_youtube' in b) v.titulo_youtube = t(b.titulo_youtube, 100)
+  if ('acao_id' in b) v.acao_id =/^[0-9a-f-]{36}$/i.test(String(b.acao_id || '')) ? b.acao_id : null
   if ('midia' in b) {
     const m = (b.midia || {}) as Linha
     const out: Partial<Record<Arte, string>> = {}
@@ -109,7 +123,7 @@ export async function GET(req: Request) {
   }
   return NextResponse.json({
     ok: true, posts: noPeriodo.data || [], ideias: ideias.data || [], contas: contas.data || [], podeEditar: podeEditar(g.user),
-    whatsapp: await whatsDaEmpresa(), siteUrl: SITE_URL,
+    whatsapp: await whatsDaEmpresa(), siteUrl: SITE_URL, podeAprovar: podeAprovar(g.user),
     metaConfigurada: !!(process.env.META_APP_ID && process.env.META_APP_SECRET),
   })
 }
@@ -150,8 +164,26 @@ export async function PATCH(req: Request) {
   const { data: atual } = await sb.from('site_posts').select('*').eq('id', id).maybeSingle()
   const faltaEtq = semEtiqueta({ ...((atual as Linha | null) || {}), ...l.v })
   if (faltaEtq) return NextResponse.json({ ok: false, erro: faltaEtq }, { status: 400 })
-  // post de antes da Fase 4 ganha código na primeira edição
   const a = (atual || {}) as Linha
+  const final = { ...a, ...l.v }
+  // Fase 3.5: aprovação de post de preço/condição
+  if (b.aprovar === true || b.aprovar === false) {
+    if (!podeAprovar(g.user)) return NextResponse.json({ ok: false, erro: 'Só quem tem a permissão "aprovar post" aprova.' }, { status: 403 })
+    l.v.aprovado_por = b.aprovar ? (g.user.nome || g.user.email || 'Portal') : null
+    l.v.aprovado_em = b.aprovar ? new Date().toISOString() : null
+  } else if (precisaAprovar(final) && a.aprovado_em) {
+    // mudou o que vai para as redes depois de aprovado: precisa aprovar de novo
+    const mexeu = ['legenda', 'textos', 'midia', 'titulo', 'hashtags', 'primeiro_comentario'].some((k) => k in l.v && JSON.stringify(l.v[k] ?? null) !== JSON.stringify(a[k] ?? null))
+    if (mexeu) { l.v.aprovado_por = null; l.v.aprovado_em = null }
+  }
+  if (precisaAprovar(final) && 'aprovado_em' in a && !('aprovado_em' in l.v ? l.v.aprovado_em : a.aprovado_em)) {
+    const antes = (a.resultado || {}) as Record<string, { ok?: boolean }>
+    const depois = ('resultado' in l.v ? l.v.resultado : antes) as Record<string, { ok?: boolean }>
+    if (Object.entries(depois || {}).some(([k, x]) => x?.ok && !antes?.[k]?.ok)) {
+      return NextResponse.json({ ok: false, erro: 'Post de preço ou condição precisa ser aprovado antes de sair. Peça para quem aprova.' }, { status: 400 })
+    }
+  }
+  // post de antes da Fase 4 ganha código na primeira edição
   // ('codigo' in a = a coluna existe; sem o SQL da Fase 4 não tenta gravar)
   if (atual && 'codigo' in a && !a.codigo) l.v.codigo = gerarCodigo(String(l.v.maquina || a.maquina || l.v.titulo || a.titulo || ''))
   const mudar = (v: Linha) => sb.from('site_posts')
