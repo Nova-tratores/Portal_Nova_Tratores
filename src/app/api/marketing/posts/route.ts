@@ -14,6 +14,11 @@ function semEtiqueta(final: Record<string, unknown>): string | null {
   return f.length ? `Antes de deixar o post pronto, marque: ${f.join(', ')}.` : null
 }
 
+/** Colunas da Fase 4 (sql/marketing-fase4.sql). Enquanto o SQL não roda, o post grava sem elas. */
+const COLUNAS_FASE4 = ['etiqueta_tipo', 'gente_real', 'maquina', 'gancho', 'codigo', 'acao_id']
+const faltaColunaFase4 = (msg: string) => COLUNAS_FASE4.some((c) => msg.includes(c))
+const semFase4 = (v: Record<string, unknown>) => Object.fromEntries(Object.entries(v).filter(([k]) => !COLUNAS_FASE4.includes(k)))
+
 /** WhatsApp da empresa para o link do post: o gravado em Textos do site, senão o texto do site. */
 async function whatsDaEmpresa(): Promise<string | null> {
   try {
@@ -118,6 +123,8 @@ export async function POST(req: Request) {
     ;({ data, error } = await sb.from('site_posts').insert({ ...l.v, codigo, criado_por: por, atualizado_por: por }).select('*').single())
     if (!error || !/duplicate|unique/i.test(error.message)) break
   }
+  // sql/marketing-fase4.sql ainda não rodou: grava sem as colunas novas (o post não pode deixar de ser criado)
+  if (error && faltaColunaFase4(error.message)) ({ data, error } = await sb.from('site_posts').insert({ ...semFase4(l.v), criado_por: por, atualizado_por: por }).select('*').single())
   if (error) return NextResponse.json({ ok: false, erro: falta(error.message) ? MSG_SQL : error.message }, { status: 500 })
   return NextResponse.json({ ok: true, post: data })
 }
@@ -136,10 +143,13 @@ export async function PATCH(req: Request) {
   if (faltaEtq) return NextResponse.json({ ok: false, erro: faltaEtq }, { status: 400 })
   // post de antes da Fase 4 ganha código na primeira edição
   const a = (atual || {}) as Linha
-  if (atual && !a.codigo) l.v.codigo = gerarCodigo(String(l.v.maquina || a.maquina || l.v.titulo || a.titulo || ''))
-  const { data, error } = await sb.from('site_posts')
-    .update({ ...l.v, atualizado_em: new Date().toISOString(), atualizado_por: g.user.nome || g.user.email || 'Portal' })
+  // ('codigo' in a = a coluna existe; sem o SQL da Fase 4 não tenta gravar)
+  if (atual && 'codigo' in a && !a.codigo) l.v.codigo = gerarCodigo(String(l.v.maquina || a.maquina || l.v.titulo || a.titulo || ''))
+  const mudar = (v: Linha) => sb.from('site_posts')
+    .update({ ...v, atualizado_em: new Date().toISOString(), atualizado_por: g.user.nome || g.user.email || 'Portal' })
     .eq('id', id).select('*').single()
+  let { data, error } = await mudar(l.v)
+  if (error && faltaColunaFase4(error.message)) ({ data, error } = await mudar(semFase4(l.v)))
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 })
   return NextResponse.json({ ok: true, post: data })
 }
