@@ -10,6 +10,7 @@ import { authHeaders } from '@/lib/auth/client'
 import { STATUS_INFO, type TicketStatus } from '@/lib/tickets/constantes'
 import SeloAtrasado, { SeloUrgente } from '@/components/tickets/SeloAtrasado'
 import type { ItemResumo } from '@/lib/trabalho/fila-server'
+import { COR } from './estiloFila'
 
 export interface Agora { rodando: { ticket_id: string; inicio: string } | null; horas: Record<string, number>; semTabela?: boolean }
 
@@ -76,10 +77,11 @@ export default function ModoAgora({ itens, agora, onMudou, onAbrir, compacto }: 
   const gasto = agora?.horas[item.id] || 0
   const decorrido = rodando && agora?.rodando ? agoraMs - Date.parse(agora.rodando.inicio) : 0
   const st = STATUS_INFO[item.status as TicketStatus]
-  const cor = rodando ? '#059669' : '#2563eb'
+  // Azul = pode começar · verde = está fazendo (regra de cores em estiloFila.ts)
+  const cor = rodando ? COR.ok : COR.acao
 
   return (
-    <section className="mf-card mf-anim" aria-label="Agora" style={{ padding: compacto ? '12px 16px' : '20px 22px', borderColor: `color-mix(in srgb,${cor} 40%,var(--portal-border,#e2e8f0))`, background: `color-mix(in srgb,${cor} 4%,var(--portal-surface,#fefefe))` }}>
+    <section className="mf-card mf-anim" aria-label="Agora" style={{ padding: compacto ? '12px 16px' : '20px 22px', borderColor: `color-mix(in srgb,${cor} 45%,var(--portal-border,#e2e8f0))`, borderWidth: 1.5 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
         <span className="mf-ic" style={{ ['--c' as string]: cor, width: compacto ? 40 : 52, height: compacto ? 40 : 52, borderRadius: 14 }}>{rodando ? <Timer size={compacto ? 18 : 24} /> : <Play size={compacto ? 18 : 24} />}</span>
         <span style={{ flex: '1 1 300px', minWidth: 0 }}>
@@ -88,7 +90,7 @@ export default function ModoAgora({ itens, agora, onMudou, onAbrir, compacto }: 
           <span className="mf-info" style={{ marginTop: 4 }}>
             {item.quadro && <span style={{ ['--c' as string]: item.quadro.cor }}><i className="mf-dot" /> {item.quadro.nome}</span>}
             <span>{item.pedidoPor ? `pedido de ${item.pedidoPor.split(' ')[0]}` : 'você mesmo'}</span>
-            {st && <span className="mf-pill" style={{ ['--c' as string]: st.cor }}>{st.label}</span>}
+            {st && <span className="mf-pill" style={{ ['--c' as string]: COR.info }}>{st.label}</span>}
             {item.urgente && <SeloUrgente />}
             {item.atrasado && item.prazo ? <SeloAtrasado>desde {br(item.prazo)}</SeloAtrasado> : item.prazo && <span><Clock3 size={13} /> prazo {br(item.prazo)}</span>}
             <span>{gasto > 0 ? `${nf(gasto)} h feitas de ${nf(item.horas)} h` : `previsto ${nf(item.horas)} h`}</span>
@@ -98,8 +100,8 @@ export default function ModoAgora({ itens, agora, onMudou, onAbrir, compacto }: 
         <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {rodando
             ? <button className="mf-btn" disabled={ocupado} onClick={pausar}><Pause size={16} /> Pausar</button>
-            : <button className="mf-btn cheio" style={{ ['--c' as string]: '#2563eb' }} disabled={ocupado} onClick={comecar}><Play size={16} /> Começar</button>}
-          <button className="mf-btn cheio" style={{ ['--c' as string]: '#059669' }} disabled={ocupado} onClick={concluir}><Check size={16} /> Concluir</button>
+            : <button className="mf-btn cheio" style={{ ['--c' as string]: COR.acao }} disabled={ocupado} onClick={comecar}><Play size={16} /> Começar</button>}
+          <button className="mf-btn cheio" style={{ ['--c' as string]: COR.ok }} disabled={ocupado} onClick={concluir}><Check size={16} /> Concluir</button>
           {!rodando && livres.length > 1 && <button className="mf-btn" disabled={ocupado} onClick={() => setPulo((p) => p + 1)} title="Ver o próximo da fila (não muda a ordem)"><SkipForward size={16} /> Pular</button>}
         </span>
       </div>

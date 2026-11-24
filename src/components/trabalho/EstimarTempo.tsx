@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react'
 import { Sparkles, Check, X, Clock3 } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { planoDeHoras } from '@/lib/trabalho/estimativa'
+import { COR } from './estiloFila'
 
 interface TamanhoComFim { id: string; rotulo: string; horas: number; dica: string; termina: string }
 interface Resp { atual: number | null; capacidade: number; sugestao: { horas: number; tamanho: { id: string }; motivo: string; termina: string } | null; tamanhos: TamanhoComFim[] }
@@ -78,7 +79,7 @@ export default function EstimarTempo({ ticketId, titulo, aceitar, onFechar, onSa
         <>
           {d.sugestao
             ? <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--portal-text-secondary,#475569)', marginBottom: 8 }}>
-                <Sparkles size={14} color="#7c3aed" /> Sugestão: <span style={{ color: '#7c3aed' }}>{d.tamanhos.find((t) => t.id === d.sugestao!.tamanho.id)?.rotulo} · {nf(d.sugestao.horas)} h</span> — {d.sugestao.motivo}
+                <Sparkles size={14} color={COR.acao} /> Sugestão: <span style={{ color: COR.acao }}>{d.tamanhos.find((t) => t.id === d.sugestao!.tamanho.id)?.rotulo} · {nf(d.sugestao.horas)} h</span> — {d.sugestao.motivo}
               </div>
             : <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#64748b)', marginBottom: 8 }}>Ainda não tenho histórico para sugerir. Escolha pelo tamanho; com o tempo, eu aprendo.</div>}
           <div role="radiogroup" aria-label="Tamanho do trabalho" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(118px,100%),1fr))', gap: 8 }}>
@@ -88,11 +89,11 @@ export default function EstimarTempo({ ticketId, titulo, aceitar, onFechar, onSa
               return (
                 <button key={t.id} role="radio" aria-checked={on} onClick={() => { setHoras(t.horas); setManual('') }}
                   style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, padding: '9px 11px', borderRadius: 12, cursor: 'pointer', textAlign: 'left', font: 'inherit',
-                    border: `1.5px solid ${on ? '#2563eb' : sug ? 'color-mix(in srgb,#7c3aed 45%,transparent)' : 'var(--portal-border,#e2e8f0)'}`,
+                    border: `1.5px ${sug && !on ? 'dashed' : 'solid'} ${on ? COR.acao : sug ? 'color-mix(in srgb,#2563eb 50%,transparent)' : 'var(--portal-border,#e2e8f0)'}`,
                     background: on ? 'color-mix(in srgb,#2563eb 10%,var(--portal-surface,#fefefe))' : 'var(--portal-surface,#fefefe)', color: 'var(--portal-text,#0f172a)' }}>
-                  <span style={{ fontSize: 14, fontWeight: 500 }}>{t.rotulo}{sug && <Sparkles size={12} color="#7c3aed" style={{ marginLeft: 4, verticalAlign: -1 }} />}</span>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>{t.rotulo}{sug && <span style={{ marginLeft: 6, fontSize: 11.5, color: COR.acao }}>sugerido</span>}</span>
                   <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#64748b)' }}>{t.dica} · {nf(t.horas)} h</span>
-                  {t.termina && <span style={{ fontSize: 12, color: '#2563eb' }}>termina {br(t.termina)}</span>}
+                  {t.termina && <span style={{ fontSize: 12, color: 'var(--portal-text-secondary,#475569)' }}>termina {br(t.termina)}</span>}
                 </button>
               )
             })}
@@ -106,7 +107,7 @@ export default function EstimarTempo({ ticketId, titulo, aceitar, onFechar, onSa
               {valido && !manual.trim() && terminaDe(total) && <>Previsão: termina <span style={{ color: '#2563eb' }}>{br(terminaDe(total))}</span></>}
               {valido && manual.trim() && <>{nf(total!)} h = {planoDeHoras(total!, d.capacidade).dias} dia(s) de trabalho</>}
             </span>
-            <button className="mf-btn peq cheio" style={{ ['--c' as string]: '#059669' }} disabled={!valido || salvando} onClick={salvar}>
+            <button className="mf-btn peq cheio" style={{ ['--c' as string]: COR.acao }} disabled={!valido || salvando} onClick={salvar}>
               <Check size={14} /> {salvando ? 'Salvando…' : aceitar ? 'Aceitar' : 'Salvar'}
             </button>
           </div>

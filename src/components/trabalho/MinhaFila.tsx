@@ -19,7 +19,7 @@ import { STATUS_INFO, type TicketStatus } from '@/lib/tickets/constantes'
 import SeloAtrasado, { SeloUrgente } from '@/components/tickets/SeloAtrasado'
 import type { ResumoFila, ItemResumo } from '@/lib/trabalho/fila-server'
 import type { Carga } from './CargaDaPessoa'
-import { ESTILO_FILA } from './estiloFila'
+import { ESTILO_FILA, COR } from './estiloFila'
 import EstimarTempo from './EstimarTempo'
 import ModoAgora, { type Agora } from './ModoAgora'
 import PlanoSemana from './PlanoSemana'
@@ -167,7 +167,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
         <span className="mf-info">
           {i.quadro && <span style={{ ['--c' as string]: i.quadro.cor }}><i className="mf-dot" /> {i.quadro.nome}</span>}
           <span title="Quem pediu">{i.pedidoPor ? <><span className="mf-av">{iniciais(i.pedidoPor)}</span> pedido de {primeiro(i.pedidoPor)}</> : 'você mesmo'}</span>
-          {st && <span className="mf-pill" style={{ ['--c' as string]: st.cor }}>{st.label}</span>}
+          {st && <span className="mf-pill" style={{ ['--c' as string]: COR.info }}>{st.label}</span>}
           {i.urgente && <SeloUrgente />}
           {i.atrasado && i.prazo && <SeloAtrasado>desde {br(i.prazo)}</SeloAtrasado>}
           {!i.atrasado && i.prazo && <span><Clock3 size={13} /> prazo {br(i.prazo)}</span>}
@@ -212,15 +212,15 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
           <h1>{aba === 'minha' ? `Bom dia${userProfile?.nome ? `, ${primeiro(userProfile.nome)}` : ''}` : 'Carga da equipe'}</h1>
           <span>{aba === 'minha' ? 'Sua fila: o que fazer hoje, na semana e depois. Capacidade 6 h − 1,5 h de rotina = 4,5 h por dia.' : 'Quem está ocupado, por setor. Só números: ninguém vê os títulos da fila do outro.'}</span>
         </div>
-        <button className={`mf-aba${aba === 'minha' ? ' on' : ''}`} style={{ ['--c' as string]: '#2563eb' }} onClick={() => setAba('minha')} aria-pressed={aba === 'minha'}>
+        <button className={`mf-aba${aba === 'minha' ? ' on' : ''}`} style={{ ['--c' as string]: '#334155' }} onClick={() => setAba('minha')} aria-pressed={aba === 'minha'}>
           <span className="ic"><ListOrdered size={15} /></span> Minha fila
         </button>
-        <button className={`mf-aba${aba === 'equipe' ? ' on' : ''}`} style={{ ['--c' as string]: '#7c3aed' }} onClick={() => setAba('equipe')} aria-pressed={aba === 'equipe'}>
+        <button className={`mf-aba${aba === 'equipe' ? ' on' : ''}`} style={{ ['--c' as string]: '#334155' }} onClick={() => setAba('equipe')} aria-pressed={aba === 'equipe'}>
           <span className="ic"><Users size={15} /></span> Equipe
         </button>
         <span style={{ flex: 1 }} />
         <button className="mf-btn" onClick={() => setAjuda((a) => !a)} aria-expanded={ajuda}><HelpCircle size={16} /> Como ler esta tela</button>
-        <button className="mf-btn cheio" style={{ ['--c' as string]: '#dc2626' }} onClick={() => setPedirPara(null)}><Send size={15} /> Pedir para alguém</button>
+        <button className="mf-btn cheio" style={{ ['--c' as string]: COR.acao }} onClick={() => setPedirPara(null)}><Send size={15} /> Pedir para alguém</button>
       </div>
 
       {ajuda && (
@@ -231,6 +231,13 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
           Pedidos novos chegam em <b style={{ fontWeight: 500 }}>Chegou pra você</b>: aceite, proponha outra data ou recuse com o motivo.
           Para pedir algo a alguém, use <b style={{ fontWeight: 500 }}>Pedir para alguém</b>: antes de enviar, você vê a fila dessa pessoa.
           Os cartões de cima são clicáveis: <b style={{ fontWeight: 500 }}>Atrasados</b> e <b style={{ fontWeight: 500 }}>Parados</b> filtram a lista.
+          <span style={{ display: 'flex', gap: '6px 16px', flexWrap: 'wrap', marginTop: 8 }}>
+            <span><b style={{ fontWeight: 500, color: COR.acao }}>Azul</b> = o que você pode fazer</span>
+            <span><b style={{ fontWeight: 500, color: COR.ok }}>Verde</b> = feito ou fazendo agora</span>
+            <span><b style={{ fontWeight: 500, color: COR.ruim }}>Vermelho</b> = atrasado</span>
+            <span><b style={{ fontWeight: 500, color: COR.atencao }}>Amarelo</b> = atenção (parado, sem tempo)</span>
+            <span><b style={{ fontWeight: 500, color: COR.info }}>Cinza</b> = informação</span>
+          </span>
         </div>
       )}
       {erro && <div className="mf-ajuda" style={{ color: 'var(--cor-atrasado-texto)' }}>{erro}</div>}
@@ -240,32 +247,32 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
           {(() => {
             const numeros = f && (
               <div className="mf-kpis">
-                {kpi(null, '#d97706', <Sun size={18} />, f.hoje.length, `para hoje · ${nf(f.hoje.reduce((s, x) => s + x.horas, 0))} h`)}
-                {kpi(null, '#2563eb', <CalendarRange size={18} />, f.semana.length, 'no resto da semana')}
-                {kpi('atrasados', '#dc2626', <AlarmClock size={18} />, f.atrasados, 'atrasados (clique para filtrar)')}
-                {kpi('parados', '#b45309', <Hourglass size={18} />, parados, '14+ dias parados (clique)')}
+                {kpi(null, COR.info, <Sun size={18} />, f.hoje.length, `para hoje · ${nf(f.hoje.reduce((s, x) => s + x.horas, 0))} h`)}
+                {kpi(null, COR.info, <CalendarRange size={18} />, f.semana.length, 'no resto da semana')}
+                {kpi('atrasados', COR.ruim, <AlarmClock size={18} />, f.atrasados, 'atrasados (clique para filtrar)')}
+                {kpi('parados', COR.atencao, <Hourglass size={18} />, parados, '14+ dias parados (clique)')}
                 {kpi(null, '#475569', <Layers size={18} />, f.livreEm ? br(f.livreEm) : 'livre', `fila ocupada até · ${f.total} itens`)}
               </div>
             )
             const filaCompleta = (
               <>
-                {f && secao('Hoje', 'objetivo do dia', '#d97706', <Sun size={16} />, f.hoje, (i) => (i.fim > hoje ? `até ${br(i.fim)}` : 'termina hoje'), 'Nada na fila para hoje.')}
-                {f && secao('Esta semana', 'objetivo da semana', '#2563eb', <CalendarRange size={16} />, f.semana, (i) => `começa ${br(i.inicio)}`, 'Nada mais previsto até sexta.')}
+                {f && secao('Hoje', 'objetivo do dia', COR.info, <Sun size={16} />, f.hoje, (i) => (i.fim > hoje ? `até ${br(i.fim)}` : 'termina hoje'), 'Nada na fila para hoje.')}
+                {f && secao('Esta semana', 'objetivo da semana', COR.info, <CalendarRange size={16} />, f.semana, (i) => `começa ${br(i.inicio)}`, 'Nada mais previsto até sexta.')}
                 {f && secao('Depois', 'o resto da fila, na ordem', '#475569', <ListOrdered size={16} />, f.listaDepois || [], (i) => `${br(i.inicio)}–${br(i.fim)}`, 'Nada depois desta semana.')}
-                {f && (f.listaContinuos || []).length > 0 && secao('Rotina', 'sem prazo, dentro da 1,5 h de rotina', '#0891b2', <Repeat size={16} />, f.listaContinuos, () => '', '')}
+                {f && (f.listaContinuos || []).length > 0 && secao('Rotina', 'sem prazo, dentro da 1,5 h de rotina', COR.info, <Repeat size={16} />, f.listaContinuos, () => '', '')}
               </>
             )
             // Foco: só os próximos (o "Agora" já está em cima); "ver a fila completa" abre o resto.
             const proximos = f && (verTudo ? filaCompleta : (
               <>
-                {secao('Próximos', 'na ordem da fila', '#2563eb', <ListOrdered size={16} />, comData.filter((x) => x.id !== agora?.rodando?.ticket_id).slice(1, 7), (i) => (i.inicio <= hoje ? 'hoje' : `começa ${br(i.inicio)}`), 'Nada depois deste.')}
+                {secao('Próximos', 'na ordem da fila', COR.info, <ListOrdered size={16} />, comData.filter((x) => x.id !== agora?.rodando?.ticket_id).slice(1, 7), (i) => (i.inicio <= hoje ? 'hoje' : `começa ${br(i.inicio)}`), 'Nada depois deste.')}
                 {comData.length > 7 && <button className="mf-btn" onClick={() => setVerTudo(true)}>Ver a fila completa ({comData.length} itens)</button>}
               </>
             ))
             const lado = (
               <>
                 <section className="mf-card mf-anim">
-                  <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: '#2563eb' }}><Inbox size={16} /></span><h2>Chegou pra você</h2><span>{h.pendentes.length || 'nada'}</span></div>
+                  <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: COR.acao }}><Inbox size={16} /></span><h2>Chegou pra você</h2><span>{h.pendentes.length || 'nada'}</span></div>
                   {h.pendentes.length === 0 && <div className="mf-vazio">Nenhum pedido esperando resposta.</div>}
                   {h.pendentes.map((p) => {
                     const d = decidindo?.id === p.id ? decidindo : null
@@ -278,7 +285,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
                         </span>
                         {!d ? (
                           <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                            <button className="mf-btn peq cheio" style={{ ['--c' as string]: '#059669' }} disabled={salvando === p.id} onClick={() => setEstimando({ id: p.id, titulo: p.titulo, aceitar: true })}><Check size={14} /> Aceitar</button>
+                            <button className="mf-btn peq cheio" style={{ ['--c' as string]: COR.acao }} disabled={salvando === p.id} onClick={() => setEstimando({ id: p.id, titulo: p.titulo, aceitar: true })}><Check size={14} /> Aceitar</button>
                             <button className="mf-btn peq" onClick={() => setDecidindo({ id: p.id, modo: 'data', valor: '' })}><CalendarClock size={14} /> Outra data</button>
                             <button className="mf-btn peq" onClick={() => setDecidindo({ id: p.id, modo: 'recusar', valor: '' })}><CircleX size={14} /> Recusar</button>
                           </span>
@@ -287,7 +294,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
                             {d.modo === 'data'
                               ? <input type="date" min={hoje} value={d.valor} onChange={(e) => setDecidindo({ ...d, valor: e.target.value })} aria-label="Consigo fazer até" className="mf-btn peq" />
                               : <input value={d.valor} onChange={(e) => setDecidindo({ ...d, valor: e.target.value })} placeholder="Por que não consegue? (vai para quem pediu)" aria-label="Motivo" className="mf-btn peq" style={{ flex: '1 1 220px' }} autoFocus />}
-                            <button className="mf-btn peq cheio" style={{ ['--c' as string]: d.modo === 'data' ? '#059669' : '#b91c1c' }} disabled={!d.valor.trim() || salvando === p.id}
+                            <button className="mf-btn peq cheio" style={{ ['--c' as string]: d.modo === 'data' ? COR.acao : COR.info }} disabled={!d.valor.trim() || salvando === p.id}
                               onClick={() => decidir(p.id, d.modo === 'data' ? { decisao: 'nova_data', data: d.valor } : { decisao: 'recusar', motivo: d.valor })}>
                               {d.modo === 'data' ? 'Aceitar com esta data' : 'Recusar'}
                             </button>
@@ -303,7 +310,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
                 </section>
   
                 <section className="mf-card mf-anim">
-                  <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: '#4f46e5' }}><Users size={16} /></span><h2>Reuniões de hoje</h2><span>{reunioes.length || 'nenhuma'}</span></div>
+                  <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: COR.info }}><Users size={16} /></span><h2>Reuniões de hoje</h2><span>{reunioes.length || 'nenhuma'}</span></div>
                   {reunioes.length === 0 && <div className="mf-vazio">Nenhuma reunião hoje.</div>}
                   {reunioes.map((r, k) => (
                     <div key={k} className="mf-it" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
@@ -314,7 +321,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
                 </section>
   
                 <section className="mf-card mf-anim">
-                  <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: '#059669' }}><Send size={16} /></span><h2>Esperando outros</h2><span>o que você pediu · {pedidos.length}</span></div>
+                  <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: COR.info }}><Send size={16} /></span><h2>Esperando outros</h2><span>o que você pediu · {pedidos.length}</span></div>
                   {pedidos.length === 0 && <div className="mf-vazio">Você não está esperando ninguém.</div>}
                   {(todosPedidos ? pedidos : pedidos.slice(0, 12)).map((p) => {
                     const quem = central?.usuarios[p.responsavel_id]?.nome || 'Alguém'
@@ -325,8 +332,8 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
                         <button className="mf-tit" onClick={() => setAberto(p.id)}>#{p.numero} {p.titulo}</button>
                         <span className="mf-info" style={{ gridColumn: 'auto' }}>
                           <span><span className="mf-av">{iniciais(quem)}</span> com {primeiro(quem)}</span>
-                          {p.aceite === 'pendente' ? <span className="mf-pill" style={{ ['--c' as string]: '#d97706' }}>esperando aceitar</span>
-                            : st && <span className="mf-pill" style={{ ['--c' as string]: st.cor }}>{st.label}</span>}
+                          {p.aceite === 'pendente' ? <span className="mf-pill" style={{ ['--c' as string]: COR.atencao }}>esperando aceitar</span>
+                            : st && <span className="mf-pill" style={{ ['--c' as string]: COR.info }}>{st.label}</span>}
                           {atrasado ? <SeloAtrasado>desde {br(p.prazo!)}</SeloAtrasado> : p.prazo && <span><Clock3 size={13} /> {br(p.prazo)}</span>}
                         </span>
                       </div>
@@ -359,7 +366,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
         <>
           <div className="mf-chips" role="group" aria-label="Filtrar por setor">
             {setores.map((s) => (
-              <button key={s} className={`mf-aba${s === setor ? ' on' : ''}`} style={{ ['--c' as string]: '#7c3aed', paddingLeft: 14 }} aria-pressed={s === setor} onClick={() => setSetor(s)}>
+              <button key={s} className={`mf-aba${s === setor ? ' on' : ''}`} style={{ ['--c' as string]: '#334155', paddingLeft: 14 }} aria-pressed={s === setor} onClick={() => setSetor(s)}>
                 {s}{s !== 'Todos' && equipe && <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#64748b)' }}>{equipe.pessoas.filter((p) => p.setor === s).length}</span>}
               </button>
             ))}
@@ -367,11 +374,11 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
           {!equipe ? <div className="mf-ajuda">Carregando a equipe…</div> : pessoasF.length === 0 ? <div className="mf-ajuda">Ninguém neste setor.</div> : (
             <div className="mf-pessoas">
               {pessoasF.map((p) => {
-                const cor = p.atrasados > 0 ? '#dc2626' : p.horas > maxHoras * 0.66 ? '#d97706' : '#2563eb'
+                const cor = p.atrasados > 0 ? COR.ruim : p.horas > maxHoras * 0.66 ? COR.atencao : '#94a3b8'
                 return (
                   <div key={p.id} className="mf-pes mf-anim" style={{ ['--c' as string]: cor }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className="mf-ic" style={{ ['--c' as string]: '#7c3aed', fontSize: 13 }}>{iniciais(p.nome)}</span>
+                      <span className="mf-ic" style={{ ['--c' as string]: COR.info, fontSize: 13 }}>{iniciais(p.nome)}</span>
                       <span style={{ flex: 1, minWidth: 0 }}>
                         <span style={{ display: 'block', fontSize: 15, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}{p.id === equipe.eu ? ' (você)' : ''}</span>
                         <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>{p.setor}</span>

@@ -1,5 +1,16 @@
 // Visual da Minha fila e das opções da página de teste (NewPortal: docs/estilo-pos-newportal.md).
 // Classes .mf-* ; montar com <style>{ESTILO_FILA}</style>.
+/**
+ * REGRA DE CORES (24/11/2026): poucas cores, cada uma com UM significado, para entender de primeira.
+ *   info    cinza    — títulos, ícones, seções, situação do ticket
+ *   acao    azul     — o que você pode fazer (Começar, Aceitar, Pedir, Salvar)
+ *   ok      verde    — feito / fazendo agora (Concluir, cronômetro rodando)
+ *   ruim    vermelho — só ATRASADO
+ *   atencao amarelo  — parado há dias, sem tempo estimado, esperando aceitar
+ * A cor do QUADRO aparece só na bolinha ao lado do nome dele.
+ */
+export const COR = { info: '#475569', acao: '#2563eb', ok: '#059669', ruim: '#dc2626', atencao: '#b45309' } as const
+
 export const ESTILO_FILA = `
 .mf{padding:clamp(12px,2vw,28px);color:var(--portal-text,#0f172a)}
 .mf *{font-weight:inherit;box-sizing:border-box}
