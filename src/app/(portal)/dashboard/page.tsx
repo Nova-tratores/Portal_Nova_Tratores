@@ -22,7 +22,7 @@ import { TELAS, buscarTelas, normalizar, relevancia, type Tela } from '@/lib/das
 import { NAV_HREF_POR_ID } from '@/components/PortalLayout'
 import { DOCA_ID } from '@/components/dashboard/AtalhosDashboard'
 import { SETORES, SUBS_ADICIONAIS, MODULOS, corDoSetor, type ModuloDash, type SetorKey } from '@/lib/dashboard/setores'
-import { Search, Star, ArrowLeft, ChevronRight, RefreshCw, Database, X, Check, Building2, ExternalLink } from 'lucide-react'
+import { Search, Star, ArrowLeft, ChevronRight, RefreshCw, Database, X, Check, Building2 } from 'lucide-react'
 
 const rotulo: React.CSSProperties = { fontSize: 11.5, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--ds-rotulo)', marginBottom: 8 }
 
@@ -56,8 +56,8 @@ export default function DashboardPage() {
   const { permissoes, isAdmin, isDev, temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   // Diretor (portal_permissoes.is_diretor) ou admin: ganha o botão da Visão da empresa (/empresa)
   const ehDiretor = isAdmin || isDev || (permissoes as unknown as { is_diretor?: boolean } | null)?.is_diretor === true
-  // Só para a Pollyane (José, 12/11): sem os atalhos e, no lugar do botão da Visão da empresa, um botão grande e azul
-  // para o Omie completo. Pelo e-mail do login (o perfil não traz o e-mail).
+  // Só para a Pollyane (José, 12/11): sem os atalhos. Em 24/11 saiu o botão azul do Omie completo e ela
+  // passou a ver a Visão da empresa pelo acesso normal do Admin. Pelo e-mail do login (o perfil não traz o e-mail).
   const [emailLogin, setEmailLogin] = useState<string | null>(null)
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setEmailLogin(data.user?.email?.toLowerCase() || null)).catch(() => {}) }, [])
   const soOmie = emailLogin === 'pollyane@novatratores.com.br'
@@ -318,13 +318,8 @@ export default function DashboardPage() {
           }}
           style={{ ...VIDRO, background: 'var(--portal-bg-card)', border: '1px solid transparent', boxShadow: '0 12px 36px rgba(0,0,0,.22)', width: '100%', padding: '16px 18px 16px 48px', borderRadius: 16, fontSize: 15.5, outline: 'none', fontFamily: 'inherit', color: 'var(--portal-text)' }} />
       </div>
-      {soOmie ? (
-        <a href="/painel-omie" target="_blank" rel="noreferrer"
-          style={{ marginTop: 22, display: 'inline-flex', alignItems: 'center', gap: 14, padding: isMobile ? '18px 26px' : '22px 40px', borderRadius: 18, textDecoration: 'none', fontFamily: 'inherit',
-            background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', fontSize: isMobile ? 20 : 26, fontWeight: 800, letterSpacing: -.3, boxShadow: '0 16px 40px rgba(37,99,235,.45)' }}>
-          <Database size={isMobile ? 24 : 30} /> Sistema Omie Completo <ExternalLink size={isMobile ? 18 : 22} />
-        </a>
-      ) : (ehDiretor || temAcesso('empresa')) && ( /* quem recebeu a Visão da empresa no Admin também (17/11/2026) */
+      {/* botão "Sistema Omie Completo" da Pollyane removido (José, 24/11/2026) */}
+      {(ehDiretor || temAcesso('empresa')) && ( /* quem recebeu a Visão da empresa no Admin também (17/11/2026) */
         <button onClick={() => router.push('/empresa')} className='ds-empresa'
           style={{ marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 9, padding: '10px 18px', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
             background: 'linear-gradient(135deg,#dc2626,#991b1b)', color: '#fff', fontSize: 14.5, fontWeight: 700, boxShadow: '0 10px 26px rgba(220,38,38,.35)' }}>
