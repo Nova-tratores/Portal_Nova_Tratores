@@ -38,6 +38,14 @@
   --portal-violet-fg: #6d28d9;
   --portal-pink-fg: #be185d;
   --portal-amber-fg: #b45309;
+  /* Central de Trabalho (Fase 0, 24/11/2026): atrasado e urgente com nome próprio, separados
+     do vermelho da marca (que fica nos botões primários e no logo). */
+  --cor-atrasado-fundo: #fee2e2;
+  --cor-atrasado-texto: #b91c1c;
+  --cor-atrasado-borda: #fecaca;
+  --cor-urgente-fundo: #ffedd5;
+  --cor-urgente-texto: #c2410c;
+  --cor-urgente-borda: #fed7aa;
 }
 
 [data-theme="dark"] {
@@ -49,6 +57,12 @@
   --portal-violet-fg: #a78bfa;
   --portal-pink-fg: #f472b6;
   --portal-amber-fg: #fbbf24;
+  --cor-atrasado-fundo: rgba(248,113,113,.16);
+  --cor-atrasado-texto: #fca5a5;
+  --cor-atrasado-borda: rgba(248,113,113,.35);
+  --cor-urgente-fundo: rgba(251,146,60,.16);
+  --cor-urgente-texto: #fdba74;
+  --cor-urgente-borda: rgba(251,146,60,.35);
   /* Design system ep-* (estilo-portal.css) seguindo o tema escuro */
   --ep-bg: var(--portal-bg);
   --ep-surface: var(--portal-bg-card);

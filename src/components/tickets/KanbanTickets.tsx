@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Clock, CalendarDays, User as UserIcon, Zap, ShoppingCart } from 'lucide-react'
+import SeloAtrasado from './SeloAtrasado'
 import {
   STATUS_INFO, STATUS_ATIVOS, STATUS_FINAIS, statusDisponiveis, diasParado, prazoVencido,
   type Ticket, type TicketStatus, type UsuarioMin,
@@ -195,10 +196,11 @@ export default function KanbanTickets({
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><UserIcon size={11} /> {resp?.nome || '—'}</span>
                       {visao !== 'pedidos' && sol && <span>pedido por {sol.nome}</span>}
                       {t.categoria && <span>{t.categoria}</span>}
-                      {t.prazo && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: vencido ? '#dc2626' : undefined, fontWeight: vencido ? 700 : undefined }}>
-                          <CalendarDays size={11} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}{vencido ? ' (vencido)' : ''}
-                        </span>
+                      {t.prazo && (vencido
+                          ? <SeloAtrasado>{new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')} · vencido</SeloAtrasado>
+                          : <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <CalendarDays size={11} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}
+                            </span>
                       )}
                     </div>
                     {/* Celular não arrasta: "Mover para…" faz o mesmo que soltar na coluna */}

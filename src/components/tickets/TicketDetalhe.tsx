@@ -461,7 +461,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             continuo
               ? <><InfinityIcon size={15} /> Contínuo (dias úteis)</>
               : <><CalendarDays size={14} /> {fmtData(ticket.prazo!)}{vencido && ' · vencido'}</>,
-            vencido ? '#dc2626' : continuo ? '#0369a1' : undefined)}
+            vencido ? 'var(--cor-atrasado-texto)' : continuo ? '#0369a1' : undefined)}
           {fato('Movimento',
             <><Clock size={14} /> {dias === 0 ? 'hoje' : `${dias} dia${dias > 1 ? 's' : ''} parado`}</>,
             dias >= 5 && !encerrado ? '#dc2626' : undefined)}
@@ -755,7 +755,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                 <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <CalendarDays size={13} style={{ opacity: .6 }} />
                   {ticket.prazo
-                    ? <span style={{ color: vencido ? '#dc2626' : undefined, fontWeight: vencido ? 700 : undefined }}>
+                    ? <span style={{ color: vencido ? 'var(--cor-atrasado-texto)' : undefined, fontWeight: vencido ? 700 : undefined }}>
                         Prazo {fmtData(ticket.prazo)}{vencido ? ' (vencido)' : ''}
                       </span>
                     : 'Sem prazo — contínuo'}

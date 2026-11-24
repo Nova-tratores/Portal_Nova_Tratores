@@ -11,6 +11,7 @@ import { GripVertical, AlertTriangle, CheckCircle2, RotateCcw, Save } from 'luci
 import { authHeaders } from '@/lib/auth/client'
 import type { Ticket } from '@/lib/tickets/constantes'
 import StatusBadge from '@/components/tickets/StatusBadge'
+import { SeloUrgente } from '@/components/tickets/SeloAtrasado'
 import {
   ordenarFila, planejarFila, atrasoPrevisto, diasUteisEntre, HORAS_CONTINUO_PADRAO, type ItemFila, type Previsao,
 } from '@/lib/trabalho/fila'
@@ -213,7 +214,7 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
                 </span>
                 <button onClick={() => { if (!t.oculto) onAbrir(t.id) }} style={{ cursor: t.oculto ? 'default' : 'pointer', flex: '1 1 240px', minWidth: 0, textAlign: 'left', border: 'none', background: 'transparent', padding: 0, color: 'var(--portal-text,#111)' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                    {i.urgente && <span style={{ padding: '0 6px', borderRadius: 4, fontSize: 10, fontWeight: 800, color: '#fff', background: '#dc2626' }}>URGENTE</span>}
+                    {i.urgente && <SeloUrgente tamanho={10.5} />}
                     {t.oculto ? <i style={{ fontWeight: 600, color: muted }}>Outro compromisso</i> : <>#{t.numero} {t.titulo}</>}
                   </span>
                   <span style={{ fontSize: 12, color: muted }}>
@@ -244,7 +245,7 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
                   <span style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: muted }}>PRAZO</span>
                   {t.prazo ? br(t.prazo) : 'indeterminado'}
                 </span>
-                <span style={{ width: 120, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 700, color: atraso ? '#dc2626' : '#15803d' }}>
+                <span style={{ width: 120, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 700, color: atraso ? 'var(--cor-atrasado-texto)' : '#15803d' }}>
                   {!t.prazo ? <span style={{ color: '#0369a1', fontWeight: 600 }}>até concluir</span>
                     : atraso ? <><AlertTriangle size={14} /> passa {atraso} dia{atraso > 1 ? 's' : ''}</>
                     : <><CheckCircle2 size={14} /> no prazo</>}

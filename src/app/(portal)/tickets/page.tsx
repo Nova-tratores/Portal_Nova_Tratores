@@ -24,6 +24,7 @@ import StatusBadge from '@/components/tickets/StatusBadge'
 import FormTicket from '@/components/tickets/FormTicket'
 import KanbanTickets from '@/components/tickets/KanbanTickets'
 import TicketModal from '@/components/tickets/TicketModal'
+import SeloAtrasado from '@/components/tickets/SeloAtrasado'
 import { casaBusca } from '@/lib/texto'
 
 type Visao = 'fila' | 'pedidos' | 'acompanhando' | 'gerencial'
@@ -489,10 +490,11 @@ function TicketsPageInner() {
                     {visao !== 'pedidos' && sol && <span>pedido por {sol.nome}</span>}
                     {visao === 'pedidos' && <AcompanhamentoPedido ticket={t as Ticket & { aceite?: string | null; aceite_motivo?: string | null }} dados={acomp[t.id]} />}
                     {t.categoria && <span>{t.categoria}</span>}
-                    {t.prazo && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: vencido ? '#dc2626' : undefined, fontWeight: vencido ? 700 : undefined }}>
-                        <CalendarDays size={12} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}{vencido ? ' (vencido)' : ''}
-                      </span>
+                    {t.prazo && (vencido
+                        ? <SeloAtrasado>{new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')} · vencido</SeloAtrasado>
+                        : <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <CalendarDays size={12} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}
+                          </span>
                     )}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 2 }}>
@@ -582,10 +584,11 @@ function TicketsPageInner() {
                     {visao !== 'pedidos' && sol && <span>pedido por {sol.nome}</span>}
                     {visao === 'pedidos' && <AcompanhamentoPedido ticket={t as Ticket & { aceite?: string | null; aceite_motivo?: string | null }} dados={acomp[t.id]} />}
                     {t.categoria && <span>{t.categoria}</span>}
-                    {t.prazo && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: vencido ? '#dc2626' : undefined, fontWeight: vencido ? 700 : undefined }}>
-                        <CalendarDays size={12} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}{vencido ? ' (vencido)' : ''}
-                      </span>
+                    {t.prazo && (vencido
+                        ? <SeloAtrasado>{new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')} · vencido</SeloAtrasado>
+                        : <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <CalendarDays size={12} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}
+                          </span>
                     )}
                   </div>
                 </div>
