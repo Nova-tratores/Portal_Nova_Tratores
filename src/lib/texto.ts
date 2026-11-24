@@ -22,6 +22,13 @@ export function paraBusca(s: unknown): string {
   return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
 
+// Conta de teste ("Mecânico Teste", "VENDEDOR TESTE 2", "Teste Mobile"):
+// "teste" como palavra no nome ou na função. Some dos seletores de pessoa,
+// mas a conta continua existindo para testar o portal.
+export function ehContaTeste(u: { nome?: string | null; funcao?: string | null }): boolean {
+  return /teste/.test(paraBusca(u.nome)) || /teste/.test(paraBusca(u.funcao));
+}
+
 // true se algum dos textos contém a busca (vazia = casa tudo).
 export function casaBusca(busca: string, ...textos: unknown[]): boolean {
   const q = paraBusca(busca).trim();

@@ -14,6 +14,7 @@ import { temModuloTickets } from '@/lib/tickets/server'
 import { feriadosNacionais, feriadosExtras } from '@/lib/assistente/horario'
 import { hojeSP } from '@/lib/trabalho/cronograma-server'
 import { CAPACIDADE_PADRAO } from '@/lib/trabalho/fila'
+import { ehContaTeste } from '@/lib/texto'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -67,8 +68,8 @@ export async function GET(req: NextRequest) {
     supabaseAdmin.from('financeiro_usu').select('id, nome, avatar_url').in('id', idsUsuarios),
     // De quem dá para ver a fila: admin = todos ativos; os outros = eu + quem recebeu pedido meu.
     auth.isAdmin
-      ? supabaseAdmin.from('financeiro_usu').select('id, nome, ativo').order('nome')
-      : supabaseAdmin.from('financeiro_usu').select('id, nome, ativo').in('id', [auth.userId, ...pedidosPara]).order('nome'),
+      ? supabaseAdmin.from('financeiro_usu').select('id, nome, ativo, funcao').order('nome')
+      : supabaseAdmin.from('financeiro_usu').select('id, nome, ativo, funcao').in('id', [auth.userId, ...pedidosPara]).order('nome'),
   ])
   const quadros: Record<string, { id: string; nome: string; cor: string }> = {}
   for (const q of (qs.data || []) as { id: string; nome: string; cor: string }[]) quadros[q.id] = q
@@ -83,7 +84,8 @@ export async function GET(req: NextRequest) {
     user, eu: auth.userId, hoje, podeOrdenar: dono, capacidade: CAPACIDADE_PADRAO, feriados,
     tickets, quadros, usuarios,
     posicao: Object.fromEntries((plano.data || []).map((p) => [p.ticket_id, p.posicao])),
-    pessoas: ((pessoas.data || []) as { id: string; nome: string; ativo?: boolean }[]).filter((p) => p.ativo !== false).map((p) => ({ id: p.id, nome: p.nome })),
+    // Conta de teste fora da lista (menos a própria pessoa, se for uma).
+    pessoas: ((pessoas.data || []) as { id: string; nome: string; ativo?: boolean; funcao?: string | null }[]).filter((p) => p.ativo !== false && (p.id === user || !ehContaTeste(p))).map((p) => ({ id: p.id, nome: p.nome })),
   })
 }
 

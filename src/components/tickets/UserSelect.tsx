@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Search, User as UserIcon } from 'lucide-react'
 import type { UsuarioMin } from '@/lib/tickets/constantes'
-import { casaBusca } from '@/lib/texto'
+import { casaBusca, ehContaTeste } from '@/lib/texto'
 
 interface Props {
   value: string
@@ -27,9 +27,9 @@ export default function UserSelect({ value, onChange, excluir = [], placeholder 
     const carregar = async () => {
       const { data } = await supabase
         .from('financeiro_usu')
-        .select('id, nome, avatar_url, ativo')
+        .select('id, nome, avatar_url, ativo, funcao')
         .order('nome')
-      setUsuarios(((data || []) as (UsuarioMin & { ativo?: boolean })[]).filter((u) => u.ativo !== false))
+      setUsuarios(((data || []) as (UsuarioMin & { ativo?: boolean; funcao?: string | null })[]).filter((u) => u.ativo !== false))
     }
     carregar()
   }, [])
@@ -43,7 +43,9 @@ export default function UserSelect({ value, onChange, excluir = [], placeholder 
   }, [])
 
   const selecionado = usuarios.find((u) => u.id === value)
+  // Contas de teste não aparecem para escolher (só se já for a escolhida).
   const filtrados = usuarios
+    .filter((u) => u.id === value || !ehContaTeste(u as UsuarioMin & { funcao?: string | null }))
     .filter((u) => !excluir.includes(u.id))
     .filter((u) => casaBusca(busca, u.nome))
 
