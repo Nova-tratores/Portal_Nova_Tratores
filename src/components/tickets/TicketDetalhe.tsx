@@ -1071,6 +1071,7 @@ function LinhaEvento({ e, uid, nome, usuarios }: {
   else if (e.tipo === 'pedido_atualizacao') texto = <>pediu atualização{e.payload.texto ? <>: {String(e.payload.texto)}</> : null}</>
   else if (e.tipo === 'edicao') {
     if (e.payload.campo === 'fila') texto = <>pôs no topo da fila{e.payload.origem === 'faxina' ? ' (faxina)' : ''}</>
+    else if (e.payload.campo === 'prioridade') texto = e.payload.para === 'pedida' ? <>pediu prioridade{e.payload.motivo ? <>: {String(e.payload.motivo)}</> : null}</> : e.payload.para === 'aceita' ? <>aceitou a prioridade (foi para o topo da fila)</> : <>recusou o pedido de prioridade</>
     else if (e.payload.campo === 'visibilidade') texto = <>tornou o ticket <strong>{e.payload.para === 'publico' ? 'compartilhado' : 'privado'}</strong></>
     else if (e.payload.campo === 'quadro') texto = e.payload.para
       ? <>colocou no quadro <strong>{String(e.payload.para)}</strong></>

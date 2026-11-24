@@ -17,10 +17,12 @@ const br = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 const nf = (h: number) => String(Math.round(h * 10) / 10).replace('.', ',')
 const relogio = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` }
 
+/** Erro com o que o servidor mandou (o 409 do limite traz os pedidos em andamento). */
+class ErroApi extends Error { constructor(msg: string, public status: number, public dados: Record<string, unknown>) { super(msg) } }
 async function post(url: string, corpo: Record<string, unknown>) {
   const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify(corpo) })
   const j = await r.json().catch(() => ({}))
-  if (!r.ok) throw new Error(j.error || 'Não deu certo')
+  if (!r.ok) throw new ErroApi(j.error || 'Não deu certo', r.status, j)
 }
 
 export default function ModoAgora({ itens, agora, onMudou, onAbrir, compacto }: {
@@ -35,6 +37,8 @@ export default function ModoAgora({ itens, agora, onMudou, onAbrir, compacto }: 
   const [agoraMs, setAgoraMs] = useState(() => Date.now())
   const [ocupado, setOcupado] = useState(false)
   const [erro, setErro] = useState('')
+  // Limite de "fazendo" (melhorias 2.3): o servidor recusou com os pedidos em andamento → "Pausar qual?"
+  const [pausarQual, setPausarQual] = useState<{ id: string; numero: number; titulo: string }[] | null>(null)
   const rodandoId = agora?.rodando?.ticket_id || null
   // Item da vez: o que está rodando; senão o 1º da fila (pulando os que a pessoa pulou).
   const base = rodandoId ? itens.find((i) => i.id === rodandoId) : undefined
@@ -56,8 +60,11 @@ export default function ModoAgora({ itens, agora, onMudou, onAbrir, compacto }: 
 
   const fazer = async (passos: (() => Promise<void>)[]) => {
     setOcupado(true); setErro('')
-    try { for (const p of passos) await p(); setPulo(0); onMudou() }
-    catch (e) { setErro(e instanceof Error ? e.message : 'Não deu certo') } finally { setOcupado(false) }
+    try { for (const p of passos) await p(); setPulo(0); setPausarQual(null); onMudou() }
+    catch (e) {
+      if (e instanceof ErroApi && e.status === 409 && Array.isArray(e.dados.emAndamento)) setPausarQual(e.dados.emAndamento as { id: string; numero: number; titulo: string }[])
+      else setErro(e instanceof Error ? e.message : 'Não deu certo')
+    } finally { setOcupado(false) }
   }
   const comecar = () => fazer([
     ...(item.status === 'aberto' ? [() => post(`/api/tickets/${item.id}/acoes`, { acao: 'status', para: 'em_andamento' })] : []),
@@ -105,6 +112,23 @@ export default function ModoAgora({ itens, agora, onMudou, onAbrir, compacto }: 
           {!rodando && livres.length > 1 && <button className="mf-btn" disabled={ocupado} onClick={() => setPulo((p) => p + 1)} title="Ver o próximo da fila (não muda a ordem)"><SkipForward size={16} /> Pular</button>}
         </span>
       </div>
+      {pausarQual && (
+        <div className="mf-aviso" style={{ marginTop: 12, flexDirection: 'column', alignItems: 'stretch' }}>
+          <span><b style={{ fontWeight: 500 }}>Você já tem {pausarQual.length} pedidos em andamento.</b> Pause um para começar o #{item.numero}:</span>
+          {pausarQual.map((p) => (
+            <span key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ flex: 1, minWidth: 0 }}>#{p.numero} {p.titulo}</span>
+              <button className="mf-btn peq" disabled={ocupado} onClick={() => fazer([
+                () => post(`/api/tickets/${p.id}/acoes`, { acao: 'status', para: 'aberto' }),
+                ...(agora?.semTabela ? [] : [() => post('/api/trabalho/agora', { acao: 'pausar', ticket_id: p.id })]),
+                ...(item.status === 'aberto' ? [() => post(`/api/tickets/${item.id}/acoes`, { acao: 'status', para: 'em_andamento' })] : []),
+                ...(agora?.semTabela ? [] : [() => post('/api/trabalho/agora', { acao: 'comecar', ticket_id: item.id })]),
+              ])}><Pause size={14} /> Pausar este e começar o #{item.numero}</button>
+            </span>
+          ))}
+          <button className="mf-btn peq" style={{ alignSelf: 'flex-start' }} onClick={() => setPausarQual(null)}>Deixar como está</button>
+        </div>
+      )}
       {agora?.semTabela && <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>Cronômetro desligado: falta rodar sql/fila-tempo.sql no Supabase. Começar e Concluir funcionam.</div>}
       {erro && <div style={{ marginTop: 8, fontSize: 13, color: 'var(--cor-atrasado-texto)' }}>{erro}</div>}
     </section>

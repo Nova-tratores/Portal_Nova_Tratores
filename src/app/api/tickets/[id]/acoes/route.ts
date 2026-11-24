@@ -25,6 +25,9 @@ import { erroFimDeSemana } from '@/lib/trabalho/agenda'
 import { contaReprogramacao } from '@/lib/reunioes/regras'
 import { aoConcluirExecucao } from '@/lib/pops/roteiros-server'
 import { quadroPadraoDe } from '@/lib/tickets/quadro-padrao'
+import { colocarNoTopoDaFila } from '@/lib/trabalho/fila-server'
+import { LIMITE_FAZENDO, LIMITE_FAZENDO_POR_SETOR } from '@/lib/trabalho/capacidade'
+import { setorDe } from '@/lib/agenda/regras'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -250,6 +253,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!STATUS_INFO[para]) return erro('Status inválido')
     const invalida = validarTransicao(ticket, para, auth)
     if (invalida) return erro(invalida, 403)
+    // Limite de "fazendo" (melhorias 2.3): o 3º pede para pausar um. Devolve os atuais para a
+    // tela perguntar "Pausar qual?".
+    if (para === 'em_andamento' && ticket.tipo !== 'pop') {
+      const { data: fazendo } = await supabaseAdmin.from('tickets').select('id, numero, titulo')
+        .eq('responsavel_id', ticket.responsavel_id).eq('status', 'em_andamento').neq('id', id).not('tipo', 'in', '(compras,reuniao,pop)')
+      const { data: dono } = await supabaseAdmin.from('financeiro_usu').select('funcao').eq('id', ticket.responsavel_id).maybeSingle()
+      const limite = LIMITE_FAZENDO_POR_SETOR[setorDe((dono?.funcao as string) || '', false) || ''] ?? LIMITE_FAZENDO
+      if ((fazendo || []).length >= limite) {
+        return NextResponse.json({
+          error: `Já tem ${(fazendo || []).length} pedidos em andamento (o limite é ${limite}). Pause um para começar este.`,
+          limite, emAndamento: fazendo,
+        }, { status: 409 })
+      }
+    }
     // Execução de POP: obrigatórios completos antes de resolver (o trigger do banco também barra).
     if (ticket.tipo === 'pop' && para === 'resolvido') {
       const { data: falta, error: errFalta } = await supabaseAdmin.rpc('pops_execucao_pendentes', { p_ticket: id })
@@ -321,6 +338,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       `${autor} pediu atualização no ticket #${ticket.numero}`,
       texto || ticket.titulo)
     return NextResponse.json({ ok: true })
+  }
+
+  // ------------------------------------------------------ prioridade (melhorias 2.2)
+  // { acao:'prioridade', decisao:'pedir', motivo? }  — quem pediu, quando o prazo ficou impossível
+  // { acao:'prioridade', decisao:'aceitar'|'recusar' } — quem faz; aceitar = topo da fila dele.
+  // Pedir NÃO reordena sozinho. Fica em payload.prioridade e cai na timeline (edicao/prioridade).
+  if (acao === 'prioridade') {
+    if (encerrado) return erro('Pedido encerrado.')
+    const decisao = String(body.decisao || '')
+    const pAtual = (ticket.payload || {}) as Record<string, unknown>
+    const prio = (pAtual.prioridade || {}) as { estado?: string; por?: string }
+    const autor = await nomeDe(auth.userId)
+    if (decisao === 'pedir') {
+      if (!souSolicitante && !auth.isAdmin) return erro('Só quem pediu pode pedir prioridade.', 403)
+      if (souResponsavel) return erro('O pedido é seu: mude a ordem na sua fila.')
+      if (prio.estado === 'pedida') return erro('Já existe um pedido de prioridade esperando resposta.')
+      const motivo = String(body.motivo || '').trim().slice(0, 300)
+      const { error } = await supabaseAdmin.from('tickets').update({ payload: { ...pAtual, prioridade: { estado: 'pedida', por: auth.userId, em: new Date().toISOString(), ...(motivo ? { motivo } : {}) } } }).eq('id', id)
+      if (error) return erro(error.message, 500)
+      await registrarEvento(id, auth.userId, 'edicao', { campo: 'prioridade', para: 'pedida', ...(motivo ? { motivo } : {}) })
+      await notificarTicket(ticket, [ticket.responsavel_id], auth.userId, `${autor} pede prioridade no pedido #${ticket.numero}`, motivo || ticket.titulo)
+      return NextResponse.json({ ok: true })
+    }
+    if (decisao === 'aceitar' || decisao === 'recusar') {
+      if (!souResponsavel && !auth.isAdmin) return erro('Só quem faz decide a prioridade.', 403)
+      if (prio.estado !== 'pedida') return erro('Não há pedido de prioridade esperando resposta.')
+      const estado = decisao === 'aceitar' ? 'aceita' : 'recusada'
+      const { error } = await supabaseAdmin.from('tickets').update({ payload: { ...pAtual, prioridade: { ...prio, estado, decidido_em: new Date().toISOString() } } }).eq('id', id)
+      if (error) return erro(error.message, 500)
+      if (decisao === 'aceitar') await colocarNoTopoDaFila(ticket.responsavel_id, id)
+      await registrarEvento(id, auth.userId, 'edicao', { campo: 'prioridade', para: estado })
+      if (prio.por) await notificarTicket(ticket, [prio.por], auth.userId,
+        decisao === 'aceitar' ? `${autor} aceitou a prioridade do #${ticket.numero}` : `${autor} recusou a prioridade do #${ticket.numero}`,
+        decisao === 'aceitar' ? 'Foi para o topo da fila.' : ticket.titulo)
+      return NextResponse.json({ ok: true })
+    }
+    return erro('Decisão inválida')
   }
 
   // ------------------------------------------------------ participantes

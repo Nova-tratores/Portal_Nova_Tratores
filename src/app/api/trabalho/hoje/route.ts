@@ -9,7 +9,7 @@ import {
   pendentesDeAceite, reunioesDoDia, diaConfirmado, confirmarDia, preferencias, salvarPreferencias,
 } from '@/lib/trabalho/agenda-server'
 import { temModuloTickets } from '@/lib/tickets/server'
-import { resumoDasFilas } from '@/lib/trabalho/fila-server'
+import { resumoDasFilas, negociacoesDe, prioridadesPendentes } from '@/lib/trabalho/fila-server'
 import { fatorPessoal } from '@/lib/trabalho/sugestao-categoria-server'
 
 export const runtime = 'nodejs'
@@ -51,6 +51,9 @@ export async function GET(req: NextRequest) {
     fila: filas?.get(auth.userId) || null,
     // "você costuma levar 1,8× o que estima" (melhorias 2.1 · bônus)
     fator: await fatorPessoal(auth.userId).catch(() => null),
+    // Prazo impossível (melhorias 2.2): meus pedidos para decidir e as prioridades que me pediram.
+    negociar: await negociacoesDe(auth.userId).catch(() => []),
+    prioridades: await prioridadesPendentes(auth.userId).catch(() => []),
     confirmado,
     pedidos: (pedidos || []).length,
     preferencias: pref,

@@ -26,6 +26,8 @@ export interface ItemResumo {
   status: string
   /** Dias sem movimento (updated_at). */
   parado: number
+  /** Prazo impossível (melhorias 2.2): a fila só começa DEPOIS do prazo, ou venceu sem nem começar. */
+  impossivel?: boolean
   /** Horas que a mediana da categoria sugeriu (item sem estimativa); null = usou o dia inteiro. */
   sugerido?: number | null
   /** Só com { detalhes: true }: quem pediu (null = a própria pessoa) e o quadro. */
@@ -112,6 +114,7 @@ export async function resumoDasFilas(userIds: string[], opc: { detalhes?: boolea
       const t = porId.get(i.id)!
       return { id: i.id, numero: i.numero, titulo: t.titulo, prazo: i.prazo, horas: p.horas, inicio: p.inicio, fim: p.fim,
         atrasado: !!i.prazo && i.prazo < hoje, urgente: i.urgente, semEstimativa: i.semEstimativa, continuo: !!i.continuo, sugerido: i.sugerido,
+        impossivel: !!i.prazo && !i.continuo && (p.inicio > i.prazo || (i.prazo < hoje && t.status === 'aberto')),
         visibilidade: t.visibilidade, solicitante_id: t.solicitante_id, status: t.status,
         parado: Math.max(0, Math.floor((agoraMs - Date.parse(t.updated_at)) / 86400000)),
         ...(opc.detalhes ? { pedidoPor: t.solicitante_id === uid ? null : nomes.get(t.solicitante_id) || 'Alguém', quadro: t.quadro_id ? quadros.get(t.quadro_id) || null : null } : {}) }
@@ -209,4 +212,45 @@ export async function colocarNoTopoDaFila(userId: string, ticketId: string): Pro
   const ordem = [ticketId, ...itens.map((i) => i.id)]
   await supabaseAdmin.from('tickets_plano')
     .upsert(ordem.map((ticket_id, posicao) => ({ user_id: userId, ticket_id, posicao, updated_at: agora })), { onConflict: 'user_id,ticket_id' })
+}
+
+export interface Negociacao { id: string; numero: number; titulo: string; prazo: string; comeca: string; termina: string; com: string; prioridade: string | null }
+
+/**
+ * Pedidos que EU fiz e cujo prazo ficou impossível na fila de quem faz (melhorias 2.2): a fila só
+ * começa depois do prazo, ou venceu sem começar. Quem pediu decide: aceitar a nova data, pedir
+ * prioridade ou cancelar.
+ */
+export async function negociacoesDe(userId: string): Promise<Negociacao[]> {
+  const { data } = await supabaseAdmin.from('tickets').select('id, numero, titulo, prazo, responsavel_id, payload')
+    .eq('solicitante_id', userId).neq('responsavel_id', userId).not('prazo', 'is', null)
+    .not('tipo', 'in', '(compras,reuniao)').not('status', 'in', '(resolvido,fechado,cancelado)').limit(200)
+  const pedidos = (data || []) as { id: string; numero: number; titulo: string; prazo: string; responsavel_id: string; payload: { prioridade?: { estado?: string } } | null }[]
+  if (!pedidos.length) return []
+  const quem = [...new Set(pedidos.map((p) => p.responsavel_id))]
+  const [filas, us] = await Promise.all([
+    resumoDasFilas(quem),
+    supabaseAdmin.from('financeiro_usu').select('id, nome').in('id', quem),
+  ])
+  const nome = new Map(((us.data || []) as { id: string; nome: string }[]).map((u) => [u.id, u.nome]))
+  const out: Negociacao[] = []
+  for (const p of pedidos) {
+    const f = filas.get(p.responsavel_id)
+    const i = f ? [...f.hoje, ...f.semana, ...f.listaDepois].find((x) => x.id === p.id) : undefined
+    if (!i?.impossivel) continue
+    out.push({ id: p.id, numero: p.numero, titulo: p.titulo, prazo: p.prazo, comeca: i.inicio, termina: i.fim, com: nome.get(p.responsavel_id) || 'Alguém', prioridade: p.payload?.prioridade?.estado || null })
+  }
+  return out
+}
+
+/** Pedidos de prioridade esperando EU (quem faz) responder. */
+export async function prioridadesPendentes(userId: string): Promise<{ id: string; numero: number; titulo: string; por: string; motivo: string | null }[]> {
+  const { data } = await supabaseAdmin.from('tickets').select('id, numero, titulo, payload')
+    .eq('responsavel_id', userId).eq('payload->prioridade->>estado', 'pedida')
+    .not('status', 'in', '(resolvido,fechado,cancelado)').limit(50)
+  const lista = (data || []) as { id: string; numero: number; titulo: string; payload: { prioridade?: { por?: string; motivo?: string } } | null }[]
+  const ids = [...new Set(lista.map((t) => t.payload?.prioridade?.por).filter((x): x is string => !!x))]
+  const { data: us } = ids.length ? await supabaseAdmin.from('financeiro_usu').select('id, nome').in('id', ids) : { data: [] }
+  const nome = new Map(((us || []) as { id: string; nome: string }[]).map((u) => [u.id, u.nome]))
+  return lista.map((t) => ({ id: t.id, numero: t.numero, titulo: t.titulo, por: nome.get(t.payload?.prioridade?.por || '') || 'Alguém', motivo: t.payload?.prioridade?.motivo || null }))
 }

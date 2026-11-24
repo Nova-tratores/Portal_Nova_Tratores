@@ -16,3 +16,8 @@ export const RESERVA_ROTINA = 1.5
 
 /** O que sobra por dia para a fila: 6 − 1,5 = 4,5 h. */
 export const CAPACIDADE_FILA = HORAS_DIA_PADRAO - RESERVA_ROTINA
+
+/** No máximo N pedidos "em andamento" por pessoa (melhorias 2.3). Começar o próximo pede para
+ *  pausar um. Por setor: LIMITE_FAZENDO_POR_SETOR['Peças'] = 3, por exemplo. */
+export const LIMITE_FAZENDO = 2
+export const LIMITE_FAZENDO_POR_SETOR: Record<string, number> = {}

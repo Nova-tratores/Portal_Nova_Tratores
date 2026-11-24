@@ -16,7 +16,7 @@ import {
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import { STATUS_INFO, type TicketStatus } from '@/lib/tickets/constantes'
-import SeloAtrasado, { SeloUrgente } from '@/components/tickets/SeloAtrasado'
+import SeloAtrasado, { SeloUrgente, SeloImpossivel } from '@/components/tickets/SeloAtrasado'
 import type { ResumoFila, ItemResumo } from '@/lib/trabalho/fila-server'
 import type { Carga } from './CargaDaPessoa'
 import { ESTILO_FILA, COR } from './estiloFila'
@@ -31,7 +31,14 @@ const TicketModal = dynamic(() => import('@/components/tickets/TicketModal'), { 
 
 interface Pendente { id: string; numero: number; titulo: string; prazo: string | null; solicitante_nome: string }
 interface ItemDia { tipo: string; texto: string; detalhe?: string; link?: string }
-interface Hoje { ativo: boolean; pendentes: Pendente[]; itens: ItemDia[]; fila: ResumoFila | null; fator?: { fator: number; n: number } | null }
+interface Negociacao { id: string; numero: number; titulo: string; prazo: string; comeca: string; termina: string; com: string; prioridade: string | null }
+interface Prioridade { id: string; numero: number; titulo: string; por: string; motivo: string | null }
+interface Hoje { ativo: boolean; pendentes: Pendente[]; itens: ItemDia[]; fila: ResumoFila | null; fator?: { fator: number; n: number } | null; negociar?: Negociacao[]; prioridades?: Prioridade[] }
+/** Dias de atraso de um item (0 = em dia). Acima de 30 vai para "Parados — decidir" (melhorias 2.4). */
+const diasDeAtraso = (i: { atrasado: boolean; prazo: string | null }, hoje: string) => (i.atrasado && i.prazo ? Math.max(1, Math.round((Date.parse(hoje) - Date.parse(i.prazo)) / 86400000)) : 0)
+const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+/** Dia útil seguinte, "05/dez". */
+const livreAPartir = (iso: string) => { const d = new Date(iso + 'T12:00:00Z'); do { d.setUTCDate(d.getUTCDate() + 1) } while ([0, 6].includes(d.getUTCDay())); return `${String(d.getUTCDate()).padStart(2, '0')}/${MES[d.getUTCMonth()]}` }
 interface Pedido { id: string; numero: number; titulo: string; prazo: string | null; status: string; responsavel_id: string; aceite?: string | null }
 interface Central { pedidos: Pedido[]; usuarios: Record<string, { id: string; nome: string }> }
 
@@ -121,6 +128,17 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
     return () => { window.removeEventListener('central-trabalho-mudou', f); window.removeEventListener('focus', foco) }
   }, [carregar, carregarEquipe, equipe])
 
+  // Ação num pedido pela rota de sempre (/api/tickets/[id]/acoes) e recarrega (prazo impossível, prioridade).
+  const acaoPedido = async (id: string, corpo: Record<string, unknown>) => {
+    setSalvando(id); setErro('')
+    try {
+      const r = await fetch(`/api/tickets/${id}/acoes`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify(corpo) })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { setErro(j.error || 'Não deu certo'); return }
+      window.dispatchEvent(new Event('central-trabalho-mudou'))
+      await carregar()
+    } catch { setErro('Falha de conexão') } finally { setSalvando(null) }
+  }
   const decidir = async (id: string, corpo: Record<string, unknown>) => {
     setSalvando(id); setErro('')
     try {
@@ -195,8 +213,9 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
   // e quando. Sem tempo estimado = "? h" (o aviso de cima chama para estimar).
   const item = (i: ItemResumo, quando: string) => {
     const pos = comData.findIndex((x) => x.id === i.id)
-    const diasAtraso = i.atrasado && i.prazo ? Math.max(1, Math.round((Date.parse(hoje) - Date.parse(i.prazo)) / 86400000)) : 0
-    const selo = diasAtraso ? <SeloAtrasado>atrasado {diasAtraso} {diasAtraso === 1 ? 'dia' : 'dias'}</SeloAtrasado>
+    const diasAtraso = diasDeAtraso(i, hoje)
+    const selo = i.impossivel ? <span title={`A fila só chega neste pedido em ${br(i.inicio)}, e o prazo é ${i.prazo ? br(i.prazo) : '—'}. Quem pediu foi avisado para decidir.`}><SeloImpossivel /></span>
+      : diasAtraso ? <SeloAtrasado dias={diasAtraso}>atrasado {diasAtraso} {diasAtraso === 1 ? 'dia' : 'dias'}</SeloAtrasado>
       : i.urgente ? <SeloUrgente />
       : i.prazo ? <span className="mf-quando"><Clock3 size={13} style={{ verticalAlign: -2 }} /> prazo {br(i.prazo)}</span> : null
     return (
@@ -254,7 +273,8 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
     )
   }
   const secao = (titulo: string, sub: string, cor: string, icone: React.ReactNode, itens: ItemResumo[], quando: (i: ItemResumo) => string, vazio: string) => {
-    const lista = itens.filter(passa)
+    // Atrasado há mais de 30 dias não fica no meio da fila: vai para "Parados — decidir" (melhorias 2.4).
+    const lista = itens.filter(passa).filter((i) => titulo === 'Parados — decidir' || diasDeAtraso(i, hoje) <= 30)
     if (filtro !== 'tudo' && lista.length === 0) return null
     return (
       <section className="mf-card mf-anim">
@@ -344,12 +364,15 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
               <div className="mf-kpis">
                 {kpi(null, COR.info, <Sun size={18} />, `${nf(horasHoje)} de 4,5 h`, `ocupadas hoje · ${itensHoje} ${itensHoje === 1 ? 'pedido' : 'pedidos'}`)}
                 {kpi('atrasados', COR.ruim, <AlarmClock size={18} />, f.atrasados, f.atrasados ? 'atrasados · clique para ver só eles' : 'nada atrasado')}
-                {kpi(null, COR.info, <Layers size={18} />, f.livreEm ? br(f.livreEm) : 'livre', `fila ocupada até · ${f.total} ${f.total === 1 ? 'item' : 'itens'}`)}
+                {kpi(null, COR.info, <Layers size={18} />, f.livreEm ? livreAPartir(f.livreEm) : 'hoje', `livre a partir de · ${f.total} ${f.total === 1 ? 'item' : 'itens'} na fila`)}
               </div>
             )
+            const velhosLista = comData.filter((i) => diasDeAtraso(i, hoje) > 30)
+            const secaoVelhosLista = velhosLista.length > 0 && secao('Parados — decidir', `atrasados há mais de 30 dias · ${velhosLista.length}`, COR.ruim, <AlarmClock size={16} />, velhosLista, (i) => `prazo era ${i.prazo ? br(i.prazo) : '—'}`, '')
             const filaCompleta = (
               <>
                 {avisoSemTempo}
+                {secaoVelhosLista}
                 {f && secao('Hoje', 'objetivo do dia · arraste ⠿ ou use ↑↓ para mudar a ordem', COR.info, <Sun size={16} />, f.hoje, (i) => (i.fim > hoje ? `até ${br(i.fim)}` : 'termina hoje'), 'Nada na fila para hoje.')}
                 {f && secao('Esta semana', 'objetivo da semana', COR.info, <CalendarRange size={16} />, f.semana, (i) => `começa ${br(i.inicio)}`, 'Nada mais previsto até sexta.')}
                 {f && secao('Depois', 'o resto da fila, na ordem', '#475569', <ListOrdered size={16} />, f.listaDepois || [], (i) => `${br(i.inicio)}–${br(i.fim)}`, 'Nada depois desta semana.')}
@@ -357,18 +380,60 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
               </>
             )
             // Foco: só os próximos (o "Agora" já está em cima); "ver a fila completa" abre o resto.
+            const velhos = comData.filter((i) => diasDeAtraso(i, hoje) > 30)
+            const secaoVelhos = velhos.length > 0 && (
+              <>
+                {secao('Parados — decidir', `atrasados há mais de 30 dias · ${velhos.length}`, COR.ruim, <AlarmClock size={16} />, velhos, (i) => `prazo era ${i.prazo ? br(i.prazo) : '—'}`, '')}
+                <a className="mf-btn" href="/fila/faxina" style={{ alignSelf: 'flex-start' }}>Decidir na Faxina (um de cada vez)</a>
+              </>
+            )
+            const vivos = comData.filter((i) => diasDeAtraso(i, hoje) <= 30)
             const proximos = f && (verTudo ? filaCompleta : (
               <>
-                {secao('Próximos', 'arraste ⠿ ou use ↑↓ para mudar a ordem', COR.info, <ListOrdered size={16} />, comData.filter((x) => x.id !== agora?.rodando?.ticket_id).slice(1, 7), (i) => (i.inicio <= hoje ? 'hoje' : `começa ${br(i.inicio)}`), 'Nada depois deste.')}
+                {secao('Próximos', 'arraste ⠿ ou use ↑↓ para mudar a ordem', COR.info, <ListOrdered size={16} />, vivos.filter((x) => x.id !== agora?.rodando?.ticket_id).slice(1, 7), (i) => (i.inicio <= hoje ? 'hoje' : `começa ${br(i.inicio)}`), 'Nada depois deste.')}
                 {comData.length > 7 && <button className="mf-btn" onClick={() => setVerTudo(true)}>Ver a fila completa ({comData.length} itens)</button>}
+                {secaoVelhos}
                 {avisoSemTempo}
               </>
             ))
             const lado = (
               <>
+                {(h.negociar || []).length > 0 && (
+                  <section className="mf-card mf-anim">
+                    <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: '#6d28d9' }}><AlarmClock size={16} /></span><h2>Precisa da sua decisão</h2><span>prazo impossível · {(h.negociar || []).length}</span></div>
+                    {(h.negociar || []).map((n) => (
+                      <div key={n.id} className="mf-it" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
+                        <button className="mf-tit" onClick={() => setAberto(n.id)}>#{n.numero} {n.titulo}</button>
+                        <span style={{ fontSize: 13, color: 'var(--portal-text-secondary,#475569)' }}>
+                          Seu pedido com {primeiro(n.com)} só começa por volta de <b style={{ fontWeight: 500 }}>{br(n.comeca)}</b>{n.termina ? <> (termina ~{br(n.termina)})</> : null} e o prazo era <b style={{ fontWeight: 500 }}>{br(n.prazo)}</b>.
+                        </span>
+                        {n.prioridade === 'pedida'
+                          ? <span className="mf-pill" style={{ ['--c' as string]: COR.atencao }}>prioridade pedida: esperando {primeiro(n.com)}</span>
+                          : (
+                            <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                              {n.termina && <button className="mf-btn peq cheio" style={{ ['--c' as string]: COR.acao }} disabled={salvando === n.id}
+                                onClick={() => acaoPedido(n.id, { acao: 'editar', prazo: n.termina })}>Aceitar {br(n.termina)}</button>}
+                              <button className="mf-btn peq" disabled={salvando === n.id} onClick={() => { const m = window.prompt(`Por que o #${n.numero} precisa passar na frente? (vai para ${primeiro(n.com)})`); if (m !== null) acaoPedido(n.id, { acao: 'prioridade', decisao: 'pedir', motivo: m }) }}>Pedir prioridade</button>
+                              <button className="mf-btn peq" disabled={salvando === n.id} onClick={() => { const m = window.prompt('Por que cancelar? (vai para a timeline)'); if (m) acaoPedido(n.id, { acao: 'status', para: 'cancelado', motivo: m }) }}>Cancelar</button>
+                            </span>
+                          )}
+                      </div>
+                    ))}
+                  </section>
+                )}
                 <section className="mf-card mf-anim">
                   <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: COR.acao }}><Inbox size={16} /></span><h2>Chegou pra você</h2><span>{h.pendentes.length || 'nada'}</span></div>
-                  {h.pendentes.length === 0 && <div className="mf-vazio">Nenhum pedido esperando resposta.</div>}
+                  {(h.prioridades || []).map((p) => (
+                    <div key={`pr${p.id}`} className="mf-it" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
+                      <span style={{ fontSize: 13.5 }}><b style={{ fontWeight: 500 }}>{primeiro(p.por)}</b> pede prioridade no <button className="mf-tit" style={{ display: 'inline', fontSize: 13.5 }} onClick={() => setAberto(p.id)}>#{p.numero} {p.titulo}</button></span>
+                      {p.motivo && <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>“{p.motivo}”</span>}
+                      <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                        <button className="mf-btn peq cheio" style={{ ['--c' as string]: COR.acao }} disabled={salvando === p.id} onClick={() => acaoPedido(p.id, { acao: 'prioridade', decisao: 'aceitar' })}>Aceitar (vai para o topo)</button>
+                        <button className="mf-btn peq" disabled={salvando === p.id} onClick={() => acaoPedido(p.id, { acao: 'prioridade', decisao: 'recusar' })}>Recusar</button>
+                      </span>
+                    </div>
+                  ))}
+                  {h.pendentes.length === 0 && (h.prioridades || []).length === 0 && <div className="mf-vazio">Nenhum pedido esperando resposta.</div>}
                   {h.pendentes.map((p) => {
                     const d = decidindo?.id === p.id ? decidindo : null
                     return (
@@ -442,7 +507,7 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
               <div className="mf-col">
                 {conviteFaxina}
                 {layout !== 'plano' && numeros}
-                {layout !== 'lista' && f && <ModoAgora itens={comData} agora={agora} compacto={layout === 'plano'} onMudou={() => { carregar(); window.dispatchEvent(new Event('central-trabalho-mudou')) }} onAbrir={setAberto} />}
+                {layout !== 'lista' && f && <ModoAgora itens={vivos} agora={agora} compacto={layout === 'plano'} onMudou={() => { carregar(); window.dispatchEvent(new Event('central-trabalho-mudou')) }} onAbrir={setAberto} />}
                 {layout === 'plano' && f && <PlanoSemana fila={f} reunioesHoje={reunioes.length} onAbrir={setAberto} />}
                 {layout === 'plano'
                   ? <div className="mf-grade3">{lado}</div>
