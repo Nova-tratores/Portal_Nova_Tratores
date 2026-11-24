@@ -1,7 +1,7 @@
 // MODO AGORA (24/11/2026) — o cronômetro do item da vez na Minha fila.
 // GET  /api/trabalho/agora                       -> { rodando: { ticket_id, inicio } | null, horas: { [ticket]: horas reais } }
 // POST /api/trabalho/agora { acao:'comecar', ticket_id } -> fecha o que estava rodando e abre este
-// POST /api/trabalho/agora { acao:'pausar' }              -> fecha o que estiver rodando
+// POST /api/trabalho/agora { acao:'pausar', ticket_id? }  -> fecha o que estiver rodando (só desse ticket, se vier)
 // A situação do ticket (em andamento / resolvido) continua pela /api/tickets/[id]/acoes; aqui é só o tempo.
 // Sem a tabela (sql/fila-tempo.sql), responde semTabela e a tela segue sem cronômetro.
 import { NextRequest, NextResponse } from 'next/server'
@@ -16,8 +16,10 @@ export const dynamic = 'force-dynamic'
 const erro = (msg: string, status = 400) => NextResponse.json({ error: msg }, { status })
 const uuid = (x: unknown) => /^[0-9a-f-]{36}$/i.test(String(x || ''))
 
-async function fecharAberto(userId: string) {
-  const r = await supabaseAdmin.from('tickets_tempo').update({ fim: new Date().toISOString() }).eq('user_id', userId).is('fim', null)
+async function fecharAberto(userId: string, ticketId?: string) {
+  let q = supabaseAdmin.from('tickets_tempo').update({ fim: new Date().toISOString() }).eq('user_id', userId).is('fim', null)
+  if (ticketId) q = q.eq('ticket_id', ticketId)
+  const r = await q
   if (r.error) throw r.error
 }
 
@@ -46,7 +48,8 @@ export async function POST(req: NextRequest) {
   if (!temModuloTickets(auth)) return erro('Sem permissão', 403)
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>
   try {
-    if (body.acao === 'pausar') { await fecharAberto(auth.userId); return NextResponse.json({ ok: true }) }
+    // pausar com ticket_id = só se o cronômetro aberto for desse ticket
+    if (body.acao === 'pausar') { await fecharAberto(auth.userId, uuid(body.ticket_id) ? String(body.ticket_id) : undefined); return NextResponse.json({ ok: true }) }
     if (body.acao === 'comecar') {
       if (!uuid(body.ticket_id)) return erro('Escolha o item')
       // Só o que é da pessoa: ninguém liga o cronômetro no ticket do outro.

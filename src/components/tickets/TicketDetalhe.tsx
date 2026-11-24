@@ -37,6 +37,8 @@ import { SC_ETAPA_INFO, SC_CONFIANCA_INFO, margemPrevista, type PayloadSC, type 
 import PainelCompras from '@/components/tickets/compras/PainelCompras'
 import SeletorDataAgenda from '@/components/trabalho/SeletorDataAgenda'
 import { fimDeSemana } from '@/lib/trabalho/agenda'
+import EstimarTempo from '@/components/trabalho/EstimarTempo'
+import { ESTILO_FILA } from '@/components/trabalho/estiloFila'
 
 const fmtData = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("pt-BR")
 const fmtQuando = (d: string) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -125,6 +127,8 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   const [addParticipante, setAddParticipante] = useState(false)
   const [novoParticipante, setNovoParticipante] = useState('')
   const [editando, setEditando] = useState(false)
+  // Tempo do trabalho (24/11/2026): o mesmo escolhedor da Minha fila (tamanho, sugestão, previsão).
+  const [estimarTempo, setEstimarTempo] = useState(false)
   const [editPrazo, setEditPrazo] = useState('')
   const [editCategoria, setEditCategoria] = useState('')
   const [editTerceiro, setEditTerceiro] = useState('')
@@ -295,9 +299,21 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
     if (!ok) setComentario(texto)
   }
 
-  const mudarStatus = (para: TicketStatus) => acao({ acao: 'status', para }, undefined, {
-    otimista: () => mexer((d) => ({ ...d, ticket: { ...d.ticket, status: para } })),
-  })
+  const mudarStatus = async (para: TicketStatus) => {
+    const ok = await acao({ acao: 'status', para }, undefined, {
+      otimista: () => mexer((d) => ({ ...d, ticket: { ...d.ticket, status: para } })),
+    })
+    // Cronômetro do Modo Agora (24/11/2026): quem faz clicou "Começar" → conta o tempo;
+    // resolveu, pausou ou cancelou → para (só se estava contando ESTE ticket).
+    if (ok && souResponsavel) {
+      const corpo = para === 'em_andamento' ? { acao: 'comecar', ticket_id: id }
+        : ['resolvido', 'aguardando_terceiro', 'aguardando_interno', 'cancelado', 'fechado'].includes(para) ? { acao: 'pausar', ticket_id: id } : null
+      if (corpo) void (async () => {
+        try { await fetch('/api/trabalho/agora', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify(corpo) }) } catch { /* sem cronômetro */ }
+      })()
+    }
+    return ok
+  }
 
   // Imagens/prints na timeline: Ctrl+V no comentário cola direto, e o
   // clipe abre o seletor de arquivos (upload no bucket público `anexos`)
@@ -669,7 +685,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           {/* Bloco e privacidade */}
           {!ehSC && (
             <div style={cartao}>
-              <div style={{ ...tituloCartao, marginBottom: 10 }}><LayoutGrid size={13} /> Bloco</div>
+              <div style={{ ...tituloCartao, marginBottom: 10 }}><LayoutGrid size={13} /> Quadro</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {quadro ? (
                   <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o quadro"
@@ -765,18 +781,33 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                     <CalendarDays size={13} style={{ opacity: .6 }} /> Começa {fmtData(plano.inicio)}
                   </span>
                 )}
-                {(plano.dias || plano.horas_dia) && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <Clock size={13} style={{ opacity: .6 }} />
-                    {[plano.dias && `${plano.dias} dia${plano.dias > 1 ? 's' : ''} de trabalho`, plano.horas_dia && `${String(plano.horas_dia).replace('.', ',')} h/dia`].filter(Boolean).join(' · ')}
-                  </span>
+                {/* Tempo do trabalho (24/11/2026): total em horas, fácil de ler, e "mudar"/"Estimar" abre o escolhedor */}
+                {ticket.prazo && (() => {
+                  const total = plano.horas_dia ? (plano.dias || 1) * plano.horas_dia : 0
+                  return (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                      <Clock size={13} style={{ opacity: .6 }} />
+                      {total
+                        ? <span>{String(total).replace('.', ',')} h de trabalho{total > 4.5 ? ` · uns ${Math.ceil(total / 4.5)} dias` : ''}</span>
+                        : <span style={{ color: '#b45309' }}>Sem tempo estimado</span>}
+                      {podeEditar && <button onClick={() => setEstimarTempo((v) => !v)} style={botaoMini}>{total ? 'mudar' : 'Estimar'}</button>}
+                    </span>
+                  )
+                })()}
+                {estimarTempo && (
+                  <>
+                    <style>{ESTILO_FILA}</style>
+                    <EstimarTempo ticketId={id} titulo={ticket.titulo} onFechar={() => setEstimarTempo(false)} onSalvo={() => { setEstimarTempo(false); carregar(true) }} />
+                  </>
                 )}
                 <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <Tag size={13} style={{ opacity: .6 }} /> {ticket.categoria || 'Sem categoria'}
                 </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <Building2 size={13} style={{ opacity: .6 }} /> {ticket.terceiro_envolvido || 'Sem terceiro envolvido'}
-                </span>
+                {ticket.terceiro_envolvido && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <Building2 size={13} style={{ opacity: .6 }} /> {ticket.terceiro_envolvido}
+                  </span>
+                )}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
