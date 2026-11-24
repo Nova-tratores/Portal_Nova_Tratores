@@ -70,3 +70,25 @@ describe('fila — capacidade padrão (Fase 0 · I)', () => {
     expect(p.get('a')).toMatchObject({ inicio: '2026-10-07', fim: '2026-10-08', horas: 9 })
   })
 })
+
+describe('fila — ticket vira item (Minha fila, Equipe e lembrete usam a mesma regra)', () => {
+  it('sem horas estimadas: usa o dia cheio da fila e marca "estimar"', async () => {
+    const { itemDoTicket } = await import('../fila')
+    const i = itemDoTicket({ id: 'x', numero: 1, prazo: '2026-10-20', payload: {} }, 4.5, FERIADOS)
+    expect(i).toMatchObject({ horasDia: 4.5, dias: 1, continuo: false, semEstimativa: true })
+  })
+  it('com horas estimadas não marca "estimar"; sem prazo é contínuo', async () => {
+    const { itemDoTicket } = await import('../fila')
+    expect(itemDoTicket({ id: 'x', numero: 1, prazo: '2026-10-20', payload: { horas_dia: 2, dias: 3 } }, 4.5, FERIADOS))
+      .toMatchObject({ horasDia: 2, dias: 3, semEstimativa: false })
+    expect(itemDoTicket({ id: 'y', numero: 2, prazo: null, payload: {} }, 4.5, FERIADOS))
+      .toMatchObject({ continuo: true, semEstimativa: false })
+  })
+  it('sexta da semana (objetivo da semana)', async () => {
+    const { sextaDaSemana } = await import('../fila')
+    expect(sextaDaSemana('2026-11-24')).toBe('2026-11-27') // terça → sexta
+    expect(sextaDaSemana('2026-11-27')).toBe('2026-11-27') // sexta → ela mesma
+    expect(sextaDaSemana('2026-11-28')).toBe('2026-12-04') // sábado → a próxima
+    expect(sextaDaSemana('2026-11-29')).toBe('2026-12-04') // domingo → a próxima
+  })
+})

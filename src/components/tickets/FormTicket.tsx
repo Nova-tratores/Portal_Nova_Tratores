@@ -8,6 +8,7 @@ import { authHeaders } from '@/lib/auth/client'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIAS_SUGERIDAS, type TicketVisibilidade } from '@/lib/tickets/constantes'
 import UserSelect from './UserSelect'
+import CargaDaPessoa from '@/components/trabalho/CargaDaPessoa'
 import { dataMinima, diaUtil, fimDeSemana } from '@/lib/trabalho/agenda'
 import SeletorDataAgenda from '@/components/trabalho/SeletorDataAgenda'
 
@@ -21,6 +22,8 @@ interface Props {
   /** Já preenchido (ex.: "Fulano pediu para você abrir um ticket"). */
   tituloInicial?: string
   descricaoInicial?: string
+  /** Pedido já para alguém (ex.: botão "Pedir" na carga da Equipe). */
+  responsavelInicial?: string
 }
 
 const br = (iso: string) => iso.slice(8, 10) + "/" + iso.slice(5, 7)
@@ -45,10 +48,10 @@ const rotuloStyle: React.CSSProperties = {
   color: 'var(--portal-text-secondary, #555)', textTransform: 'uppercase', letterSpacing: .4,
 }
 
-export default function FormTicket({ onFechar, onCriado, printInicial, quadro, tituloInicial, descricaoInicial }: Props) {
+export default function FormTicket({ onFechar, onCriado, printInicial, quadro, tituloInicial, descricaoInicial, responsavelInicial }: Props) {
   const [titulo, setTitulo] = useState(tituloInicial || '')
   const [descricao, setDescricao] = useState(descricaoInicial || '')
-  const [responsavelId, setResponsavelId] = useState('')
+  const [responsavelId, setResponsavelId] = useState(responsavelInicial || '')
   const [categoria, setCategoria] = useState('')
   const [prazo, setPrazo] = useState('')
   // Agenda do responsável (Central de Trabalho)
@@ -193,6 +196,8 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
             <label style={rotuloStyle}>Para quem? *</label>
             <UserSelect value={responsavelId} onChange={setResponsavelId} placeholder="Digite o nome da pessoa..." autoFocus barraBusca />
           </div>
+          {/* A fila dessa pessoa antes de pedir (24/11/2026): pedido é uma porta só, com a carga na frente. */}
+          {responsavelId && <CargaDaPessoa userId={responsavelId} />}
 
           {responsavelId && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 12, borderRadius: 10, border: '1px solid var(--portal-border, #e5e7eb)', background: 'var(--portal-bg, #fafafa)' }}>

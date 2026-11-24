@@ -79,7 +79,7 @@ export const MODULOS: ModuloDash[] = [
   { id: 'dre', nome: 'DRE Financeiro', nomeAntigo: 'Resultado (DRE)', frase: 'Quanto a empresa ganhou ou perdeu no mês', href: '/dre-financeiro', icon: TrendingUp, setor: 'financeiro', modulo: 'dre' },
 
   // ── Adicionais (servem a mais de um setor)
-  { id: 'tarefas', nome: 'Central de Trabalho', frase: 'Tarefas e tickets de todos', href: '/tickets/quadros', icon: ClipboardCheck, setor: 'adicionais', sub: 'Dia a dia', modulo: 'tarefas' },
+  { id: 'tarefas', nome: 'Central de Trabalho', frase: 'Tarefas e tickets de todos', href: '/fila', icon: ClipboardCheck, setor: 'adicionais', sub: 'Dia a dia', modulo: 'tarefas' },
   { id: 'agenda', nome: 'Agenda', frase: 'Compromissos de todos, por setor', href: '/agenda', icon: CalendarDays, setor: 'adicionais', sub: 'Dia a dia' },
   { id: 'reunioes', nome: 'Reuniões', frase: 'Pauta antes, ata depois', href: '/reunioes', icon: CalendarClock, setor: 'adicionais', sub: 'Dia a dia', modulo: 'tickets' },
   { id: 'salas', nome: 'Sala de reunião', nomeAntigo: 'Reservar Sala', frase: 'Ver se a sala está livre e marcar horário', href: '/salas', icon: MapPin, setor: 'adicionais', sub: 'Dia a dia' },

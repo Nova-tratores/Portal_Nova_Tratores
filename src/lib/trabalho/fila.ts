@@ -114,3 +114,28 @@ export function atrasoPrevisto(prazo: string | null, previsao: Previsao | undefi
   if (!prazo || !previsao || previsao.fim <= prazo) return 0
   return difDias(prazo, previsao.fim)
 }
+
+/** Campos do ticket que a fila usa (payload.dias / horas_dia / inicio / urgente). */
+export interface TicketDaFila { id: string; numero: number; prazo: string | null; payload?: unknown }
+
+/**
+ * Ticket → item da fila. Uma regra só para a tela da Fila, a Minha fila, a carga da
+ * Equipe e o lembrete do dia (24/11/2026). Sem horas informadas usa o dia cheio da
+ * fila e marca semEstimativa (aparece "estimar"); sem prazo = contínuo (na rotina).
+ */
+export function itemDoTicket(t: TicketDaFila, capacidade: number, feriados: Set<string>): ItemFila & { semEstimativa: boolean } {
+  const p = (t.payload || {}) as { dias?: number; horas_dia?: number; inicio?: string; urgente?: boolean }
+  const dias = p.dias || (p.inicio && t.prazo && p.inicio <= t.prazo ? diasUteisEntre(p.inicio, t.prazo, feriados) : 1)
+  const continuo = !t.prazo
+  return {
+    id: t.id, numero: t.numero, prazo: t.prazo, urgente: p.urgente === true, dias, continuo, inicio: p.inicio,
+    horasDia: p.horas_dia || (continuo ? HORAS_CONTINUO_PADRAO : capacidade),
+    semEstimativa: !continuo && !p.horas_dia,
+  }
+}
+
+/** Sexta-feira da semana de `hoje` (YYYY-MM-DD). Sábado/domingo: a sexta seguinte. */
+export function sextaDaSemana(hoje: string): string {
+  const w = new Date(hoje + 'T12:00:00Z').getUTCDay()
+  return soma(hoje, w === 6 ? 6 : w === 0 ? 5 : 5 - w)
+}

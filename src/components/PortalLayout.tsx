@@ -82,7 +82,7 @@ const GROUP_ORDER = ['geral', 'servicos', 'pecas', 'financeiro', 'comercial', 'e
 const navItems: NavItem[] = [
   // Geral
   { id: 'dashboard', name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, tag: 'INÍCIO', gradient: '', group: 'geral' },
-  { id: 'tickets', name: 'Central de Trabalho', href: '/tickets/quadros', icon: <Ticket size={18} />, tag: 'TAREFAS · TICKETS · CRONOGRAMA', gradient: '', group: 'geral' },
+  { id: 'tickets', name: 'Central de Trabalho', href: '/fila', icon: <Ticket size={18} />, tag: 'TAREFAS · TICKETS · CRONOGRAMA', gradient: '', group: 'geral' },
   // Reuniões moram na Central de Trabalho: mesma permissão dela (filtro abaixo).
   { id: 'reunioes', name: 'Reuniões', href: '/reunioes', icon: <CalendarClock size={18} />, tag: 'PAUTA · ATA', gradient: '', group: 'geral' },
   // Agenda da sala física: todo logado reserva (o filtro abaixo libera o id).

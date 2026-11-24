@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Ticket as TicketIcon, GanttChartSquare, X, ListTodo,
-  ArrowRight, Users, Lock, Calendar, BarChart3, Lightbulb, CalendarClock, MapPin, CalendarDays,
+  ArrowRight, Users, Lock, Calendar, BarChart3, Lightbulb, CalendarClock, MapPin, CalendarDays, ListOrdered,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -74,6 +74,8 @@ export default function CentralNav() {
   const naGerencial = pathname === '/tickets'
   const emQuadros = pathname.startsWith('/tickets') && !naGerencial
   const abas = [
+    // Minha fila (24/11/2026): 1ª aba — objetivo do dia/semana, pedidos para aceitar, carga da equipe.
+    { href: '/fila', label: 'Minha fila', icone: <ListOrdered size={15} />, ativo: pathname.startsWith('/fila') },
     { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={15} />, ativo: emQuadros },
     // Agenda coletiva estilo Google (todos por setor + reuniões, sala, prazos, técnicos).
     { href: '/agenda', label: 'Agenda', icone: <CalendarDays size={15} />, ativo: pathname.startsWith('/agenda') },
@@ -118,6 +120,7 @@ export default function CentralNav() {
         <span className="ct-nav-acoes" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12 }}>
           {/* só na aba Quadros (José, 17/11/2026) */}
           {emQuadros && <button onClick={abrirNovoTicket} style={botao('#dc2626')}><TicketIcon size={15} /> Novo ticket</button>}
+          {/* Na Minha fila o pedido é o botão "Pedir para alguém" da própria tela. */}
           <button className="ct-nav-ajuda" onClick={() => setAjuda(true)} title="Como funciona" aria-label="Como funciona a Central de Trabalho"
             style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>?</button>
         </span>
