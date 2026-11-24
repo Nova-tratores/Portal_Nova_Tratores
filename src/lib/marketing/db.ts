@@ -125,9 +125,12 @@ export async function apoiosDaAcao(acaoId: string): Promise<Apoio[]> {
 }
 
 export async function custosDaAcao(acaoId: string): Promise<Custo[]> {
-  return ok<Custo[]>(
+  const custos = ok<Custo[]>(
     await db.from('mkt_custos').select('*').eq('acao_id', acaoId).order('data', { nullsFirst: false }).order('criado_em'),
   );
+  // + quem pediu a requisição (24/11/2026). Import dinâmico: requisicao-custo.ts importa este arquivo.
+  const { comSolicitante } = await import('./requisicao-custo');
+  return comSolicitante(custos as any[]) as Promise<Custo[]>;
 }
 
 export async function leadsDaAcao(acaoId: string): Promise<Lead[]> {

@@ -99,6 +99,8 @@ export default function ImprimirRequisicao() {
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .print-actions { display: none !important; }
         }
+        /* ?embed=1 → folha mostrada dentro da janela de custo do Marketing (24/11/2026): sem a barra de botões */
+        .em-iframe .print-actions { display: none !important; }
       `}} />
 
       <div className="print-actions" style={{ padding: '12px 20px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: 12, alignItems: 'center', fontFamily: 'sans-serif' }}>

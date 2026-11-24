@@ -14,6 +14,7 @@ import { guardar, erroResposta, apenas, num, dataOuNull } from '@/lib/marketing/
 import { db } from '@/lib/marketing/db';
 import { logMarketing, nomeDoUsuario } from '@/lib/marketing/server';
 import { VINCULOS_CUSTO } from '@/lib/marketing/tipos';
+import { comSolicitante } from '@/lib/marketing/requisicao-custo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -63,7 +64,7 @@ export async function GET(req: Request) {
         .from('mkt_custos').select('*').eq('acao_id', acaoId)
         .order('data', { nullsFirst: false }).order('criado_em');
       if (error) throw Object.assign(new Error(error.message), { code: error.code });
-      return NextResponse.json({ itens: data ?? [] });
+      return NextResponse.json({ itens: await comSolicitante(data ?? []) });
     }
 
     // Consolidado de todas as ações (tela Investimento).
@@ -80,7 +81,7 @@ export async function GET(req: Request) {
       for (const a of as ?? []) acoes[a.id] = a;
     }
     const vivos = custos.filter((c: any) => acoes[c.acao_id] && !acoes[c.acao_id].deleted_at);
-    return NextResponse.json({ itens: vivos, acoes });
+    return NextResponse.json({ itens: await comSolicitante(vivos), acoes });
   } catch (e) {
     return erroResposta(e, 'GET /custos');
   }

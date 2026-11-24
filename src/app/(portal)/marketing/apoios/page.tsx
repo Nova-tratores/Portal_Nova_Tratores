@@ -12,12 +12,16 @@
 // =============================================================================
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, UserX } from 'lucide-react';
+import { AlertTriangle, CircleDollarSign, UserX } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { usePermissoes } from '@/hooks/usePermissoes';
 import { STATUS_APOIO, STATUS_RELATORIO, rotulo, cor } from '@/lib/marketing/tipos';
 import type { Apoio } from '@/lib/marketing/tipos';
 import {
-  apiGet, brl, dataBR, diasAte, Painel, Selo, Kpi, Vazio, AvisoMigracao, Erro, estiloInput,
+  apiGet, apiEnviar, brl, dataBR, diasAte, Painel, Selo, Kpi, Vazio, AvisoMigracao, Erro, estiloInput, BotaoRosa, CampoReais,
 } from '@/components/marketing/ui';
+
+const hojeISO = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);   // dia de Brasília
 
 export default function ApoiosPage() {
   const [apoios, setApoios] = useState<Apoio[]>([]);
@@ -28,6 +32,23 @@ export default function ApoiosPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [mostrarTudo, setTudo] = useState(false);
   const [fStatus, setFStatus] = useState('');
+  const { userProfile } = useAuth();
+  const { pode } = usePermissoes(userProfile?.id);
+  const podeEditar = pode('marketing', 'apoios:editar');
+
+  // "Como eu marco que já foi pago?" (24/11/2026) — antes só dava abrindo a campanha → aba Apoio → editar.
+  const [recebendo, setRecebendo] = useState<{ id: string; valor: string; data: string } | null>(null);
+  const [salvandoReceb, setSalvandoReceb] = useState(false);
+  const confirmarRecebido = async () => {
+    if (!recebendo) return;
+    setSalvandoReceb(true); setErro(null);
+    try {
+      await apiEnviar('/api/marketing/apoios', 'PATCH', { id: recebendo.id, valor_recebido: recebendo.valor, credito_em: recebendo.data || null, status: 'recebido' });
+      setRecebendo(null);
+      await carregar();
+    } catch (e: any) { setErro(e?.message || 'Não foi possível marcar como recebido.'); }
+    finally { setSalvandoReceb(false); }
+  };
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -141,7 +162,14 @@ export default function ApoiosPage() {
                     )}
                   </div>
 
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {podeEditar && a.status !== 'recebido' && a.status !== 'recusado' && a.status !== 'cancelado' && recebendo?.id !== a.id && (
+                      <button type="button"
+                        onClick={() => setRecebendo({ id: a.id, valor: String(Number(a.valor_aprovado ?? a.valor_previsto ?? 0) || ''), data: hojeISO() })}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 11px', fontSize: 12.5, fontWeight: 600, borderRadius: 999, border: '1px solid #16a34a', background: 'transparent', color: '#15803d', cursor: 'pointer' }}>
+                        <CircleDollarSign size={14} /> Marcar como recebido
+                      </button>
+                    )}
                     <Selo texto={rotulo(STATUS_APOIO, a.status)} cor={cor(STATUS_APOIO, a.status)} />
                     <Selo
                       texto={`Relatório: ${rotulo(STATUS_RELATORIO, a.relatorio_status)}`}
@@ -149,6 +177,27 @@ export default function ApoiosPage() {
                     />
                   </div>
                 </div>
+
+                {recebendo?.id === a.id && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--portal-border)', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 10 }}>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, color: 'var(--portal-text)' }}>
+                      Quanto entrou (R$)
+                      <CampoReais autoFocus style={{ width: 170 }} value={recebendo.valor}
+                        onChange={(v) => setRecebendo({ ...recebendo, valor: v })} />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, color: 'var(--portal-text)' }}>
+                      Dia que caiu
+                      <input type="date" style={{ ...estiloInput, width: 170 }} value={recebendo.data}
+                        onChange={(e) => setRecebendo({ ...recebendo, data: e.target.value })} />
+                    </label>
+                    <BotaoRosa onClick={confirmarRecebido} disabled={salvandoReceb || !recebendo.valor}>{salvandoReceb ? 'Salvando…' : 'Confirmar'}</BotaoRosa>
+                    <button type="button" onClick={() => setRecebendo(null)}
+                      style={{ padding: '9px 14px', fontSize: 13, borderRadius: 3, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', cursor: 'pointer' }}>Cancelar</button>
+                    <span style={{ flexBasis: '100%', fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>
+                      O apoio passa para “Recebido”. O relatório de contrapartida continua cobrado à parte.
+                    </span>
+                  </div>
+                )}
 
                 {(devendo || semDono || acaoSemDono) && (
                   <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--portal-border)', display: 'flex', flexDirection: 'column', gap: 5 }}>
