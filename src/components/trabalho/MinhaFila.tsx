@@ -115,6 +115,7 @@ export default function MinhaFila() {
   const [decidindo, setDecidindo] = useState<{ id: string; modo: 'data' | 'recusar'; valor: string } | null>(null)
   const [salvando, setSalvando] = useState<string | null>(null)
   const [movendo, setMovendo] = useState(false)
+  const [todosPedidos, setTodosPedidos] = useState(false)
 
   const carregar = useCallback(async () => {
     try {
@@ -341,7 +342,7 @@ export default function MinhaFila() {
               <section className="mf-card mf-anim">
                 <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: '#059669' }}><Send size={16} /></span><h2>Esperando outros</h2><span>o que você pediu · {pedidos.length}</span></div>
                 {pedidos.length === 0 && <div className="mf-vazio">Você não está esperando ninguém.</div>}
-                {pedidos.slice(0, 12).map((p) => {
+                {(todosPedidos ? pedidos : pedidos.slice(0, 12)).map((p) => {
                   const quem = central?.usuarios[p.responsavel_id]?.nome || 'Alguém'
                   const st = STATUS_INFO[p.status as TicketStatus]
                   const atrasado = !!p.prazo && p.prazo < hoje && p.status !== 'resolvido'
@@ -357,7 +358,7 @@ export default function MinhaFila() {
                     </div>
                   )
                 })}
-                {pedidos.length > 12 && <div className="mf-vazio">+ {pedidos.length - 12} em Quadros › Pedidos que fiz.</div>}
+                {pedidos.length > 12 && <button className="mf-btn peq" style={{ margin: '6px 0' }} onClick={() => setTodosPedidos(!todosPedidos)}>{todosPedidos ? 'Mostrar menos' : `Ver todos (${pedidos.length})`}</button>}
               </section>
             </div>
           </div>

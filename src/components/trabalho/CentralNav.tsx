@@ -73,24 +73,34 @@ export default function CentralNav() {
   // /tickets (exato) é só a Visão gerencial; o resto de /tickets* é Quadros.
   const naGerencial = pathname === '/tickets'
   const emQuadros = pathname.startsWith('/tickets') && !naGerencial
+  // 24/11/2026 (Fases 1 e 3 do redesenho): 4 abas em vez de 8. O que era aba vira VISTA
+  // dentro de outra (seletor logo abaixo da barra); os endereços antigos continuam valendo.
+  //   Quadros = Por quadro · Cronograma (calendário, Gantt, kanban) · Visão geral (admin)
+  //   Agenda  = Calendário · Salas
+  const naAgenda = pathname.startsWith('/agenda') || pathname.startsWith('/salas')
+  const naAreaQuadros = pathname.startsWith('/tickets') || pathname.startsWith('/cronograma')
   const abas = [
-    // Minha fila (24/11/2026): 1ª aba — objetivo do dia/semana, pedidos para aceitar, carga da equipe.
+    // Minha fila: objetivo do dia/semana, pedidos para aceitar, carga da equipe.
     { href: '/fila', label: 'Minha fila', icone: <ListOrdered size={15} />, ativo: pathname.startsWith('/fila') },
-    { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={15} />, ativo: emQuadros },
-    // Agenda coletiva estilo Google (todos por setor + reuniões, sala, prazos, técnicos).
-    { href: '/agenda', label: 'Agenda', icone: <CalendarDays size={15} />, ativo: pathname.startsWith('/agenda') },
-    { href: '/cronograma', label: 'Cronograma', icone: <GanttChartSquare size={15} />, ativo: pathname.startsWith('/cronograma') },
-    // Reuniões (pauta + ata sobre a engine de tickets): mesma permissão da Central.
+    // Agenda coletiva (todos por setor + reuniões, prazos, técnicos) com a vista Salas.
+    { href: '/agenda', label: 'Agenda', icone: <CalendarDays size={15} />, ativo: naAgenda },
+    { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={15} />, ativo: naAreaQuadros },
+    // Reuniões (pauta + ata): mesma permissão da Central.
     { href: '/reunioes', label: 'Reuniões', icone: <CalendarClock size={15} />, ativo: pathname.startsWith('/reunioes'), n: reunioesHoje },
-    // Sala de reunião: um dos módulos da Central (José, 04/11/2026), aberta a todo logado.
-    { href: '/salas', label: 'Sala de reunião', icone: <MapPin size={15} />, ativo: pathname.startsWith('/salas') },
-    ...(isAdmin ? [{ href: '/tickets?aba=gerencial', label: 'Visão gerencial', icone: <BarChart3 size={15} />, ativo: naGerencial }] : []),
     // Bloco de notas dos devs (captar → agrupar → planejar vira ticket). Só Dev.
     ...(isDev ? [{ href: '/ideias', label: 'Ideias', icone: <Lightbulb size={15} />, ativo: pathname.startsWith('/ideias') }] : []),
     ...(pendencias > 0 || pathname.startsWith('/tarefas')
       ? [{ href: '/tarefas', label: 'Pendências', icone: <ListTodo size={15} />, ativo: pathname.startsWith('/tarefas'), n: pendencias }]
       : []),
   ]
+  const vistas = naAreaQuadros ? [
+    { href: '/tickets/quadros', label: 'Por quadro', icone: <LayoutGrid size={14} />, ativo: emQuadros },
+    { href: '/cronograma', label: 'Cronograma', icone: <GanttChartSquare size={14} />, ativo: pathname.startsWith('/cronograma') },
+    ...(isAdmin ? [{ href: '/tickets?aba=gerencial', label: 'Visão geral', icone: <BarChart3 size={14} />, ativo: naGerencial }] : []),
+  ] : naAgenda ? [
+    { href: '/agenda', label: 'Calendário', icone: <CalendarDays size={14} />, ativo: pathname.startsWith('/agenda') },
+    { href: '/salas', label: 'Salas', icone: <MapPin size={14} />, ativo: pathname.startsWith('/salas') },
+  ] : []
   // Avisa a página aberta (Quadros/Cronograma) que algo novo foi criado.
   const avisarMudanca = () => window.dispatchEvent(new Event('central-trabalho-mudou'))
   const botao = (cor: string): React.CSSProperties => ({
@@ -106,6 +116,11 @@ export default function CentralNav() {
       <style>{ESTILO_CENTRAL_VN}</style>
       {/* 901–1100 px (Fase 0, 24/11/2026): sem rolar de lado. Aba que não está aberta mostra só o ícone; o nome vem no title. */}
       <style>{`@media (min-width: 901px) and (max-width: 1100px){.ct-aba{padding:9px 10px 10px !important}.ct-aba:not(.on) .ct-aba-txt{display:none}}`}</style>
+      <style>{`.ct-vistas{display:flex;gap:4px;padding:3px;margin-left:10px;border-radius:11px;background:var(--portal-bg-secondary,#f1f5f9);flex:none}
+.ct-vista{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:9px;font-size:13px;font-weight:500;color:var(--portal-text-secondary,#475569);text-decoration:none;white-space:nowrap}
+.ct-vista:hover{color:var(--portal-text,#0f172a)}
+.ct-vista.on{background:var(--portal-surface,#fefefe);color:var(--portal-text,#0f172a);box-shadow:0 1px 3px rgba(15,23,42,.12)}
+@media (max-width:900px){.ct-vistas{order:3;margin:6px 0 4px;overflow-x:auto;max-width:100%}}`}</style>
       <style>{`@media (max-width: 900px){.ct-nav{flex-wrap:wrap;padding:0 12px !important}.ct-nav-abas{flex:1 1 100% !important}.ct-nav-acoes{flex:1 1 100%;margin-left:0 !important;padding:8px 0 10px !important;justify-content:flex-end}.ct-nav-acoes button{min-height:36px}.ct-nav-acoes .ct-nav-ajuda{width:36px !important;height:36px !important}}`}</style>
       <nav aria-label="Central de Trabalho" className="ct-nav" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 16px', borderBottom: '1px solid var(--portal-border,#eee)', background: 'var(--portal-surface,#fff)' }}>
         <div className="ct-nav-abas" style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 0, overflowX: 'auto' }}>
@@ -117,6 +132,16 @@ export default function CentralNav() {
           </Link>
         ))}
         </div>
+        {vistas.length > 1 && (
+          // Vistas da aba aberta (24/11/2026): no lugar das abas que repetiam calendário e kanban.
+          <div className="ct-vistas" role="group" aria-label="Vistas">
+            {vistas.map((v) => (
+              <Link key={v.label} href={v.href} className={`ct-vista${v.ativo ? ' on' : ''}`} aria-current={v.ativo ? 'page' : undefined}>
+                {v.icone} {v.label}
+              </Link>
+            ))}
+          </div>
+        )}
         <span className="ct-nav-acoes" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12 }}>
           {/* só na aba Quadros (José, 17/11/2026) */}
           {emQuadros && <button onClick={abrirNovoTicket} style={botao('#dc2626')}><TicketIcon size={15} /> Novo ticket</button>}

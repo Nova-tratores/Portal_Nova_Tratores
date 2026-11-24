@@ -29,6 +29,9 @@ interface Central {
   passos: Record<string, { feitas: number; total: number }>
 }
 
+/** true = volta "Pra organizar" e "Pedidos que fiz" nesta tela (desde 24/11/2026 ficam na Minha fila). */
+const SECOES_ANTIGAS = false
+
 const hojeISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
 const br = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
 
@@ -145,7 +148,7 @@ export default function QuadrosPage() {
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={12} /> {pessoas.length} {pessoas.length === 1 ? 'pessoa' : 'pessoas'}</span>
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
-            {r.proximo ? <><Clock size={12} /> próximo {br(r.proximo)}</> : q.tickets_abertos === 0 ? 'vazio' : 'sem data'}
+            {r.proximo ? <><Clock size={12} /> próximo prazo {br(r.proximo)}</> : q.tickets_abertos === 0 ? 'vazio' : 'nenhum prazo'}
           </span>
         </div>
       </button>
@@ -158,7 +161,7 @@ export default function QuadrosPage() {
       <a href="/fila" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16, padding: '12px 16px', borderRadius: 12, textDecoration: 'none',
         background: 'rgba(37,99,235,.08)', border: '1px solid rgba(37,99,235,.3)', color: 'var(--portal-text,#111)', fontSize: 14 }}>
         <b style={{ color: '#1d4ed8' }}>Novo: Minha fila</b>
-        <span style={{ flex: '1 1 260px' }}>o que fazer hoje e na semana, os pedidos que chegaram e a carga da equipe ficam num lugar só.</span>
+        <span style={{ flex: '1 1 260px' }}>o que fazer hoje e na semana, os pedidos que chegaram, o que você pediu e a carga da equipe. Aqui ficam só os quadros.</span>
         <span style={{ fontWeight: 700, color: '#1d4ed8' }}>Abrir minha fila →</span>
       </a>
       {aviso && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600, marginTop: 12 }}>{aviso}</div>}
@@ -174,8 +177,8 @@ export default function QuadrosPage() {
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando...</div>
       ) : (
         <>
-          {/* 1) Pra organizar */}
-          {central && central.praOrganizar.length > 0 && (
+          {/* 1) Pra organizar — desligado em 24/11/2026: com o quadro automático, pedido novo chega na Minha fila */}
+          {SECOES_ANTIGAS && central && central.praOrganizar.length > 0 && (
             <>
               {secao(<Inbox size={17} color="#dc2626" />, 'Pra organizar', contador(central.praOrganizar.length, true))}
               <div style={{ display: 'grid', gap: 8 }}>
@@ -243,8 +246,8 @@ export default function QuadrosPage() {
             </details>
           )}
 
-          {/* 3) Pedidos que fiz */}
-          {central && (
+          {/* 3) Pedidos que fiz — desligado em 24/11/2026: agora é o "Esperando outros" da Minha fila */}
+          {SECOES_ANTIGAS && central && (
             <>
               {secao(<Send size={17} color="#dc2626" />, 'Pedidos que fiz', contador(central.pedidos.length), 'pedidos')}
               {central.pedidos.length === 0 ? (
