@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { TIPOS_ACAO, STATUS_ACAO, EMPRESAS, ehEventoInterno } from '@/lib/marketing/tipos';
 import type { Acao } from '@/lib/marketing/tipos';
-import { Campo, estiloInput, BotaoRosa, ROSA } from './ui';
+import { Campo, estiloInput, BotaoRosa, ROSA, MaisDetalhes } from './ui';
 import EnviarFoto from './redes/EnviarFoto';
 
 interface Usuario { id: string; nome: string; email: string | null; ativo: boolean | null }
@@ -162,7 +162,8 @@ export default function AcaoForm({
             }}
           >
             <option value="">— escolher —</option>
-            {usuarios.map((u) => (
+            {/* 24/11/2026: só quem está ativo; o inativo só aparece se já for o responsável gravado */}
+            {usuarios.filter((u) => u.ativo !== false || u.id === f.responsavel_id).map((u) => (
               <option key={u.id} value={u.id}>
                 {u.nome}{u.ativo === false ? ' (inativo)' : ''}
               </option>
@@ -188,25 +189,6 @@ export default function AcaoForm({
           </Campo>
         </div>
       )}
-
-      {/* Dois públicos diferentes, e confundir os dois enganava o relatório. */}
-      {!interno && <>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-        <Campo label="Visitantes no nosso stand (por dia)" ajuda="Estimativa de quem passou no estande.">
-          <input type="number" min={0} style={estiloInput} value={f.publico_estimado ?? ''} onChange={(e) => set('publico_estimado', e.target.value)} />
-        </Campo>
-        <Campo label="Público total do evento" ajuda="O número que o organizador divulgou.">
-          <input type="number" min={0} style={estiloInput} value={f.publico_total_evento ?? ''} onChange={(e) => set('publico_total_evento', e.target.value)} />
-        </Campo>
-        <Campo label="Dias de participação">
-          <input type="number" min={0} style={estiloInput} value={f.dias_participacao ?? ''} onChange={(e) => set('dias_participacao', e.target.value)} />
-        </Campo>
-      </div>
-
-      <Campo label="Stand" ajuda="Tamanho, localização, e se era próprio ou dentro do espaço da fábrica." largura="1 1 100%">
-        <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f.stand_descricao ?? ''} onChange={(e) => set('stand_descricao', e.target.value)} />
-      </Campo>
-      </>}
 
       {/* Projeto do Omie — a ponte com o financeiro */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
@@ -257,6 +239,32 @@ export default function AcaoForm({
         <Campo label="Orçamento previsto (R$)">
           <input type="number" step="0.01" min={0} style={estiloInput} value={f.orcamento_previsto ?? ''} onChange={(e) => set('orcamento_previsto', e.target.value)} />
         </Campo>
+      </div>}
+
+      {/* 24/11/2026 (José: "tem informações que a gente não tem como saber agora"): os números da feira e as
+          metas ficam num bloco fechado. Abre sozinho quando já tem algo preenchido (ao editar depois do evento). */}
+      {!interno && <MaisDetalhes
+        titulo="Números da feira e metas"
+        resumo="pode preencher depois"
+        abertoInicial={['publico_estimado', 'publico_total_evento', 'dias_participacao', 'stand_descricao', 'meta_leads', 'leads_declarados', 'meta_vendas', 'meta_receita']
+          .some((k) => f[k] !== '' && f[k] !== null && f[k] !== undefined)}
+      >
+      {/* Dois públicos diferentes, e confundir os dois enganava o relatório. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+        <Campo label="Visitantes no nosso stand (por dia)" ajuda="Estimativa de quem passou no estande.">
+          <input type="number" min={0} style={estiloInput} value={f.publico_estimado ?? ''} onChange={(e) => set('publico_estimado', e.target.value)} />
+        </Campo>
+        <Campo label="Público total do evento" ajuda="O número que o organizador divulgou.">
+          <input type="number" min={0} style={estiloInput} value={f.publico_total_evento ?? ''} onChange={(e) => set('publico_total_evento', e.target.value)} />
+        </Campo>
+        <Campo label="Dias de participação">
+          <input type="number" min={0} style={estiloInput} value={f.dias_participacao ?? ''} onChange={(e) => set('dias_participacao', e.target.value)} />
+        </Campo>
+      </div>
+      <Campo label="Stand" ajuda="Tamanho, localização, e se era próprio ou dentro do espaço da fábrica." largura="1 1 100%">
+        <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f.stand_descricao ?? ''} onChange={(e) => set('stand_descricao', e.target.value)} />
+      </Campo>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <Campo label="Meta de leads">
           <input type="number" min={0} style={estiloInput} value={f.meta_leads ?? ''} onChange={(e) => set('meta_leads', e.target.value)} />
         </Campo>
@@ -272,7 +280,8 @@ export default function AcaoForm({
         <Campo label="Meta de receita (R$)">
           <input type="number" step="0.01" min={0} style={estiloInput} value={f.meta_receita ?? ''} onChange={(e) => set('meta_receita', e.target.value)} />
         </Campo>
-      </div>}
+      </div>
+      </MaisDetalhes>}
 
       <Campo label="Objetivo" largura="1 1 100%">
         <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f.objetivo ?? ''} onChange={(e) => set('objetivo', e.target.value)} />

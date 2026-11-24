@@ -44,6 +44,8 @@ export const PAGINAS_MARKETING: PaginaMkt[] = [
   { key: 'marketing:apoios',     label: 'Apoio Fábrica',       href: '/marketing/apoios',     grupo: 'Eventos' },
   { key: 'marketing:custos',     label: 'Investimento',        href: '/marketing/custos',     grupo: 'Eventos' },
   { key: 'marketing:leads',      label: 'Leads',               href: '/marketing/leads',      grupo: 'Eventos' },
+  // 24/11/2026: consórcio Mahindra no evento (Supersafra) — página do QR code, inscritos e sorteio no telão
+  { key: 'marketing:consorcio',  label: 'Consórcio',           href: '/marketing/consorcio',  grupo: 'Eventos' },
   { key: 'marketing:resultados', label: 'Resultados',          href: '/marketing/resultados', grupo: 'Eventos' },
 ];
 

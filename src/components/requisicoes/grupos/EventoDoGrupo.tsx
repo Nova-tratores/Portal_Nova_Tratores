@@ -10,7 +10,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import { TIPOS_ACAO } from '@/lib/marketing/tipos';
 
 export type EscolhaEvento = { modo: 'nao' } | { modo: 'existente'; acao_id: string } | { modo: 'novo'; tipo: string; data_inicio: string };
-type AcaoAberta = { id: string; nome: string; tipo: string; data_inicio: string | null };
+type AcaoAberta = { id: string; nome: string; tipo: string; data_inicio: string | null; tem_grupo?: boolean };
 
 /** Liga o grupo recém-criado ao evento escolhido. Devolve um aviso (texto) se não deu certo, ou null. */
 export async function ligarGrupoAoEvento(grupoId: number, nomeGrupo: string, e: EscolhaEvento): Promise<string | null> {
@@ -60,7 +60,7 @@ export default function EventoDoGrupo({ valor, onChange }: { valor: EscolhaEvent
           className="h-11 px-3 rounded-lg border border-zinc-300 bg-white text-[15px] outline-none focus:border-pink-400">
           <option value="">{acoes === null ? 'Carregando…' : acoes.length ? '— escolher o evento —' : 'Nenhum evento aberto'}</option>
           {(acoes || []).map((a) => (
-            <option key={a.id} value={a.id}>{a.nome} · {TIPOS_ACAO.find((t) => t.id === a.tipo)?.label || a.tipo}{a.data_inicio ? ` · ${a.data_inicio.split('-').reverse().join('/')}` : ''}</option>
+            <option key={a.id} value={a.id}>{a.nome} · {TIPOS_ACAO.find((t) => t.id === a.tipo)?.label || a.tipo}{a.data_inicio ? ` · ${a.data_inicio.split('-').reverse().join('/')}` : ''}{a.tem_grupo ? ' · já tem grupo' : ''}</option>
           ))}
         </select>
       )}

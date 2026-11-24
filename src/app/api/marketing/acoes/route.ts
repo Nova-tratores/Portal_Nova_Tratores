@@ -6,6 +6,7 @@ import { guardar, erroResposta, apenas, num, dataOuNull } from '@/lib/marketing/
 import { db, listarAcoes, lerOuVazio, idsInativos, roletasDas } from '@/lib/marketing/db';
 import { logMarketing, nomeDoUsuario } from '@/lib/marketing/server';
 import { exigeResponsavel, type Acao } from '@/lib/marketing/tipos';
+import { grupoDaCampanha } from '@/lib/marketing/grupo-da-campanha';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -138,7 +139,13 @@ export async function POST(req: Request) {
       detalhes: { tipo: data.tipo, empresa: data.empresa },
     });
 
-    return NextResponse.json({ acao: data });
+    // 24/11/2026: a campanha já nasce com o grupo em Requisições. Se falhar, a campanha fica e vai um aviso
+    // (na ficha há o botão "Criar grupo de requisições" para tentar de novo).
+    let grupo = null, avisoGrupo: string | undefined;
+    try { grupo = (await grupoDaCampanha({ id: data.id, nome: data.nome }, autor)).grupo; }
+    catch (eg: any) { avisoGrupo = `A campanha foi criada, mas o grupo em Requisições não: ${eg?.message || eg}`; }
+
+    return NextResponse.json({ acao: data, grupo, aviso: avisoGrupo });
   } catch (e) {
     return erroResposta(e, 'POST /acoes');
   }
