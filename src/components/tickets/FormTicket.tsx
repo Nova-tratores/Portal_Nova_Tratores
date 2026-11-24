@@ -187,7 +187,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 18 }}>
           <h2 style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', minWidth: 0, gap: 8, fontSize: 17, fontWeight: 800, color: 'var(--portal-text, #111)', margin: 0 }}>
-            <TicketIcon size={18} color="#dc2626" /> Novo Ticket
+            <TicketIcon size={18} color="#dc2626" /> Pedir para alguém
             {quadro && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted, #888)' }}><LayoutGrid size={13} /> {quadro.nome}</span>}
           </h2>
           <button onClick={onFechar} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted, #888)', flex: 'none', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
@@ -253,7 +253,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
               </div>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: 'pointer', color: indeterminado ? '#0369a1' : 'var(--portal-text-secondary, #555)' }}>
                 <input type="checkbox" checked={indeterminado} onChange={(e) => setIndeterminado(e.target.checked)} style={{ marginTop: 2 }} />
-                <span><strong>Prazo indeterminado</strong> — trabalho contínuo: aparece todo dia útil (seg a sex) no Cronograma até alguém concluir.</span>
+                <span><strong>Prazo indeterminado</strong> — pedido contínuo: aparece todo dia útil (seg a sex) no Cronograma até alguém concluir.</span>
               </label>
               {!indeterminado && prazo && inicio && prazo < inicio && (
                 <div style={{ fontSize: 12.5, fontWeight: 600, color: '#dc2626' }}>

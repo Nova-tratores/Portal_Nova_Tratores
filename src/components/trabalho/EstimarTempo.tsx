@@ -95,7 +95,7 @@ export default function EstimarTempo({ ticketId, pedido, titulo, aceitar, onFech
           {d.comeca && (
             <div style={{ fontSize: 13, color: 'var(--portal-text-secondary,#475569)', marginBottom: 6 }}>
               {d.naFrente > 0
-                ? <>Entra no fim da fila{modoPedido ? ' dessa pessoa' : ''}: começa em <b style={{ fontWeight: 500 }}>{br(d.comeca)}</b>, depois de {d.naFrente} {d.naFrente === 1 ? 'trabalho' : 'trabalhos'}.</>
+                ? <>Entra no fim da fila{modoPedido ? ' dessa pessoa' : ''}: começa em <b style={{ fontWeight: 500 }}>{br(d.comeca)}</b>, depois de {d.naFrente} {d.naFrente === 1 ? 'pedido' : 'pedidos'}.</>
                 : <>Fila livre: começa em <b style={{ fontWeight: 500 }}>{br(d.comeca)}</b>.</>}
             </div>
           )}
@@ -104,7 +104,7 @@ export default function EstimarTempo({ ticketId, pedido, titulo, aceitar, onFech
                 <Sparkles size={14} color={COR.acao} /> Sugestão: <span style={{ color: COR.acao }}>{d.tamanhos.find((t) => t.id === d.sugestao!.tamanho.id)?.rotulo} · {nf(d.sugestao.horas)} h</span> — {d.sugestao.motivo}
               </div>
             : <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#64748b)', marginBottom: 8 }}>Ainda não tenho histórico para sugerir. Escolha pelo tamanho; com o tempo, eu aprendo.</div>}
-          <div role="radiogroup" aria-label="Tamanho do trabalho" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(118px,100%),1fr))', gap: 8 }}>
+          <div role="radiogroup" aria-label="Tamanho do pedido" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(118px,100%),1fr))', gap: 8 }}>
             {d.tamanhos.map((t) => {
               const on = !manual.trim() && horas === t.horas
               const sug = d.sugestao?.tamanho.id === t.id
@@ -127,7 +127,7 @@ export default function EstimarTempo({ ticketId, pedido, titulo, aceitar, onFech
             </label>
             <span style={{ flex: 1, fontSize: 13, color: 'var(--portal-text-secondary,#475569)' }}>
               {valido && !manual.trim() && terminaDe(total) && <>Previsão: termina <b style={{ fontWeight: 500, color: COR.acao }}>{br(terminaDe(total))}</b></>}
-              {valido && manual.trim() && <>{nf(total!)} h = {planoDeHoras(total!, d.capacidade).dias} dia(s) de trabalho</>}
+              {valido && manual.trim() && <>{nf(total!)} h = {planoDeHoras(total!, d.capacidade).dias} dia(s) na fila</>}
             </span>
             {!modoPedido && (
               <button type="button" className="mf-btn peq cheio" style={{ ['--c' as string]: COR.acao }} disabled={!valido || salvando} onClick={salvar}>

@@ -252,7 +252,7 @@ export default function QuadrosPage() {
               {secao(<Send size={17} color="#dc2626" />, 'Pedidos que fiz', contador(central.pedidos.length), 'pedidos')}
               {central.pedidos.length === 0 ? (
                 <div style={{ padding: '18px 16px', borderRadius: 12, border: '1px dashed var(--portal-border,#ddd)', fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>
-                  Nada pedido em aberto. Use <b>Novo ticket</b> lá em cima para pedir algo a alguém.
+                  Nada pedido em aberto. Use <b>Pedir para alguém</b> na Minha fila.
                 </div>
               ) : (
                 <div style={{ display: 'grid', gap: 8 }}>

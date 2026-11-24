@@ -97,7 +97,7 @@ export default function CentralNav() {
   const naFila = pathname.startsWith('/fila') || naAreaQuadros
   const vistas = naFila ? [
     { href: '/fila', label: 'Minha fila', icone: <ListOrdered size={14} />, ativo: pathname.startsWith('/fila') },
-    { href: '/cronograma', label: 'Todos os trabalhos', icone: <GanttChartSquare size={14} />, ativo: pathname.startsWith('/cronograma') },
+    { href: '/cronograma', label: 'Todos os pedidos', icone: <GanttChartSquare size={14} />, ativo: pathname.startsWith('/cronograma') },
     ...(isAdmin ? [{ href: '/tickets?aba=gerencial', label: 'Visão geral', icone: <BarChart3 size={14} />, ativo: naGerencial }] : []),
   ] : naAgenda ? [
     { href: '/agenda', label: 'Calendário', icone: <CalendarDays size={14} />, ativo: pathname.startsWith('/agenda') },
@@ -146,7 +146,7 @@ export default function CentralNav() {
         )}
         <span className="ct-nav-acoes" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12 }}>
           {/* só na aba Quadros (José, 17/11/2026) */}
-          {emQuadros && <button onClick={abrirNovoTicket} style={botao('#dc2626')}><TicketIcon size={15} /> Novo ticket</button>}
+          {emQuadros && <button onClick={abrirNovoTicket} style={botao('#dc2626')}><TicketIcon size={15} /> Novo pedido</button>}
           {/* Na Minha fila o pedido é o botão "Pedir para alguém" da própria tela. */}
           <button className="ct-nav-ajuda" onClick={() => setAjuda(true)} title="Como funciona" aria-label="Como funciona a Central de Trabalho"
             style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>?</button>
@@ -207,7 +207,7 @@ function ComoFunciona({ onFechar }: { onFechar: () => void }) {
   })
   const seta: React.CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text-muted,#888)', textAlign: 'center', flex: 'none' }
   const passos = [
-    ['1. Peça', 'Novo ticket: o que precisa, para quem e até quando. Quem pediu acompanha o dia e a situação até o fim.'],
+    ['1. Peça', 'Novo pedido: o que precisa, para quem e até quando. Quem pediu acompanha o dia e a situação até o fim.'],
     ['2. Quem recebe organiza', 'Confirma (ou propõe outra data / recusa) e escolhe em qual QUADRO o ticket vai e se fica privado ou compartilhado com o quadro.'],
     ['3. Quadros', 'Cada pessoa tem os seus quadros, por assunto, cada um de uma cor. Dá pra convidar colegas para um quadro.'],
     ['4. Checklist e Ações', 'Dentro do ticket, o checklist são os passos pequenos, com quem faz e prazo. Na reunião, o que fica combinado vira Ação, que é um ticket.'],

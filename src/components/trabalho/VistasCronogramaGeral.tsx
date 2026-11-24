@@ -224,7 +224,7 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas, usuarios }: P
           </label>
         )}
         <small style={{ marginLeft: 'auto', color: muted }}>
-          Ticket em todos os dias do trabalho · atrasado fica em hoje (vermelho){verContinuos ? ' · ∞ sem prazo aparece todo dia até concluir' : ''} · arraste para mudar.
+          Pedido em cada dia previsto · atrasado fica em hoje (vermelho){verContinuos ? ' · ∞ sem prazo aparece todo dia até concluir' : ''} · arraste para mudar.
         </small>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(110px, 1fr))', minWidth: 780 }}>

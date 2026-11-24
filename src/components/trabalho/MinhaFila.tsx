@@ -206,7 +206,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
           <span title="Quem pediu">{i.pedidoPor ? primeiro(i.pedidoPor) : 'você'}</span>
           {i.quadro && <span style={{ ['--c' as string]: i.quadro.cor }}><i className="mf-dot" /> {i.quadro.nome}</span>}
           {i.continuo ? <span>na rotina</span> : (
-            <button className="mf-link" title={i.semEstimativa ? 'Ninguém disse quanto tempo leva. Clique para escolher (o sistema sugere).' : 'Mudar o tempo deste trabalho'}
+            <button className="mf-link" title={i.semEstimativa ? 'Ninguém disse quanto tempo leva. Clique para escolher (o sistema sugere).' : 'Mudar o tempo deste pedido'}
               onClick={() => setEstimando(estimando?.id === i.id ? null : { id: i.id, titulo: i.titulo })}>
               {i.semEstimativa ? <span style={{ color: COR.atencao }}>~{nf(i.horas)} h</span> : `${nf(i.horas)} h`}
             </button>
@@ -301,13 +301,13 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
             )
             const avisoSemTempo = semTempo.length > 0 && (
               <div className="mf-aviso">
-                <span style={{ flex: 1 }}><b style={{ fontWeight: 500 }}>{semTempo.length} {semTempo.length === 1 ? 'trabalho está' : 'trabalhos estão'} sem tempo estimado.</b> A previsão usa um dia inteiro para cada um.</span>
+                <span style={{ flex: 1 }}><b style={{ fontWeight: 500 }}>{semTempo.length} {semTempo.length === 1 ? 'pedido está' : 'pedidos estão'} sem tempo estimado.</b> A previsão usa um dia inteiro para cada um.</span>
                 <button className="mf-btn peq" onClick={() => setEstimando({ id: semTempo[0].id, titulo: semTempo[0].titulo })}>Estimar agora</button>
               </div>
             )
             const numeros = f && (
               <div className="mf-kpis">
-                {kpi(null, COR.info, <Sun size={18} />, `${nf(horasHoje)} de 4,5 h`, `ocupadas hoje · ${itensHoje} ${itensHoje === 1 ? 'trabalho' : 'trabalhos'}`)}
+                {kpi(null, COR.info, <Sun size={18} />, `${nf(horasHoje)} de 4,5 h`, `ocupadas hoje · ${itensHoje} ${itensHoje === 1 ? 'pedido' : 'pedidos'}`)}
                 {kpi('atrasados', COR.ruim, <AlarmClock size={18} />, f.atrasados, f.atrasados ? 'atrasados · clique para ver só eles' : 'nada atrasado')}
                 {kpi(null, COR.info, <Layers size={18} />, f.livreEm ? br(f.livreEm) : 'livre', `fila ocupada até · ${f.total} ${f.total === 1 ? 'item' : 'itens'}`)}
               </div>

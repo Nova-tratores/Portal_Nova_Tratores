@@ -23,9 +23,9 @@ export default function PlanoSemana({ fila, capacidade = 4.5, reunioesHoje = 0, 
   const plano = (fila.plano || []).slice(0, dias)
 
   return (
-    <section className="mf-card mf-anim" aria-label="Plano de trabalho">
+    <section className="mf-card mf-anim" aria-label="Plano da semana">
       <div className="mf-cab" style={{ flexWrap: 'wrap' }}>
-        <h2>Plano de trabalho</h2>
+        <h2>Plano da semana</h2>
         <span>cada dia tem {nf(capacidade)} h para a fila{reunioesHoje ? ` · hoje ${reunioesHoje} reunião(ões)` : ''}</span>
         <span style={{ flex: 1 }} />
         <span style={{ display: 'flex', gap: 4, padding: 3, borderRadius: 11, background: 'var(--portal-bg-secondary,#f1f5f9)' }}>

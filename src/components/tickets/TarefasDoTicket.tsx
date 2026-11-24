@@ -86,7 +86,7 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <b style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, color: 'var(--portal-text,#111)' }}><SquareCheck size={16} color={VERDE} /> Checklist</b>
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>
-          {passos === null ? '' : lista.length ? `${feitas} de ${lista.length} feitas` : 'quebre o trabalho em passos'}
+          {passos === null ? '' : lista.length ? `${feitas} de ${lista.length} feitas` : 'quebre o pedido em passos'}
         </span>
       </div>
       {lista.length > 0 && (

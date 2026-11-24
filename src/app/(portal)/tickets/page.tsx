@@ -309,7 +309,7 @@ function TicketsPageInner() {
             display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8,
             border: 'none', background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
           }}>
-          <Plus size={16} /> Novo Ticket
+          <Plus size={16} /> Novo pedido
         </button>
       </div>
 

@@ -227,7 +227,7 @@ export default function KanbanQuadro({
               {podeTrabalhar && (
                 <button onClick={() => onNovoTicket(col.id)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>
-                  <Plus size={14} /> Novo ticket aqui
+                  <Plus size={14} /> Novo pedido aqui
                 </button>
               )}
             </div>

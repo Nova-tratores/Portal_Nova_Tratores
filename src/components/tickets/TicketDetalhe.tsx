@@ -768,7 +768,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                   setEditTitulo(ticket.titulo); setEditInicio(plano.inicio || '')
                   setEditDias(plano.dias ? String(plano.dias) : ''); setEditHoras(plano.horas_dia ? String(plano.horas_dia) : '')
                   setEditando(true)
-                }} style={botaoMini} title="Editar título, datas, tempo de trabalho, categoria e terceiro">
+                }} style={botaoMini} title="Editar título, datas, tempo, categoria e terceiro">
                   <PenLine size={12} /> Editar
                 </button>
               )}
@@ -795,7 +795,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                     <span style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
                       <Clock size={13} style={{ opacity: .6 }} />
                       {total
-                        ? <span>{String(total).replace('.', ',')} h de trabalho{total > 4.5 ? ` · uns ${Math.ceil(total / 4.5)} dias` : ''}</span>
+                        ? <span>Leva {String(total).replace('.', ',')} h{total > 4.5 ? ` · uns ${Math.ceil(total / 4.5)} dias` : ''}</span>
                         : <span style={{ color: '#b45309' }}>Sem tempo estimado</span>}
                       {podeEditar && <button onClick={() => setEstimarTempo((v) => !v)} style={botaoMini}>{total ? 'mudar' : 'Estimar'}</button>}
                     </span>
@@ -826,7 +826,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                 <SeletorDataAgenda diasUteis rotulo="Prazo (vazio = contínuo)" value={editPrazo} onChange={setEditPrazo}
                   userId={ticket.responsavel_id} min={editInicio || undefined} permitirVazio textoVazio="Contínuo (sem prazo)" ignorar={ticket.titulo} />
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <label style={{ ...rotuloCampo, flex: 1 }}>Dias de trabalho
+                  <label style={{ ...rotuloCampo, flex: 1 }}>Quantos dias leva
                     <input type="number" min={1} max={120} value={editDias} onChange={(e) => setEditDias(e.target.value)} placeholder="—" style={campoEdit} />
                   </label>
                   <label style={{ ...rotuloCampo, flex: 1 }}>Horas por dia
@@ -931,7 +931,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                 )}
                 {verAgenda && (
                   <a href={`/cronograma?fila=${ticket.responsavel_id}`} style={{ ...botaoMini, textDecoration: 'none' }}
-                    title="Ver a fila de trabalho dessa pessoa e a previsão do seu pedido">
+                    title="Ver a fila dessa pessoa e a previsão do seu pedido">
                     <CalendarDays size={12} /> Agenda de {nome(ticket.responsavel_id).split(' ')[0]}
                   </a>
                 )}

@@ -160,7 +160,7 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
         <div style={fundo} role="dialog" aria-modal="true" aria-labelledby="aceite-t">
           <div style={caixa}>
             <div style={topo}>
-              <div style={{ fontSize: 12, opacity: .9 }}>Novo ticket para você{h.pendentes.length > 1 ? ` · 1 de ${h.pendentes.length}` : ''}</div>
+              <div style={{ fontSize: 12, opacity: .9 }}>Novo pedido para você{h.pendentes.length > 1 ? ` · 1 de ${h.pendentes.length}` : ''}</div>
               <div id="aceite-t" style={{ fontSize: 19, fontWeight: 800 }}>{pend.solicitante_nome} criou um ticket para você</div>
               <div style={{ fontSize: 13, opacity: .95 }}>Confirme se consegue fazer.</div>
             </div>
@@ -249,7 +249,7 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
                 { ic: <Inbox size={16} />, txt: 'Para confirmar', n: h.pendentes.length, destaque: h.pendentes.length > 0, acao: () => carregar() },
                 { ic: <Sun size={16} />, txt: 'Meu dia', n: h.itens.length, acao: () => setVerDia(true) },
                 { ic: <Send size={16} />, txt: 'Meus pedidos', n: h.pedidos, acao: () => router.push('/tickets/quadros#pedidos') },
-                { ic: <Plus size={16} />, txt: 'Novo ticket', acao: () => setNovo(true) },
+                { ic: <Plus size={16} />, txt: 'Novo pedido', acao: () => setNovo(true) },
                 { ic: <ArrowUpRight size={16} />, txt: 'Abrir minha fila', acao: () => router.push('/fila') },
               ].map((o) => (
                 <button key={o.txt} onClick={() => { setMenu(false); o.acao() }}

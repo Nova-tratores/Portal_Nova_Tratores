@@ -157,7 +157,7 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
           <b style={{ fontSize: 14, color: 'var(--portal-text,#111)' }}>Minha fila</b>
         )}
         <span style={{ fontSize: 13, color: muted }}>
-          {fila.length} ticket{fila.length === 1 ? '' : 's'} · {Math.round(totalHoras)} h de trabalho
+          {fila.length} {fila.length === 1 ? 'pedido' : 'pedidos'} · {Math.round(totalHoras)} h
           {livreEm && <> · termina o que tem prazo em <b>{br(livreEm)}</b></>}
           {nContinuos > 0 && <> · {nContinuos} contínuo{nContinuos > 1 ? 's' : ''} na rotina</>}
         </span>
@@ -240,7 +240,7 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
                 {i.continuo ? (
                   <span title="Prazo indeterminado: fica na reserva de rotina, não ocupa a fila" style={{ width: 92, fontSize: 12, fontWeight: 700, color: '#0369a1' }}>∞ na rotina</span>
                 ) : (
-                <label title="Dias de trabalho" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: muted }}>
+                <label title="Quantos dias leva" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: muted }}>
                   <input type="number" min={1} max={120} defaultValue={i.dias} disabled={!dados.podeOrdenar && (t.oculto || t.solicitante_id !== dados.eu)} key={`d${i.id}${i.dias}`} style={campo}
                     onBlur={(e) => { const v = Number(e.target.value); if (v && v !== i.dias) editar(i.id, 'dias', v) }} /> dia{i.dias > 1 ? 's' : ''}
                 </label>
