@@ -187,3 +187,12 @@ export async function colocarNoFimDaFila(userId: string, ticketId: string): Prom
   await supabaseAdmin.from('tickets_plano')
     .upsert(ordem.map((ticket_id, posicao) => ({ user_id: userId, ticket_id, posicao, updated_at: agora })), { onConflict: 'user_id,ticket_id' })
 }
+
+/** "Fazer agora" (Faxina, melhorias 1.2): o pedido vai para o TOPO da fila de quem faz (depois dos urgentes). */
+export async function colocarNoTopoDaFila(userId: string, ticketId: string): Promise<void> {
+  const { itens } = await filaAtual(userId, ticketId)
+  const agora = new Date().toISOString()
+  const ordem = [ticketId, ...itens.map((i) => i.id)]
+  await supabaseAdmin.from('tickets_plano')
+    .upsert(ordem.map((ticket_id, posicao) => ({ user_id: userId, ticket_id, posicao, updated_at: agora })), { onConflict: 'user_id,ticket_id' })
+}

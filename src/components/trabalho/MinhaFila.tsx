@@ -63,6 +63,8 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
   const [salvando, setSalvando] = useState<string | null>(null)
   const [movendo, setMovendo] = useState(false)
   const [todosPedidos, setTodosPedidos] = useState(false)
+  // Faxina dos parados (melhorias 1.2): quantos pedidos meus estão parados/vencidos.
+  const [parados, setParados] = useState(0)
   const [agora, setAgora] = useState<Agora | null>(null)
   // Estimar o tempo de um item (ou aceitar um pedido já dizendo quanto leva).
   const [estimando, setEstimando] = useState<{ id: string; titulo: string; aceitar?: boolean } | null>(null)
@@ -71,16 +73,18 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
   const carregar = useCallback(async () => {
     try {
       const hd = await authHeaders()
-      const [r, rc, ra] = await Promise.all([
+      const [r, rc, ra, rf] = await Promise.all([
         fetch('/api/trabalho/hoje', { headers: hd, cache: 'no-store' }),
         fetch('/api/trabalho/central', { headers: hd, cache: 'no-store' }),
         fetch('/api/trabalho/agora', { headers: hd, cache: 'no-store' }),
+        fetch('/api/trabalho/faxina?contar=1', { headers: hd, cache: 'no-store' }),
       ])
       const j = await r.json()
       if (!r.ok) { setErro(j.error || 'Falha ao carregar a fila'); return }
       setH(j); setErro('')
       if (rc.ok) setCentral(await rc.json())
       if (ra.ok) setAgora(await ra.json())
+      if (rf.ok) setParados(((await rf.json()) as { n?: number }).n || 0)
     } catch { setErro('Falha de conexão') }
   }, [])
   const carregarEquipe = useCallback(async () => {
@@ -255,6 +259,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
           <span className="ic"><Users size={15} /></span> Equipe
         </button>
         <span style={{ flex: 1 }} />
+        {parados > 0 && <a className="mf-btn" href="/fila/faxina" title="Pedidos parados há 30+ dias ou vencidos há 15+">Faxina <span className="mf-pill" style={{ ['--c' as string]: COR.atencao }}>{parados}</span></a>}
         <button className="mf-btn" onClick={() => setAjuda((a) => !a)} aria-expanded={ajuda}><HelpCircle size={16} /> Como ler esta tela</button>
         <button className="mf-btn cheio" style={{ ['--c' as string]: COR.acao }} onClick={() => setPedirPara(null)}><Send size={15} /> Pedir para alguém</button>
       </div>
@@ -287,6 +292,13 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
             const itensHoje = planoHoje.length
             const semTempo = comData.filter((x) => x.semEstimativa)
             // Um aviso só para "sem tempo" (antes era uma etiqueta amarela em cada linha).
+            const segunda = new Date(hoje + 'T12:00:00Z').getUTCDay() === 1
+            const conviteFaxina = parados > 0 && (segunda || parados >= 10) && (
+              <div className="mf-aviso" style={{ background: 'color-mix(in srgb,#2563eb 6%,var(--portal-surface,#fefefe))', borderColor: 'color-mix(in srgb,#2563eb 30%,var(--portal-border,#e2e8f0))' }}>
+                <span style={{ flex: 1 }}><b style={{ fontWeight: 500 }}>Você tem {parados} {parados === 1 ? 'pedido parado' : 'pedidos parados'}.</b> 3 minutos de faxina: um de cada vez, fazer agora, nova data, devolver ou cancelar.</span>
+                <a className="mf-btn peq cheio" style={{ ['--c' as string]: COR.acao }} href="/fila/faxina">Começar a faxina</a>
+              </div>
+            )
             const avisoSemTempo = semTempo.length > 0 && (
               <div className="mf-aviso">
                 <span style={{ flex: 1 }}><b style={{ fontWeight: 500 }}>{semTempo.length} {semTempo.length === 1 ? 'trabalho está' : 'trabalhos estão'} sem tempo estimado.</b> A previsão usa um dia inteiro para cada um.</span>
@@ -393,6 +405,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
             )
             return (
               <div className="mf-col">
+                {conviteFaxina}
                 {layout !== 'plano' && numeros}
                 {layout !== 'lista' && f && <ModoAgora itens={comData} agora={agora} compacto={layout === 'plano'} onMudou={() => { carregar(); window.dispatchEvent(new Event('central-trabalho-mudou')) }} onAbrir={setAberto} />}
                 {layout === 'plano' && f && <PlanoSemana fila={f} reunioesHoje={reunioes.length} onAbrir={setAberto} />}
