@@ -51,6 +51,68 @@ function Bloco({ titulo, children }: { titulo: string; children: React.ReactNode
   );
 }
 
+/**
+ * "Páginas conectadas" (24/11/2026, José: "sempre deixar páginas conectadas"): tudo que está ligado à campanha
+ * fora da ficha — página do consórcio (QR code), roleta e grupo de requisições — com o botão que abre cada um.
+ */
+function PaginasConectadas({ acaoId, roleta, grupo }: { acaoId: string; roleta: any; grupo: { id: number; nome: string; status: string } | null | undefined }) {
+  const [consorcio, setConsorcio] = useState<any[] | null>(null);
+  useEffect(() => {
+    apiGet<any>(`/api/marketing/acoes/${acaoId}/paginas`).then((r) => setConsorcio(r.consorcio ?? []), () => setConsorcio([]));
+  }, [acaoId]);
+
+  const itens: { icone: string; titulo: string; detalhe: string; links: { texto: string; href: string; fora?: boolean }[] }[] = [];
+  for (const c of consorcio ?? []) {
+    itens.push({
+      icone: 'fa-solid fa-tractor',
+      titulo: `Página do consórcio · ${c.nome}`,
+      detalhe: `${c.inscritos} inscrito(s) no sorteio · ${c.ativo ? 'aceitando cadastros' : 'fechada'}`,
+      links: [
+        { texto: 'Abrir a página (QR code)', href: `/consorcio/${c.slug}`, fora: true },
+        { texto: 'Modo estande', href: `/consorcio/${c.slug}?estande=1`, fora: true },
+        { texto: 'Inscritos e sorteio', href: `/marketing/consorcio?evento=${c.id}` },
+      ],
+    });
+  }
+  if (roleta) {
+    itens.push({
+      icone: 'fa-solid fa-dharmachakra', titulo: 'Roleta do site', detalhe: `${roleta.participantes ?? 0} participante(s)`,
+      links: [{ texto: 'Abrir a roleta', href: `/marketing/campanhas?campanha=${encodeURIComponent(roleta.slug)}` }],
+    });
+  }
+  if (grupo) {
+    itens.push({
+      icone: 'fa-solid fa-layer-group', titulo: `Grupo de requisições · ${grupo.nome}`, detalhe: grupo.status === 'aberto' ? 'aberto: as requisições da campanha entram aqui' : grupo.status,
+      links: [{ texto: 'Abrir no quadro', href: `/requisicoes?grupo=${grupo.id}`, fora: true }],
+    });
+  }
+
+  if (consorcio === null) return <Vazio>Carregando…</Vazio>;
+  if (!itens.length) {
+    return <Vazio>Nenhuma página conectada. Para ligar a página do consórcio: Marketing → Consórcio → Configurar → Campanha do Marketing.</Vazio>;
+  }
+  return (
+    <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+      {itens.map((it) => (
+        <div key={it.titulo} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 34, height: 34, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'color-mix(in srgb, #DB2777 12%, transparent)', color: '#DB2777' }}><i className={it.icone} /></span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text)' }}>{it.titulo}</div>
+              <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted, #64748b)' }}>{it.detalhe}</div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {it.links.map((l) => l.fora
+              ? <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" style={{ ...estiloBotaoContorno, padding: '6px 10px', fontSize: 12.5, textDecoration: 'none' }}>{l.texto} ↗</a>
+              : <Link key={l.href} href={l.href} style={{ ...estiloBotaoContorno, padding: '6px 10px', fontSize: 12.5, textDecoration: 'none' }}>{l.texto}</Link>)}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function FichaAcaoPage() {
   const params = useParams();
   const id = String(params?.id ?? '');
@@ -85,6 +147,20 @@ export default function FichaAcaoPage() {
 
   const [relatorioAberto, setRelatorioAberto] = useState(false);
   const [avisoRoleta, setAvisoRoleta] = useState<string | null>(null);
+
+  // Grupo de requisições da campanha (24/11/2026): nasce junto; as antigas ganham o botão "Criar grupo"
+  const [grupo, setGrupo] = useState<{ id: number; nome: string; status: string } | null | undefined>(undefined);
+  const [criandoGrupo, setCriandoGrupo] = useState(false);
+  useEffect(() => {
+    if (!id) return;
+    apiGet<any>(`/api/marketing/acoes/${id}/grupo`).then((r) => setGrupo(r.grupo ?? null), () => setGrupo(null));
+  }, [id]);
+  const criarGrupo = async () => {
+    setCriandoGrupo(true);
+    try { const r = await apiEnviar<any>(`/api/marketing/acoes/${id}/grupo`, 'POST'); setGrupo(r.grupo); }
+    catch (e: any) { alert(e?.message || 'Não consegui criar o grupo.'); }
+    finally { setCriandoGrupo(false); }
+  };
 
   // inscrições da roleta que ainda não viraram lead (o gatilho do banco faz isso sozinho; isto cobre o que ficou para trás)
   const converterRoleta = async () => {
@@ -137,7 +213,8 @@ export default function FichaAcaoPage() {
   const mostraApoio = vis.apoio;
   const terminou = !!acao.data_fim && String(acao.data_fim).slice(0, 10) < new Date().toISOString().slice(0, 10);
   // aba sem nenhum bloco some (Resumo, Dinheiro e Fechamento existem sempre)
-  const abasVisiveis = ABAS.filter((a) => a === 'Vendas' ? vis.funil : a === 'Execução' ? (vis.realizadas || vis.midia || vis.equipe || vis.itens || vis.concorrentes) : true);
+  // Execução existe sempre: o bloco "Páginas conectadas" (24/11/2026) vale para todo tipo de campanha
+  const abasVisiveis = ABAS.filter((a) => a === 'Vendas' ? vis.funil : true);
   const abaAtual: Aba = abasVisiveis.includes(aba) ? aba : 'Resumo';   // trocou o tipo com uma aba escondida aberta
 
   // Contador por aba: o número que faz a pessoa saber onde falta preencher.
@@ -219,6 +296,25 @@ export default function FichaAcaoPage() {
               Responsável: {acao.responsavel_nome || 'não definido'} · {acao.empresa}
               {acao.projeto_nome ? ` · Projeto Omie: ${acao.projeto_nome}` : ''}
             </div>
+            {grupo !== undefined && (
+              <div style={{ fontSize: 13, color: 'var(--portal-text-muted, #64748b)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {grupo ? (
+                  <>Grupo de requisições:{' '}
+                    <a href={`/requisicoes?grupo=${grupo.id}`} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}>
+                      {grupo.nome}{grupo.status !== 'aberto' ? ` (${grupo.status})` : ''} ↗
+                    </a>
+                  </>
+                ) : (
+                  <>Sem grupo de requisições.
+                    {podeEditar && (
+                      <button onClick={criarGrupo} disabled={criandoGrupo} style={{ ...estiloBotaoContorno, padding: '4px 10px', fontSize: 12 }}>
+                        {criandoGrupo ? 'Criando…' : 'Criar grupo de requisições'}
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -342,6 +438,7 @@ export default function FichaAcaoPage() {
       )}
       {abaAtual === 'Execução' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <Bloco titulo="Páginas conectadas"><PaginasConectadas acaoId={id} roleta={ficha.roleta} grupo={grupo} /></Bloco>
           {vis.realizadas && <Bloco titulo="Ações realizadas"><ListaSimples spec={SPEC_REALIZADAS} acaoId={id} itens={ficha.realizadas} apoios={ficha.apoios} onMudou={carregar} /></Bloco>}
           {vis.midia && <Bloco titulo="Mídia (fotos, vídeos, posts)"><ListaSimples spec={SPEC_MIDIAS} acaoId={id} itens={ficha.midias} apoios={ficha.apoios} onMudou={carregar} /></Bloco>}
           {vis.equipe && <Bloco titulo="Equipe"><ListaSimples spec={SPEC_EQUIPE} acaoId={id} itens={ficha.equipe} onMudou={carregar} /></Bloco>}

@@ -26,7 +26,13 @@ export async function GET(req: Request) {
       .order('data_inicio', { ascending: true, nullsFirst: false })
       .limit(100);
     if (error) throw Object.assign(new Error(error.message), { code: error.code });
-    return NextResponse.json({ acoes: data ?? [] });
+    // 24/11/2026: campanha nova já nasce com grupo — marca quais já têm, para ninguém ligar outro sem querer
+    const ids = (data ?? []).map((a: any) => a.id);
+    const { data: ligados } = ids.length
+      ? await db.from('requisicao_grupos').select('mkt_acao_id').in('mkt_acao_id', ids)
+      : { data: [] as any[] };
+    const comGrupo = new Set((ligados ?? []).map((g: any) => g.mkt_acao_id));
+    return NextResponse.json({ acoes: (data ?? []).map((a: any) => ({ ...a, tem_grupo: comGrupo.has(a.id) })) });
   } catch (e) {
     return erroResposta(e, 'GET /acoes/grupo-requisicoes');
   }
