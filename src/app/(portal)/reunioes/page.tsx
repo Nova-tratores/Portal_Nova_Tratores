@@ -142,6 +142,8 @@ function ReunioesInner() {
   const abas: { id: Aba; label: string; icone: React.ReactNode; cor: string; n?: number }[] = [
     { id: 'proximas', label: 'Próximas', icone: <CalendarClock size={15} />, cor: '#dc2626', n: aba === 'proximas' ? dados?.reunioes.length : undefined },
     { id: 'series', label: 'Séries', icone: <Repeat size={15} />, cor: '#4f46e5', n: dados?.series.length },
+    // Histórico volta a ser aba, depois de Séries (Fase 0, 24/11/2026)
+    { id: 'historico', label: 'Histórico', icone: <History size={15} />, cor: '#475569' },
   ]
 
   return (
@@ -159,10 +161,8 @@ function ReunioesInner() {
           </span>
         ))}
         <span style={{ flex: 1 }} />
-        {/* Histórico fora das abas (José, 17/11/2026: "série depois de histórico confunde") */}
-        <button className={`rn-btn suave${aba === 'historico' ? ' on' : ''}`} style={{ ['--c' as string]: '#475569' }} onClick={() => router.push(aba === 'historico' ? '/reunioes' : '/reunioes?aba=historico')} title="Reuniões que já passaram"><History size={15} />{!isMobile && ' Histórico'}</button>
-        <button className="rn-btn so-ic" onClick={() => carregar()} title="Atualizar"><RefreshCw size={15} className={carregando ? 'fa-spin' : undefined} /></button>
-        <button className="rn-btn so-ic" onClick={() => setTutorial(true)} title="Como usar as Reuniões (tutorial)"><GraduationCap size={16} /></button>
+        <button className={`rn-btn${isMobile ? ' so-ic' : ''}`} onClick={() => carregar()} title="Atualizar a lista" aria-label="Atualizar a lista"><RefreshCw size={15} className={carregando ? 'fa-spin' : undefined} />{!isMobile && ' Atualizar'}</button>
+        <button className={`rn-btn${isMobile ? ' so-ic' : ''}`} onClick={() => setTutorial(true)} title="Como usar as Reuniões (tutorial)" aria-label="Como usar as Reuniões"><GraduationCap size={16} />{!isMobile && ' Como usar'}</button>
         <button className="rn-btn cheio" style={{ ['--c' as string]: '#4f46e5' }} onClick={() => setSerieForm(null)}><Repeat size={15} /> Nova série</button>
         <button className="rn-btn cheio" style={{ ['--c' as string]: '#dc2626' }} onClick={() => setNovaReuniao(null)}><Plus size={16} /> Nova reunião</button>
       </div>

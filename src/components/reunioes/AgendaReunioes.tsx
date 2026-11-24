@@ -1,11 +1,12 @@
 'use client'
-// Reuniões — aba Próximas (José, 17/11/2026, escolhido na página de teste):
-// 1) HOJE em destaque, cartões lado a lado; 2) a SEMANA com os dias lado a lado (horizontal), setas p/ outras semanas.
+// Reuniões — aba Próximas. Fase 0 (24/11/2026): LISTA por dia (Hoje, Amanhã, Qui 26/11) no lugar
+// do "Hoje em cartões + semana em grade", que repetia a Agenda. Reunião que já terminou vai para o
+// Histórico. TODO fase 1: a grade semanal (gradeSemana) ficou só no Histórico; ver se ainda faz sentido lá.
 // Capa do cartão em palavras simples (a etapa técnica fica escondida); canceladas escondidas por padrão.
 // Clique abre a janela com o botão do próximo passo e as Tarefas da reunião (TarefasRapidas).
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, ChevronLeft, ChevronRight, Play, ListPlus, FileText, Check, X, CalendarDays, MapPin, CalendarCheck, CircleCheck, CircleHelp, Ban, ArrowRight, CalendarClock, Pencil, Trash2, Lock, Globe } from 'lucide-react'
+import { Users, Play, ListPlus, FileText, Check, X, MapPin, CalendarCheck, CircleCheck, CircleHelp, Ban, ArrowRight, CalendarClock, Pencil, Trash2, Lock, Globe } from 'lucide-react'
 import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
 import type { ReuniaoEtapa, Serie } from '@/lib/reunioes/regras'
 import type { PresencaRow } from '@/lib/reunioes/server'
@@ -20,7 +21,6 @@ import { chamar, horaDe, primeiroNome, hojeISO, CronometroReuniao } from './comu
 type Lista = { reunioes: Ticket[]; presencas: Record<string, PresencaRow[]>; itens: Record<string, number>; usuarios: Record<string, UsuarioMin>; series: Serie[]; salas?: Record<string, string> }
 
 const SEMANA_LONGA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 const diaSP = (ts: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(ts))
 const somarDia = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
 const dowDe = (iso: string) => new Date(`${iso}T12:00:00Z`).getUTCDay()
@@ -105,10 +105,23 @@ const CSS = `
 .ag-mini.cancelada{opacity:.55}
 .ag-mini.cancelada .t{text-decoration:line-through}
 .ag-nada{font-size:12.5px;color:var(--portal-text-muted,#94a3b8);text-align:center;padding:18px 0;border:1px dashed var(--portal-border,#e2e8f0);border-radius:14px}
+.ag-lista{display:flex;flex-direction:column;gap:18px}
+.ag-dia h3{margin:0 0 8px;font-size:14px;font-weight:600;color:var(--portal-text-secondary,#475569)}
+.ag-dia.hoje h3{color:#2563eb}
+.ag-lin{display:grid;grid-template-columns:92px minmax(0,1fr) auto;gap:14px;align-items:center;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;border-radius:14px;border:1px solid var(--portal-border,#e2e8f0);border-left:4px solid var(--c);background:var(--portal-surface,#fefefe);cursor:pointer;color:inherit;font:inherit}
+.ag-lin:hover{box-shadow:0 10px 22px -18px rgba(15,23,42,.55)}
+.ag-lin.cancelada{opacity:.55}
+.ag-lin.cancelada .t{text-decoration:line-through}
+.ag-lin .h{font-size:17px;font-weight:500;font-variant-numeric:tabular-nums}
+.ag-lin .h small{display:block;font-size:12px;color:var(--portal-text-muted,#64748b)}
+.ag-lin .t{display:block;font-size:15px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ag-lin .info{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;margin-top:4px;font-size:12.5px;color:var(--portal-text-secondary,#475569)}
+.ag-check{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--portal-text-secondary,#475569);cursor:pointer}
 .ag-modal{position:fixed;inset:0;z-index:1400;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:16px}
 .ag-modal > div{width:100%;max-width:600px;max-height:92vh;overflow-y:auto;background:var(--portal-surface,#fefefe);border-radius:18px;padding:18px 20px;display:flex;flex-direction:column;gap:12px}
 @media (max-width:640px){
   .ag-hc{flex-basis:86%}
+  .ag-lin{grid-template-columns:1fr;gap:8px}
   .ag-modal{padding:0;align-items:stretch}
   .ag-modal > div{max-width:none;max-height:none;border-radius:0}
 }
@@ -128,15 +141,13 @@ const FILTROS_HIST: { id: FiltroHist; rotulo: string; cor: string }[] = [
 ]
 
 /** modo 'proximas' = Hoje + semana com setas; 'historico' = semanas que já passaram, da mais nova para a mais velha. */
-export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo = 'proximas' }: { meuId: string; isAdmin: boolean; onNova: () => void; onAviso: (s: string) => void; modo?: 'proximas' | 'historico' }) {
+export default function AgendaReunioes({ meuId, isAdmin, onAviso, modo = 'proximas' }: { meuId: string; isAdmin: boolean; /** sem uso: "Nova reunião" fica só no topo da página */ onNova?: () => void; onAviso: (s: string) => void; modo?: 'proximas' | 'historico' }) {
   const router = useRouter()
   const [prox, setProx] = useState<Lista | null>(null)
   const [hist, setHist] = useState<Lista | null>(null)
   const [erro, setErro] = useState('')
   const [agora, setAgora] = useState(() => new Date().toISOString())
   const hoje = hojeISO()
-  const [semana, setSemana] = useState(() => segundaDe(hojeISO()))
-  const [comFds, setComFds] = useState(false)
   const [verCanceladas, setVerCanceladas] = useState(false)
   const [aberta, setAberta] = useState<Ticket | null>(null)
   const [det, setDet] = useState<ReuniaoUI | null>(null)
@@ -243,11 +254,17 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
   if (erro) return <div className="ag-vazio" style={{ color: '#dc2626' }}>{erro}</div>
   if (!prox || !hist) return <div className="ag-vazio">Carregando reuniões…</div>
 
-  const deHoje = (porDia.get(hoje) || []).filter((t) => passo(t) !== 'cancelada')
-  const proximaDepois = d.todas.filter((t) => t.reuniao_inicio && diaSP(t.reuniao_inicio) > hoje && passo(t) !== 'cancelada')
-    .sort((a, b) => (a.reuniao_inicio || '').localeCompare(b.reuniao_inicio || ''))[0]
-  const nDias = comFds ? 7 : 5
-  const temFds = [somarDia(semana, 5), somarDia(semana, 6)].some((x) => (porDia.get(x) || []).length > 0)
+  // Próximas = ainda não terminou (ou está acontecendo). O que já passou vai para o Histórico.
+  const terminou = (t: Ticket) => ['ata_publicada', 'ata_rascunho'].includes(t.reuniao_etapa || '') || (t.reuniao_etapa !== 'em_andamento' && (fimDe(t) || '') < agora)
+  const futuras = d.todas.filter((t) => t.reuniao_inicio && !terminou(t) && (verCanceladas || passo(t) !== 'cancelada'))
+    .sort((a, b) => (a.reuniao_inicio || '').localeCompare(b.reuniao_inicio || ''))
+  const diasLista = [...new Set(futuras.map((t) => diaSP(t.reuniao_inicio!)))]
+  const deHoje = futuras.filter((t) => diaSP(t.reuniao_inicio!) === hoje && passo(t) !== 'cancelada')
+  const proximaDepois = futuras.find((t) => diaSP(t.reuniao_inicio!) > hoje && passo(t) !== 'cancelada')
+  // Passou e ninguém fechou a ata nem disse se aconteceu: lembrete com link para o Histórico.
+  const semAta = d.todas.filter((t) => terminou(t) && ['aconteceu', 'ata'].includes(passo(t))).length
+  const amanha = somarDia(hoje, 1)
+  const nomeDia = (dia: string) => dia === hoje ? `Hoje · ${ddmm(dia)}` : dia === amanha ? `Amanhã · ${ddmm(dia)}` : `${SEMANA_LONGA[dowDe(dia)].slice(0, 3)} ${ddmm(dia)}`
 
   const janela = (
     <>
@@ -364,7 +381,7 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
   }
 
   // Histórico: só o que já passou (ou foi encerrado), agrupado por semana, mais nova primeiro.
-  const passadas = d.todas.filter((t) => t.reuniao_inicio && ((fimDe(t) || '') < agora || ['cancelada', 'ata_publicada'].includes(t.reuniao_etapa || '')))
+  const passadas = d.todas.filter((t) => t.reuniao_inicio && ((fimDe(t) || '') < agora || ['cancelada', 'ata_publicada', 'ata_rascunho'].includes(t.reuniao_etapa || '')))
   // Busca (23/11/2026): título, descrição, o que foi escrito na ata e nome de quem participou — sem acento/maiúscula
   const sem = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
   const termos = sem(busca).split(/\s+/).filter(Boolean)
@@ -408,56 +425,48 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
     <div className="ag">
       <style>{CSS}</style>
 
-      {/* ───────────── HOJE ───────────── */}
-      <div className="ag-sec">
-        <h2>Hoje</h2>
-        <span className="sub">{SEMANA_LONGA[dowDe(hoje)]}, {Number(hoje.slice(8, 10))} de {MESES[Number(hoje.slice(5, 7)) - 1]} · {deHoje.length ? `${deHoje.length} ${deHoje.length === 1 ? 'reunião' : 'reuniões'}` : 'nenhuma reunião'}</span>
+      <div className="ag-sec" style={{ justifyContent: 'space-between' }}>
+        <span className="sub">
+          {deHoje.length > 0 ? `Hoje: ${deHoje.length} ${deHoje.length === 1 ? 'reunião' : 'reuniões'}`
+            : proximaDepois?.reuniao_inicio ? <>Nada hoje. Próxima: <b style={{ fontWeight: 600, color: 'var(--portal-text,#0f172a)' }}>{titulo(proximaDepois)}</b>, {nomeDia(diaSP(proximaDepois.reuniao_inicio)).toLowerCase()} às {horaDe(proximaDepois.reuniao_inicio)}</>
+            : 'Nada hoje e nenhuma reunião marcada.'}
+        </span>
+        <label className="ag-check"><input type="checkbox" checked={verCanceladas} onChange={(e) => setVerCanceladas(e.target.checked)} /> Mostrar canceladas</label>
       </div>
-      {deHoje.length === 0 ? (
-        <div className="ag-vazio">
-          <CalendarDays size={20} style={{ opacity: .6 }} />
-          <span style={{ flex: 1 }}>Nenhuma reunião hoje.{proximaDepois?.reuniao_inicio && <> A próxima é <span style={{ fontWeight: 500, color: 'var(--portal-text,#0f172a)' }}>{titulo(proximaDepois)}</span>, {SEMANA_LONGA[dowDe(diaSP(proximaDepois.reuniao_inicio))].toLowerCase()} {ddmm(diaSP(proximaDepois.reuniao_inicio))} às {horaDe(proximaDepois.reuniao_inicio)}.</>}</span>
-          <button className="ag-btn cheio peq" style={{ ['--c' as string]: '#dc2626' }} onClick={onNova}>+ Nova reunião</button>
-        </div>
-      ) : (
-        <div className="ag-hoje">
-          {deHoje.map((t) => {
-            const p = passo(t); const info = PASSO[p]; const c = condutor(t); const n = d.itens[t.id] || 0
-            return (
-              <div key={t.id} className="ag-hc" style={{ ['--c' as string]: info.cor }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span className="ag-ic">{info.ic}</span>
-                  <span className="hora" style={{ flex: 1 }}>{horaDe(t.reuniao_inicio)}<small>até {horaDe(fimDe(t))}</small></span>
-                  <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
-                    <span className="ag-chip"><i />{info.texto}</span>
-                    {info.dica && <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#64748b)' }}>{info.dica}</span>}
-                  </span>
-                </div>
-                <span className="tit">{titulo(t)}</span>
-                <div className="lin">
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Av u={d.usuarios[c]} nome={nome(c)} /> {primeiroNome(nome(c))} conduz</span>
-                  {d.salas[t.id] && <span><MapPin size={13} style={{ verticalAlign: -2 }} /> {d.salas[t.id]}</span>}
-                </div>
-                <div className="lin">{pessoas(t)}<span>· {n ? `${n} ${n === 1 ? 'assunto' : 'assuntos'}` : 'nenhum assunto'}</span></div>
-                <div className="acoes">{botoes(t)}<button className="ag-btn" onClick={() => abrir(t)}><ListPlus size={15} /> Ação</button></div>
-              </div>
-            )
-          })}
-        </div>
+      {semAta > 0 && (
+        <button className="ag-btn peq" style={{ marginBottom: 14, color: '#7c3aed', borderColor: 'color-mix(in srgb,#7c3aed 35%,var(--portal-border,#e2e8f0))' }} onClick={() => router.push('/reunioes?aba=historico')}>
+          <FileText size={14} /> {semAta} {semAta === 1 ? 'reunião passou e está' : 'reuniões passaram e estão'} sem ata · ver no Histórico
+        </button>
       )}
-
-      {/* ───────────── SEMANA, DIAS LADO A LADO ───────────── */}
-      <div className="ag-sec">
-        <h2>Semana</h2>
-        <span className="sub">{ddmm(semana)} a {ddmm(somarDia(semana, 6))}</span>
-        <span style={{ flex: 1 }} />
-        <button className="ag-btn peq" onClick={() => setSemana(somarDia(semana, -7))} aria-label="Semana anterior"><ChevronLeft size={16} /></button>
-        <button className="ag-btn peq" disabled={semana === segundaDe(hoje)} onClick={() => setSemana(segundaDe(hoje))}>Esta semana</button>
-        <button className="ag-btn peq" onClick={() => setSemana(somarDia(semana, 7))} aria-label="Próxima semana"><ChevronRight size={16} /></button>
-        <button className="ag-btn peq" onClick={() => setComFds(!comFds)}>{comFds ? 'Sem sáb/dom' : `Com sáb/dom${temFds ? ' •' : ''}`}</button>
-        <button className="ag-btn peq" onClick={() => setVerCanceladas(!verCanceladas)}>{verCanceladas ? 'Esconder canceladas' : 'Mostrar canceladas'}</button>
+      {futuras.length === 0 && <div className="ag-vazio">Nenhuma reunião marcada. Use “Nova reunião” lá em cima.</div>}
+      <div className="ag-lista">
+        {diasLista.map((dia) => (
+          <section key={dia} className={`ag-dia${dia === hoje ? ' hoje' : ''}`}>
+            <h3>{nomeDia(dia)}</h3>
+            {futuras.filter((t) => diaSP(t.reuniao_inicio!) === dia).map((t) => {
+              const p = passo(t); const info = PASSO[p]
+              return (
+                <div key={t.id} role="button" tabIndex={0} className={`ag-lin${p === 'cancelada' ? ' cancelada' : ''}`} style={{ ['--c' as string]: info.cor }}
+                  onClick={() => abrir(t)} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrir(t) } }}>
+                  <span className="h">{horaDe(t.reuniao_inicio)}<small>até {horaDe(fimDe(t))}</small></span>
+                  <span style={{ minWidth: 0 }}>
+                    <span className="t">{titulo(t)}</span>
+                    <span className="info">
+                      <span className="ag-chip"><i />{info.texto}</span>
+                      {d.salas[t.id] && <span><MapPin size={13} style={{ verticalAlign: -2 }} /> {d.salas[t.id]}</span>}
+                      {pessoas(t)}
+                    </span>
+                  </span>
+                  <button className="ag-btn cheio peq" style={{ ['--c' as string]: info.cor, ['--cb' as string]: FUNDO_ESCURO[info.cor] || info.cor }}
+                    onClick={(e) => { e.stopPropagation(); router.push(`/reunioes/${t.id}`) }}>
+                    {p === 'agora' ? <><Play size={14} /> Entrar</> : <><FileText size={14} /> Abrir pauta</>}
+                  </button>
+                </div>
+              )
+            })}
+          </section>
+        ))}
       </div>
-      {gradeSemana(semana, nDias, (t) => verCanceladas || passo(t) !== 'cancelada')}
 
       {janela}
     </div>
