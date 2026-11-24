@@ -7,6 +7,7 @@ import { Clock, CalendarDays, User as UserIcon, Pencil, Trash2, ChevronLeft, Che
 import { diasParado, prazoVencido, type Ticket, type UsuarioMin } from '@/lib/tickets/constantes'
 import { colunaDoTicket, type QuadroColuna } from '@/lib/tickets/quadros'
 import StatusBadge from '../StatusBadge'
+import SeloAtrasado from '../SeloAtrasado'
 
 interface Props {
   colunas: QuadroColuna[]
@@ -183,10 +184,11 @@ export default function KanbanQuadro({
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text,#111)', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>{t.titulo}</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 10px', fontSize: 11.5, color: 'var(--portal-text-muted,#888)' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><UserIcon size={11} /> {usuarios[t.responsavel_id]?.nome || '—'}</span>
-                      {t.prazo && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: vencido ? '#dc2626' : undefined, fontWeight: vencido ? 700 : undefined }}>
-                          <CalendarDays size={11} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}
-                        </span>
+                      {t.prazo && (vencido
+                        ? <SeloAtrasado>{new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}</SeloAtrasado>
+                        : <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <CalendarDays size={11} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}
+                          </span>
                       )}
                       {passos[t.id] && (
                         <span title="Checklist deste ticket" style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, color: passos[t.id].feitas === passos[t.id].total ? '#16a34a' : undefined }}>

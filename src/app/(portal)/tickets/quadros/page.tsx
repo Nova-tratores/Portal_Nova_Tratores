@@ -16,6 +16,7 @@ import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
 import FormQuadro from '@/components/tickets/quadros/FormQuadro'
 import StatusBadge from '@/components/tickets/StatusBadge'
 import TicketModal from '@/components/tickets/TicketModal'
+import SeloAtrasado from '@/components/tickets/SeloAtrasado'
 import OrganizarTicket, { type TicketParaOrganizar } from '@/components/trabalho/OrganizarTicket'
 
 type TicketC = Ticket & { aceite?: string | null; aceite_motivo?: string | null }
@@ -180,7 +181,7 @@ export default function QuadrosPage() {
                         <div style={{ fontSize: 14.5, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>#{t.numero} {t.titulo}</div>
                         <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)', marginTop: 2 }}>
                           {t.solicitante_id === userProfile?.id ? 'você criou para você' : `de ${nome(t.solicitante_id)}`}
-                          {' · '}<span style={{ color: atrasado ? '#dc2626' : undefined, fontWeight: atrasado ? 700 : 400 }}>{t.prazo ? `até ${br(t.prazo)}` : 'sem data'}</span>
+                          {' · '}{atrasado ? <SeloAtrasado tamanho={12}>atrasado desde {br(t.prazo!)}</SeloAtrasado> : <span>{t.prazo ? `até ${br(t.prazo)}` : 'sem data'}</span>}
                           {pendente && <> · <b style={{ color: '#dc2626' }}>falta confirmar</b></>}
                         </div>
                       </button>
@@ -267,9 +268,11 @@ export default function QuadrosPage() {
                           </span>
                           <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             {t.aceite === 'pendente' && <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>aguardando confirmar</span>}
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: atrasado ? '#dc2626' : 'var(--portal-text-secondary,#555)' }}>
-                              <Clock size={13} /> {t.prazo ? br(t.prazo) : 'sem data'}{atrasado ? ' · atrasado' : ''}
-                            </span>
+                            {atrasado
+                              ? <SeloAtrasado tamanho={12.5}>{br(t.prazo!)} · atrasado</SeloAtrasado>
+                              : <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text-secondary,#555)' }}>
+                                  <Clock size={13} /> {t.prazo ? br(t.prazo) : 'sem data'}
+                                </span>}
                             <StatusBadge status={t.status} />
                           </span>
                         </span>
