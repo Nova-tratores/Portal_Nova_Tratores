@@ -2,12 +2,11 @@
 // GET /api/trabalho/carga                   -> todas as pessoas da agenda (setor vem da função)
 // GET /api/trabalho/carga?user=<id>         -> só uma pessoa (o formulário de pedido usa)
 // GET /api/trabalho/carga?user=<id>&itens=1 -> + a fila dela, na ordem ("o que ocupa as horas")
-// Os números (itens, horas, ocupada até, atrasados) são de todos. Nos ITENS, o título só aparece
-// para quem pode ver o ticket (público, pediu, faz, participa, admin); o resto vira
-// "Outro compromisso" com as horas e as datas — mesma regra da /api/trabalho/fila.
+// REGRA DE PRIVACIDADE DA EQUIPE (José, melhorias-central-de-trabalho.md): quem vê a fila de OUTRA
+// pessoa vê SÓ NÚMEROS (horas, datas, atrasado) — nunca títulos, nem para admin. Na própria fila,
+// os títulos aparecem.
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
-import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { temModuloTickets } from '@/lib/tickets/server'
 import { carregarDiretorio } from '@/lib/agenda/server'
 import { resumoDasFilas, feriadosDoAno } from '@/lib/trabalho/fila-server'
@@ -35,15 +34,11 @@ export async function GET(req: NextRequest) {
     if (comItens && so) {
       const f = filas.get(so)
       const todos = f ? [...f.hoje, ...f.semana, ...f.listaDepois, ...f.listaContinuos] : []
-      // Em quais desses eu participo (para poder ver o título).
-      const { data: parts } = todos.length
-        ? await supabaseAdmin.from('tickets_participantes').select('ticket_id').eq('user_id', auth.userId).is('removido_em', null).in('ticket_id', todos.map((i) => i.id))
-        : { data: [] }
-      const participo = new Set((parts || []).map((p) => p.ticket_id as string))
-      const vejo = (i: (typeof todos)[number]) => auth.isAdmin || so === auth.userId || i.visibilidade === 'publico' || i.solicitante_id === auth.userId || participo.has(i.id)
-      itens = todos.map((i) => (vejo(i)
+      // Só a própria fila mostra títulos (regra de privacidade da Equipe).
+      const vejo = () => so === auth.userId
+      itens = todos.map((i) => (vejo()
         ? { id: i.id, numero: i.numero, titulo: i.titulo, horas: i.horas, inicio: i.inicio, fim: i.fim, prazo: i.prazo, atrasado: i.atrasado, urgente: i.urgente, continuo: i.continuo, status: i.status, pedidoPor: i.pedidoPor ?? null, semEstimativa: i.semEstimativa, oculto: false }
-        : { id: null, numero: 0, titulo: 'Outro compromisso', horas: i.horas, inicio: i.inicio, fim: i.fim, prazo: null, atrasado: false, urgente: false, continuo: i.continuo, status: '', pedidoPor: null, semEstimativa: false, oculto: true }))
+        : { id: null, numero: 0, titulo: 'Pedido', horas: i.horas, inicio: i.inicio, fim: i.fim, prazo: null, atrasado: i.atrasado, urgente: false, continuo: i.continuo, status: '', pedidoPor: null, semEstimativa: false, oculto: true }))
     }
 
     return NextResponse.json({

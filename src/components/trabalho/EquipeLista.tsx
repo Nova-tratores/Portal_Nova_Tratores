@@ -83,7 +83,7 @@ export default function EquipeLista({ pessoas, eu, onPedir, onAbrir }: {
                       <span style={{ color: 'var(--portal-text-muted,#94a3b8)', fontVariantNumeric: 'tabular-nums' }}>{i.continuo ? <Repeat size={13} /> : `${k + 1}.`}</span>
                       <span style={{ minWidth: 0 }}>
                         {i.oculto
-                          ? <span style={{ color: 'var(--portal-text-muted,#64748b)' }}><Lock size={12} style={{ verticalAlign: -1 }} /> Outro compromisso</span>
+                          ? <span style={{ color: 'var(--portal-text-muted,#64748b)' }}><Lock size={12} style={{ verticalAlign: -1 }} /> Pedido (só a pessoa vê o título)</span>
                           : <button className="mf-tit" style={{ fontSize: 13.5 }} onClick={() => i.id && onAbrir(i.id)}>#{i.numero} {i.titulo}</button>}
                         <span style={{ display: 'block', fontSize: 12, color: 'var(--portal-text-muted,#64748b)' }}>
                           {i.continuo ? 'rotina' : `${i.semEstimativa ? '? h' : `${nf(i.horas)} h`} · ${i.inicio === i.fim ? br(i.inicio) : `${br(i.inicio)}–${br(i.fim)}`}`}
