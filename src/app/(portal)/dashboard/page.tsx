@@ -319,7 +319,7 @@ export default function DashboardPage() {
           style={{ ...VIDRO, background: 'var(--portal-bg-card)', border: '1px solid transparent', boxShadow: '0 12px 36px rgba(0,0,0,.22)', width: '100%', padding: '16px 18px 16px 48px', borderRadius: 16, fontSize: 15.5, outline: 'none', fontFamily: 'inherit', color: 'var(--portal-text)' }} />
       </div>
       {soOmie ? (
-        <a href="https://sistemacompletoomie-production.up.railway.app/" target="_blank" rel="noreferrer"
+        <a href="/painel-omie" target="_blank" rel="noreferrer"
           style={{ marginTop: 22, display: 'inline-flex', alignItems: 'center', gap: 14, padding: isMobile ? '18px 26px' : '22px 40px', borderRadius: 18, textDecoration: 'none', fontFamily: 'inherit',
             background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', fontSize: isMobile ? 20 : 26, fontWeight: 800, letterSpacing: -.3, boxShadow: '0 16px 40px rgba(37,99,235,.45)' }}>
           <Database size={isMobile ? 24 : 30} /> Sistema Omie Completo <ExternalLink size={isMobile ? 18 : 22} />
