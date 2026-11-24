@@ -37,6 +37,9 @@ export default function SalaReuniao({ embutida = false }: { embutida?: boolean }
   const [minha, setMinha] = useState<RespMinha | null>(null)
   const [formBloqueio, setFormBloqueio] = useState<{ dia: string; inicio: string; fim: string } | null>(null)
   const [bloqueioAberto, setBloqueioAberto] = useState<Bloqueio | null>(null)
+  // Com 3 salas (24/11/2026): escolhe qual sala a grade mostra. Antes era só salas[0]
+  // e as reservas de TODAS as salas caíam na grade dela.
+  const [salaId, setSalaId] = useState<string | null>(null)
   const router = useRouter()
 
   const carregar = useCallback(async (seg: string) => {
@@ -68,7 +71,7 @@ export default function SalaReuniao({ embutida = false }: { embutida?: boolean }
 
   const modo = vista ?? (isMobile ? 'dia' : 'semana')
   const dias = useMemo(() => (segunda ? diasDaSemana(segunda) : []), [segunda])
-  const sala = dados?.salas[0] || null
+  const sala = dados?.salas.find((s) => s.id === salaId) || dados?.salas[0] || null
   const agora = dados?.agora || { dia: '', hora: '00:00' }
   const mudarSemana = (n: number) => {
     if (!segunda) return
@@ -91,7 +94,7 @@ export default function SalaReuniao({ embutida = false }: { embutida?: boolean }
       ...minha.reunioes.map((r) => ({ id: `r:${r.id}`, sala_id: '', inicio: r.inicio, fim: r.fim, titulo: r.titulo, descricao: null, responsavel_id: '', criado_por: '', reuniao_id: r.id, status: 'ativa' as const })),
     ]
   }, [minha, dados])
-  const blocos = naMinha ? blocosMinha : (dados?.reservas || [])
+  const blocos = naMinha ? blocosMinha : (dados?.reservas || []).filter((r) => r.sala_id === sala?.id)
   const abrirBloco = (r: Reserva) => {
     if (!naMinha) { setAberta(r); return }
     const bid = idDoBloco(r)
@@ -129,6 +132,21 @@ export default function SalaReuniao({ embutida = false }: { embutida?: boolean }
           ? <button onClick={() => { const base = diaSel && diaSel >= agora.dia ? diaSel : agora.dia; setFormBloqueio({ dia: base, inicio: '09:00', fim: '10:00' }) }} style={botao('#475569')}><CalendarX2 size={15} /> Bloquear horário</button>
           : <button onClick={novaAgora} disabled={!sala} style={botao('var(--sala-cheio, #0891b2)')}><Plus size={15} /> Reservar</button>}
       </div>
+
+      {!naMinha && dados && dados.salas.length > 1 && (
+        <div role="tablist" aria-label="Qual sala" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          {dados.salas.map((s) => {
+            const on = s.id === sala?.id
+            return (
+              <button key={s.id} role="tab" aria-selected={on} onClick={() => setSalaId(s.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 999, cursor: 'pointer', fontSize: 13.5, fontWeight: 700,
+                  border: `1.5px solid ${s.cor}`, background: on ? s.cor : 'transparent', color: on ? '#fff' : 'var(--portal-text,#111)' }}>
+                <MapPin size={14} /> {s.nome}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {ajuda && (
         <div style={{ ...cartao, marginBottom: 12, fontSize: 13.5, lineHeight: 1.55, color: 'var(--portal-text-secondary,#444)' }}>
