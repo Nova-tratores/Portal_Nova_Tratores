@@ -147,6 +147,10 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
   const [arr, setArr] = useState<string | null>(null)
   const [arrDe, setArrDe] = useState<string | null>(null) // dia de onde saiu o arraste
   const [sobre, setSobre] = useState<string | null>(null)
+  // Sem prazo (contínuo) começa ESCONDIDO (Fase 0, 24/11/2026): repetido em todo
+  // dia útil, virava papel de parede e escondia o que tem data.
+  const [verContinuos, setVerContinuos] = useState(false)
+  const qtdContinuos = useMemo(() => tickets.filter((t) => noPlano(t, hoje).continuo).length, [tickets, hoje])
   // Semana seg → dom (sábado e domingo no fim). Só os dias DO mês têm número;
   // as casas que completam a grade (antes do dia 1 / depois do último) ficam
   // na cor de "não trabalhamos", igual ao fim de semana.
@@ -167,6 +171,7 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
     for (const t of tickets) {
       const p = noPlano(t, hoje)
       if (p.continuo) {
+        if (!verContinuos) continue
         // Contínuo é trabalho do dia a dia: só dias úteis (sem sábado/domingo).
         for (let d = p.inicio > primeiroDoMes ? p.inicio : primeiroDoMes, i = 0; d <= ultimo && i < 40; d = somaDias(d, 1), i++) {
           if (!fimDeSemana(d)) por(d, t)
@@ -178,7 +183,7 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
     }
     for (const l of m.values()) l.sort((a, b) => Number(ehUrgente(b)) - Number(ehUrgente(a)) || (a.prazo || '').localeCompare(b.prazo || ''))
     return m
-  }, [tickets, hoje, mes])
+  }, [tickets, hoje, mes, verContinuos])
   // Soltar num dia: o bloco todo anda junto (mantém a duração). Contínuo:
   // muda só o dia em que começa. Dia que já passou não aceita (replanejar
   // para trás não faz sentido).
@@ -207,8 +212,14 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
         <button style={nav} aria-label="Mês anterior" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}><ChevronLeft size={16} /></button>
         <b style={{ minWidth: 160, textAlign: 'center', color: 'var(--portal-text,#111)', textTransform: 'capitalize' }}>{mes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</b>
         <button style={nav} aria-label="Próximo mês" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}><ChevronRight size={16} /></button>
+        {qtdContinuos > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: 'var(--portal-text,#111)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={verContinuos} onChange={(e) => setVerContinuos(e.target.checked)} />
+            Mostrar sem prazo ({qtdContinuos})
+          </label>
+        )}
         <small style={{ marginLeft: 'auto', color: muted }}>
-          Ticket em todos os dias do trabalho · atrasado fica em hoje (vermelho) · ∞ sem prazo aparece todo dia até concluir · arraste para mudar.
+          Ticket em todos os dias do trabalho · atrasado fica em hoje (vermelho){verContinuos ? ' · ∞ sem prazo aparece todo dia até concluir' : ''} · arraste para mudar.
         </small>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(110px, 1fr))', minWidth: 780 }}>
