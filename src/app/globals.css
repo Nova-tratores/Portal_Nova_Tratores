@@ -676,6 +676,26 @@ body {
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
 }
 
+/* Login é sempre claro: o tema escuro salvo (data-theme="dark") e o preenchimento automático
+   do Chrome deixavam os campos pretos/cinza (24/11/2026) */
+.input-portal,
+[data-theme="dark"] .input-portal {
+  color-scheme: light;
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+  border-color: #e5e5e5 !important;
+}
+[data-theme="dark"] .input-portal::placeholder { color: #a3a3a3 !important; }
+[data-theme="dark"] .input-portal:focus { border-color: #dc2626 !important; }
+.input-portal:-webkit-autofill,
+.input-portal:-webkit-autofill:hover,
+.input-portal:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #1a1a1a !important;
+  caret-color: #1a1a1a;
+  transition: background-color 9999s ease-out 0s;
+}
+
 /* ===== Controle de Revisões (tema escuro) ===== */
 @keyframes modalIn {
   from { opacity: 0; transform: scale(0.97) translateY(8px); }

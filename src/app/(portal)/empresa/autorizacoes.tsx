@@ -132,15 +132,16 @@ export function PainelAutorizacoes({ exemplo }: { exemplo?: Resp } = {}) {
     </div>
   )
 
+  // aut-tw: livra os botões deste painel do "reset" de botão da Visão da empresa (page.tsx, .ce button)
   if (vista === 'historico') return (
-    <div className="p-3 md:p-5 flex flex-col gap-4 min-w-0 max-w-full overflow-x-hidden">
+    <div className="aut-tw p-3 md:p-5 flex flex-col gap-4 min-w-0 max-w-full overflow-x-hidden">
       {seletor}
       {exemplo ? <div className="text-[14px] text-zinc-500">(exemplo) O histórico só aparece com o banco ligado.</div> : <HistoricoAutorizacoes />}
     </div>
   )
 
   return (
-    <div className="p-3 md:p-5 flex flex-col gap-4 min-w-0 max-w-full overflow-x-hidden">
+    <div className="aut-tw p-3 md:p-5 flex flex-col gap-4 min-w-0 max-w-full overflow-x-hidden">
       {seletor}
       {d.avisos.map((a) => <div key={a} className="rounded-xl border border-amber-200 bg-amber-50 text-amber-900 text-[13.5px] px-4 py-2.5">{a}</div>)}
 
