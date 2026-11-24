@@ -199,7 +199,7 @@ export async function POST(req: NextRequest) {
 
   // Tempo escolhido no pedido (bloquinho de tamanho, 24/11/2026): vira dias × horas_dia, como a Fila lê.
   const horasPedido = Number(body.horas)
-  const tempo = horasPedido >= 0.5 && horasPedido <= 600 ? planoDeHoras(horasPedido, CAPACIDADE_PADRAO) : null
+  const tempo = horasPedido >= 0.25 && horasPedido <= 600 ? planoDeHoras(horasPedido, CAPACIDADE_PADRAO) : null
 
   // O responsável precisa ser um usuário ativo do portal.
   const { data: resp } = await supabaseAdmin

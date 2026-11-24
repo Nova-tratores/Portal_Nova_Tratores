@@ -10,6 +10,7 @@ import {
 } from '@/lib/trabalho/agenda-server'
 import { temModuloTickets } from '@/lib/tickets/server'
 import { resumoDasFilas } from '@/lib/trabalho/fila-server'
+import { fatorPessoal } from '@/lib/trabalho/sugestao-categoria-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -48,6 +49,8 @@ export async function GET(req: NextRequest) {
     })),
     itens,
     fila: filas?.get(auth.userId) || null,
+    // "você costuma levar 1,8× o que estima" (melhorias 2.1 · bônus)
+    fator: await fatorPessoal(auth.userId).catch(() => null),
     confirmado,
     pedidos: (pedidos || []).length,
     preferencias: pref,

@@ -37,6 +37,11 @@ export const ESTILO_FILA = `
 .mf-info > * + *::before{content:'·';margin-right:7px;color:var(--portal-text-muted,#cbd5e1)}
 .mf-link{border:none;background:transparent;padding:0;cursor:pointer;font:inherit;color:inherit;text-decoration:underline dotted;text-underline-offset:3px}
 .mf-link:hover{color:#2563eb}
+.mf-chips-tempo{grid-column:1/-1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;font-size:12.5px;color:var(--portal-text-muted,#64748b)}
+.mf-chips-tempo button{height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);color:var(--portal-text-secondary,#475569);font:inherit;font-size:12.5px;cursor:pointer}
+.mf-chips-tempo button:hover{border-color:#2563eb;color:#2563eb}
+.mf-chips-tempo button.sug{border:1.5px dashed #2563eb;color:#2563eb}
+.mf-chips-tempo small{font-size:11px}
 .mf-aviso{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-radius:14px;font-size:13.5px;color:var(--portal-text-secondary,#475569);background:color-mix(in srgb,#b45309 6%,var(--portal-surface,#fefefe));border:1px solid color-mix(in srgb,#b45309 25%,var(--portal-border,#e2e8f0))}
 .mf-dot{width:8px;height:8px;border-radius:50%;background:var(--c)}
 .mf-pill{padding:1px 9px;border-radius:999px;font-size:12px;color:var(--c);background:color-mix(in srgb,var(--c) 12%,transparent)}

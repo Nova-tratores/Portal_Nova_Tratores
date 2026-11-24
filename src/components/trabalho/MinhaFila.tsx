@@ -20,6 +20,7 @@ import SeloAtrasado, { SeloUrgente } from '@/components/tickets/SeloAtrasado'
 import type { ResumoFila, ItemResumo } from '@/lib/trabalho/fila-server'
 import type { Carga } from './CargaDaPessoa'
 import { ESTILO_FILA, COR } from './estiloFila'
+import { TAMANHOS, tamanhoDe, planoDeHoras } from '@/lib/trabalho/estimativa'
 import EstimarTempo from './EstimarTempo'
 import ModoAgora, { type Agora } from './ModoAgora'
 import PlanoSemana from './PlanoSemana'
@@ -30,7 +31,7 @@ const TicketModal = dynamic(() => import('@/components/tickets/TicketModal'), { 
 
 interface Pendente { id: string; numero: number; titulo: string; prazo: string | null; solicitante_nome: string }
 interface ItemDia { tipo: string; texto: string; detalhe?: string; link?: string }
-interface Hoje { ativo: boolean; pendentes: Pendente[]; itens: ItemDia[]; fila: ResumoFila | null }
+interface Hoje { ativo: boolean; pendentes: Pendente[]; itens: ItemDia[]; fila: ResumoFila | null; fator?: { fator: number; n: number } | null }
 interface Pedido { id: string; numero: number; titulo: string; prazo: string | null; status: string; responsavel_id: string; aceite?: string | null }
 interface Central { pedidos: Pedido[]; usuarios: Record<string, { id: string; nome: string }> }
 
@@ -68,6 +69,18 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
   const [todosPedidos, setTodosPedidos] = useState(false)
   // Faxina dos parados (melhorias 1.2): quantos pedidos meus estão parados/vencidos.
   const [parados, setParados] = useState(0)
+  // Chip de tempo clicado: some da linha na hora (grava por trás).
+  const [tempoSalvo, setTempoSalvo] = useState<Set<string>>(new Set())
+  const salvarTempo = async (id: string, horas: number) => {
+    setTempoSalvo((s) => new Set(s).add(id)); setErro('')
+    const { dias, horasDia } = planoDeHoras(horas, 4.5)
+    try {
+      const r = await fetch(`/api/tickets/${id}/acoes`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ acao: 'editar', dias, horas_dia: horasDia }) })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { setErro(j.error || 'Não deu para gravar o tempo'); setTempoSalvo((s) => { const n = new Set(s); n.delete(id); return n }) }
+      await carregar()
+    } catch { setErro('Falha de conexão') }
+  }
   const [agora, setAgora] = useState<Agora | null>(null)
   // Estimar o tempo de um item (ou aceitar um pedido já dizendo quanto leva).
   const [estimando, setEstimando] = useState<{ id: string; titulo: string; aceitar?: boolean } | null>(null)
@@ -218,6 +231,20 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
           {i.status === 'em_andamento' && <span style={{ color: COR.ok }}>fazendo</span>}
           {i.parado >= 14 && !diasAtraso && <span style={{ color: COR.atencao }}>parado {i.parado} dias</span>}
         </span>
+        {i.semEstimativa && !i.continuo && !tempoSalvo.has(i.id) && estimando?.id !== i.id && (
+          <div className="mf-chips-tempo" role="group" aria-label={`Quanto leva o #${i.numero}?`}>
+            <span>Quanto leva?</span>
+            {TAMANHOS.map((t) => {
+              const sug = i.sugerido != null && tamanhoDe(i.sugerido).id === t.id
+              return (
+                <button key={t.id} className={sug ? 'sug' : ''} onClick={() => salvarTempo(i.id, t.horas)} title={sug ? 'Sugerido pela mediana da categoria' : t.dica}>
+                  {t.rotulo}{sug && <small> sugerido</small>}
+                </button>
+              )
+            })}
+            <button onClick={() => setEstimando({ id: i.id, titulo: i.titulo })}>outro</button>
+          </div>
+        )}
         {estimando?.id === i.id && !estimando.aceitar && (
           <div style={{ gridColumn: '1/-1' }}>
             <EstimarTempo ticketId={i.id} titulo={`#${i.numero} ${i.titulo}`} onFechar={() => setEstimando(null)} onSalvo={() => { setEstimando(null); carregar() }} />
@@ -278,6 +305,7 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
           Use ↑↓ para mudar a ordem. Em cada item você vê <b style={{ fontWeight: 500 }}>quem pediu</b>, o quadro e a situação.
           Pedidos novos chegam em <b style={{ fontWeight: 500 }}>Chegou pra você</b>: aceite, proponha outra data ou recuse com o motivo.
           Para pedir algo a alguém, use <b style={{ fontWeight: 500 }}>Pedir para alguém</b>: antes de enviar, você vê a fila dessa pessoa.
+          {h?.fator && <>Pelo seu histórico, <b style={{ fontWeight: 500 }}>você costuma levar {String(h.fator.fator).replace('.', ',')}× o que estima</b> ({h.fator.n} pedidos). </>}
           Os cartões de cima são clicáveis: <b style={{ fontWeight: 500 }}>Atrasados</b> e <b style={{ fontWeight: 500 }}>Parados</b> filtram a lista.
           <span style={{ display: 'flex', gap: '6px 16px', flexWrap: 'wrap', marginTop: 8 }}>
             <span><b style={{ fontWeight: 500, color: COR.acao }}>Azul</b> = o que você pode fazer</span>
@@ -308,7 +336,7 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
             )
             const avisoSemTempo = semTempo.length > 0 && (
               <div className="mf-aviso">
-                <span style={{ flex: 1 }}><b style={{ fontWeight: 500 }}>{semTempo.length} {semTempo.length === 1 ? 'pedido está' : 'pedidos estão'} sem tempo estimado.</b> A previsão usa um dia inteiro para cada um.</span>
+                <span style={{ flex: 1 }}><b style={{ fontWeight: 500 }}>{semTempo.length} {semTempo.length === 1 ? 'pedido está' : 'pedidos estão'} sem tempo estimado.</b> Enquanto isso, a previsão usa a mediana da categoria (ou um dia). Escolha nos chips de cada um.</span>
                 <button className="mf-btn peq" onClick={() => setEstimando({ id: semTempo[0].id, titulo: semTempo[0].titulo })}>Estimar agora</button>
               </div>
             )

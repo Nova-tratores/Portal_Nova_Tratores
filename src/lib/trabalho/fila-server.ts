@@ -6,6 +6,16 @@ import { feriadosNacionais, feriadosExtras } from '@/lib/assistente/horario'
 import { hojeSP } from './cronograma-server'
 import { CAPACIDADE_PADRAO, ehDiaUtil, itemDoTicket, ordenarFila, planejarFila, sextaDaSemana, type Previsao } from './fila'
 import { planoDeHoras } from './estimativa'
+import { medianasPorCategoria, type Mediana } from './sugestao-categoria-server'
+
+/** Sem estimativa de ninguém: a previsão usa a MEDIANA da categoria (5+ amostras) em vez de um dia
+ *  inteiro (melhorias 2.1). O item continua marcado como sem estimativa (aparece "~"). */
+function comSugestao<T extends { semEstimativa: boolean; dias: number; horasDia: number; continuo?: boolean }>(i: T, categoria: string | null | undefined, med: Map<string, Mediana>): T & { sugerido: number | null } {
+  const m = i.semEstimativa && !i.continuo ? med.get((categoria || '').trim()) : undefined
+  if (!m) return { ...i, sugerido: null }
+  const p = planoDeHoras(m.horas, CAPACIDADE_PADRAO)
+  return { ...i, dias: p.dias, horasDia: p.horasDia, sugerido: m.horas }
+}
 
 /** Mesmo filtro da /api/trabalho/fila: resolvido já foi feito; compras e reunião não entram. */
 const FORA = '(resolvido,fechado,cancelado)'
@@ -16,6 +26,8 @@ export interface ItemResumo {
   status: string
   /** Dias sem movimento (updated_at). */
   parado: number
+  /** Horas que a mediana da categoria sugeriu (item sem estimativa); null = usou o dia inteiro. */
+  sugerido?: number | null
   /** Só com { detalhes: true }: quem pediu (null = a própria pessoa) e o quadro. */
   pedidoPor?: string | null
   quadro?: { nome: string; cor: string } | null
@@ -49,7 +61,7 @@ export function feriadosDoAno(hoje: string): Set<string> {
 }
 
 type Tk = { id: string; numero: number; titulo: string; prazo: string | null; payload: unknown; responsavel_id: string; aceite?: string | null; visibilidade: string; solicitante_id: string
-  status: string; quadro_id: string | null; updated_at: string }
+  status: string; quadro_id: string | null; updated_at: string; categoria?: string | null }
 
 /** Resumo da fila de cada pessoa pedida (quem não tem nada volta com a fila vazia). */
 export async function resumoDasFilas(userIds: string[], opc: { detalhes?: boolean } = {}): Promise<Map<string, ResumoFila>> {
@@ -58,8 +70,9 @@ export async function resumoDasFilas(userIds: string[], opc: { detalhes?: boolea
   const feriados = feriadosDoAno(hoje)
   const out = new Map<string, ResumoFila>()
   if (!userIds.length) return out
+  const med = await medianasPorCategoria().catch(() => new Map<string, Mediana>())
   const [tks, plano] = await Promise.all([
-    supabaseAdmin.from('tickets').select('id, numero, titulo, prazo, payload, responsavel_id, aceite, visibilidade, solicitante_id, status, quadro_id, updated_at')
+    supabaseAdmin.from('tickets').select('id, numero, titulo, prazo, payload, responsavel_id, aceite, visibilidade, solicitante_id, status, quadro_id, updated_at, categoria')
       .in('responsavel_id', userIds).not('tipo', 'in', '(compras,reuniao)').not('status', 'in', FORA).limit(3000),
     supabaseAdmin.from('tickets_plano').select('ticket_id, posicao, user_id').in('user_id', userIds),
   ])
@@ -91,14 +104,14 @@ export async function resumoDasFilas(userIds: string[], opc: { detalhes?: boolea
     // Pedido ainda não aceito não é trabalho da fila (fica em "Chegou pra você").
     const lista = todos.filter((t) => t.aceite !== 'pendente')
     const porId = new Map(lista.map((t) => [t.id, t]))
-    const itens = ordenarFila(lista.map((t) => itemDoTicket(t, CAPACIDADE_PADRAO, feriados)), posDe.get(uid) || new Map())
+    const itens = ordenarFila(lista.map((t) => comSugestao(itemDoTicket(t, CAPACIDADE_PADRAO, feriados), t.categoria, med)), posDe.get(uid) || new Map())
     const aloc = new Map<string, { id: string; horas: number }[]>()
     const prev = planejarFila(itens, hoje, feriados, CAPACIDADE_PADRAO, aloc)
     const comFim = itens.filter((i) => !i.continuo)
     const res = (i: (typeof itens)[number], p: Previsao): ItemResumo => {
       const t = porId.get(i.id)!
       return { id: i.id, numero: i.numero, titulo: t.titulo, prazo: i.prazo, horas: p.horas, inicio: p.inicio, fim: p.fim,
-        atrasado: !!i.prazo && i.prazo < hoje, urgente: i.urgente, semEstimativa: i.semEstimativa, continuo: !!i.continuo,
+        atrasado: !!i.prazo && i.prazo < hoje, urgente: i.urgente, semEstimativa: i.semEstimativa, continuo: !!i.continuo, sugerido: i.sugerido,
         visibilidade: t.visibilidade, solicitante_id: t.solicitante_id, status: t.status,
         parado: Math.max(0, Math.floor((agoraMs - Date.parse(t.updated_at)) / 86400000)),
         ...(opc.detalhes ? { pedidoPor: t.solicitante_id === uid ? null : nomes.get(t.solicitante_id) || 'Alguém', quadro: t.quadro_id ? quadros.get(t.quadro_id) || null : null } : {}) }
@@ -141,14 +154,15 @@ async function filaAtual(userId: string, semTicket: string | null) {
   const hoje = hojeSP()
   const feriados = feriadosDoAno(hoje)
   const [tks, plano] = await Promise.all([
-    supabaseAdmin.from('tickets').select('id, numero, titulo, prazo, payload, aceite').eq('responsavel_id', userId)
+    supabaseAdmin.from('tickets').select('id, numero, titulo, prazo, payload, aceite, categoria').eq('responsavel_id', userId)
       .not('tipo', 'in', '(compras,reuniao)').not('status', 'in', FORA).limit(1000),
     supabaseAdmin.from('tickets_plano').select('ticket_id, posicao').eq('user_id', userId),
   ])
   const pos = new Map(((plano.data || []) as { ticket_id: string; posicao: number }[]).map((p) => [p.ticket_id, p.posicao]))
-  const todos = (tks.data || []) as { id: string; numero: number; prazo: string | null; payload: unknown; aceite?: string | null }[]
+  const todos = (tks.data || []) as { id: string; numero: number; prazo: string | null; payload: unknown; aceite?: string | null; categoria?: string | null }[]
+  const med = await medianasPorCategoria().catch(() => new Map<string, Mediana>())
   const alvo = semTicket ? todos.find((t) => t.id === semTicket) || null : null
-  const itens = ordenarFila(todos.filter((t) => t.aceite !== 'pendente' && t.id !== semTicket).map((t) => itemDoTicket(t, CAPACIDADE_PADRAO, feriados)), pos)
+  const itens = ordenarFila(todos.filter((t) => t.aceite !== 'pendente' && t.id !== semTicket).map((t) => comSugestao(itemDoTicket(t, CAPACIDADE_PADRAO, feriados), t.categoria, med)), pos)
   return { hoje, feriados, itens, pos, alvo }
 }
 

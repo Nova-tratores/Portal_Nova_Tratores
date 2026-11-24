@@ -128,7 +128,10 @@ export interface TicketDaFila { id: string; numero: number; prazo: string | null
  */
 export function itemDoTicket(t: TicketDaFila, capacidade: number, feriados: Set<string>): ItemFila & { semEstimativa: boolean } {
   const p = (t.payload || {}) as { dias?: number; horas_dia?: number; inicio?: string; urgente?: boolean }
-  const dias = p.dias || (p.inicio && t.prazo && p.inicio <= t.prazo ? diasUteisEntre(p.inicio, t.prazo, feriados) : 1)
+  // Sem estimativa (sem horas_dia), NÃO conta o intervalo início→prazo: um pedido parado desde
+  // agosto com prazo em novembro virava ~60 dias de fila (melhorias 2.1, 24/11/2026). Vale 1 dia
+  // (ou a mediana da categoria, em fila-server). O intervalo só vale quando alguém deu as horas/dia.
+  const dias = p.dias || (p.horas_dia && p.inicio && t.prazo && p.inicio <= t.prazo ? diasUteisEntre(p.inicio, t.prazo, feriados) : 1)
   const continuo = !t.prazo
   return {
     id: t.id, numero: t.numero, prazo: t.prazo, urgente: p.urgente === true, dias, continuo, inicio: p.inicio,

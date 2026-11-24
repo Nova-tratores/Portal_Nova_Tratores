@@ -421,8 +421,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (n !== payloadAtual.dias) { novoPayload.dias = n; mudancas.dias = { de: payloadAtual.dias ?? null, para: n } }
     }
     if ('horas_dia' in body) {
-      const h = Math.round(Number(body.horas_dia) * 2) / 2
-      if (!(h >= 0.5 && h <= 12)) return erro('Horas por dia: de 0,5 a 12')
+      // de 15 em 15 min (melhorias 2.1: chip "15 min")
+      const h = Math.round(Number(body.horas_dia) * 4) / 4
+      if (!(h >= 0.25 && h <= 12)) return erro('Horas por dia: de 15 min a 12 h')
       if (h !== payloadAtual.horas_dia) { novoPayload.horas_dia = h; mudancas.horas_dia = { de: payloadAtual.horas_dia ?? null, para: h } }
     }
     if (['inicio', 'dias', 'horas_dia'].some((k) => k in mudancas)) patch.payload = novoPayload

@@ -7,15 +7,15 @@
 //    (ex.: costuma levar 1,4× o que estima).
 // O plano grava como hoje: payload.dias × payload.horas_dia (a Fila e o Cronograma já leem isso).
 
-export interface Tamanho { id: 'rapido' | 'pequeno' | 'medio' | 'grande' | 'enorme'; rotulo: string; horas: number; dica: string }
+export interface Tamanho { id: '15min' | '1h' | 'meio' | 'dia' | '3dias'; rotulo: string; horas: number; dica: string }
 
-/** Horas pensadas para a fila de 4,5 h/dia (lib/trabalho/capacidade.ts). */
+/** Chips de 1 clique (melhorias 2.1): o "dia" é o da fila, 4,5 h (lib/trabalho/capacidade.ts). */
 export const TAMANHOS: Tamanho[] = [
-  { id: 'rapido', rotulo: 'Rápido', horas: 1, dica: 'até 1 hora' },
-  { id: 'pequeno', rotulo: 'Pequeno', horas: 2, dica: 'umas 2 horas' },
-  { id: 'medio', rotulo: 'Médio', horas: 4, dica: 'quase um dia' },
-  { id: 'grande', rotulo: 'Grande', horas: 9, dica: 'uns 2 dias' },
-  { id: 'enorme', rotulo: 'Enorme', horas: 22, dica: 'uma semana' },
+  { id: '15min', rotulo: '15 min', horas: 0.25, dica: 'coisa rápida' },
+  { id: '1h', rotulo: '1 h', horas: 1, dica: 'uma hora' },
+  { id: 'meio', rotulo: '½ dia', horas: 2.25, dica: 'meio dia de fila' },
+  { id: 'dia', rotulo: '1 dia', horas: 4.5, dica: 'um dia de fila' },
+  { id: '3dias', rotulo: '3 dias', horas: 13.5, dica: 'três dias de fila' },
 ]
 
 /** Tamanho mais perto de um total de horas. */
@@ -25,9 +25,32 @@ export function tamanhoDe(horas: number): Tamanho {
 
 /** Total de horas → como a fila guarda (dias × horas por dia), sem passar da capacidade do dia. */
 export function planoDeHoras(horas: number, capacidade: number): { dias: number; horasDia: number } {
-  const h = Math.max(0.5, horas)
+  const h = Math.max(0.25, horas)
   const dias = Math.max(1, Math.ceil(h / capacidade - 1e-9))
-  return { dias, horasDia: Math.round((h / dias) * 2) / 2 || 0.5 }
+  // de 15 em 15 min (o servidor grava horas_dia com passo de 0,25)
+  return { dias, horasDia: Math.round((h / dias) * 4) / 4 || 0.25 }
+}
+
+/**
+ * Horas ÚTEIS entre dois instantes (ISO): só seg–sex, 07:30–17:30 de Brasília (fuso fixo -03:00).
+ * Serve para medir quanto um pedido levou entre "começou" e "resolveu" pelos eventos.
+ */
+export function horasUteisEntre(inicioIso: string, fimIso: string): number {
+  const a = Date.parse(inicioIso), b = Date.parse(fimIso)
+  if (!(b > a)) return 0
+  const H = 3600000
+  let total = 0
+  // dia (em Brasília) do início até o do fim
+  const diaDe = (ms: number) => new Date(ms - 3 * H).toISOString().slice(0, 10)
+  for (let d = diaDe(a), i = 0; d <= diaDe(b) && i < 400; i++) {
+    const w = new Date(d + 'T12:00:00Z').getUTCDay()
+    if (w !== 0 && w !== 6) {
+      const abre = Date.parse(d + 'T07:30:00-03:00'), fecha = Date.parse(d + 'T17:30:00-03:00')
+      total += Math.max(0, Math.min(b, fecha) - Math.max(a, abre))
+    }
+    const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); d = x.toISOString().slice(0, 10)
+  }
+  return total / H
 }
 
 // ------------------------------------------------------------- sugestão automática

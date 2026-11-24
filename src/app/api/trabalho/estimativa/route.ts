@@ -13,6 +13,8 @@ import { temModuloTickets } from '@/lib/tickets/server'
 import { TAMANHOS, sugerirHoras, type Feito } from '@/lib/trabalho/estimativa'
 import { previsoesDoTicket } from '@/lib/trabalho/fila-server'
 import { CAPACIDADE_PADRAO } from '@/lib/trabalho/fila'
+import { medianasPorCategoria } from '@/lib/trabalho/sugestao-categoria-server'
+import { tamanhoDe } from '@/lib/trabalho/estimativa'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -62,7 +64,11 @@ export async function GET(req: NextRequest) {
     titulo: f.titulo as string, categoria: f.categoria as string | null, quadro_id: f.quadro_id as string | null,
     estimado: est(f.payload), real: (real.get(f.id as string) || 0) >= 0.25 ? Math.round(real.get(f.id as string)! * 2) / 2 : null,
   }))
-  const sugestao = alvo.titulo.trim() ? sugerirHoras(alvo, historico) : null
+  // 1º a mediana da categoria (melhorias 2.1, 5+ amostras); senão os parecidos do histórico de quem faz.
+  const med = alvo.categoria ? (await medianasPorCategoria().catch(() => new Map())).get(alvo.categoria.trim()) : undefined
+  const sugestao = med
+    ? { horas: med.horas, tamanho: tamanhoDe(med.horas), base: med.n, fator: null, motivo: `mediana de ${med.n} pedidos de ${alvo.categoria}` }
+    : alvo.titulo.trim() ? sugerirHoras(alvo, historico) : null
 
   const totais = [...new Set([...TAMANHOS.map((x) => x.horas), ...(sugestao ? [sugestao.horas] : [])])]
   const prev = await previsoesDoTicket(dono, id, totais)
