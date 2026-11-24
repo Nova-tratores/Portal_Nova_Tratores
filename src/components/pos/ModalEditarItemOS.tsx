@@ -25,6 +25,8 @@ interface Props {
   podeEditar: boolean;
   onClose: () => void;
   onSalvo: () => void | Promise<void>;
+  /** abre o "não gerar cobrança" desta peça (sem isto, a opção não aparece — ex.: remessa ou já faturado) */
+  onNaoCobrar?: () => void;
 }
 
 export default function ModalEditarItemOS(props: Props) {
@@ -33,7 +35,7 @@ export default function ModalEditarItemOS(props: Props) {
   return <Conteudo key={`${props.item.ppvId}|${props.item.codigo}|${props.item.qtde}|${props.item.valor}`} {...props} item={props.item} />;
 }
 
-function Conteudo({ item, tecnico, userName, podeEditar, onClose, onSalvo }: Props & { item: ItemOSEditavel }) {
+function Conteudo({ item, tecnico, userName, podeEditar, onClose, onSalvo, onNaoCobrar }: Props & { item: ItemOSEditavel }) {
   const [qtd, setQtd] = useState(String(item.qtde));
   const [preco, setPreco] = useState(item.valor.toFixed(2));
   const [qtdRemover, setQtdRemover] = useState("1");
@@ -148,6 +150,17 @@ function Conteudo({ item, tecnico, userName, podeEditar, onClose, onSalvo }: Pro
             </div>
             <div style={{ fontSize: 11.5, color: "var(--portal-text-secondary)", marginTop: 6 }}>Entra como devolução no PPV (fica no histórico).</div>
           </div>
+
+          {onNaoCobrar && (
+            <div style={{ borderTop: "1px dashed var(--portal-border)", paddingTop: 12 }}>
+              <label style={lbl}>Cobrança</label>
+              <button type="button" onClick={() => { onClose(); onNaoCobrar(); }} disabled={bloqueado}
+                style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 12px", borderRadius: 8, border: "1.5px solid #047857", background: "transparent", color: "#047857", fontSize: 13, fontWeight: 600, cursor: bloqueado ? "not-allowed" : "pointer" }}>
+                <i className="fas fa-hand-holding-heart" /> Não cobrar esta peça
+              </button>
+              <div style={{ fontSize: 11.5, color: "var(--portal-text-secondary)", marginTop: 6 }}>A peça continua na OS e no PDF, com o valor riscado e o motivo.</div>
+            </div>
+          )}
 
           {erro && <div style={{ fontSize: 13, color: "#dc2626" }}>{erro}</div>}
         </div>

@@ -2684,8 +2684,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                                     {p.codigo && p.ppvId && podeEditar && !p.faturado && p.tipoPedido !== "Remessa" && (
                                       <button type="button" onClick={() => setSemCobItem({ ppvId: p.ppvId!, codigo: p.codigo!, descricao: p.descricao, valorTotal: p.valor * p.qtde })}
                                         title="Não gerar cobrança desta peça"
-                                        style={{ display: "block", marginLeft: "auto", marginTop: 2, padding: 0, border: "none", background: "none", color: "var(--portal-text-faint, #94A3B8)", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>
-                                        não cobrar
+                                        style={{ display: "block", marginLeft: "auto", marginTop: 3, padding: "1px 7px", borderRadius: 6, border: "1px solid #A7F3D0", background: "transparent", color: "#047857", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                                        <i className="fas fa-hand-holding-heart" style={{ marginRight: 4 }} />não cobrar
                                       </button>
                                     )}
                                   </>
@@ -3397,6 +3397,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         podeEditar={podeEditar}
         onClose={() => setEditandoProd(null)}
         onSalvo={() => loadPPV(ppv)}
+        onNaoCobrar={editandoProd && editandoProd.codigo && editandoProd.ppvId && !editandoProd.semCobranca && !editandoProd.faturado && editandoProd.tipoPedido !== "Remessa" && podeEditar
+          ? () => setSemCobItem({ ppvId: editandoProd.ppvId!, codigo: editandoProd.codigo!, descricao: editandoProd.descricao, valorTotal: editandoProd.valor * editandoProd.qtde })
+          : undefined}
       />
     </>
   );
