@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Ticket as TicketIcon, GanttChartSquare, X, ListTodo,
-  ArrowRight, Users, Lock, Calendar, BarChart3, Lightbulb, CalendarClock, MapPin, CalendarDays, ListOrdered,
+  ArrowRight, Users, Lock, Calendar, Lightbulb, CalendarClock, MapPin, CalendarDays, ListOrdered,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -22,7 +22,7 @@ import { ESTILO_CENTRAL_VN } from './visualCentral'
 export default function CentralNav() {
   const pathname = usePathname() || ''
   const { userProfile } = useAuth()
-  const { isAdmin, isDev } = usePermissoes(userProfile?.id)
+  const { isDev } = usePermissoes(userProfile?.id)
   const [ajuda, setAjuda] = useState(false)
   const [novoTicket, setNovoTicket] = useState(false)
   const [preenchido, setPreenchido] = useState<{ titulo: string; descricao: string } | null>(null)
@@ -51,55 +51,54 @@ export default function CentralNav() {
   const [pendencias, setPendencias] = useState(0)
   const [reunioesHoje, setReunioesHoje] = useState(0)
 
+  // Contagens da barra. Desde 24/11/2026 a barra fica montada no PortalLayout (não desmonta ao
+  // navegar): carrega uma vez e de novo só quando algo muda — antes eram 2 chamadas a cada página.
+  const [parados, setParados] = useState(0)
   useEffect(() => {
     let vivo = true
-    ;(async () => {
-      try {
-        const r = await fetch('/api/trabalho/central', { headers: await authHeaders() })
-        const j = await r.json()
-        if (vivo && r.ok) setPendencias(j.pendencias || 0)
-      } catch { /* sem contagem: a aba fica escondida */ }
-      // Reuniões de hoje em que participo (chip da aba Reuniões).
-      try {
-        const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-        const r = await fetch('/api/reunioes?visao=minhas', { headers: await authHeaders() })
-        const j = await r.json()
-        if (vivo && r.ok) setReunioesHoje((j.reunioes || []).filter((t: { prazo?: string | null }) => t.prazo === hoje).length)
-      } catch { /* sem contagem */ }
-    })()
-    return () => { vivo = false }
-  }, [pathname])
+    const contar = async () => {
+      const h = await authHeaders()
+      const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+      const [c, r, fx] = await Promise.allSettled([
+        fetch('/api/trabalho/central', { headers: h }).then((x) => x.json()),
+        fetch('/api/reunioes?visao=minhas', { headers: h }).then((x) => x.json()),
+        fetch('/api/trabalho/faxina?contar=1', { headers: h }).then((x) => x.json()),
+      ])
+      if (!vivo) return
+      if (c.status === 'fulfilled') setPendencias(c.value.pendencias || 0)
+      if (r.status === 'fulfilled') setReunioesHoje(((r.value.reunioes || []) as { prazo?: string | null }[]).filter((t) => t.prazo === hoje).length)
+      if (fx.status === 'fulfilled') setParados(fx.value.n || 0)
+    }
+    void contar()
+    window.addEventListener('central-trabalho-mudou', contar)
+    return () => { vivo = false; window.removeEventListener('central-trabalho-mudou', contar) }
+  }, [])
 
-  // /tickets (exato) é só a Visão gerencial; o resto de /tickets* é Quadros.
+  // /tickets (exato) é só a Visão gerencial; o resto de /tickets* é Quadros (por link).
   const naGerencial = pathname === '/tickets'
   const emQuadros = pathname.startsWith('/tickets') && !naGerencial
-  // 24/11/2026 (Fases 1 e 3 do redesenho): 4 abas em vez de 8. O que era aba vira VISTA
-  // dentro de outra (seletor logo abaixo da barra); os endereços antigos continuam valendo.
-  //   Quadros = Por quadro · Cronograma (calendário, Gantt, kanban) · Visão geral (admin)
-  //   Agenda  = Calendário · Salas
+  // Barra única (melhorias 1.4, 24/11/2026): Minha fila · Equipe · Todos · Agenda · Reuniões · Ideias.
+  // Lista/Kanban/Gantt/Calendário são um seletor DENTRO de Todos. Agenda tem a vista Salas ao lado.
   const naAgenda = pathname.startsWith('/agenda') || pathname.startsWith('/salas')
-  const naAreaQuadros = pathname.startsWith('/tickets') || pathname.startsWith('/cronograma')
+  const naEquipe = pathname.startsWith('/fila/equipe')
   const abas = [
-    // Minha fila: objetivo do dia/semana, pedidos para aceitar, carga da equipe. Desde 24/11/2026
-    // (José: "não faz mais sentido existir a aba Quadros") ela também é a casa dos trabalhos de
-    // todos (Cronograma) e da Visão geral; /tickets/quadros continua abrindo por link.
-    { href: '/fila', label: 'Minha fila', icone: <ListOrdered size={15} />, ativo: pathname.startsWith('/fila') || naAreaQuadros },
+    // Minha fila: o item da vez, os próximos, o que chegou. O número = pedidos parados (Faxina).
+    { href: '/fila', label: 'Minha fila', icone: <ListOrdered size={15} />, ativo: pathname.startsWith('/fila') && !naEquipe, n: parados },
+    // Equipe: a carga de cada pessoa, só números.
+    { href: '/fila/equipe', label: 'Equipe', icone: <Users size={15} />, ativo: naEquipe },
+    // Todos os pedidos (lista, kanban, Gantt, calendário) + Visão geral e quadros por link.
+    { href: '/cronograma', label: 'Todos', icone: <GanttChartSquare size={15} />, ativo: pathname.startsWith('/cronograma') || pathname.startsWith('/tickets') },
     // Agenda coletiva (todos por setor + reuniões, prazos, técnicos) com a vista Salas.
     { href: '/agenda', label: 'Agenda', icone: <CalendarDays size={15} />, ativo: naAgenda },
     // Reuniões (pauta + ata): mesma permissão da Central.
     { href: '/reunioes', label: 'Reuniões', icone: <CalendarClock size={15} />, ativo: pathname.startsWith('/reunioes'), n: reunioesHoje },
-    // Bloco de notas dos devs (captar → agrupar → planejar vira ticket). Só Dev.
+    // Bloco de notas dos devs (captar → agrupar → planejar vira pedido). A tela é só de Dev.
     ...(isDev ? [{ href: '/ideias', label: 'Ideias', icone: <Lightbulb size={15} />, ativo: pathname.startsWith('/ideias') }] : []),
     ...(pendencias > 0 || pathname.startsWith('/tarefas')
       ? [{ href: '/tarefas', label: 'Pendências', icone: <ListTodo size={15} />, ativo: pathname.startsWith('/tarefas'), n: pendencias }]
       : []),
   ]
-  const naFila = pathname.startsWith('/fila') || naAreaQuadros
-  const vistas = naFila ? [
-    { href: '/fila', label: 'Minha fila', icone: <ListOrdered size={14} />, ativo: pathname.startsWith('/fila') },
-    { href: '/cronograma', label: 'Todos os pedidos', icone: <GanttChartSquare size={14} />, ativo: pathname.startsWith('/cronograma') },
-    ...(isAdmin ? [{ href: '/tickets?aba=gerencial', label: 'Visão geral', icone: <BarChart3 size={14} />, ativo: naGerencial }] : []),
-  ] : naAgenda ? [
+  const vistas = naAgenda ? [
     { href: '/agenda', label: 'Calendário', icone: <CalendarDays size={14} />, ativo: pathname.startsWith('/agenda') },
     { href: '/salas', label: 'Salas', icone: <MapPin size={14} />, ativo: pathname.startsWith('/salas') },
   ] : []

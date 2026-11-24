@@ -7,5 +7,5 @@ import MinhaFila from '@/components/trabalho/MinhaFila'
 
 // Desenho escolhido pelo José na página de teste em 24/11/2026: Opção 2 · Foco.
 export default function FilaPage() {
-  return <MinhaFila layout="foco" />
+  return <MinhaFila layout="foco" abaFixa="minha" />
 }

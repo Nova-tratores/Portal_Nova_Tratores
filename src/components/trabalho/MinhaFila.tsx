@@ -47,9 +47,12 @@ type Filtro = 'tudo' | 'atrasados' | 'parados'
  *  próximos · plano = "Agora" + o plano da semana desenhado. Dados e ações são os mesmos. */
 export type LayoutFila = 'lista' | 'foco' | 'plano'
 
-export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } = {}) {
+/** abaFixa: a aba já vem da barra da Central (/fila = minha, /fila/equipe = equipe) e o seletor
+ *  interno some — melhorias 1.4, uma navegação só. Sem abaFixa (página de teste), o seletor aparece. */
+export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: LayoutFila; abaFixa?: 'minha' | 'equipe' } = {}) {
   const { userProfile } = useAuth()
-  const [aba, setAba] = useState<'minha' | 'equipe'>('minha')
+  const [abaEscolhida, setAba] = useState<'minha' | 'equipe'>('minha')
+  const aba = abaFixa || abaEscolhida
   const [h, setH] = useState<Hoje | null>(null)
   const [central, setCentral] = useState<Central | null>(null)
   const [equipe, setEquipe] = useState<{ eu: string; pessoas: Carga[] } | null>(null)
@@ -252,12 +255,16 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
           <h1>{aba === 'minha' ? `Bom dia${userProfile?.nome ? `, ${primeiro(userProfile.nome)}` : ''}` : 'Carga da equipe'}</h1>
           <span>{aba === 'minha' ? 'Seu dia tem 4,5 h para a fila. Comece pelo item da vez.' : 'Quem está ocupado, por setor. Só números: ninguém vê os títulos da fila do outro.'}</span>
         </div>
-        <button className={`mf-aba${aba === 'minha' ? ' on' : ''}`} style={{ ['--c' as string]: '#334155' }} onClick={() => setAba('minha')} aria-pressed={aba === 'minha'}>
-          <span className="ic"><ListOrdered size={15} /></span> Minha fila
-        </button>
-        <button className={`mf-aba${aba === 'equipe' ? ' on' : ''}`} style={{ ['--c' as string]: '#334155' }} onClick={() => setAba('equipe')} aria-pressed={aba === 'equipe'}>
-          <span className="ic"><Users size={15} /></span> Equipe
-        </button>
+        {!abaFixa && (
+          <>
+            <button className={`mf-aba${aba === 'minha' ? ' on' : ''}`} style={{ ['--c' as string]: '#334155' }} onClick={() => setAba('minha')} aria-pressed={aba === 'minha'}>
+              <span className="ic"><ListOrdered size={15} /></span> Minha fila
+            </button>
+            <button className={`mf-aba${aba === 'equipe' ? ' on' : ''}`} style={{ ['--c' as string]: '#334155' }} onClick={() => setAba('equipe')} aria-pressed={aba === 'equipe'}>
+              <span className="ic"><Users size={15} /></span> Equipe
+            </button>
+          </>
+        )}
         <span style={{ flex: 1 }} />
         {parados > 0 && <a className="mf-btn" href="/fila/faxina" title="Pedidos parados há 30+ dias ou vencidos há 15+">Faxina <span className="mf-pill" style={{ ['--c' as string]: COR.atencao }}>{parados}</span></a>}
         <button className="mf-btn" onClick={() => setAjuda((a) => !a)} aria-expanded={ajuda}><HelpCircle size={16} /> Como ler esta tela</button>
