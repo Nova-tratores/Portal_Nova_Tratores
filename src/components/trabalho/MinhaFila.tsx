@@ -19,6 +19,10 @@ import { STATUS_INFO, type TicketStatus } from '@/lib/tickets/constantes'
 import SeloAtrasado, { SeloUrgente } from '@/components/tickets/SeloAtrasado'
 import type { ResumoFila, ItemResumo } from '@/lib/trabalho/fila-server'
 import type { Carga } from './CargaDaPessoa'
+import { ESTILO_FILA } from './estiloFila'
+import EstimarTempo from './EstimarTempo'
+import ModoAgora, { type Agora } from './ModoAgora'
+import PlanoSemana from './PlanoSemana'
 
 const FormTicket = dynamic(() => import('@/components/tickets/FormTicket'), { ssr: false })
 const TicketModal = dynamic(() => import('@/components/tickets/TicketModal'), { ssr: false })
@@ -35,72 +39,14 @@ const hojeISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_
 const primeiro = (n: string) => n.split(' ')[0]
 const iniciais = (n: string) => n.split(' ').filter(Boolean).map((x) => x[0]).slice(0, 2).join('').toUpperCase()
 
-const CSS = `
-.mf{padding:clamp(12px,2vw,28px);color:var(--portal-text,#0f172a)}
-.mf *{font-weight:inherit;box-sizing:border-box}
-.mf i,.mf [class*="fa-"]{font-weight:900}
-@keyframes mf-entra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-.mf-anim{animation:mf-entra .35s ease both}
-@media (prefers-reduced-motion:reduce){.mf-anim{animation:none}.mf-card,.mf-it{transition:none!important}}
-.mf-topo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
-.mf-titulo{display:flex;flex-direction:column;gap:2px;margin-right:8px}
-.mf-titulo h1{margin:0;font-size:22px;font-weight:500;letter-spacing:-.01em}
-.mf-titulo span{font-size:13px;color:var(--portal-text-muted,#64748b)}
-.mf-aba{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px 0 8px;border-radius:11px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);color:var(--portal-text-secondary,#475569);font-size:14px;font-weight:500;cursor:pointer}
-.mf-aba .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 11%,transparent)}
-.mf-aba.on{background:color-mix(in srgb,var(--c) 9%,var(--portal-surface,#fefefe));border-color:color-mix(in srgb,var(--c) 45%,var(--portal-border,#e2e8f0));color:var(--portal-text,#0f172a)}
-.mf-aba.on .ic{background:var(--c);color:#fefefe}
-.mf-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 14px;border-radius:11px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);color:var(--portal-text-secondary,#475569);font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:inherit;text-decoration:none}
-.mf-btn:hover{background:var(--portal-bg-secondary,#f8fafc)}
-.mf-btn.cheio{border:none;color:#fefefe;background:var(--c,#dc2626);box-shadow:0 6px 14px -8px var(--c,#dc2626)}
-.mf-btn.peq{min-height:34px;padding:0 11px;font-size:13px;border-radius:10px}
-.mf-btn:disabled{opacity:.5;cursor:default}
-.mf-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:12px;margin-bottom:16px}
-.mf-kpi{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);text-align:left;font:inherit;color:inherit;cursor:pointer;transition:box-shadow .25s,transform .25s,border-color .25s}
-.mf-kpi:hover,.mf-kpi.on{transform:translateY(-2px);box-shadow:0 14px 28px -20px rgba(15,23,42,.55);border-color:color-mix(in srgb,var(--c) 35%,var(--portal-border,#e2e8f0))}
-.mf-kpi.on{background:color-mix(in srgb,var(--c) 6%,var(--portal-surface,#fefefe))}
-.mf-kpi b{display:block;font-size:22px;font-weight:500;letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1.15}
-.mf-kpi small{font-size:13px;color:var(--portal-text-muted,#64748b)}
-.mf-ic{flex:none;width:40px;height:40px;border-radius:11px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 9%,var(--portal-surface,#fefefe));border:1px solid color-mix(in srgb,var(--c) 18%,transparent)}
-.mf-ic.p{width:32px;height:32px;border-radius:9px}
-.mf-grade{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
-@media (min-width:1100px){.mf-grade{grid-template-columns:minmax(0,1.9fr) minmax(320px,1fr)}}
-.mf-col{display:flex;flex-direction:column;gap:16px;min-width:0}
-.mf-card{border-radius:16px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);padding:14px 16px 10px}
-.mf-cab{display:flex;align-items:center;gap:10px;margin-bottom:8px}
-.mf-cab h2{margin:0;font-size:16px;font-weight:500}
-.mf-cab span{font-size:13px;color:var(--portal-text-muted,#64748b)}
-.mf-it{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 6px;border-top:1px solid var(--portal-border,#eef2f7);transition:background .2s}
-.mf-it:first-of-type{border-top:none}
-.mf-it:hover{background:color-mix(in srgb,#0369a1 4%,transparent);border-radius:10px}
-.mf-pos{display:flex;align-items:center;gap:2px;color:var(--portal-text-muted,#94a3b8);font-variant-numeric:tabular-nums;font-size:13px;min-width:44px}
-.mf-setas{display:flex;flex-direction:column}
-.mf-setas button{border:none;background:transparent;padding:1px;cursor:pointer;color:var(--portal-text-muted,#94a3b8);display:flex;border-radius:6px}
-.mf-setas button:hover:not(:disabled){color:var(--portal-text,#0f172a);background:var(--portal-bg-secondary,#f1f5f9)}
-.mf-setas button:disabled{opacity:.25;cursor:default}
-.mf-tit{border:none;background:transparent;padding:0;text-align:left;cursor:pointer;color:var(--portal-text,#0f172a);font:inherit;font-size:14.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
-.mf-tit:hover{color:#2563eb}
-.mf-info{grid-column:2/4;display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;font-size:12.5px;color:var(--portal-text-secondary,#475569)}
-.mf-info > span{display:inline-flex;align-items:center;gap:5px}
-.mf-dot{width:8px;height:8px;border-radius:50%;background:var(--c)}
-.mf-pill{padding:1px 9px;border-radius:999px;font-size:12px;color:var(--c);background:color-mix(in srgb,var(--c) 12%,transparent)}
-.mf-est{padding:1px 8px;border-radius:999px;font-size:11.5px;background:rgba(234,179,8,.16);color:#a16207;border:1px solid rgba(234,179,8,.4)}
-.mf-quando{font-size:12.5px;color:var(--portal-text-muted,#64748b);white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
-.mf-av{width:20px;height:20px;border-radius:50%;display:inline-grid;place-items:center;font-size:9.5px;color:#fefefe;background:#64748b;flex:none}
-.mf-vazio{padding:12px 6px;font-size:13.5px;color:var(--portal-text-muted,#64748b)}
-.mf-ajuda{margin-bottom:16px;padding:14px 16px;border-radius:16px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);font-size:13.5px;line-height:1.55;color:var(--portal-text-secondary,#475569)}
-.mf-chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-.mf-pessoas{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
-.mf-pes{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:16px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);transition:box-shadow .25s,transform .25s}
-.mf-pes:hover{transform:translateY(-2px);box-shadow:0 14px 28px -20px rgba(15,23,42,.55)}
-.mf-barra{height:8px;border-radius:999px;background:var(--portal-bg-secondary,#f1f5f9);overflow:hidden}
-.mf-barra i{display:block;height:100%;border-radius:999px;background:var(--c,#2563eb);transition:width .6s ease}
-@media (max-width:640px){.mf-it{grid-template-columns:auto minmax(0,1fr)}.mf-quando{grid-column:2;text-align:left}.mf-info{grid-column:1/3}}
-`
 
 type Filtro = 'tudo' | 'atrasados' | 'parados'
 
-export default function MinhaFila() {
+/** Desenho da tela (página de teste /fila/teste): lista = tudo em listas · foco = "Agora" grande +
+ *  próximos · plano = "Agora" + o plano da semana desenhado. Dados e ações são os mesmos. */
+export type LayoutFila = 'lista' | 'foco' | 'plano'
+
+export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } = {}) {
   const { userProfile } = useAuth()
   const [aba, setAba] = useState<'minha' | 'equipe'>('minha')
   const [h, setH] = useState<Hoje | null>(null)
@@ -116,18 +62,24 @@ export default function MinhaFila() {
   const [salvando, setSalvando] = useState<string | null>(null)
   const [movendo, setMovendo] = useState(false)
   const [todosPedidos, setTodosPedidos] = useState(false)
+  const [agora, setAgora] = useState<Agora | null>(null)
+  // Estimar o tempo de um item (ou aceitar um pedido já dizendo quanto leva).
+  const [estimando, setEstimando] = useState<{ id: string; titulo: string; aceitar?: boolean } | null>(null)
+  const [verTudo, setVerTudo] = useState(false)
 
   const carregar = useCallback(async () => {
     try {
       const hd = await authHeaders()
-      const [r, rc] = await Promise.all([
+      const [r, rc, ra] = await Promise.all([
         fetch('/api/trabalho/hoje', { headers: hd, cache: 'no-store' }),
         fetch('/api/trabalho/central', { headers: hd, cache: 'no-store' }),
+        fetch('/api/trabalho/agora', { headers: hd, cache: 'no-store' }),
       ])
       const j = await r.json()
       if (!r.ok) { setErro(j.error || 'Falha ao carregar a fila'); return }
       setH(j); setErro('')
       if (rc.ok) setCentral(await rc.json())
+      if (ra.ok) setAgora(await ra.json())
     } catch { setErro('Falha de conexão') }
   }, [])
   const carregarEquipe = useCallback(async () => {
@@ -209,7 +161,9 @@ export default function MinhaFila() {
           {i.continuo ? <Repeat size={14} /> : `${pos + 1}.`}
         </span>
         <button className="mf-tit" onClick={() => setAberto(i.id)} title={`#${i.numero} ${i.titulo}`}>#{i.numero} {i.titulo}</button>
-        <span className="mf-quando">{i.continuo ? 'na rotina' : `${nf(i.horas)} h · ${quando}`}</span>
+        {i.continuo ? <span className="mf-quando">na rotina</span>
+          : <button className="mf-quando" style={{ border: 'none', background: 'transparent', cursor: 'pointer', font: 'inherit' }} title="Mudar o tempo deste trabalho"
+              onClick={() => setEstimando(estimando?.id === i.id ? null : { id: i.id, titulo: i.titulo })}>{nf(i.horas)} h · {quando}</button>}
         <span className="mf-info">
           {i.quadro && <span style={{ ['--c' as string]: i.quadro.cor }}><i className="mf-dot" /> {i.quadro.nome}</span>}
           <span title="Quem pediu">{i.pedidoPor ? <><span className="mf-av">{iniciais(i.pedidoPor)}</span> pedido de {primeiro(i.pedidoPor)}</> : 'você mesmo'}</span>
@@ -218,8 +172,14 @@ export default function MinhaFila() {
           {i.atrasado && i.prazo && <SeloAtrasado>desde {br(i.prazo)}</SeloAtrasado>}
           {!i.atrasado && i.prazo && <span><Clock3 size={13} /> prazo {br(i.prazo)}</span>}
           {i.parado >= 14 && <span style={{ color: '#b45309' }} title="Sem nenhum movimento"><Hourglass size={13} /> {i.parado} dias parado</span>}
-          {i.semEstimativa && <span className="mf-est" title="Ninguém estimou as horas. Abra o ticket e preencha dias × horas.">estimar</span>}
+          {i.semEstimativa && <button className="mf-est" style={{ cursor: 'pointer', font: 'inherit', fontSize: 11.5 }} title="Ninguém disse quanto tempo leva. Clique para escolher (o sistema sugere)."
+            onClick={() => setEstimando({ id: i.id, titulo: i.titulo })}>estimar o tempo</button>}
         </span>
+        {estimando?.id === i.id && !estimando.aceitar && (
+          <div style={{ gridColumn: '1/-1' }}>
+            <EstimarTempo ticketId={i.id} titulo={`#${i.numero} ${i.titulo}`} onFechar={() => setEstimando(null)} onSalvo={() => { setEstimando(null); carregar() }} />
+          </div>
+        )}
       </div>
     )
   }
@@ -246,7 +206,7 @@ export default function MinhaFila() {
 
   return (
     <div className="mf">
-      <style>{CSS}</style>
+      <style>{ESTILO_FILA}</style>
       <div className="mf-topo">
         <div className="mf-titulo">
           <h1>{aba === 'minha' ? `Bom dia${userProfile?.nome ? `, ${primeiro(userProfile.nome)}` : ''}` : 'Carga da equipe'}</h1>
@@ -277,94 +237,121 @@ export default function MinhaFila() {
 
       {aba === 'minha' && (!h ? <div className="mf-ajuda">Carregando sua fila…</div> : !h.ativo ? <div className="mf-ajuda">A Central de Trabalho não está liberada para você.</div> : (
         <>
-          {f && (
-            <div className="mf-kpis">
-              {kpi(null, '#d97706', <Sun size={18} />, f.hoje.length, `para hoje · ${nf(f.hoje.reduce((s, x) => s + x.horas, 0))} h`)}
-              {kpi(null, '#2563eb', <CalendarRange size={18} />, f.semana.length, 'no resto da semana')}
-              {kpi('atrasados', '#dc2626', <AlarmClock size={18} />, f.atrasados, 'atrasados (clique para filtrar)')}
-              {kpi('parados', '#b45309', <Hourglass size={18} />, parados, '14+ dias parados (clique)')}
-              {kpi(null, '#475569', <Layers size={18} />, f.livreEm ? br(f.livreEm) : 'livre', `fila ocupada até · ${f.total} itens`)}
-            </div>
-          )}
-
-          <div className="mf-grade">
-            <div className="mf-col">
-              {f && secao('Hoje', 'objetivo do dia', '#d97706', <Sun size={16} />, f.hoje, (i) => (i.fim > hoje ? `até ${br(i.fim)}` : 'termina hoje'), 'Nada na fila para hoje.')}
-              {f && secao('Esta semana', 'objetivo da semana', '#2563eb', <CalendarRange size={16} />, f.semana, (i) => `começa ${br(i.inicio)}`, 'Nada mais previsto até sexta.')}
-              {f && secao('Depois', 'o resto da fila, na ordem', '#475569', <ListOrdered size={16} />, f.listaDepois || [], (i) => `${br(i.inicio)}–${br(i.fim)}`, 'Nada depois desta semana.')}
-              {f && (f.listaContinuos || []).length > 0 && secao('Rotina', 'sem prazo, dentro da 1,5 h de rotina', '#0891b2', <Repeat size={16} />, f.listaContinuos, () => '', '')}
-            </div>
-
-            <div className="mf-col">
-              <section className="mf-card mf-anim">
-                <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: '#2563eb' }}><Inbox size={16} /></span><h2>Chegou pra você</h2><span>{h.pendentes.length || 'nada'}</span></div>
-                {h.pendentes.length === 0 && <div className="mf-vazio">Nenhum pedido esperando resposta.</div>}
-                {h.pendentes.map((p) => {
-                  const d = decidindo?.id === p.id ? decidindo : null
-                  return (
-                    <div key={p.id} className="mf-it" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
-                      <button className="mf-tit" onClick={() => setAberto(p.id)}>#{p.numero} {p.titulo}</button>
-                      <span className="mf-info" style={{ gridColumn: 'auto' }}>
-                        <span><span className="mf-av">{iniciais(p.solicitante_nome)}</span> pedido de {primeiro(p.solicitante_nome)}</span>
-                        <span><Clock3 size={13} /> {p.prazo ? `até ${br(p.prazo)}` : 'sem data'}</span>
-                      </span>
-                      {!d ? (
-                        <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                          <button className="mf-btn peq cheio" style={{ ['--c' as string]: '#059669' }} disabled={salvando === p.id} onClick={() => decidir(p.id, { decisao: 'confirmar' })}><Check size={14} /> Aceitar</button>
-                          <button className="mf-btn peq" onClick={() => setDecidindo({ id: p.id, modo: 'data', valor: '' })}><CalendarClock size={14} /> Outra data</button>
-                          <button className="mf-btn peq" onClick={() => setDecidindo({ id: p.id, modo: 'recusar', valor: '' })}><CircleX size={14} /> Recusar</button>
+          {(() => {
+            const numeros = f && (
+              <div className="mf-kpis">
+                {kpi(null, '#d97706', <Sun size={18} />, f.hoje.length, `para hoje · ${nf(f.hoje.reduce((s, x) => s + x.horas, 0))} h`)}
+                {kpi(null, '#2563eb', <CalendarRange size={18} />, f.semana.length, 'no resto da semana')}
+                {kpi('atrasados', '#dc2626', <AlarmClock size={18} />, f.atrasados, 'atrasados (clique para filtrar)')}
+                {kpi('parados', '#b45309', <Hourglass size={18} />, parados, '14+ dias parados (clique)')}
+                {kpi(null, '#475569', <Layers size={18} />, f.livreEm ? br(f.livreEm) : 'livre', `fila ocupada até · ${f.total} itens`)}
+              </div>
+            )
+            const filaCompleta = (
+              <>
+                {f && secao('Hoje', 'objetivo do dia', '#d97706', <Sun size={16} />, f.hoje, (i) => (i.fim > hoje ? `até ${br(i.fim)}` : 'termina hoje'), 'Nada na fila para hoje.')}
+                {f && secao('Esta semana', 'objetivo da semana', '#2563eb', <CalendarRange size={16} />, f.semana, (i) => `começa ${br(i.inicio)}`, 'Nada mais previsto até sexta.')}
+                {f && secao('Depois', 'o resto da fila, na ordem', '#475569', <ListOrdered size={16} />, f.listaDepois || [], (i) => `${br(i.inicio)}–${br(i.fim)}`, 'Nada depois desta semana.')}
+                {f && (f.listaContinuos || []).length > 0 && secao('Rotina', 'sem prazo, dentro da 1,5 h de rotina', '#0891b2', <Repeat size={16} />, f.listaContinuos, () => '', '')}
+              </>
+            )
+            // Foco: só os próximos (o "Agora" já está em cima); "ver a fila completa" abre o resto.
+            const proximos = f && (verTudo ? filaCompleta : (
+              <>
+                {secao('Próximos', 'na ordem da fila', '#2563eb', <ListOrdered size={16} />, comData.filter((x) => x.id !== agora?.rodando?.ticket_id).slice(1, 7), (i) => (i.inicio <= hoje ? 'hoje' : `começa ${br(i.inicio)}`), 'Nada depois deste.')}
+                {comData.length > 7 && <button className="mf-btn" onClick={() => setVerTudo(true)}>Ver a fila completa ({comData.length} itens)</button>}
+              </>
+            ))
+            const lado = (
+              <>
+                <section className="mf-card mf-anim">
+                  <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: '#2563eb' }}><Inbox size={16} /></span><h2>Chegou pra você</h2><span>{h.pendentes.length || 'nada'}</span></div>
+                  {h.pendentes.length === 0 && <div className="mf-vazio">Nenhum pedido esperando resposta.</div>}
+                  {h.pendentes.map((p) => {
+                    const d = decidindo?.id === p.id ? decidindo : null
+                    return (
+                      <div key={p.id} className="mf-it" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
+                        <button className="mf-tit" onClick={() => setAberto(p.id)}>#{p.numero} {p.titulo}</button>
+                        <span className="mf-info" style={{ gridColumn: 'auto' }}>
+                          <span><span className="mf-av">{iniciais(p.solicitante_nome)}</span> pedido de {primeiro(p.solicitante_nome)}</span>
+                          <span><Clock3 size={13} /> {p.prazo ? `até ${br(p.prazo)}` : 'sem data'}</span>
                         </span>
-                      ) : (
-                        <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 }}>
-                          {d.modo === 'data'
-                            ? <input type="date" min={hoje} value={d.valor} onChange={(e) => setDecidindo({ ...d, valor: e.target.value })} aria-label="Consigo fazer até" className="mf-btn peq" />
-                            : <input value={d.valor} onChange={(e) => setDecidindo({ ...d, valor: e.target.value })} placeholder="Por que não consegue? (vai para quem pediu)" aria-label="Motivo" className="mf-btn peq" style={{ flex: '1 1 220px' }} autoFocus />}
-                          <button className="mf-btn peq cheio" style={{ ['--c' as string]: d.modo === 'data' ? '#059669' : '#b91c1c' }} disabled={!d.valor.trim() || salvando === p.id}
-                            onClick={() => decidir(p.id, d.modo === 'data' ? { decisao: 'nova_data', data: d.valor } : { decisao: 'recusar', motivo: d.valor })}>
-                            {d.modo === 'data' ? 'Aceitar com esta data' : 'Recusar'}
-                          </button>
-                          <button className="mf-btn peq" onClick={() => setDecidindo(null)}>Voltar</button>
+                        {!d ? (
+                          <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                            <button className="mf-btn peq cheio" style={{ ['--c' as string]: '#059669' }} disabled={salvando === p.id} onClick={() => setEstimando({ id: p.id, titulo: p.titulo, aceitar: true })}><Check size={14} /> Aceitar</button>
+                            <button className="mf-btn peq" onClick={() => setDecidindo({ id: p.id, modo: 'data', valor: '' })}><CalendarClock size={14} /> Outra data</button>
+                            <button className="mf-btn peq" onClick={() => setDecidindo({ id: p.id, modo: 'recusar', valor: '' })}><CircleX size={14} /> Recusar</button>
+                          </span>
+                        ) : (
+                          <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 4 }}>
+                            {d.modo === 'data'
+                              ? <input type="date" min={hoje} value={d.valor} onChange={(e) => setDecidindo({ ...d, valor: e.target.value })} aria-label="Consigo fazer até" className="mf-btn peq" />
+                              : <input value={d.valor} onChange={(e) => setDecidindo({ ...d, valor: e.target.value })} placeholder="Por que não consegue? (vai para quem pediu)" aria-label="Motivo" className="mf-btn peq" style={{ flex: '1 1 220px' }} autoFocus />}
+                            <button className="mf-btn peq cheio" style={{ ['--c' as string]: d.modo === 'data' ? '#059669' : '#b91c1c' }} disabled={!d.valor.trim() || salvando === p.id}
+                              onClick={() => decidir(p.id, d.modo === 'data' ? { decisao: 'nova_data', data: d.valor } : { decisao: 'recusar', motivo: d.valor })}>
+                              {d.modo === 'data' ? 'Aceitar com esta data' : 'Recusar'}
+                            </button>
+                            <button className="mf-btn peq" onClick={() => setDecidindo(null)}>Voltar</button>
+                          </span>
+                        )}
+                        {estimando?.id === p.id && estimando.aceitar && (
+                          <EstimarTempo aceitar ticketId={p.id} titulo={`#${p.numero} ${p.titulo}`} onFechar={() => setEstimando(null)} onSalvo={() => { setEstimando(null); carregar() }} />
+                        )}
+                      </div>
+                    )
+                  })}
+                </section>
+  
+                <section className="mf-card mf-anim">
+                  <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: '#4f46e5' }}><Users size={16} /></span><h2>Reuniões de hoje</h2><span>{reunioes.length || 'nenhuma'}</span></div>
+                  {reunioes.length === 0 && <div className="mf-vazio">Nenhuma reunião hoje.</div>}
+                  {reunioes.map((r, k) => (
+                    <div key={k} className="mf-it" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
+                      {r.link ? <Link className="mf-tit" href={r.link}>{r.texto}</Link> : <span className="mf-tit">{r.texto}</span>}
+                      {r.detalhe && <span className="mf-info" style={{ gridColumn: 'auto' }}><span><Clock3 size={13} /> {r.detalhe}</span></span>}
+                    </div>
+                  ))}
+                </section>
+  
+                <section className="mf-card mf-anim">
+                  <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: '#059669' }}><Send size={16} /></span><h2>Esperando outros</h2><span>o que você pediu · {pedidos.length}</span></div>
+                  {pedidos.length === 0 && <div className="mf-vazio">Você não está esperando ninguém.</div>}
+                  {(todosPedidos ? pedidos : pedidos.slice(0, 12)).map((p) => {
+                    const quem = central?.usuarios[p.responsavel_id]?.nome || 'Alguém'
+                    const st = STATUS_INFO[p.status as TicketStatus]
+                    const atrasado = !!p.prazo && p.prazo < hoje && p.status !== 'resolvido'
+                    return (
+                      <div key={p.id} className="mf-it" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
+                        <button className="mf-tit" onClick={() => setAberto(p.id)}>#{p.numero} {p.titulo}</button>
+                        <span className="mf-info" style={{ gridColumn: 'auto' }}>
+                          <span><span className="mf-av">{iniciais(quem)}</span> com {primeiro(quem)}</span>
+                          {p.aceite === 'pendente' ? <span className="mf-pill" style={{ ['--c' as string]: '#d97706' }}>esperando aceitar</span>
+                            : st && <span className="mf-pill" style={{ ['--c' as string]: st.cor }}>{st.label}</span>}
+                          {atrasado ? <SeloAtrasado>desde {br(p.prazo!)}</SeloAtrasado> : p.prazo && <span><Clock3 size={13} /> {br(p.prazo)}</span>}
                         </span>
-                      )}
+                      </div>
+                    )
+                  })}
+                  {pedidos.length > 12 && <button className="mf-btn peq" style={{ margin: '6px 0' }} onClick={() => setTodosPedidos(!todosPedidos)}>{todosPedidos ? 'Mostrar menos' : `Ver todos (${pedidos.length})`}</button>}
+                </section>
+              </>
+            )
+            return (
+              <div className="mf-col">
+                {layout !== 'plano' && numeros}
+                {layout !== 'lista' && f && <ModoAgora itens={comData} agora={agora} compacto={layout === 'plano'} onMudou={() => { carregar(); window.dispatchEvent(new Event('central-trabalho-mudou')) }} onAbrir={setAberto} />}
+                {layout === 'plano' && f && <PlanoSemana fila={f} reunioesHoje={reunioes.length} onAbrir={setAberto} />}
+                {layout === 'plano'
+                  ? <div className="mf-grade3">{lado}</div>
+                  : (
+                    <div className="mf-grade">
+                      <div className="mf-col">{layout === 'foco' ? proximos : filaCompleta}</div>
+                      <div className="mf-col">{lado}</div>
                     </div>
-                  )
-                })}
-              </section>
-
-              <section className="mf-card mf-anim">
-                <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: '#4f46e5' }}><Users size={16} /></span><h2>Reuniões de hoje</h2><span>{reunioes.length || 'nenhuma'}</span></div>
-                {reunioes.length === 0 && <div className="mf-vazio">Nenhuma reunião hoje.</div>}
-                {reunioes.map((r, k) => (
-                  <div key={k} className="mf-it" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
-                    {r.link ? <Link className="mf-tit" href={r.link}>{r.texto}</Link> : <span className="mf-tit">{r.texto}</span>}
-                    {r.detalhe && <span className="mf-info" style={{ gridColumn: 'auto' }}><span><Clock3 size={13} /> {r.detalhe}</span></span>}
-                  </div>
-                ))}
-              </section>
-
-              <section className="mf-card mf-anim">
-                <div className="mf-cab"><span className="mf-ic p" style={{ ['--c' as string]: '#059669' }}><Send size={16} /></span><h2>Esperando outros</h2><span>o que você pediu · {pedidos.length}</span></div>
-                {pedidos.length === 0 && <div className="mf-vazio">Você não está esperando ninguém.</div>}
-                {(todosPedidos ? pedidos : pedidos.slice(0, 12)).map((p) => {
-                  const quem = central?.usuarios[p.responsavel_id]?.nome || 'Alguém'
-                  const st = STATUS_INFO[p.status as TicketStatus]
-                  const atrasado = !!p.prazo && p.prazo < hoje && p.status !== 'resolvido'
-                  return (
-                    <div key={p.id} className="mf-it" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
-                      <button className="mf-tit" onClick={() => setAberto(p.id)}>#{p.numero} {p.titulo}</button>
-                      <span className="mf-info" style={{ gridColumn: 'auto' }}>
-                        <span><span className="mf-av">{iniciais(quem)}</span> com {primeiro(quem)}</span>
-                        {p.aceite === 'pendente' ? <span className="mf-pill" style={{ ['--c' as string]: '#d97706' }}>esperando aceitar</span>
-                          : st && <span className="mf-pill" style={{ ['--c' as string]: st.cor }}>{st.label}</span>}
-                        {atrasado ? <SeloAtrasado>desde {br(p.prazo!)}</SeloAtrasado> : p.prazo && <span><Clock3 size={13} /> {br(p.prazo)}</span>}
-                      </span>
-                    </div>
-                  )
-                })}
-                {pedidos.length > 12 && <button className="mf-btn peq" style={{ margin: '6px 0' }} onClick={() => setTodosPedidos(!todosPedidos)}>{todosPedidos ? 'Mostrar menos' : `Ver todos (${pedidos.length})`}</button>}
-              </section>
-            </div>
-          </div>
+                  )}
+              </div>
+            )
+          })()}
         </>
       ))}
 

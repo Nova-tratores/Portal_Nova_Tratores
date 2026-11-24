@@ -1,0 +1,118 @@
+'use client'
+// ESTIMAR O TEMPO (24/11/2026) — "tenho dificuldade de dar tempos para os trabalhos".
+// Manual fácil: escolhe um TAMANHO (ou digita as horas). Automático: o tamanho SUGERIDO vem
+// marcado, com o motivo ("3 trabalhos parecidos levaram ~4 h"). Cada tamanho já mostra QUANDO
+// TERMINA, encaixado na fila de quem faz (/api/trabalho/estimativa). Grava dias × horas/dia pela
+// /api/tickets/[id]/acoes (editar). Com aceitar=true, aceita o pedido antes (aceitar + estimar).
+import { useEffect, useState } from 'react'
+import { Sparkles, Check, X, Clock3 } from 'lucide-react'
+import { authHeaders } from '@/lib/auth/client'
+import { planoDeHoras } from '@/lib/trabalho/estimativa'
+
+interface TamanhoComFim { id: string; rotulo: string; horas: number; dica: string; termina: string }
+interface Resp { atual: number | null; capacidade: number; sugestao: { horas: number; tamanho: { id: string }; motivo: string; termina: string } | null; tamanhos: TamanhoComFim[] }
+
+const br = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+const nf = (h: number) => String(h).replace('.', ',')
+
+async function post(url: string, corpo: Record<string, unknown>) {
+  const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify(corpo) })
+  const j = await r.json().catch(() => ({}))
+  if (!r.ok) throw new Error(j.error || 'Não deu certo')
+}
+
+export default function EstimarTempo({ ticketId, titulo, aceitar, onFechar, onSalvo }: {
+  ticketId: string; titulo: string
+  /** Pedido que chegou: aceita e estima de uma vez. */
+  aceitar?: boolean
+  onFechar: () => void; onSalvo: () => void
+}) {
+  const [d, setD] = useState<Resp | null>(null)
+  const [horas, setHoras] = useState<number | null>(null)
+  const [manual, setManual] = useState('')
+  const [erro, setErro] = useState('')
+  const [salvando, setSalvando] = useState(false)
+
+  useEffect(() => {
+    let vivo = true
+    ;(async () => {
+      try {
+        const r = await fetch(`/api/trabalho/estimativa?ticket=${ticketId}`, { headers: await authHeaders(), cache: 'no-store' })
+        const j = await r.json()
+        if (!vivo) return
+        if (!r.ok) { setErro(j.error || 'Não deu para calcular'); return }
+        setD(j)
+        // Já tinha estimativa: vem marcada. Senão, a sugestão. Senão, nada (a pessoa escolhe).
+        setHoras(j.atual ?? j.sugestao?.horas ?? null)
+      } catch { if (vivo) setErro('Falha de conexão') }
+    })()
+    return () => { vivo = false }
+  }, [ticketId])
+
+  const total = manual.trim() ? Number(manual.replace(',', '.')) : horas
+  const valido = !!total && total >= 0.5 && total <= 600
+  const terminaDe = (h: number | null) => (h && d ? d.tamanhos.find((t) => t.horas === h)?.termina || (d.sugestao?.horas === h ? d.sugestao.termina : '') : '')
+
+  const salvar = async () => {
+    if (!valido || !d) return
+    setSalvando(true); setErro('')
+    try {
+      if (aceitar) await post(`/api/tickets/${ticketId}/acoes`, { acao: 'aceite', decisao: 'confirmar' })
+      const { dias, horasDia } = planoDeHoras(total!, d.capacidade)
+      await post(`/api/tickets/${ticketId}/acoes`, { acao: 'editar', dias, horas_dia: horasDia })
+      window.dispatchEvent(new Event('central-trabalho-mudou'))
+      onSalvo()
+    } catch (e) { setErro(e instanceof Error ? e.message : 'Não deu certo') } finally { setSalvando(false) }
+  }
+
+  return (
+    <div className="mf-anim" style={{ marginTop: 8, padding: '12px 14px', borderRadius: 14, border: '1px solid color-mix(in srgb,#2563eb 30%,var(--portal-border,#e2e8f0))', background: 'color-mix(in srgb,#2563eb 4%,var(--portal-surface,#fefefe))' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <Clock3 size={16} color="#2563eb" />
+        <span style={{ flex: 1, fontSize: 14, fontWeight: 500 }}>{aceitar ? 'Aceitar e dizer quanto tempo leva' : 'Quanto tempo leva?'} <span style={{ color: 'var(--portal-text-muted,#64748b)', fontWeight: 400 }}>· {titulo}</span></span>
+        <button onClick={onFechar} aria-label="Fechar" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted,#64748b)', display: 'flex' }}><X size={16} /></button>
+      </div>
+
+      {!d && !erro && <div className="mf-vazio">Calculando…</div>}
+      {d && (
+        <>
+          {d.sugestao
+            ? <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--portal-text-secondary,#475569)', marginBottom: 8 }}>
+                <Sparkles size={14} color="#7c3aed" /> Sugestão: <span style={{ color: '#7c3aed' }}>{d.tamanhos.find((t) => t.id === d.sugestao!.tamanho.id)?.rotulo} · {nf(d.sugestao.horas)} h</span> — {d.sugestao.motivo}
+              </div>
+            : <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#64748b)', marginBottom: 8 }}>Ainda não tenho histórico para sugerir. Escolha pelo tamanho; com o tempo, eu aprendo.</div>}
+          <div role="radiogroup" aria-label="Tamanho do trabalho" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(118px,100%),1fr))', gap: 8 }}>
+            {d.tamanhos.map((t) => {
+              const on = !manual.trim() && horas === t.horas
+              const sug = d.sugestao?.tamanho.id === t.id
+              return (
+                <button key={t.id} role="radio" aria-checked={on} onClick={() => { setHoras(t.horas); setManual('') }}
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, padding: '9px 11px', borderRadius: 12, cursor: 'pointer', textAlign: 'left', font: 'inherit',
+                    border: `1.5px solid ${on ? '#2563eb' : sug ? 'color-mix(in srgb,#7c3aed 45%,transparent)' : 'var(--portal-border,#e2e8f0)'}`,
+                    background: on ? 'color-mix(in srgb,#2563eb 10%,var(--portal-surface,#fefefe))' : 'var(--portal-surface,#fefefe)', color: 'var(--portal-text,#0f172a)' }}>
+                  <span style={{ fontSize: 14, fontWeight: 500 }}>{t.rotulo}{sug && <Sparkles size={12} color="#7c3aed" style={{ marginLeft: 4, verticalAlign: -1 }} />}</span>
+                  <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#64748b)' }}>{t.dica} · {nf(t.horas)} h</span>
+                  {t.termina && <span style={{ fontSize: 12, color: '#2563eb' }}>termina {br(t.termina)}</span>}
+                </button>
+              )
+            })}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--portal-text-secondary,#475569)' }}>
+              ou digite: <input value={manual} onChange={(e) => setManual(e.target.value)} inputMode="decimal" placeholder="ex.: 6" aria-label="Horas (manual)"
+                style={{ width: 70, height: 34, padding: '0 8px', borderRadius: 10, border: '1px solid var(--portal-border,#e2e8f0)', background: 'var(--portal-surface,#fefefe)', color: 'inherit' }} /> horas
+            </label>
+            <span style={{ flex: 1, fontSize: 13, color: 'var(--portal-text-secondary,#475569)' }}>
+              {valido && !manual.trim() && terminaDe(total) && <>Previsão: termina <span style={{ color: '#2563eb' }}>{br(terminaDe(total))}</span></>}
+              {valido && manual.trim() && <>{nf(total!)} h = {planoDeHoras(total!, d.capacidade).dias} dia(s) de trabalho</>}
+            </span>
+            <button className="mf-btn peq cheio" style={{ ['--c' as string]: '#059669' }} disabled={!valido || salvando} onClick={salvar}>
+              <Check size={14} /> {salvando ? 'Salvando…' : aceitar ? 'Aceitar' : 'Salvar'}
+            </button>
+          </div>
+        </>
+      )}
+      {erro && <div style={{ marginTop: 8, fontSize: 13, color: 'var(--cor-atrasado-texto)' }}>{erro}</div>}
+    </div>
+  )
+}
