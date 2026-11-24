@@ -33,6 +33,7 @@ import NotasGarantiaPainel from './NotasGarantia';
 import PecasFabricaPainel from './PecasFabrica';
 import PagoPelaFabrica from './PagoPelaFabrica';
 import { CancelarPorMotivo, AvisoCancelada } from './CancelarGarantia';
+import { EditorPecasGarantia } from './PecasSoPecas';
 
 interface Props {
   garantiaId: string;
@@ -682,10 +683,10 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
               )}
 
               {/* Dados da OS / máquina */}
-              <Secao titulo="Ordem de serviço" icone={<ShieldCheck size={14} />}>
+              <Secao titulo={g.id_ordem ? 'Ordem de serviço' : 'Garantia só de peças (sem OS)'} icone={<ShieldCheck size={14} />}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', fontSize: 13 }}>
                   <Campo label="Cliente" valor={g.cliente} />
-                  <Campo label="OS" valor={g.id_ordem} href={g.id_ordem ? `/pos?id=${g.id_ordem}` : undefined} />
+                  <Campo label="OS" valor={g.id_ordem || 'Sem OS — só peças'} href={g.id_ordem ? `/pos?id=${g.id_ordem}` : undefined} />
                   <Campo label="Chassi" valor={g.chassis} />
                   <Campo label="Modelo" valor={g.modelo} />
                   <Campo label="Técnico" valor={g.tecnico_nome} />
@@ -858,6 +859,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     </div>
                   </div>
                 )}
+                {g.id_ordem && (
                 <a
                   href={`/pos?id=${g.id_ordem}`}
                   target="_blank"
@@ -866,6 +868,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 >
                   <ExternalLink size={13} /> Abrir OS no Pós-Vendas
                 </a>
+                )}
                 <button
                   onClick={() => setQrAberto(true)}
                   title="QR code de acompanhamento: fase atual + fotos, sem login"
@@ -1037,6 +1040,14 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
 
               {/* Peças selecionadas pelo técnico */}
               <Secao titulo={`Peças solicitadas (${g.pecas.length})`} icone={<Package size={14} />}>
+                {!g.id_ordem ? (
+                  <EditorPecasGarantia
+                    garantiaId={g.id}
+                    pecas={g.pecas.map((p) => ({ id: p.id, cod_produto: p.cod_produto, descricao: p.descricao, quantidade: Number(p.quantidade) || 0, preco_unitario: Number(p.preco_unitario) || 0 }))}
+                    editavel={!finalizada && ['aberta', 'em_analise', 'bo_tecnico'].includes(g.status) && (podeAnalisar || podeFinalizar)}
+                    onChange={carregar}
+                  />
+                ) : (<>
                 {!finalizada && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <button
@@ -1075,6 +1086,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     ))}
                   </div>
                 )}
+                </>)}
                 {g.tecnico_obs && (
                   <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)', padding: '6px 8px', borderRadius: 6 }}>
                     <strong>Obs. do técnico:</strong> {g.tecnico_obs}
@@ -1083,9 +1095,11 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
               </Secao>
 
               {/* Fotos da OS */}
+              {g.id_ordem && (
               <Secao titulo="Fotos da OS (para enviar à fábrica)" icone={<Package size={14} />}>
                 <GarantiaFotosOS osId={g.id_ordem} />
               </Secao>
+              )}
 
               {/* Fotos do garantista — útil quando a garantia foi criada
                   manualmente e a OS não tem fotos do relatório do técnico */}

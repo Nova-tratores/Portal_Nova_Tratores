@@ -3,6 +3,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PECAS, TBL_GAR_PEND } from '@/lib/garantias/constants';
 import { registrarEvento, notificarTecnico, notificarGarantistas } from '@/lib/garantias/server';
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
+import { refOS } from '@/lib/garantias/so-pecas';
 
 // POST /api/garantias/[id]/retorno-pecas — 1ª etapa do fluxo em duas etapas:
 // a fábrica respondeu sobre as PEÇAS. Registra o resultado por peça + valor pago
@@ -108,12 +109,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     await notificarTecnico(g.tecnico_nome, {
       titulo: `Garantia ${g.numero}: sem peças — só o serviço`,
-      descricao: `A OS ${g.id_ordem} não envolve peças da fábrica. Com o serviço executado, o garantista solicita o ressarcimento das horas e km.`,
+      descricao: `A ${refOS(g)} não envolve peças da fábrica. Com o serviço executado, o garantista solicita o ressarcimento das horas e km.`,
       link: `/os/${g.id_ordem}`,
     });
     await notificarGarantistas({
       titulo: `Garantia ${g.numero} sem peças — aguardando o ressarcimento`,
-      descricao: `OS ${g.id_ordem} · só serviço (horas/km). Solicite o ressarcimento quando o serviço estiver executado.`,
+      descricao: `${refOS(g)} · só serviço (horas/km). Solicite o ressarcimento quando o serviço estiver executado.`,
       link: `/garantias?id=${id}`,
     });
     return NextResponse.json({ garantia: data });
@@ -171,12 +172,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     await notificarTecnico(g.tecnico_nome, {
       titulo: `Garantia ${g.numero} não foi paga`,
-      descricao: `A fábrica recusou as peças da OS ${g.id_ordem}. Motivo: ${motivoCurto}`,
+      descricao: `A fábrica recusou as peças da ${refOS(g)}. Motivo: ${motivoCurto}`,
       link: `/os/${g.id_ordem}`,
     });
     await notificarGarantistas({
       titulo: `Garantia ${g.numero} finalizada (recusada)`,
-      descricao: `Fábrica recusou as peças — OS ${g.id_ordem}`,
+      descricao: `Fábrica recusou as peças — ${refOS(g)}`,
       link: `/garantias?id=${id}`,
     });
     return NextResponse.json({ garantia: data });
@@ -230,12 +231,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   });
   await notificarTecnico(g.tecnico_nome, {
     titulo: `Garantia ${g.numero}: peças aprovadas pela fábrica`,
-    descricao: `Pode agendar e executar o serviço da OS ${g.id_ordem}. Depois o garantista solicita o ressarcimento das horas e km.`,
+    descricao: `Pode agendar e executar o serviço da ${refOS(g)}. Depois o garantista solicita o ressarcimento das horas e km.`,
     link: `/os/${g.id_ordem}`,
   });
   await notificarGarantistas({
     titulo: `Peças da garantia ${g.numero} aprovadas — aguardando serviço`,
-    descricao: `OS ${g.id_ordem} · ${fmtValor}`,
+    descricao: `${refOS(g)} · ${fmtValor}`,
     link: `/garantias?id=${id}`,
   });
 

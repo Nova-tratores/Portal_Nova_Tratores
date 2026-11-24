@@ -3,6 +3,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PEND, TBL_GAR_ANEXOS } from '@/lib/garantias/constants';
 import { registrarEvento, notificarGarantistas, guardarLoginGarantias } from '@/lib/garantias/server';
 import { autorDe } from '@/lib/ajustes/permissao-server';
+import { refOS } from '@/lib/garantias/so-pecas';
 
 // PATCH /api/garantias/[id]/pendencias/[pid] — técnico responde a pendência
 export async function PATCH(
@@ -83,7 +84,7 @@ export async function PATCH(
   });
   await notificarGarantistas({
     titulo: `Técnico respondeu — garantia ${g.numero}`,
-    descricao: `${autorDe(user)} respondeu a pendência da OS ${g.id_ordem}.`,
+    descricao: `${autorDe(user)} respondeu a pendência da ${refOS(g)}.`,
     link: `/garantias?id=${id}`,
   });
 
