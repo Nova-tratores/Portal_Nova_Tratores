@@ -63,13 +63,19 @@ export async function GET(req: NextRequest) {
 
   const idsQuadros = [...new Set(tickets.map((t) => t.quadro_id).filter(Boolean))] as string[]
   const idsUsuarios = [...new Set(tickets.map((t) => t.solicitante_id).concat(user))]
+  // De quem dá para ver a fila: admin = todos ativos; os outros = eu + quem recebeu pedido meu.
+  // Coluna `teste` (sql/usuarios-teste.sql): sem ela a consulta falha e repete sem a coluna.
+  const lerPessoas = async () => {
+    const q = (cols: string) => auth.isAdmin
+      ? supabaseAdmin.from('financeiro_usu').select(cols).order('nome')
+      : supabaseAdmin.from('financeiro_usu').select(cols).in('id', [auth.userId, ...pedidosPara]).order('nome')
+    const r = await q('id, nome, ativo, funcao, teste')
+    return r.error ? q('id, nome, ativo, funcao') : r
+  }
   const [qs, us, pessoas] = await Promise.all([
     idsQuadros.length ? supabaseAdmin.from('tickets_quadros').select('id, nome, cor').in('id', idsQuadros) : Promise.resolve({ data: [] }),
     supabaseAdmin.from('financeiro_usu').select('id, nome, avatar_url').in('id', idsUsuarios),
-    // De quem dá para ver a fila: admin = todos ativos; os outros = eu + quem recebeu pedido meu.
-    auth.isAdmin
-      ? supabaseAdmin.from('financeiro_usu').select('id, nome, ativo, funcao').order('nome')
-      : supabaseAdmin.from('financeiro_usu').select('id, nome, ativo, funcao').in('id', [auth.userId, ...pedidosPara]).order('nome'),
+    lerPessoas(),
   ])
   const quadros: Record<string, { id: string; nome: string; cor: string }> = {}
   for (const q of (qs.data || []) as { id: string; nome: string; cor: string }[]) quadros[q.id] = q
@@ -85,7 +91,7 @@ export async function GET(req: NextRequest) {
     tickets, quadros, usuarios,
     posicao: Object.fromEntries((plano.data || []).map((p) => [p.ticket_id, p.posicao])),
     // Conta de teste fora da lista (menos a própria pessoa, se for uma).
-    pessoas: ((pessoas.data || []) as { id: string; nome: string; ativo?: boolean; funcao?: string | null }[]).filter((p) => p.ativo !== false && (p.id === user || !ehContaTeste(p))).map((p) => ({ id: p.id, nome: p.nome })),
+    pessoas: ((pessoas.data || []) as unknown as { id: string; nome: string; ativo?: boolean; funcao?: string | null; teste?: boolean | null }[]).filter((p) => p.ativo !== false && (p.id === user || !ehContaTeste(p))).map((p) => ({ id: p.id, nome: p.nome })),
   })
 }
 

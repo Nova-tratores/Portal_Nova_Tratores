@@ -22,11 +22,13 @@ export function paraBusca(s: unknown): string {
   return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 }
 
-// Conta de teste ("Mecânico Teste", "VENDEDOR TESTE 2", "Teste Mobile"):
-// "teste" como palavra no nome ou na função. Some dos seletores de pessoa,
-// mas a conta continua existindo para testar o portal.
-export function ehContaTeste(u: { nome?: string | null; funcao?: string | null }): boolean {
-  return /teste/.test(paraBusca(u.nome)) || /teste/.test(paraBusca(u.funcao));
+// Conta de teste: some de todo seletor de pessoa, mas continua existindo para
+// testar o portal. Vale a coluna financeiro_usu.teste (sql/usuarios-teste.sql).
+// Enquanto a coluna não existe (teste === undefined), cai no jeito antigo:
+// "teste" como palavra no nome ou na função ("Mecânico Teste", "VENDEDOR TESTE 2").
+export function ehContaTeste(u: { nome?: string | null; funcao?: string | null; teste?: boolean | null }): boolean {
+  if (typeof u.teste === 'boolean') return u.teste;
+  return /\bteste\b/.test(paraBusca(u.nome)) || /\bteste\b/.test(paraBusca(u.funcao));
 }
 
 // true se algum dos textos contém a busca (vazia = casa tudo).
