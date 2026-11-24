@@ -10,6 +10,7 @@ import type { UsuarioMin } from '@/lib/tickets/constantes'
 import UserSelect from '@/components/tickets/UserSelect'
 import type { AcaoUI } from './tipos'
 import { chamar, hojeISO, primeiroNome } from './comum'
+import CargaDaPessoa from '@/components/trabalho/CargaDaPessoa'
 
 const somarDia = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
 const dow = (iso: string) => new Date(`${iso}T12:00:00Z`).getUTCDay()
@@ -119,6 +120,8 @@ export function FormNovaTarefa({ pessoas, usuarios, tituloInicial = '', onSalvar
               onChange={(id, u) => { if (u) { setDeFora(u); setQuem(id); setBuscandoFora(false) } }} />
           </div>
         )}
+        {/* Fila de quem vai fazer, antes de dar o prazo (24/11/2026: pedido sempre com a carga na frente). */}
+        {quem && <div style={{ maxWidth: 560 }}><CargaDaPessoa userId={quem} /></div>}
       </div>
       <div className="tr-passo">
         <label><i>3</i> Até quando?</label>

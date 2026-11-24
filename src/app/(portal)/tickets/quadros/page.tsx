@@ -154,6 +154,13 @@ export default function QuadrosPage() {
 
   return (
     <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 1200, margin: '0 auto' }}>
+      {/* 24/11/2026: o dia a dia (o que fazer hoje/na semana, pedidos que chegaram) mudou para a Minha fila. */}
+      <a href="/fila" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16, padding: '12px 16px', borderRadius: 12, textDecoration: 'none',
+        background: 'rgba(37,99,235,.08)', border: '1px solid rgba(37,99,235,.3)', color: 'var(--portal-text,#111)', fontSize: 14 }}>
+        <b style={{ color: '#1d4ed8' }}>Novo: Minha fila</b>
+        <span style={{ flex: '1 1 260px' }}>o que fazer hoje e na semana, os pedidos que chegaram e a carga da equipe ficam num lugar só.</span>
+        <span style={{ fontWeight: 700, color: '#1d4ed8' }}>Abrir minha fila →</span>
+      </a>
       {aviso && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600, marginTop: 12 }}>{aviso}</div>}
       {erro && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 600, marginTop: 12 }}>{erro}</div>}
       {erroCentral && !erro && (

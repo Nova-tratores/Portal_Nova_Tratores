@@ -24,6 +24,8 @@ export interface ResumoFila {
   atrasados: number
   /** Último dia ocupado pelo que tem prazo ('' = fila vazia). */
   livreEm: string
+  /** Ids na ordem da fila inteira (o PUT /api/trabalho/fila precisa da lista toda para reordenar). */
+  ordem: string[]
 }
 
 export function feriadosDoAno(hoje: string): Set<string> {
@@ -81,6 +83,7 @@ export async function resumoDasFilas(userIds: string[]): Promise<Map<string, Res
       horas: comFim.reduce((s, i) => s + (prev.get(i.id)?.horas || 0), 0),
       atrasados: itens.filter((i) => i.prazo && i.prazo < hoje).length,
       livreEm: comFim.map((i) => prev.get(i.id)?.fim || '').sort().pop() || '',
+      ordem: itens.map((i) => i.id),
     })
   }
   return out

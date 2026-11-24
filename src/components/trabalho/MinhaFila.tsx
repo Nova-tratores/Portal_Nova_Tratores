@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { Check, CalendarClock, CircleX, Send, ListOrdered, Users, Sun, CalendarRange, Inbox, Repeat, ArrowUpDown } from 'lucide-react'
+import { Check, CalendarClock, CircleX, Send, ListOrdered, Users, Sun, CalendarRange, Inbox, Repeat, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import SeloAtrasado, { SeloUrgente } from '@/components/tickets/SeloAtrasado'
@@ -119,8 +119,37 @@ export default function MinhaFila() {
   const reunioes = (h?.itens || []).filter((i) => i.tipo === 'reuniao')
   const hoje = hojeISO()
 
+  // Mudar a ordem aqui mesmo (24/11/2026): ↑↓ troca com o vizinho visível e grava a fila
+  // inteira (o PUT precisa da lista toda). Urgente fica sempre no topo, então não mexe.
+  const visiveis = f ? [...f.hoje, ...f.semana] : []
+  const [movendo, setMovendo] = useState(false)
+  const mover = async (id: string, dir: -1 | 1) => {
+    if (!f || movendo) return
+    const k = visiveis.findIndex((x) => x.id === id)
+    const viz = visiveis[k + dir]
+    if (k < 0 || !viz || viz.urgente) return
+    const ordem = [...f.ordem]
+    const a = ordem.indexOf(id), b = ordem.indexOf(viz.id)
+    if (a < 0 || b < 0) return
+    ;[ordem[a], ordem[b]] = [ordem[b], ordem[a]]
+    setMovendo(true); setErro('')
+    try {
+      const r = await fetch('/api/trabalho/fila', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ ordem }) })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) setErro(j.error || 'Não deu para mudar a ordem')
+      await carregar()
+    } catch { setErro('Falha de conexão') } finally { setMovendo(false) }
+  }
+  const seta: React.CSSProperties = { border: 'none', background: 'transparent', padding: 2, cursor: 'pointer', color: 'var(--portal-text-muted,#94a3b8)', display: 'flex' }
+
   const linha = (i: ItemResumo, n: number, quando: string) => (
     <div key={i.id} className="mf-lin">
+      {!i.urgente && (
+        <span style={{ display: 'flex', flexDirection: 'column' }}>
+          <button style={{ ...seta, opacity: n === 1 || movendo ? .3 : 1 }} disabled={n === 1 || movendo} onClick={() => mover(i.id, -1)} aria-label={`Subir #${i.numero}`} title="Subir na fila"><ChevronUp size={15} /></button>
+          <button style={{ ...seta, opacity: n === visiveis.length || movendo ? .3 : 1 }} disabled={n === visiveis.length || movendo} onClick={() => mover(i.id, 1)} aria-label={`Descer #${i.numero}`} title="Descer na fila"><ChevronDown size={15} /></button>
+        </span>
+      )}
       <span className="n">{n}.</span>
       <button className="t" onClick={() => setAberto(i.id)} title={`#${i.numero} ${i.titulo}`}>#{i.numero} {i.titulo}</button>
       {i.urgente && <SeloUrgente />}

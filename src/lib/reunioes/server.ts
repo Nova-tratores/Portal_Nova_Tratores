@@ -481,14 +481,15 @@ export interface NovaAcao {
   item_id?: string | null
 }
 
-/** R8: ação = ticket comum, solicitante = condutor, aceite normal, visibilidade herdada (R12). */
+/** R8: ação = ticket comum, solicitante = condutor, visibilidade herdada (R12). Nasce ACEITA
+ *  (24/11/2026): foi combinada na reunião, então entra direto na Minha fila de quem faz. */
 export async function criarAcao(auth: Autenticado, r: ReuniaoCarregada, a: NovaAcao): Promise<Ticket> {
   const condutor = condutorDe(r)
   const linha = {
     tipo: 'generico', titulo: a.titulo, descricao: a.descricao, categoria: a.categoria || r.ticket.categoria || 'Outros',
     prazo: a.prazo, visibilidade: r.ticket.visibilidade, solicitante_id: condutor, responsavel_id: a.responsavel_id,
     origem_reuniao_id: r.ticket.id, origem_reuniao_item_id: a.item_id || null,
-    aceite: a.responsavel_id === condutor ? 'ok' : 'pendente',
+    aceite: 'ok',
     payload: { origem: 'reuniao', reuniao_titulo: r.ticket.titulo },
   }
   const t = ok(await supabaseAdmin.from('tickets').insert(linha).select('*').single()) as Ticket
