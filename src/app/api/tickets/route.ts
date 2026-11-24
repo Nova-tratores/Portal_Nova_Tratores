@@ -54,7 +54,8 @@ export async function GET(req: NextRequest) {
 
   // Contadores por aba (só tickets ativos), para os badges das visões.
   const contar = async (montar: () => PromiseLike<{ count: number | null }>) => (await montar()).count || 0
-  const base = () => supabaseAdmin.from('tickets').select('id', { count: 'exact', head: true }).not('status', 'in', finais)
+  // Reunião é evento, não pedido (melhorias 1.1, 24/11/2026): não conta nem aparece aqui; fica em /reunioes.
+  const base = () => supabaseAdmin.from('tickets').select('id', { count: 'exact', head: true }).not('status', 'in', finais).neq('tipo', 'reuniao')
   const [cFila, cPedidos, cAcompanhando, cGerencial] = await Promise.all([
     contar(() => base().eq('responsavel_id', auth.userId)),
     contar(() => base().eq('solicitante_id', auth.userId)),
@@ -95,6 +96,7 @@ export async function GET(req: NextRequest) {
 
   // A SC mostra também as etapas terminais (concluída/cancelada) no kanban.
   if (!incluirEncerrados && visao !== 'compras') query = query.not('status', 'in', finais)
+  if (visao !== 'compras') query = query.neq('tipo', 'reuniao')
 
   const { data: tickets, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

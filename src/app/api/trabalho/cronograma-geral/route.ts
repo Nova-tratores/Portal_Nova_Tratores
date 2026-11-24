@@ -45,7 +45,8 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabaseAdmin.from('tickets').select('*')
     .or(ors.join(','))
-    .neq('tipo', 'compras')
+    // Reunião é evento, não pedido (melhorias 1.1, 24/11/2026): fica só em /reunioes.
+    .not('tipo', 'in', '(compras,reuniao)')
     .not('status', 'in', FORA)
     .order('prazo', { ascending: true, nullsFirst: false })
     .limit(800)
