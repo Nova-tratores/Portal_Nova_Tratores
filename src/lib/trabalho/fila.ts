@@ -4,17 +4,20 @@
 //  1. ordem = urgentes primeiro · depois a ordem manual (tickets_plano) ·
 //     depois o prazo mais próximo · depois o número;
 //  2. cada ticket tem DIAS de trabalho e HORAS POR DIA (payload.dias /
-//     payload.horas_dia); a pessoa tem uma CAPACIDADE por dia (padrão = o
-//     horário da empresa, 9 h);
+//     payload.horas_dia); a pessoa tem uma CAPACIDADE por dia para a fila
+//     (6 h − 1,5 h de rotina = 4,5 h; ver lib/trabalho/capacidade.ts);
 //  3. o planejador percorre a fila a partir de hoje e encaixa cada ticket nos
 //     dias úteis com capacidade sobrando (pula fim de semana e feriado). Dá
 //     PREVISÃO de início e fim — o PRAZO (promessa a quem pediu) não muda.
 //     Previsão depois do prazo = "vai atrasar".
-//  4. ticket CONTÍNUO (prazo indeterminado) não termina: reserva as horas por
-//     dia dele em TODO dia útil, antes dos outros, até alguém concluir.
+//  4. ticket CONTÍNUO (prazo indeterminado) não termina e NÃO come a fila:
+//     fica dentro da reserva de rotina (Fase 0 · I, 24/11/2026). Antes cada
+//     contínuo reservava 1 h/dia para sempre.
 
-/** Horário da empresa: 07:30–11:30 + 12:30–17:30 = 9 h (lib/assistente/horario). */
-export const CAPACIDADE_PADRAO = 9
+import { CAPACIDADE_FILA } from './capacidade'
+
+/** Horas por dia que a fila usa (6 h − 1,5 h de rotina). Era 9 h, o horário cheio da empresa. */
+export const CAPACIDADE_PADRAO = CAPACIDADE_FILA
 
 export interface ItemFila {
   id: string
@@ -28,7 +31,7 @@ export interface ItemFila {
   inicio?: string
 }
 
-/** Contínuo sem horas informadas usa 1 h por dia (não trava a fila). */
+/** Horas/dia exibidas no contínuo sem horas informadas (só informativo: a fila não desconta). */
 export const HORAS_CONTINUO_PADRAO = 1
 
 /** fim = '' no contínuo (vai até concluir). */
@@ -79,14 +82,10 @@ export function planejarFila(
 ): Map<string, Previsao> {
   const uso = new Map<string, number>()
   const out = new Map<string, Previsao>()
-  // 1º os contínuos: reservam a fatia diária deles no horizonte inteiro.
+  // Contínuos: ficam na reserva de rotina, não descontam da capacidade da fila.
   for (const t of fila.filter((x) => x.continuo)) {
-    const porDia = Math.max(0.5, Math.min(capacidade, t.horasDia || HORAS_CONTINUO_PADRAO))
     const desde = t.inicio && t.inicio > hoje ? t.inicio : hoje
-    for (let d = desde, i = 0; i < 730; d = soma(d, 1), i++) {
-      if (ehDiaUtil(d, feriados)) uso.set(d, (uso.get(d) || 0) + porDia)
-    }
-    out.set(t.id, { inicio: desde, fim: '', horas: porDia })
+    out.set(t.id, { inicio: desde, fim: '', horas: 0 })
   }
   for (const t of fila) {
     if (t.continuo) continue

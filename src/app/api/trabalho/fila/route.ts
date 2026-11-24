@@ -14,6 +14,7 @@ import { temModuloTickets } from '@/lib/tickets/server'
 import { feriadosNacionais, feriadosExtras } from '@/lib/assistente/horario'
 import { hojeSP } from '@/lib/trabalho/cronograma-server'
 import { CAPACIDADE_PADRAO } from '@/lib/trabalho/fila'
+import { HORAS_DIA_PADRAO, RESERVA_ROTINA } from '@/lib/trabalho/capacidade'
 import { ehContaTeste } from '@/lib/texto'
 
 export const runtime = 'nodejs'
@@ -87,7 +88,7 @@ export async function GET(req: NextRequest) {
   const feriados = [...feriadosNacionais(ano), ...feriadosNacionais(ano + 1), ...feriadosExtras()]
 
   return NextResponse.json({
-    user, eu: auth.userId, hoje, podeOrdenar: dono, capacidade: CAPACIDADE_PADRAO, feriados,
+    user, eu: auth.userId, hoje, podeOrdenar: dono, capacidade: CAPACIDADE_PADRAO, horasDia: HORAS_DIA_PADRAO, rotina: RESERVA_ROTINA, feriados,
     tickets, quadros, usuarios,
     posicao: Object.fromEntries((plano.data || []).map((p) => [p.ticket_id, p.posicao])),
     // Conta de teste fora da lista (menos a própria pessoa, se for uma).

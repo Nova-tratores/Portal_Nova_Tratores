@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ordenarFila, planejarFila, atrasoPrevisto, diasUteisEntre, type ItemFila } from '../fila'
+import { ordenarFila, planejarFila, atrasoPrevisto, diasUteisEntre, CAPACIDADE_PADRAO, type ItemFila } from '../fila'
 
 // 2026-10-07 é quarta; 12/10 (segunda) é feriado nacional.
 const FERIADOS = new Set(['2026-10-12'])
@@ -21,23 +21,23 @@ describe('fila — ordem', () => {
 
 describe('fila — planejamento', () => {
   it('um ticket por vez quando cada um usa o dia inteiro', () => {
-    const p = planejarFila([item('a', 2, 9), item('b', 1, 9)], '2026-10-07', FERIADOS)
+    const p = planejarFila([item('a', 2, 9), item('b', 1, 9)], '2026-10-07', FERIADOS, 9)
     expect(p.get('a')).toMatchObject({ inicio: '2026-10-07', fim: '2026-10-08' })
     expect(p.get('b')).toMatchObject({ inicio: '2026-10-09', fim: '2026-10-09' })
   })
   it('dois no mesmo dia quando cabe nas horas', () => {
-    const p = planejarFila([item('a', 1, 4), item('b', 1, 5)], '2026-10-07', FERIADOS)
+    const p = planejarFila([item('a', 1, 4), item('b', 1, 5)], '2026-10-07', FERIADOS, 9)
     expect(p.get('a')!.inicio).toBe('2026-10-07')
     expect(p.get('b')!.inicio).toBe('2026-10-07')
   })
   it('pula fim de semana e feriado', () => {
     // sex 09 → (sáb, dom, seg feriado) → ter 13
-    const p = planejarFila([item('a', 2, 9)], '2026-10-09', FERIADOS)
+    const p = planejarFila([item('a', 2, 9)], '2026-10-09', FERIADOS, 9)
     expect(p.get('a')).toMatchObject({ inicio: '2026-10-09', fim: '2026-10-13' })
   })
   it('o que sobra do dia vai para o próximo da fila', () => {
     // a usa 6h/dia por 2 dias; b (9h/dia, 1 dia = 9h) pega 3h na qua, 3h na qui e 3h na sex
-    const p = planejarFila([item('a', 2, 6), item('b', 1, 9)], '2026-10-07', FERIADOS)
+    const p = planejarFila([item('a', 2, 6), item('b', 1, 9)], '2026-10-07', FERIADOS, 9)
     expect(p.get('b')).toMatchObject({ inicio: '2026-10-07', fim: '2026-10-09' })
   })
 })
@@ -54,10 +54,19 @@ describe('fila — atraso e dias úteis', () => {
 })
 
 describe('fila — contínuo (prazo indeterminado)', () => {
-  it('reserva as horas dele todo dia e empurra o resto', () => {
-    // contínuo de 3 h/dia: sobra 6 h/dia; ticket de 1 dia × 9 h = 9 h → qua 6 h + qui 3 h
-    const p = planejarFila([item('c', 1, 3, { continuo: true }), item('a', 1, 9)], '2026-10-07', FERIADOS)
-    expect(p.get('c')).toMatchObject({ inicio: '2026-10-07', fim: '' })
-    expect(p.get('a')).toMatchObject({ inicio: '2026-10-07', fim: '2026-10-08' })
+  it('fica na reserva de rotina e NÃO empurra o resto (Fase 0 · I)', () => {
+    // antes: contínuo de 3 h/dia comia a fila; agora o ticket de 9 h ainda cabe em 1 dia de 9 h
+    const p = planejarFila([item('c', 1, 3, { continuo: true }), item('a', 1, 9)], '2026-10-07', FERIADOS, 9)
+    expect(p.get('c')).toMatchObject({ inicio: '2026-10-07', fim: '', horas: 0 })
+    expect(p.get('a')).toMatchObject({ inicio: '2026-10-07', fim: '2026-10-07' })
+  })
+})
+
+describe('fila — capacidade padrão (Fase 0 · I)', () => {
+  it('6 h − 1,5 h de rotina = 4,5 h por dia para a fila', () => {
+    expect(CAPACIDADE_PADRAO).toBe(4.5)
+    // 9 h de trabalho a 4,5 h/dia = 2 dias (qua e qui)
+    const p = planejarFila([item('a', 2, 4.5)], '2026-10-07', FERIADOS)
+    expect(p.get('a')).toMatchObject({ inicio: '2026-10-07', fim: '2026-10-08', horas: 9 })
   })
 })

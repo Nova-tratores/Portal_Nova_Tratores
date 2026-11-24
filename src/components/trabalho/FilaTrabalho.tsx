@@ -22,7 +22,10 @@ interface Dados {
   hoje: string
   /** Só a própria pessoa e o admin reordenam/editam; quem pediu só vê. */
   podeOrdenar: boolean
+  /** horas/dia para a fila = horasDia − rotina */
   capacidade: number
+  horasDia?: number
+  rotina?: number
   feriados: string[]
   tickets: (Ticket & { oculto?: boolean })[]
   quadros: Record<string, { id: string; nome: string; cor: string }>
@@ -61,14 +64,16 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
   const feriados = useMemo(() => new Set(dados?.feriados || []), [dados])
   // Ticket → item da fila (dias e horas/dia do payload; sem eles, do início ao prazo / dia cheio).
   const itens = useMemo(() => {
-    const m = new Map<string, ItemFila & { t: Ticket & { oculto?: boolean } }>()
+    const m = new Map<string, ItemFila & { t: Ticket & { oculto?: boolean }; semEstimativa: boolean }>()
     for (const t of dados?.tickets || []) {
       const p = (t.payload || {}) as { dias?: number; horas_dia?: number; inicio?: string; urgente?: boolean }
       const dias = p.dias || (p.inicio && t.prazo && p.inicio <= t.prazo ? diasUteisEntre(p.inicio, t.prazo, feriados) : 1)
       // Sem prazo = contínuo (prazo indeterminado): ocupa as horas dele todo dia até concluir.
       const continuo = !t.prazo
       m.set(t.id, { id: t.id, numero: t.numero, prazo: t.prazo, urgente: p.urgente === true, dias, continuo, inicio: p.inicio,
-        horasDia: p.horas_dia || (continuo ? HORAS_CONTINUO_PADRAO : dados!.capacidade), t })
+        horasDia: p.horas_dia || (continuo ? HORAS_CONTINUO_PADRAO : dados!.capacidade), t,
+        // Ninguém estimou as horas: a previsão usa o dia cheio da fila, mas o item ganha a marca "estimar".
+        semEstimativa: !continuo && !p.horas_dia })
     }
     return m
   }, [dados, feriados])
@@ -134,7 +139,8 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
   const comFim = fila.filter((i) => !i.continuo)
   const totalHoras = comFim.reduce((s, i) => s + (previsao.get(i.id)?.horas || 0), 0)
   const livreEm = comFim.length ? comFim.map((i) => previsao.get(i.id)?.fim || '').sort().pop() : null
-  const horasContinuas = fila.filter((i) => i.continuo).reduce((s, i) => s + i.horasDia, 0)
+  const nContinuos = fila.filter((i) => i.continuo).length
+  const nf = (h: number) => String(h).replace('.', ',')
   const vaoAtrasar = fila.filter((i) => atrasoPrevisto(i.prazo, previsao.get(i.id)) > 0).length
   const campo: React.CSSProperties = { width: 46, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)', fontSize: 13, textAlign: 'center' }
 
@@ -153,8 +159,10 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
         <span style={{ fontSize: 13, color: muted }}>
           {fila.length} ticket{fila.length === 1 ? '' : 's'} · {Math.round(totalHoras)} h de trabalho
           {livreEm && <> · termina o que tem prazo em <b>{br(livreEm)}</b></>}
-          {horasContinuas > 0 && <> · {horasContinuas} h/dia em contínuos</>}
-          {' · '}{dados.capacidade} h por dia
+          {nContinuos > 0 && <> · {nContinuos} contínuo{nContinuos > 1 ? 's' : ''} na rotina</>}
+        </span>
+        <span style={{ fontSize: 13, color: 'var(--portal-text,#111)' }} title="Ninguém produz o dia inteiro em demanda. A rotina cobre suporte, atendimento e os tickets contínuos.">
+          Capacidade: {nf(dados.horasDia ?? dados.capacidade)} h/dia{dados.rotina ? <> − {nf(dados.rotina)} h rotina = <b>{nf(dados.capacidade)} h/dia para a fila</b></> : null}
         </span>
         {!dados.podeOrdenar && <span style={{ fontSize: 12, color: muted }}>Só {dados.pessoas.find((x) => x.id === dados.user)?.nome?.split(' ')[0] || 'a pessoa'} e o admin mudam a ordem.</span>}
         {vaoAtrasar > 0 && (
@@ -225,8 +233,12 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
                   </span>
                 </button>
                 <StatusBadge status={t.status} tamanho={11} />
+                {i.semEstimativa && !t.oculto && (
+                  <span title="Ninguém estimou as horas deste ticket. A previsão usa o dia cheio da fila; ajuste dias × h/dia ao lado."
+                    style={{ padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: 'rgba(234,179,8,.18)', color: '#a16207', border: '1px solid rgba(234,179,8,.45)' }}>estimar</span>
+                )}
                 {i.continuo ? (
-                  <span title="Prazo indeterminado: aparece todo dia até alguém concluir" style={{ width: 92, fontSize: 12, fontWeight: 700, color: '#0369a1' }}>∞ contínuo</span>
+                  <span title="Prazo indeterminado: fica na reserva de rotina, não ocupa a fila" style={{ width: 92, fontSize: 12, fontWeight: 700, color: '#0369a1' }}>∞ na rotina</span>
                 ) : (
                 <label title="Dias de trabalho" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: muted }}>
                   <input type="number" min={1} max={120} defaultValue={i.dias} disabled={!dados.podeOrdenar && (t.oculto || t.solicitante_id !== dados.eu)} key={`d${i.id}${i.dias}`} style={campo}
