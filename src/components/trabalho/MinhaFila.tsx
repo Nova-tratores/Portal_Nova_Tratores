@@ -11,7 +11,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
   Check, CalendarClock, CircleX, Send, ListOrdered, Users, Sun, CalendarRange, Inbox, Repeat, ChevronUp, ChevronDown,
-  AlarmClock, HelpCircle, Hourglass, Clock3, Layers,
+  AlarmClock, HelpCircle, Clock3, Layers,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
@@ -23,6 +23,7 @@ import { ESTILO_FILA, COR } from './estiloFila'
 import EstimarTempo from './EstimarTempo'
 import ModoAgora, { type Agora } from './ModoAgora'
 import PlanoSemana from './PlanoSemana'
+import EquipeLista from './EquipeLista'
 
 const FormTicket = dynamic(() => import('@/components/tickets/FormTicket'), { ssr: false })
 const TicketModal = dynamic(() => import('@/components/tickets/TicketModal'), { ssr: false })
@@ -139,16 +140,20 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
   const reunioes = (h?.itens || []).filter((i) => i.tipo === 'reuniao')
   const pedidos = (central?.pedidos || []).filter((p) => !['fechado', 'cancelado'].includes(p.status))
     .sort((a, b) => Number(!!b.prazo && b.prazo < hoje) - Number(!!a.prazo && a.prazo < hoje) || (a.prazo || '9').localeCompare(b.prazo || '9'))
-  const parados = f ? [...comData, ...(f.listaContinuos || [])].filter((i) => i.parado >= 14).length : 0
 
   const setores = useMemo(() => ['Todos', ...[...new Set((equipe?.pessoas || []).map((p) => p.setor))].sort()], [equipe])
   const pessoasF = (equipe?.pessoas || []).filter((p) => setor === 'Todos' || p.setor === setor)
     .sort((a, b) => b.horas - a.horas || a.nome.localeCompare(b.nome))
-  const maxHoras = Math.max(1, ...pessoasF.map((p) => p.horas))
 
+  // Item em 2 linhas (24/11/2026): em cima o título e UM selo (o mais importante: atrasado,
+  // senão urgente, senão o prazo); embaixo uma linha cinza com quem pediu, o quadro, as horas
+  // e quando. Sem tempo estimado = "? h" (o aviso de cima chama para estimar).
   const item = (i: ItemResumo, quando: string) => {
     const pos = comData.findIndex((x) => x.id === i.id)
-    const st = STATUS_INFO[i.status as TicketStatus]
+    const diasAtraso = i.atrasado && i.prazo ? Math.max(1, Math.round((Date.parse(hoje) - Date.parse(i.prazo)) / 86400000)) : 0
+    const selo = diasAtraso ? <SeloAtrasado>atrasado {diasAtraso} {diasAtraso === 1 ? 'dia' : 'dias'}</SeloAtrasado>
+      : i.urgente ? <SeloUrgente />
+      : i.prazo ? <span className="mf-quando"><Clock3 size={13} style={{ verticalAlign: -2 }} /> prazo {br(i.prazo)}</span> : null
     return (
       <div key={i.id} className="mf-it">
         <span className="mf-pos">
@@ -161,19 +166,19 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
           {i.continuo ? <Repeat size={14} /> : `${pos + 1}.`}
         </span>
         <button className="mf-tit" onClick={() => setAberto(i.id)} title={`#${i.numero} ${i.titulo}`}>#{i.numero} {i.titulo}</button>
-        {i.continuo ? <span className="mf-quando">na rotina</span>
-          : <button className="mf-quando" style={{ border: 'none', background: 'transparent', cursor: 'pointer', font: 'inherit' }} title="Mudar o tempo deste trabalho"
-              onClick={() => setEstimando(estimando?.id === i.id ? null : { id: i.id, titulo: i.titulo })}>{nf(i.horas)} h · {quando}</button>}
+        <span style={{ justifySelf: 'end' }}>{selo}</span>
         <span className="mf-info">
+          <span title="Quem pediu">{i.pedidoPor ? primeiro(i.pedidoPor) : 'você'}</span>
           {i.quadro && <span style={{ ['--c' as string]: i.quadro.cor }}><i className="mf-dot" /> {i.quadro.nome}</span>}
-          <span title="Quem pediu">{i.pedidoPor ? <><span className="mf-av">{iniciais(i.pedidoPor)}</span> pedido de {primeiro(i.pedidoPor)}</> : 'você mesmo'}</span>
-          {st && <span className="mf-pill" style={{ ['--c' as string]: COR.info }}>{st.label}</span>}
-          {i.urgente && <SeloUrgente />}
-          {i.atrasado && i.prazo && <SeloAtrasado>desde {br(i.prazo)}</SeloAtrasado>}
-          {!i.atrasado && i.prazo && <span><Clock3 size={13} /> prazo {br(i.prazo)}</span>}
-          {i.parado >= 14 && <span style={{ color: '#b45309' }} title="Sem nenhum movimento"><Hourglass size={13} /> {i.parado} dias parado</span>}
-          {i.semEstimativa && <button className="mf-est" style={{ cursor: 'pointer', font: 'inherit', fontSize: 11.5 }} title="Ninguém disse quanto tempo leva. Clique para escolher (o sistema sugere)."
-            onClick={() => setEstimando({ id: i.id, titulo: i.titulo })}>estimar o tempo</button>}
+          {i.continuo ? <span>na rotina</span> : (
+            <button className="mf-link" title={i.semEstimativa ? 'Ninguém disse quanto tempo leva. Clique para escolher (o sistema sugere).' : 'Mudar o tempo deste trabalho'}
+              onClick={() => setEstimando(estimando?.id === i.id ? null : { id: i.id, titulo: i.titulo })}>
+              {i.semEstimativa ? '? h' : `${nf(i.horas)} h`}
+            </button>
+          )}
+          {!i.continuo && <span>{quando}</span>}
+          {i.status === 'em_andamento' && <span style={{ color: COR.ok }}>fazendo</span>}
+          {i.parado >= 14 && !diasAtraso && <span style={{ color: COR.atencao }}>parado {i.parado} dias</span>}
         </span>
         {estimando?.id === i.id && !estimando.aceitar && (
           <div style={{ gridColumn: '1/-1' }}>
@@ -210,7 +215,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
       <div className="mf-topo">
         <div className="mf-titulo">
           <h1>{aba === 'minha' ? `Bom dia${userProfile?.nome ? `, ${primeiro(userProfile.nome)}` : ''}` : 'Carga da equipe'}</h1>
-          <span>{aba === 'minha' ? 'Sua fila: o que fazer hoje, na semana e depois. Capacidade 6 h − 1,5 h de rotina = 4,5 h por dia.' : 'Quem está ocupado, por setor. Só números: ninguém vê os títulos da fila do outro.'}</span>
+          <span>{aba === 'minha' ? 'Seu dia tem 4,5 h para a fila. Comece pelo item da vez.' : 'Quem está ocupado, por setor. Só números: ninguém vê os títulos da fila do outro.'}</span>
         </div>
         <button className={`mf-aba${aba === 'minha' ? ' on' : ''}`} style={{ ['--c' as string]: '#334155' }} onClick={() => setAba('minha')} aria-pressed={aba === 'minha'}>
           <span className="ic"><ListOrdered size={15} /></span> Minha fila
@@ -245,17 +250,28 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
       {aba === 'minha' && (!h ? <div className="mf-ajuda">Carregando sua fila…</div> : !h.ativo ? <div className="mf-ajuda">A Central de Trabalho não está liberada para você.</div> : (
         <>
           {(() => {
+            // Hoje = o que o plano põe no dia (nunca passa de 4,5 h); antes somava o item inteiro (13,5 h).
+            const planoHoje = f?.plano?.[0]?.dia === hoje ? f.plano[0].itens : []
+            const horasHoje = planoHoje.reduce((s, x) => s + x.horas, 0)
+            const itensHoje = planoHoje.length
+            const semTempo = comData.filter((x) => x.semEstimativa)
+            // Um aviso só para "sem tempo" (antes era uma etiqueta amarela em cada linha).
+            const avisoSemTempo = semTempo.length > 0 && (
+              <div className="mf-aviso">
+                <span style={{ flex: 1 }}><b style={{ fontWeight: 500 }}>{semTempo.length} {semTempo.length === 1 ? 'trabalho está' : 'trabalhos estão'} sem tempo estimado.</b> A previsão usa um dia inteiro para cada um.</span>
+                <button className="mf-btn peq" onClick={() => setEstimando({ id: semTempo[0].id, titulo: semTempo[0].titulo })}>Estimar agora</button>
+              </div>
+            )
             const numeros = f && (
               <div className="mf-kpis">
-                {kpi(null, COR.info, <Sun size={18} />, f.hoje.length, `para hoje · ${nf(f.hoje.reduce((s, x) => s + x.horas, 0))} h`)}
-                {kpi(null, COR.info, <CalendarRange size={18} />, f.semana.length, 'no resto da semana')}
-                {kpi('atrasados', COR.ruim, <AlarmClock size={18} />, f.atrasados, 'atrasados (clique para filtrar)')}
-                {kpi('parados', COR.atencao, <Hourglass size={18} />, parados, '14+ dias parados (clique)')}
-                {kpi(null, '#475569', <Layers size={18} />, f.livreEm ? br(f.livreEm) : 'livre', `fila ocupada até · ${f.total} itens`)}
+                {kpi(null, COR.info, <Sun size={18} />, `${nf(horasHoje)} de 4,5 h`, `ocupadas hoje · ${itensHoje} ${itensHoje === 1 ? 'trabalho' : 'trabalhos'}`)}
+                {kpi('atrasados', COR.ruim, <AlarmClock size={18} />, f.atrasados, f.atrasados ? 'atrasados · clique para ver só eles' : 'nada atrasado')}
+                {kpi(null, COR.info, <Layers size={18} />, f.livreEm ? br(f.livreEm) : 'livre', `fila ocupada até · ${f.total} ${f.total === 1 ? 'item' : 'itens'}`)}
               </div>
             )
             const filaCompleta = (
               <>
+                {avisoSemTempo}
                 {f && secao('Hoje', 'objetivo do dia', COR.info, <Sun size={16} />, f.hoje, (i) => (i.fim > hoje ? `até ${br(i.fim)}` : 'termina hoje'), 'Nada na fila para hoje.')}
                 {f && secao('Esta semana', 'objetivo da semana', COR.info, <CalendarRange size={16} />, f.semana, (i) => `começa ${br(i.inicio)}`, 'Nada mais previsto até sexta.')}
                 {f && secao('Depois', 'o resto da fila, na ordem', '#475569', <ListOrdered size={16} />, f.listaDepois || [], (i) => `${br(i.inicio)}–${br(i.fim)}`, 'Nada depois desta semana.')}
@@ -267,6 +283,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
               <>
                 {secao('Próximos', 'na ordem da fila', COR.info, <ListOrdered size={16} />, comData.filter((x) => x.id !== agora?.rodando?.ticket_id).slice(1, 7), (i) => (i.inicio <= hoje ? 'hoje' : `começa ${br(i.inicio)}`), 'Nada depois deste.')}
                 {comData.length > 7 && <button className="mf-btn" onClick={() => setVerTudo(true)}>Ver a fila completa ({comData.length} itens)</button>}
+                {avisoSemTempo}
               </>
             ))
             const lado = (
@@ -372,32 +389,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
             ))}
           </div>
           {!equipe ? <div className="mf-ajuda">Carregando a equipe…</div> : pessoasF.length === 0 ? <div className="mf-ajuda">Ninguém neste setor.</div> : (
-            <div className="mf-pessoas">
-              {pessoasF.map((p) => {
-                const cor = p.atrasados > 0 ? COR.ruim : p.horas > maxHoras * 0.66 ? COR.atencao : '#94a3b8'
-                return (
-                  <div key={p.id} className="mf-pes mf-anim" style={{ ['--c' as string]: cor }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <span className="mf-ic" style={{ ['--c' as string]: COR.info, fontSize: 13 }}>{iniciais(p.nome)}</span>
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ display: 'block', fontSize: 15, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}{p.id === equipe.eu ? ' (você)' : ''}</span>
-                        <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>{p.setor}</span>
-                      </span>
-                      {p.id !== equipe.eu && <button className="mf-btn peq" onClick={() => setPedirPara(p.id)}><Send size={14} /> Pedir</button>}
-                    </div>
-                    <span className="mf-barra" title={`${p.horas} h na fila`}><i style={{ width: `${Math.max(p.horas ? 4 : 0, (p.horas / maxHoras) * 100)}%` }} /></span>
-                    <span style={{ display: 'flex', gap: '4px 12px', flexWrap: 'wrap', fontSize: 12.5, color: 'var(--portal-text-secondary,#475569)' }}>
-                      {p.itens === 0 ? <span>fila vazia</span> : <>
-                        <span>{p.itens} {p.itens === 1 ? 'item' : 'itens'} · {p.horas} h</span>
-                        {p.livreEm && <span>ocupada até {br(p.livreEm)}</span>}
-                      </>}
-                      {p.atrasados > 0 && <span style={{ color: 'var(--cor-atrasado-texto)' }}><AlarmClock size={12} style={{ verticalAlign: -2 }} /> {p.atrasados} atrasado{p.atrasados > 1 ? 's' : ''}</span>}
-                      {p.aceitar > 0 && <span>{p.aceitar} esperando resposta</span>}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
+            <EquipeLista pessoas={pessoasF} eu={equipe.eu} onPedir={(id) => setPedirPara(id)} onAbrir={setAberto} />
           )}
         </>
       )}

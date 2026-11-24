@@ -80,11 +80,12 @@ export default function CentralNav() {
   const naAgenda = pathname.startsWith('/agenda') || pathname.startsWith('/salas')
   const naAreaQuadros = pathname.startsWith('/tickets') || pathname.startsWith('/cronograma')
   const abas = [
-    // Minha fila: objetivo do dia/semana, pedidos para aceitar, carga da equipe.
-    { href: '/fila', label: 'Minha fila', icone: <ListOrdered size={15} />, ativo: pathname.startsWith('/fila') },
+    // Minha fila: objetivo do dia/semana, pedidos para aceitar, carga da equipe. Desde 24/11/2026
+    // (José: "não faz mais sentido existir a aba Quadros") ela também é a casa dos trabalhos de
+    // todos (Cronograma) e da Visão geral; /tickets/quadros continua abrindo por link.
+    { href: '/fila', label: 'Minha fila', icone: <ListOrdered size={15} />, ativo: pathname.startsWith('/fila') || naAreaQuadros },
     // Agenda coletiva (todos por setor + reuniões, prazos, técnicos) com a vista Salas.
     { href: '/agenda', label: 'Agenda', icone: <CalendarDays size={15} />, ativo: naAgenda },
-    { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={15} />, ativo: naAreaQuadros },
     // Reuniões (pauta + ata): mesma permissão da Central.
     { href: '/reunioes', label: 'Reuniões', icone: <CalendarClock size={15} />, ativo: pathname.startsWith('/reunioes'), n: reunioesHoje },
     // Bloco de notas dos devs (captar → agrupar → planejar vira ticket). Só Dev.
@@ -93,9 +94,10 @@ export default function CentralNav() {
       ? [{ href: '/tarefas', label: 'Pendências', icone: <ListTodo size={15} />, ativo: pathname.startsWith('/tarefas'), n: pendencias }]
       : []),
   ]
-  const vistas = naAreaQuadros ? [
-    { href: '/tickets/quadros', label: 'Por quadro', icone: <LayoutGrid size={14} />, ativo: emQuadros },
-    { href: '/cronograma', label: 'Cronograma', icone: <GanttChartSquare size={14} />, ativo: pathname.startsWith('/cronograma') },
+  const naFila = pathname.startsWith('/fila') || naAreaQuadros
+  const vistas = naFila ? [
+    { href: '/fila', label: 'Minha fila', icone: <ListOrdered size={14} />, ativo: pathname.startsWith('/fila') },
+    { href: '/cronograma', label: 'Todos os trabalhos', icone: <GanttChartSquare size={14} />, ativo: pathname.startsWith('/cronograma') },
     ...(isAdmin ? [{ href: '/tickets?aba=gerencial', label: 'Visão geral', icone: <BarChart3 size={14} />, ativo: naGerencial }] : []),
   ] : naAgenda ? [
     { href: '/agenda', label: 'Calendário', icone: <CalendarDays size={14} />, ativo: pathname.startsWith('/agenda') },

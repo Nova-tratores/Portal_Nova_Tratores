@@ -58,7 +58,11 @@ export const ESTILO_FILA = `
 .mf-tit{border:none;background:transparent;padding:0;text-align:left;cursor:pointer;color:var(--portal-text,#0f172a);font:inherit;font-size:14.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .mf-tit:hover{color:#2563eb}
 .mf-info{grid-column:2/4;display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;font-size:12.5px;color:var(--portal-text-secondary,#475569)}
-.mf-info > span{display:inline-flex;align-items:center;gap:5px}
+.mf-info > span,.mf-info > button{display:inline-flex;align-items:center;gap:5px}
+.mf-info > * + *::before{content:'·';margin-right:7px;color:var(--portal-text-muted,#cbd5e1)}
+.mf-link{border:none;background:transparent;padding:0;cursor:pointer;font:inherit;color:inherit;text-decoration:underline dotted;text-underline-offset:3px}
+.mf-link:hover{color:#2563eb}
+.mf-aviso{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-radius:14px;font-size:13.5px;color:var(--portal-text-secondary,#475569);background:color-mix(in srgb,#b45309 6%,var(--portal-surface,#fefefe));border:1px solid color-mix(in srgb,#b45309 25%,var(--portal-border,#e2e8f0))}
 .mf-dot{width:8px;height:8px;border-radius:50%;background:var(--c)}
 .mf-pill{padding:1px 9px;border-radius:999px;font-size:12px;color:var(--c);background:color-mix(in srgb,var(--c) 12%,transparent)}
 .mf-est{padding:1px 8px;border-radius:999px;font-size:11.5px;background:rgba(234,179,8,.16);color:#a16207;border:1px solid rgba(234,179,8,.4)}
@@ -70,6 +74,9 @@ export const ESTILO_FILA = `
 .mf-pessoas{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr));gap:12px}
 .mf-pes{display:flex;flex-direction:column;gap:10px;padding:14px 16px;border-radius:16px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);transition:box-shadow .25s,transform .25s}
 .mf-pes:hover{transform:translateY(-2px);box-shadow:0 14px 28px -20px rgba(15,23,42,.55)}
+.mf-eq-lin{display:grid;grid-template-columns:minmax(200px,1.1fr) minmax(0,2fr) auto;gap:16px;align-items:center;padding:10px 8px;border-radius:12px;cursor:pointer}
+.mf-eq-lin:hover{background:color-mix(in srgb,#0369a1 4%,transparent)}
+@media (max-width:760px){.mf-eq-lin{grid-template-columns:1fr}}
 .mf-barra{height:8px;border-radius:999px;background:var(--portal-bg-secondary,#f1f5f9);overflow:hidden}
 .mf-barra i{display:block;height:100%;border-radius:999px;background:var(--c,#2563eb);transition:width .6s ease}
 @media (max-width:640px){.mf-it{grid-template-columns:auto minmax(0,1fr)}.mf-quando{grid-column:2;text-align:left}.mf-info{grid-column:1/3}}

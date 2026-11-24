@@ -7,7 +7,6 @@
 import { useEffect, useState } from 'react'
 import { Play, Pause, Check, SkipForward, Timer, Clock3 } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
-import { STATUS_INFO, type TicketStatus } from '@/lib/tickets/constantes'
 import SeloAtrasado, { SeloUrgente } from '@/components/tickets/SeloAtrasado'
 import type { ItemResumo } from '@/lib/trabalho/fila-server'
 import { COR } from './estiloFila'
@@ -76,7 +75,6 @@ export default function ModoAgora({ itens, agora, onMudou, onAbrir, compacto }: 
   // horas reais já gastas (a API soma até o momento da carga, inclusive a sessão aberta)
   const gasto = agora?.horas[item.id] || 0
   const decorrido = rodando && agora?.rodando ? agoraMs - Date.parse(agora.rodando.inicio) : 0
-  const st = STATUS_INFO[item.status as TicketStatus]
   // Azul = pode começar · verde = está fazendo (regra de cores em estiloFila.ts)
   const cor = rodando ? COR.ok : COR.acao
 
@@ -87,13 +85,15 @@ export default function ModoAgora({ itens, agora, onMudou, onAbrir, compacto }: 
         <span style={{ flex: '1 1 300px', minWidth: 0 }}>
           <span style={{ display: 'block', fontSize: 12.5, color: cor }}>{rodando ? 'Fazendo agora' : 'Agora é a vez de'}</span>
           <button className="mf-tit" style={{ fontSize: compacto ? 16 : 20, whiteSpace: 'normal' }} onClick={() => onAbrir(item.id)}>#{item.numero} {item.titulo}</button>
-          <span className="mf-info" style={{ marginTop: 4 }}>
-            {item.quadro && <span style={{ ['--c' as string]: item.quadro.cor }}><i className="mf-dot" /> {item.quadro.nome}</span>}
+          <span className="mf-info" style={{ marginTop: 6 }}>
             <span>{item.pedidoPor ? `pedido de ${item.pedidoPor.split(' ')[0]}` : 'você mesmo'}</span>
-            {st && <span className="mf-pill" style={{ ['--c' as string]: COR.info }}>{st.label}</span>}
-            {item.urgente && <SeloUrgente />}
-            {item.atrasado && item.prazo ? <SeloAtrasado>desde {br(item.prazo)}</SeloAtrasado> : item.prazo && <span><Clock3 size={13} /> prazo {br(item.prazo)}</span>}
-            <span>{gasto > 0 ? `${nf(gasto)} h feitas de ${nf(item.horas)} h` : `previsto ${nf(item.horas)} h`}</span>
+            {item.quadro && <span style={{ ['--c' as string]: item.quadro.cor }}><i className="mf-dot" /> {item.quadro.nome}</span>}
+            <span>{gasto > 0 ? `${nf(gasto)} h feitas de ${nf(item.horas)} h` : `${nf(item.horas)} h${item.horas > 4.5 ? ` · uns ${Math.ceil(item.horas / 4.5)} dias` : ''}`}</span>
+          </span>
+          <span style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+            {item.atrasado && item.prazo ? <SeloAtrasado tamanho={12.5}>atrasado desde {br(item.prazo)}</SeloAtrasado>
+              : item.prazo ? <span className="mf-quando"><Clock3 size={13} style={{ verticalAlign: -2 }} /> prazo {br(item.prazo)}</span> : null}
+            {item.urgente && <SeloUrgente tamanho={12} />}
           </span>
         </span>
         {rodando && <span style={{ fontSize: compacto ? 20 : 28, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: cor }} aria-live="off">{relogio(decorrido)}</span>}
