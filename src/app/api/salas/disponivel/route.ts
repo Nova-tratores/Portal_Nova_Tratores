@@ -2,7 +2,7 @@
 // -> { livre: true } | { livre: false, mensagem, conflito }. Usado pelo formulário de reunião (aviso ao vivo).
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
-import { conflitoEm, listarSalas, uuidValido, migrationFaltou } from '@/lib/salas/server'
+import { conflitoEm, listarSalas, uuidValido, migrationFaltou, mascararPrivadas } from '@/lib/salas/server'
 import { isoDe, rotuloConflito } from '@/lib/salas/regras'
 
 export const runtime = 'nodejs'
@@ -24,7 +24,9 @@ export async function GET(req: NextRequest) {
     const salaId = uuidValido(salaParam) ? salaParam : salas[0]?.id
     if (!salaId) return NextResponse.json({ livre: true, semSala: true })
     const ign = sp.get('ignorar_reuniao')
-    const c = await conflitoEm(salaId, isoDe(dia, ini), isoDe(dia, fim), uuidValido(ign) ? { reuniaoId: ign } : undefined)
+    const c0 = await conflitoEm(salaId, isoDe(dia, ini), isoDe(dia, fim), uuidValido(ign) ? { reuniaoId: ign } : undefined)
+    // O aviso de conflito também não mostra o título de reunião privada alheia (24/11/2026).
+    const c = c0 ? (await mascararPrivadas([c0], auth))[0] : null
     return NextResponse.json(c ? { livre: false, mensagem: rotuloConflito(c), conflito: c } : { livre: true })
   } catch (e) {
     if (migrationFaltou(e)) return NextResponse.json({ livre: true, migracaoFaltando: true })

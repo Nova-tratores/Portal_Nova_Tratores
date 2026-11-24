@@ -124,3 +124,25 @@ export async function liberarSalaDaReuniao(auth: Autenticado, reuniaoId: string)
   const r = await reservaDaReuniao(reuniaoId)
   if (r) await cancelarReserva(auth, r, 'reunião cancelada')
 }
+
+/**
+ * Reserva de reunião PRIVADA: quem não está na reunião (nem é admin) vê só que a sala
+ * está ocupada — "Reunião (privada)", sem título, descrição nem nº (24/11/2026). Antes a
+ * grade da sala e o aviso de conflito mostravam o título da reunião para todo mundo.
+ * Mesma regra da Agenda (lib/agenda/server.ts, fonteReunioes).
+ */
+export async function mascararPrivadas(rs: Reserva[], auth: Autenticado): Promise<Reserva[]> {
+  const rids = [...new Set(rs.map((r) => r.reuniao_id).filter((x): x is string => !!x))]
+  if (!rids.length || auth.isAdmin) return rs
+  const [ts, ps] = await Promise.all([
+    supabaseAdmin.from('tickets').select('id, visibilidade, solicitante_id, responsavel_id').in('id', rids),
+    supabaseAdmin.from('tickets_participantes').select('ticket_id, user_id').in('ticket_id', rids).is('removido_em', null),
+  ])
+  const estou = new Set(((ps.data || []) as { ticket_id: string; user_id: string }[]).filter((p) => p.user_id === auth.userId).map((p) => p.ticket_id))
+  const escondidas = new Set(((ts.data || []) as { id: string; visibilidade: string; solicitante_id: string; responsavel_id: string }[])
+    .filter((t) => t.visibilidade === 'privado' && t.solicitante_id !== auth.userId && t.responsavel_id !== auth.userId && !estou.has(t.id))
+    .map((t) => t.id))
+  return rs.map((r) => (r.reuniao_id && escondidas.has(r.reuniao_id)
+    ? { ...r, titulo: 'Reunião (privada)', descricao: null, reuniao_numero: null }
+    : r))
+}
