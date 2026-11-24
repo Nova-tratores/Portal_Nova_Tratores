@@ -1,12 +1,15 @@
 'use client'
 // CENTRAL DE TRABALHO — o que aparece na cara da pessoa, em qualquer tela:
 //  1) "Fulano criou um ticket para você": Confirmar · Propor outra data · Recusar
-//  2) "Seu dia" a partir das 7:30, até ela confirmar (só se houver algo)
+//  2) "Seu dia" a partir das 7:30, até ela fechar — desde 24/11/2026 é uma FAIXA no topo, sem
+//     travar a tela, na ordem da Minha fila (antes: janela que juntava cronograma, tickets e
+//     passos fora de ordem). Pedido novo não pula mais na cara: fica em "Chegou pra você"
+//     na Minha fila (a janela antiga continua no código, desligada em JANELAS_ANTIGAS).
 //  3) Atalho flutuante na dashboard (cada um escolhe se quer)
 import { useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  Check, CircleX, CalendarClock, Users, Wrench, Play, Ticket as TicketIcon, SquareCheck, Kanban, X, Inbox, Sun, Send, Plus, ArrowUpRight, EyeOff,
+  Check, CircleX, CalendarClock, Kanban, X, Inbox, Sun, Send, Plus, ArrowUpRight, EyeOff,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { authHeaders } from '@/lib/auth/client'
@@ -21,14 +24,15 @@ const TicketModal = dynamic(() => import('@/components/tickets/TicketModal'), { 
 
 interface Pendente { id: string; numero: number; titulo: string; prazo: string | null; solicitante_nome: string; quadro_id?: string | null; quadro_nome: string | null; visibilidade?: 'privado' | 'publico' }
 interface Item { tipo: 'andamento' | 'comeca' | 'ticket' | 'tarefa' | 'reuniao'; texto: string; detalhe?: string; ticketId?: string | null; atrasado?: boolean; link?: string }
-interface Hoje { ativo: boolean; hora: string; pendentes: Pendente[]; itens: Item[]; confirmado: boolean; pedidos: number; preferencias: { atalho_flutuante: boolean } }
+interface ItemFilaHoje { id: string; numero: number; titulo: string; horas: number; atrasado: boolean }
+interface Hoje { ativo: boolean; hora: string; pendentes: Pendente[]; itens: Item[]; confirmado: boolean; pedidos: number; preferencias: { atalho_flutuante: boolean }
+  fila?: { hoje: ItemFilaHoje[]; semana: unknown[]; atrasados: number } | null }
+/** true = volta a janela "Fulano criou um ticket para você" pulando na tela. */
+const JANELAS_ANTIGAS = false
 
 const VERMELHO = 'linear-gradient(135deg,#dc2626,#7f1d1d)'
 const br = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
 const hojeIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
-const ICONE: Record<Item['tipo'], React.ReactNode> = {
-  andamento: <Wrench size={16} />, comeca: <Play size={16} />, ticket: <TicketIcon size={16} />, tarefa: <SquareCheck size={16} />, reuniao: <Users size={16} />,
-}
 
 export default function PainelDoDia({ nome }: { nome?: string }) {
   const pathname = usePathname()
@@ -77,7 +81,7 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
   const naDoca = (el: React.ReactNode) => (doca && doca.isConnected ? createPortal(el, doca) : el)
 
   if (!h?.ativo) return null
-  const pend = h.pendentes[0]
+  const pend = JANELAS_ANTIGAS ? h.pendentes[0] : undefined
   const org: EscolhaBlocoValor = organizacao && pend && organizacao.id === pend.id
     ? organizacao.valor
     : { quadroId: null, visibilidade: pend?.visibilidade || 'privado' }
@@ -88,7 +92,11 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
   // Quem ainda não tem bloco nenhum não fica travado: o Confirmar cria o bloco pessoal na hora.
   const criaBloco = faltaBloco && qtdBlocos === 0
   const travado = faltaBloco && !criaBloco
-  const mostrarDia = !pend && h.itens.length > 0 && ((h.hora >= '07:30' && !h.confirmado && !diaFechado) || verDia)
+  const reunioesHoje = h.itens.filter((i) => i.tipo === 'reuniao')
+  const filaHoje = h.fila?.hoje || []
+  const temAlgo = filaHoje.length > 0 || reunioesHoje.length > 0 || h.pendentes.length > 0
+  // Faixa: a partir das 7:30 até fechar no X (ou pelo atalho). Na própria Minha fila não precisa.
+  const mostrarDia = !pend && temAlgo && !pathname.startsWith('/fila') && ((h.hora >= '07:30' && !h.confirmado && !diaFechado) || verDia)
   const naDashboard = pathname === '/dashboard' || pathname === '/'
   // Atalho redondo da Central DESLIGADO no dashboard novo por setor (José, 10/11/2026: "está poluindo");
   // a Central virou botão em Adicionais › Dia a dia. Para voltar, troque ATALHO_NA_DASHBOARD para true.
@@ -201,34 +209,32 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
         </div>
       )}
 
-      {/* 2) Seu dia (7:30) */}
-      {mostrarDia && !ticketAberto && (
-        <div style={fundo} role="dialog" aria-modal="true" aria-labelledby="dia-t">
-          <div style={caixa}>
-            <div style={topo}>
-              <div style={{ fontSize: 12, opacity: .9 }}>Hoje · {h.hora}</div>
-              <div id="dia-t" style={{ fontSize: 20, fontWeight: 800 }}>Bom dia{nome ? `, ${nome.split(' ')[0]}` : ''}!</div>
-              <div style={{ fontSize: 13, opacity: .95 }}>Isto é o que você tem para hoje:</div>
-            </div>
-            <ul style={{ listStyle: 'none', margin: 0, padding: '6px 20px', maxHeight: '55vh', overflowY: 'auto' }}>
-              {h.itens.map((i, k) => (
-                <li key={k} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid var(--portal-border,#f0f0f0)', fontSize: 14, color: 'var(--portal-text,#111)' }}>
-                  <span style={{ flex: 'none', width: 30, height: 30, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: i.tipo === 'reuniao' ? 'rgba(79,70,229,.1)' : 'var(--portal-bg,#fafafa)', color: i.tipo === 'reuniao' ? '#4f46e5' : '#dc2626' }}>{ICONE[i.tipo]}</span>
-                  <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
-                    <strong>{i.texto}</strong>{i.detalhe && <> — <span style={{ color: i.atrasado ? '#dc2626' : 'var(--portal-text-secondary,#555)', fontWeight: i.atrasado ? 700 : 400 }}>{i.detalhe}</span></>}
-                    {i.link && <> · <button onClick={() => { void confirmarDia(); router.push(i.link!) }} style={{ border: 'none', background: 'transparent', padding: 0, color: '#4f46e5', fontWeight: 700, cursor: 'pointer' }}>abrir reunião</button></>}
-                    {i.ticketId && <> · <button onClick={() => setTicketAberto(i.ticketId!)} style={{ border: 'none', background: 'transparent', padding: 0, color: '#dc2626', fontWeight: 700, cursor: 'pointer' }}>abrir</button></>}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <div style={{ padding: '14px 20px', borderTop: '1px solid var(--portal-border,#f0f0f0)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-              <small style={{ color: 'var(--portal-text-muted,#888)' }}>Esta tela fica aqui até você confirmar.</small>
-              <button style={btn('#dc2626')} onClick={confirmarDia}><Check size={15} /> Ok, vi meu dia</button>
-            </div>
+      {/* 2) Seu dia (7:30): FAIXA no topo, não trava a tela */}
+      {mostrarDia && !ticketAberto && (() => {
+        const primeiro = filaHoje[0]
+        const horas = filaHoje.reduce((t, i) => t + i.horas, 0)
+        const reuniao = reunioesHoje[0]
+        return (
+          <div role="status" aria-live="polite"
+            style={{ position: 'fixed', top: 72, left: '50%', transform: 'translateX(-50%)', zIndex: 950, width: 'min(860px, calc(100vw - 24px))',
+              display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '10px 12px 10px 16px', borderRadius: 14,
+              background: 'var(--portal-bg-card,#fff)', border: '1px solid rgba(217,119,6,.45)', boxShadow: '0 14px 34px -16px rgba(0,0,0,.45)', color: 'var(--portal-text,#111)' }}>
+            <Sun size={20} color="#d97706" style={{ flex: 'none' }} />
+            <span style={{ flex: '1 1 320px', minWidth: 0, fontSize: 13.5, lineHeight: 1.45 }}>
+              <b>Bom dia{nome ? `, ${nome.split(' ')[0]}` : ''}!</b>{' '}
+              {filaHoje.length > 0
+                ? <>Hoje: <b>{filaHoje.length} {filaHoje.length === 1 ? 'item' : 'itens'}</b> ({String(Math.round(horas * 10) / 10).replace('.', ',')} h)</>
+                : 'Nada na fila para hoje'}
+              {reuniao && <> · reunião {(reuniao.detalhe || '').slice(0, 5)}{reunioesHoje.length > 1 ? ` (+${reunioesHoje.length - 1})` : ''}</>}
+              {h.pendentes.length > 0 && <> · <b style={{ color: '#2563eb' }}>{h.pendentes.length} {h.pendentes.length === 1 ? 'pedido chegou' : 'pedidos chegaram'}</b></>}
+              {primeiro && <><br />Comece pelo <b>#{primeiro.numero} {primeiro.titulo}</b>{primeiro.atrasado && <span style={{ color: 'var(--cor-atrasado-texto)', fontWeight: 700 }}> (atrasado)</span>}</>}
+            </span>
+            <button style={btn('#d97706')} onClick={() => { void confirmarDia(); router.push('/fila') }}><Send size={15} /> Abrir minha fila</button>
+            <button onClick={confirmarDia} aria-label="Fechar o lembrete de hoje" title="Fechar (volta amanhã)"
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 6, color: 'var(--portal-text-muted,#888)', display: 'flex' }}><X size={18} /></button>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* 3) Atalho flutuante na dashboard */}
       {atalho && naDoca(
@@ -241,7 +247,7 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
                 { ic: <Sun size={16} />, txt: 'Meu dia', n: h.itens.length, acao: () => setVerDia(true) },
                 { ic: <Send size={16} />, txt: 'Meus pedidos', n: h.pedidos, acao: () => router.push('/tickets/quadros#pedidos') },
                 { ic: <Plus size={16} />, txt: 'Novo ticket', acao: () => setNovo(true) },
-                { ic: <ArrowUpRight size={16} />, txt: 'Abrir a Central de Trabalho', acao: () => router.push('/tickets/quadros') },
+                { ic: <ArrowUpRight size={16} />, txt: 'Abrir minha fila', acao: () => router.push('/fila') },
               ].map((o) => (
                 <button key={o.txt} onClick={() => { setMenu(false); o.acao() }}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', border: 'none', background: 'transparent', padding: '11px 14px', fontSize: 13.5, cursor: 'pointer', textAlign: 'left', color: 'var(--portal-text,#111)' }}>
