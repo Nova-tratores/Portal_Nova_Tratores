@@ -63,7 +63,10 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
   useEffect(() => {
     carregar()
     const t = setInterval(carregar, 5 * 60 * 1000)
-    const foco = () => carregar()
+    // Voltar para a janela recarregava SEMPRE (cada volta = uma chamada de segundos, e elas se
+    // empilhavam). Agora no máximo a cada 2 min (24/11/2026).
+    let ultima = Date.now()
+    const foco = () => { if (Date.now() - ultima > 120_000) { ultima = Date.now(); carregar() } }
     window.addEventListener('focus', foco)
     return () => { clearInterval(t); window.removeEventListener('focus', foco) }
   }, [carregar])

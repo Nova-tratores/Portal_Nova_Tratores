@@ -133,7 +133,7 @@ const br = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
 
 // Reuniões de hoje em que a pessoa está (condutor, secretário ou participante), em ordem de horário.
 // Vêm primeiro no Seu dia. Falhou (tabelas das reuniões ausentes) = lista vazia, o resto segue.
-async function reunioesDoDia(userId: string, hoje: string): Promise<ItemDia[]> {
+export async function reunioesDoDia(userId: string, hoje: string = hojeSP()): Promise<ItemDia[]> {
   try {
     const { data: pres } = await supabaseAdmin.from('reunioes_presencas').select('reuniao_id, papel').eq('usuario_id', userId)
     const papel = new Map((pres || []).map((p: { reuniao_id: string; papel: string }) => [p.reuniao_id, p.papel]))

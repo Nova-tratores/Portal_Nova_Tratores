@@ -141,8 +141,11 @@ export default function MinhaFila() {
   useEffect(() => { if (aba === 'equipe' && !equipe) carregarEquipe() }, [aba, equipe, carregarEquipe])
   useEffect(() => {
     const f = () => { carregar(); if (equipe) carregarEquipe() }
-    window.addEventListener('central-trabalho-mudou', f); window.addEventListener('focus', f)
-    return () => { window.removeEventListener('central-trabalho-mudou', f); window.removeEventListener('focus', f) }
+    // Foco recarrega no máximo a cada 1 min (cada volta para a janela disparava as consultas de novo).
+    let ultima = Date.now()
+    const foco = () => { if (Date.now() - ultima > 60_000) { ultima = Date.now(); f() } }
+    window.addEventListener('central-trabalho-mudou', f); window.addEventListener('focus', foco)
+    return () => { window.removeEventListener('central-trabalho-mudou', f); window.removeEventListener('focus', foco) }
   }, [carregar, carregarEquipe, equipe])
 
   const decidir = async (id: string, corpo: Record<string, unknown>) => {
