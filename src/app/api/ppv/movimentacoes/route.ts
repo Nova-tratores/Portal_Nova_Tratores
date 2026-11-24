@@ -6,6 +6,7 @@ import { movimentacaoSchema, editarPrecoItemSchema } from "@/lib/ppv/schemas";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import { autorDe } from "@/lib/ajustes/permissao-server";
 import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
+import { semCobrancaDoPPV, TBL_SEM_COBRANCA } from "@/lib/ppv/sem-cobranca";
 
 // Itens do PPV são lançados pelo PPV, pelo drawer da OS (POS), pelo "Gerar OS" dos
 // Orçamentos e pelo Catálogo (dentro do PPV); o Tratorilson e o catálogo chamam
@@ -75,6 +76,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Peça marcada "não gerar cobrança": a nova linha também entra a R$ 0 (herda a marcação)
+    const marcada = (await semCobrancaDoPPV(dados.id))[dados.codigo];
+
     const mov = {
       Id: Math.floor(Math.random() * 9000000000) + 1000000000,
       Id_PPV: dados.id,
@@ -84,7 +88,7 @@ export async function POST(req: NextRequest) {
       CodProduto: dados.codigo,
       Descricao: dados.descricao,
       Qtde: String(dados.quantidade),
-      Preco: dados.preco,
+      Preco: marcada ? 0 : dados.preco,
     };
 
     await supabaseFetch(TBL_ITENS, "POST", [mov]);
@@ -170,6 +174,13 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues.map((i) => i.message).join(", ") }, { status: 400 });
     }
     const { id, codigo, preco, userName } = parsed.data;
+
+    // Peça marcada "não gerar cobrança": o preço novo vale para quando desmarcar (as linhas ficam em 0)
+    if ((await semCobrancaDoPPV(id))[codigo]) {
+      await supabaseFetch(`${TBL_SEM_COBRANCA}?id_ppv=eq.${encodeURIComponent(id)}&cod_produto=eq.${encodeURIComponent(codigo)}`, "PATCH", { preco_original: preco });
+      await registrarLog(id, `Preço do item ${codigo} (não cobrado) alterado para R$ ${preco.toFixed(2)}`, autor(g, userName));
+      return NextResponse.json(await buscarPPVPorId(id));
+    }
 
     // 1. Atualiza o preço de todas as movimentações desse item neste PPV
     await supabaseFetch(

@@ -18,6 +18,7 @@ import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 import ItemOrcamentoModal from "@/components/ppv/ItemOrcamentoModal";
 import ModalEditarItemOS from "./ModalEditarItemOS";
+import { ModalSemCobranca, AvisoFaturarSemCobranca, acaoSemCobranca } from "@/components/ppv/SemCobranca";
 import { PPVMiniProvider } from "@/lib/ppv/PPVContext";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
 import MaquinasClienteIcone from "@/components/MaquinasClienteIcone";
@@ -424,6 +425,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [anexosCount, setAnexosCount] = useState(0);
   const [duplicando, setDuplicando] = useState(false);
   const avisar = useCallback((t: "success" | "error", m: string) => { if (t === "error") alert(m); }, []);
+
+  // ── Peça "não gerar cobrança" (mexe no PPV da peça; depois recarrega as peças da OS) ──
+  const [semCobItem, setSemCobItem] = useState<{ ppvId: string; codigo: string; descricao: string; valorTotal: number; motivoAtual?: string } | null>(null);
+  const [semCobBusy, setSemCobBusy] = useState(false);
   const recarregarTarefasCount = useCallback(async () => {
     if (!osId) { setTarefasPendentes(0); return; }
     try {
@@ -720,6 +725,28 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       console.error("Erro ao carregar PPV");
     }
   }, []);
+
+  // "Não gerar cobrança": marcar / desmarcar / separar em remessa (a remessa nova já fica ligada à OS)
+  async function rodarSemCobranca(b: Parameters<typeof acaoSemCobranca>[0]) {
+    if (!podeEditar) { alert(MSG_SEM_PERMISSAO); return; }
+    setSemCobBusy(true);
+    try {
+      const r = await acaoSemCobranca(b);
+      setSemCobItem(null);
+      let lista = ppv;
+      if (r.novoId) {
+        const ids = ppv.split(",").map((s) => s.trim()).filter(Boolean);
+        if (!ids.includes(r.novoId)) ids.push(r.novoId);
+        lista = ids.join(", ");
+        setPpv(lista);
+        alert(`Remessa ${r.novoId} criada com as peças sem cobrança e ligada a esta OS.${r.aviso ? "\n\n" + r.aviso : ""}`);
+      }
+      await loadPPV(lista);
+      setLogRefreshKey((k) => k + 1);
+      onSaved?.();
+    } catch (e) { alert(e instanceof Error ? e.message : "Erro"); }
+    setSemCobBusy(false);
+  }
 
   // Abre a busca de produto pra adicionar no PPV vinculado. Se houver mais de um
   // PPV, exige escolher pra qual antes de abrir.
@@ -2639,8 +2666,31 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                                 {ppvIds.length > 1 && p.ppvId && <small>PPV {p.ppvId}</small>}
                               </span>
                               <span className="d"><em className="pc-qt">{p.qtde} un</em></span>
-                              <span className="d pc-un">{brlPeca(p.valor)}</span>
-                              <span className="d pc-tot">{brlPeca(p.valor * p.qtde)}</span>
+                              <span className="d pc-un">{p.semCobranca ? <s style={{ opacity: .6 }}>{brlPeca(p.semCobranca.precoOriginal)}</s> : brlPeca(p.valor)}</span>
+                              <span className="d pc-tot">
+                                {p.semCobranca ? (
+                                  <>
+                                    <s style={{ opacity: .6 }}>{brlPeca(p.semCobranca.precoOriginal * p.qtde)}</s>
+                                    <button type="button" disabled={!podeEditar || p.faturado}
+                                      onClick={() => setSemCobItem({ ppvId: p.ppvId!, codigo: p.codigo!, descricao: p.descricao, valorTotal: p.semCobranca!.precoOriginal * p.qtde, motivoAtual: p.semCobranca!.motivo })}
+                                      title={`Não cobrado: ${p.semCobranca.motivo}`}
+                                      style={{ display: "block", marginLeft: "auto", marginTop: 2, padding: "1px 6px", borderRadius: 6, border: "1px solid #A7F3D0", background: "#ECFDF5", color: "#047857", fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" }}>
+                                      não cobrado
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    {brlPeca(p.valor * p.qtde)}
+                                    {p.codigo && p.ppvId && podeEditar && !p.faturado && p.tipoPedido !== "Remessa" && (
+                                      <button type="button" onClick={() => setSemCobItem({ ppvId: p.ppvId!, codigo: p.codigo!, descricao: p.descricao, valorTotal: p.valor * p.qtde })}
+                                        title="Não gerar cobrança desta peça"
+                                        style={{ display: "block", marginLeft: "auto", marginTop: 2, padding: 0, border: "none", background: "none", color: "var(--portal-text-faint, #94A3B8)", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>
+                                        não cobrar
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </span>
                               <span className="d">
                                 {p.codigo && p.ppvId && (
                                   <button type="button" className="pc-lapis" onClick={() => setEditandoProd(p)} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Editar quantidade, valor ou remover"}>
@@ -2652,6 +2702,16 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           ))}
                         </div>
                       )}
+
+                      {/* Peça "não gerar cobrança": não fatura junto — desmarcar ou separar em remessa (por PPV) */}
+                      {Array.from(new Set(produtos.filter((p) => p.semCobranca && p.ppvId && !p.faturado && p.tipoPedido !== "Remessa").map((p) => p.ppvId!))).map((pid) => (
+                        <div key={`semcob-${pid}`} style={{ marginTop: 8 }}>
+                          <AvisoFaturarSemCobranca ocupado={semCobBusy}
+                            itens={produtos.filter((p) => p.ppvId === pid && p.semCobranca).map((p) => ({ codigo: p.codigo || "", descricao: `${p.descricao}${ppvIds.length > 1 ? ` · PPV ${pid}` : ""}`, motivo: p.semCobranca!.motivo }))}
+                            onDesmarcar={(codigo) => rodarSemCobranca({ acao: "desmarcar", id: pid, codigo })}
+                            onSeparar={() => { if (confirm(`Criar uma remessa nova só com as peças sem cobrança e tirar elas do ${pid}?`)) void rodarSemCobranca({ acao: "separar", id: pid }); }} />
+                        </div>
+                      ))}
 
                       {/* Total de peças + adicionar peça direto no PPV vinculado */}
                       {ppvIds.length > 0 && (
@@ -3327,6 +3387,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         itens={produtos.filter((p) => p.codigo && p.ppvId === detalheProd?.ppvId).map((p) => ({ codigo: p.codigo!, descricao: p.descricao, conta: p.conta || "NOVA", quantidade: p.qtde, preco: p.valor }))}
         onIrPara={(it) => setDetalheProd(produtos.find((p) => p.ppvId === detalheProd?.ppvId && p.codigo === it.codigo) || null)}
       />
+      <ModalSemCobranca item={semCobItem} salvando={semCobBusy} onFechar={() => setSemCobItem(null)}
+        onConfirmar={(motivo) => semCobItem && rodarSemCobranca({ acao: "marcar", id: semCobItem.ppvId, codigo: semCobItem.codigo, motivo })}
+        onDesmarcar={() => semCobItem && rodarSemCobranca({ acao: "desmarcar", id: semCobItem.ppvId, codigo: semCobItem.codigo })} />
       <ModalEditarItemOS
         item={editandoProd && editandoProd.codigo && editandoProd.ppvId ? { ppvId: editandoProd.ppvId, codigo: editandoProd.codigo, descricao: editandoProd.descricao, qtde: editandoProd.qtde, valor: editandoProd.valor } : null}
         tecnico={tecnico1 || ""}

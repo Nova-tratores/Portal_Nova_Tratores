@@ -239,11 +239,13 @@ export async function PATCH(req: NextRequest) {
     // Blindagem: pedido JÁ FATURADO (faturado_omie_em setado) não pode voltar de
     // fase — força "Concluída" se tentarem gravar outra coisa (menos Cancelada).
     let statusAntes: string | null = null;
+    let tipoTravado = false; // já foi pro Omie: Pedido ⇄ Remessa não muda mais (lá é outro documento)
     try {
       const atual = await supabaseFetch<Record<string, unknown>[]>(
-        `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(dados.id)}&select=faturado_omie_em,status,pedido_omie&limit=1`,
+        `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(dados.id)}&select=faturado_omie_em,status,pedido_omie,Tipo_Pedido&limit=1`,
       );
       statusAntes = atual?.[0] ? String(atual[0].status ?? '') : null;
+      if (atual?.[0]?.pedido_omie && dados.tipoPedido && dados.tipoPedido !== String(atual[0].Tipo_Pedido || "Pedido")) { tipoTravado = true; dados.tipoPedido = String(atual[0].Tipo_Pedido || "Pedido"); }
       // cancelar pelo "salvar" deixava o pedido vivo no Omie: só pelo botão Cancelar pedido
       const naoCancela = cancelarPeloSalvar({ statusAntes, statusNovo: dados.status, pedidoOmie: atual?.[0]?.pedido_omie as string | null });
       if (naoCancela) return NextResponse.json({ error: naoCancela }, { status: 409 });
@@ -272,7 +274,7 @@ export async function PATCH(req: NextRequest) {
       const projetoInformado = (dados.projeto || "").trim();
       payload.Projeto = projetoInformado || (dados.usarProjetoOS === false ? "" : (await projetoDaOS(dados.osId))) || "";
     }
-    if (dados.tipoPedido) payload.Tipo_Pedido = dados.tipoPedido;
+    if (dados.tipoPedido && !tipoTravado) payload.Tipo_Pedido = dados.tipoPedido;
     if (dados.motivoSaida) payload.Motivo_Saida_Pedido = dados.motivoSaida;
     payload.substituto_tipo = dados.substitutoTipo || null;
     payload.substituto_id = dados.substitutoId || null;

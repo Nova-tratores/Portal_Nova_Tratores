@@ -92,6 +92,8 @@ describe('estado e bloqueios', () => {
     expect(motivoPPVFora({ ...p, tipo: 'Remessa' })).toMatch(/remessa/);
     expect(motivoPPVFora({ ...p, pedidoOmie: '' })).toMatch(/enviado/);
     expect(motivoPPVFora({ ...p, faturadoEm: 'x' })).toMatch(/faturado/);
+    expect(motivoPPVFora({ ...p, semCobranca: 1 })).toMatch(/não gerar cobrança/);
+    expect(motivoPPVFora({ ...p, semCobranca: 0 })).toBeNull();
   });
 });
 

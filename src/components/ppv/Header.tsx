@@ -25,16 +25,17 @@ export default function Header({
   actions, onFiltrarProduto,
 }: HeaderProps) {
   return (
-    <header style={{
+    <header className="ppv-tb" style={{
       padding: "10px 24px", background: "var(--ppv-surface)",
       borderBottom: "1px solid var(--ppv-border-light)",
       flexShrink: 0, display: "flex", flexDirection: "column", gap: 8,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {/* Busca — ocupa a largura toda */}
-        <div style={{ position: "relative", flex: 1, minWidth: 240 }}>
+        <div className="ppv-busca" style={{ position: "relative", flex: 1, minWidth: 240 }}>
           <i className="fas fa-search" style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "var(--ppv-accent)", fontSize: 15 }} />
           <input
+            className="ppv-busca-input"
             type="text"
             value={searchFilter}
             onChange={(e) => onSearchChange(e.target.value)}
@@ -56,7 +57,7 @@ export default function Header({
 
         {/* Filtrar por produto: mostra em quais PPVs um produto foi/está sendo usado */}
         {onFiltrarProduto && (
-          <button onClick={onFiltrarProduto} title="Lista de peças em estoque; clique num produto pra ver o histórico dele"
+          <button className="ppv-tb-prod" onClick={onFiltrarProduto} title="Lista de peças em estoque; clique num produto pra ver o histórico dele"
             style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 16px", borderRadius: 10, border: "1.5px solid var(--ppv-border-light)", background: "#fff", color: "var(--ppv-text)", fontWeight: 600, fontSize: 14, cursor: "pointer", fontFamily: "'Poppins', sans-serif", whiteSpace: "nowrap" }}
             onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--ppv-primary)"; e.currentTarget.style.color = "var(--ppv-primary)"; }}
             onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--ppv-border-light)"; e.currentTarget.style.color = "var(--ppv-text)"; }}>

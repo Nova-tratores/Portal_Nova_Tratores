@@ -26,6 +26,10 @@ export async function GET(req: NextRequest) {
         qtde: p.quantidade - qtdDev,
         valor: p.preco,
         conta: /primari|castro/i.test(p.empresa || "") ? "CASTRO" : "NOVA",
+        // "não gerar cobrança": valor já vem 0; aqui o motivo e o preço de antes
+        semCobranca: p.semCobranca || null,
+        tipoPedido: d.tipoPedido,
+        faturado: !!d.faturadoOmieEm,
       };
     }).filter((p) => p.qtde > 0);
   });

@@ -10,7 +10,7 @@ import type { PPVDetalhes, LogEntry } from "@/lib/ppv/types";
 import type { ComunicacaoSefaz } from "@/lib/ppv/omie";
 import { formatarDataFrontend, formatarMoeda } from "@/lib/ppv/utils";
 import { normalizarStatus } from "@/lib/ppv/utils";
-import { STATUS_OPTIONS, STATUS_COLORS, type StatusKey } from "@/lib/ppv/constants";
+import { STATUS_OPTIONS, STATUS_COLORS, TIPOS_PEDIDO, type StatusKey } from "@/lib/ppv/constants";
 import { api } from "@/lib/ppv/api";
 import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import { usePPV } from "@/lib/ppv/PPVContext";
@@ -36,6 +36,7 @@ import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import PPVUnidadesInfo from "./PPVUnidadesInfo";
 import QRScanner, { type ScanResultado } from "@/components/pecas/QRScanner";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
+import { ModalSemCobranca, AvisoFaturarSemCobranca, acaoSemCobranca } from "./SemCobranca";
 
 // Previsão de faturamento vazia = hoje (José, 13/10/2026), no fuso de São Paulo, "aaaa-mm-dd".
 const hojeSP = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
@@ -833,6 +834,22 @@ export default function PPVDrawer({
     setRemovendoKit(null);
   }
 
+  // ── Peça "não gerar cobrança" ──
+  const [semCobItem, setSemCobItem] = useState<{ codigo: string; descricao: string; valorTotal: number; motivoAtual?: string } | null>(null);
+  const [semCobBusy, setSemCobBusy] = useState(false);
+  async function rodarSemCobranca(body: Parameters<typeof acaoSemCobranca>[0], ok: string) {
+    if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return; }
+    setSemCobBusy(true);
+    try {
+      const r = await acaoSemCobranca(body);
+      if (r.detalhes) setDetails(r.detalhes);
+      setSemCobItem(null);
+      showToast("success", r.novoId ? `Remessa ${r.novoId} criada com as peças sem cobrança.${r.aviso ? " " + r.aviso : ""}` : ok);
+      onDirty?.();
+    } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro"); }
+    setSemCobBusy(false);
+  }
+
   async function salvarPrecoItem(codigo: string) {
     if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return; }
     if (!ppvId) return;
@@ -867,6 +884,8 @@ export default function PPVDrawer({
   async function enviarOmie() {
     if (!podeOmie) { showToast("error", "Sem permissão para enviar ao Omie."); return; }
     if (!ppvId) return;
+    // trocou Pedido ⇄ Remessa e não salvou: grava antes (o envio lê o tipo do banco)
+    if (tipoPedido !== (details?.tipoPedido || "Pedido")) await salvar();
     setEnviandoOmie(true);
     try {
       const res = await api.enviarParaOmie(ppvId, userProfile?.nome || "");
@@ -1032,22 +1051,27 @@ export default function PPVDrawer({
             {/* ── Barra superior (estilo Omie) ── */}
             <div className="ppv-omie-topbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 22px", borderBottom: "1px solid #E2E8F0", background: "#fff", position: "sticky", top: 0, zIndex: 12, flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 18, fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>Pedido de Venda</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#c2570a", background: "#fff3e6", border: "1px solid #f5c99a", borderRadius: 6, padding: "2px 8px", whiteSpace: "nowrap" }}>#{ppvId}</span>
-                <select value={status} onChange={(e) => mudarStatusPPV(e.target.value)} disabled={!podeEditar} title="Fase do PPV"
+                <span className="ppv-tp-titulo" style={{ fontSize: 18, fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>{tipoPedido === "Remessa" ? "Remessa" : "Pedido de Venda"}</span>
+                <span className="ppv-tp-num" style={{ fontSize: 13, fontWeight: 700, color: "#c2570a", background: "#fff3e6", border: "1px solid #f5c99a", borderRadius: 6, padding: "2px 8px", whiteSpace: "nowrap" }}>#{ppvId}</span>
+                <select className="ppv-tp-fase" value={tipoPedido} onChange={(e) => { setTipoPedido(e.target.value); setEditou(true); }} disabled={!podeEditar || !!pedidoOmie || !!faturadoEm}
+                  title={pedidoOmie ? "Já foi para o Omie: o tipo não muda mais" : "Pedido de venda (NF-e de venda) ou Remessa (NF-e de remessa, sem cobrar)"}
+                  style={{ fontWeight: 700, width: "auto", padding: "6px 10px", borderRadius: 8, fontSize: 13, marginBottom: 0 }}>
+                  {TIPOS_PEDIDO.map((t) => <option key={t.value} value={t.value}>{t.value === "Remessa" ? "Remessa" : "Pedido de venda"}</option>)}
+                </select>
+                <select className="ppv-tp-fase" value={status} onChange={(e) => mudarStatusPPV(e.target.value)} disabled={!podeEditar} title="Fase do PPV"
                   style={{ fontWeight: 700, color: statusColor.text, background: statusColor.bg, width: "auto", maxWidth: 230, padding: "6px 10px", borderRadius: 8, fontSize: 13, marginBottom: 0 }}>
                   {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value} style={{ color: "#0f172a", background: "#fff" }}>{s.label}</option>)}
                 </select>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                 {podeOcorrencia && (
-                  <button onClick={() => setShowOcorrencia(true)}
+                  <button className="ppv-tp-ocorr" onClick={() => setShowOcorrencia(true)}
                     title="Registrar ocorrência ligada a este PV (falta de informação, extravio, peça danificada…)"
                     style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#c2570a", background: "#fff3e6", border: "1px solid #f5c99a", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>
                     ⚠ Ocorrência
                   </button>
                 )}
-                <button onClick={fecharComSalvar} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 600, cursor: "pointer" }}><i className="fas fa-times" /> Fechar</button>
+                <button className="ppv-tp-fechar" onClick={fecharComSalvar} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 600, cursor: "pointer" }}><i className="fas fa-times" /> Fechar</button>
               </div>
             </div>
 
@@ -1218,11 +1242,11 @@ export default function PPVDrawer({
                       </div>
 
                       {/* ── Abas (folder laranja estilo Omie) ── */}
-                      <div style={{ display: "flex", alignItems: "flex-end", gap: 2, borderBottom: "1px solid #e2ddd3", marginBottom: 14, paddingTop: 3, flexWrap: "wrap" }}>
+                      <div className="ppv-abas" style={{ display: "flex", alignItems: "flex-end", gap: 2, borderBottom: "1px solid #e2ddd3", marginBottom: 14, paddingTop: 3, flexWrap: "wrap" }}>
                         {(faturadoEm ? [...ABAS_OMIE, ABA_SEFAZ] : ABAS_OMIE).map((a) => {
                           const on = abaAtiva === a;
                           return (
-                            <button key={a} type="button" onClick={() => setAbaAtiva(a)}
+                            <button key={a} type="button" className={`ppv-aba ${on ? "on" : ""}`} onClick={() => setAbaAtiva(a)}
                               style={{ padding: "8px 14px", fontSize: 13, lineHeight: 1.4, cursor: "pointer", whiteSpace: "nowrap", fontFamily: "inherit", marginBottom: -1,
                                 background: on ? "#fff" : "transparent", color: on ? "#e8730c" : "#7a7268", fontWeight: on ? 600 : 500,
                                 border: on ? "1px solid #e2ddd3" : "1px solid transparent", borderBottom: on ? "1px solid #fff" : "1px solid transparent",
@@ -1492,25 +1516,25 @@ export default function PPVDrawer({
 
                     {/* Toolbar de itens (estilo Omie): Novo Item · Descrição Produto · Excluir Item */}
                     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-                      <button type="button" onClick={onBuscaProduto} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Buscar produto, mais usados, catálogo e kit"}
+                      <button type="button" className="ppv-bt-prim" onClick={onBuscaProduto} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Buscar produto, mais usados, catálogo e kit"}
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "none", background: "#f0a22e", color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: !ppvId || !podeItem ? 0.55 : 1 }}>
                         <i className="fas fa-plus" /> Novo Item
                       </button>
-                      <button type="button" onClick={() => setImportarOrcOpen(true)} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Puxar as peças de um orçamento feito por Peças, com o preço do orçamento"}
+                      <button type="button" className="ppv-bt-sec" onClick={() => setImportarOrcOpen(true)} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Puxar as peças de um orçamento feito por Peças, com o preço do orçamento"}
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #f5c99a", background: "#fff", color: "#c2570a", fontSize: 13.5, fontWeight: 600, cursor: !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: !ppvId || !podeItem ? 0.55 : 1 }}>
                         <i className="fas fa-file-import" /> Importar orçamento
                       </button>
-                      <button type="button" onClick={verDescricaoProduto} disabled={!itemSelecionado} title={itemSelecionado ? "Ver informações do produto selecionado" : "Selecione um produto (clique na descrição)"}
+                      <button type="button" className="ppv-bt-sec" onClick={verDescricaoProduto} disabled={!itemSelecionado} title={itemSelecionado ? "Ver informações do produto selecionado" : "Selecione um produto (clique na descrição)"}
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: itemSelecionado ? "#334155" : "#94a3b8", fontSize: 13.5, fontWeight: 600, cursor: itemSelecionado ? "pointer" : "not-allowed" }}>
                         <i className="fas fa-circle-info" /> Descrição Produto
                       </button>
-                      <button type="button" onClick={excluirItemSelecionado} disabled={!itemSelecionado || !podeItem} title={itemSelecionado ? "Excluir o produto selecionado" : "Selecione um produto (clique na descrição)"}
+                      <button type="button" className="ppv-bt-sec" onClick={excluirItemSelecionado} disabled={!itemSelecionado || !podeItem} title={itemSelecionado ? "Excluir o produto selecionado" : "Selecione um produto (clique na descrição)"}
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #f5c99a", background: "#fff", color: itemSelecionado && podeItem ? "#c2570a" : "#f0a3a3", fontSize: 13.5, fontWeight: 600, cursor: itemSelecionado && podeItem ? "pointer" : "not-allowed" }}>
                         <i className="fas fa-trash" /> Excluir Item
                       </button>
 
                       {/* Adicionar por QR (rastreio de unidades) */}
-                      <button type="button" onClick={() => setScanAddAberto(true)} disabled={!ppvId || !podeItem}
+                      <button type="button" className="ppv-bt-sec" onClick={() => setScanAddAberto(true)} disabled={!ppvId || !podeItem}
                         title={!podeItem ? MSG_SEM_PERMISSAO : "Escanear o QR da etiqueta pra adicionar a peça e reservar a unidade"}
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #BFDBFE", background: "#fff", color: !ppvId || !podeItem ? "#93c5fd" : "#1d4ed8", fontSize: 13.5, fontWeight: 600, cursor: !ppvId || !podeItem ? "not-allowed" : "pointer" }}>
                         <i className="fas fa-qrcode" /> Adicionar por QR
@@ -1611,8 +1635,31 @@ export default function PPVDrawer({
                                     onAtualizar={podeItem ? (preco) => usarPrecoCadastro([{ codigo: p.codigo, precoCadastro: preco }]) : undefined} />
                                 )}
                               </div>
-                              {/* Total */}
-                              <div style={{ textAlign: "right", fontWeight: 500, color: "#0f172a", whiteSpace: "nowrap" }}>{formatarMoeda(p.saldo * p.preco)}</div>
+                              {/* Total (+ "não gerar cobrança") */}
+                              <div style={{ textAlign: "right", fontWeight: 500, color: "#0f172a", whiteSpace: "nowrap" }}>
+                                {p.semCobranca ? (
+                                  <>
+                                    <s style={{ color: "#94A3B8" }}>{formatarMoeda(p.saldo * p.semCobranca.precoOriginal)}</s>
+                                    <button type="button" disabled={!!faturadoEm || !podeItem}
+                                      onClick={() => setSemCobItem({ codigo: p.codigo, descricao: p.descricao, valorTotal: p.saldo * p.semCobranca!.precoOriginal, motivoAtual: p.semCobranca!.motivo })}
+                                      title={`Não cobrado: ${p.semCobranca.motivo}`}
+                                      style={{ display: "block", marginLeft: "auto", marginTop: 2, padding: "1px 7px", borderRadius: 6, border: "1px solid #A7F3D0", background: "#ECFDF5", color: "#047857", fontSize: 10.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", textTransform: "uppercase" }}>
+                                      não cobrado
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    {formatarMoeda(p.saldo * p.preco)}
+                                    {p.saldo > 0 && !faturadoEm && podeItem && tipoPedido !== "Remessa" && (
+                                      <button type="button" onClick={() => setSemCobItem({ codigo: p.codigo, descricao: p.descricao, valorTotal: p.saldo * p.preco })}
+                                        title="Não gerar cobrança desta peça"
+                                        style={{ display: "block", marginLeft: "auto", marginTop: 2, padding: 0, border: "none", background: "none", color: "#94A3B8", fontSize: 11, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline" }}>
+                                        não cobrar
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
                               {/* Categoria (novo — placeholder, // TODO: ligar ao banco) */}
                               <div title="Categoria — definida em Informações Adicionais" style={{ fontSize: 12.5, color: "#475569", whiteSpace: "normal", lineHeight: 1.25 }}>{listasPedido.categorias.find((c) => c.codigo === infoCategoria)?.descricao || "—"}</div>
                               {/* Ação: devolver */}
@@ -1626,6 +1673,10 @@ export default function PPVDrawer({
                         })}
                       </div>
                     )}
+
+                    <ModalSemCobranca item={semCobItem} salvando={semCobBusy} onFechar={() => setSemCobItem(null)}
+                      onConfirmar={(motivo) => ppvId && semCobItem && rodarSemCobranca({ acao: "marcar", id: ppvId, codigo: semCobItem.codigo, motivo }, "Peça marcada como não cobrada.")}
+                      onDesmarcar={() => ppvId && semCobItem && rodarSemCobranca({ acao: "desmarcar", id: ppvId, codigo: semCobItem.codigo }, "A peça voltou a ser cobrada.")} />
 
                     {/* Unidades rastreadas (QR) vinculadas + conferência liberado × faturado */}
                     {ppvId && <PPVUnidadesInfo key={unidadesVersao} ppvId={ppvId} verificarConferencia={!!faturadoEm || normalizarStatus(status) === "Concluída"} />}
@@ -1754,7 +1805,7 @@ export default function PPVDrawer({
                 const cartao = (cor: string): CSSProperties => ({ margin: "4px 0 6px", padding: 10, borderRadius: 10, border: `1px solid color-mix(in srgb, ${cor} 40%, #E2E8F0)`, background: `color-mix(in srgb, ${cor} 6%, #fff)`, display: "flex", flexDirection: "column", gap: 6 });
                 const cabeca = (conteudo: React.ReactNode, onAbrir?: () => void) => (
                   <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "0 2px" }}>
-                    <span style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: .4 }}>{conteudo}</span>
+                    <span className="ppv-rail-cabeca" style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: .4 }}>{conteudo}</span>
                     {onAbrir && <button type="button" onClick={onAbrir} style={{ background: "none", border: "none", color: "#0369A1", fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>abrir</button>}
                   </div>
                 );
@@ -1783,9 +1834,16 @@ export default function PPVDrawer({
                 const reqs = osVinc?.requisicoes || [];
                 return (
                   <>
-                    <div style={cartao("#0BB7CD")}>
+                    <div className="ppv-rail-cartao" style={cartao("#0BB7CD")}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {cabeca(<><img src="/marcas/omie.png" alt="Omie" style={{ height: 16, width: "auto" }} /><span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 600, color: "#64748b" }}>pedido e nota</span></>)}
+                      {/* Peça "não gerar cobrança" não fatura junto: desmarcar ou separar em remessa */}
+                      {ppvId && !faturadoEm && tipoPedido !== "Remessa" && (
+                        <AvisoFaturarSemCobranca ocupado={semCobBusy}
+                          itens={produtosComSaldo.filter((p) => p.semCobranca && p.saldo > 0).map((p) => ({ codigo: p.codigo, descricao: p.descricao, motivo: p.semCobranca!.motivo }))}
+                          onDesmarcar={(codigo) => rodarSemCobranca({ acao: "desmarcar", id: ppvId, codigo }, "A peça voltou a ser cobrada.")}
+                          onSeparar={() => { if (confirm("Criar uma remessa nova só com as peças sem cobrança e tirar elas deste pedido?")) void rodarSemCobranca({ acao: "separar", id: ppvId }, "Remessa criada."); }} />
+                      )}
                       {!pedidoOmie ? (
                         <>
                           <div style={{ fontSize: 12, color: "#64748b", padding: "0 2px" }}>Este pedido ainda não está no Omie.</div>
@@ -1866,7 +1924,7 @@ export default function PPVDrawer({
                       })()}
                     </div>
 
-                    <div style={cartao("#DC2626")}>
+                    <div className="ppv-rail-cartao" style={cartao("#DC2626")}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {cabeca(<><img src="/Logo_Nova.png" alt="Nova Tratores" style={{ height: 16, width: "auto" }} /><span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 600, color: "#64748b" }}>portal</span></>)}
                       {ppvId && linha("ppv", ppvId, "pedido de peças (PDF do portal)", icone(gerarPDF, gerando ? "fa-spinner fa-spin" : "fa-print", `Imprimir o ${ppvId}`))}

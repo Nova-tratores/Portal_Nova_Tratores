@@ -70,6 +70,8 @@ export interface ProdutoDetalhe {
   quantidade: number;
   preco: number;
   empresa?: string;
+  /** Marcada "não gerar cobrança": preco já vem 0; aqui o motivo e o preço de antes. */
+  semCobranca?: { motivo: string; precoOriginal: number; por?: string; em?: string } | null;
 }
 
 export interface Devolucao {

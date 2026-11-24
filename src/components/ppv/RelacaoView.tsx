@@ -28,7 +28,8 @@ interface RelacaoViewProps {
   loading?: boolean;
 }
 
-const LARANJA = "#e8730c";
+// cor de ação: no visual novo vem de --ppv-acao (azul do POS); sem ele, o laranja de sempre
+const LARANJA = "var(--ppv-acao, #e8730c)";
 const COR_PDF: [number, number, number] = [232, 115, 12];
 
 const thBase: React.CSSProperties = { textAlign: "left", padding: "12px 12px", fontSize: 12.5, fontWeight: 800, color: "var(--ppv-text-light)", letterSpacing: 0.3, whiteSpace: "nowrap", userSelect: "none", cursor: "pointer" };
@@ -139,7 +140,7 @@ export default function RelacaoView({ orders, searchTerm, tipoFilter = "TODOS", 
   );
 
   return (
-    <div style={{ padding: "8px 16px 24px", display: "flex", flexDirection: "column", gap: 12, fontFamily: "'Poppins', sans-serif" }}>
+    <div className="ppv-rel" style={{ padding: "8px 16px 24px", display: "flex", flexDirection: "column", gap: 12, fontFamily: "'Poppins', sans-serif" }}>
       {/* ATALHOS por fase — configuram o filtro da tabela */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--ppv-text-light)", marginRight: 4 }}>Atalhos:</span>
@@ -181,7 +182,7 @@ export default function RelacaoView({ orders, searchTerm, tipoFilter = "TODOS", 
       </div>
 
       {/* TABELA */}
-      <div style={{ background: "var(--ppv-surface)", border: "1px solid var(--ppv-border-light)", borderRadius: 3, overflowX: "auto" }}>
+      <div className="ppv-rel-tabela" style={{ background: "var(--ppv-surface)", border: "1px solid var(--ppv-border-light)", borderRadius: 3, overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1180 }}>
           <thead>
             <tr style={{ borderBottom: "2px solid var(--ppv-border-light)" }}>
