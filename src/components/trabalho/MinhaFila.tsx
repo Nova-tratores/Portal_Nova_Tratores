@@ -11,7 +11,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
   Check, CalendarClock, CircleX, Send, ListOrdered, Users, Sun, CalendarRange, Inbox, Repeat, ChevronUp, ChevronDown,
-  AlarmClock, HelpCircle, Clock3, Layers,
+  AlarmClock, HelpCircle, Clock3, Layers, GripVertical,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
@@ -116,24 +116,49 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
 
   const f = h?.fila
   const hoje = hojeISO()
-  // A fila inteira na ordem (o que tem data). ↑↓ troca com o vizinho e grava a lista toda.
-  const comData = useMemo(() => (f ? [...f.hoje, ...f.semana, ...(f.listaDepois || [])] : []), [f])
-  const mover = async (id: string, dir: -1 | 1) => {
-    if (!f || movendo) return
-    const k = comData.findIndex((x) => x.id === id)
-    const viz = comData[k + dir]
-    if (k < 0 || !viz || viz.urgente) return
-    const ordem = [...f.ordem]
-    const a = ordem.indexOf(id), b = ordem.indexOf(viz.id)
-    if (a < 0 || b < 0) return
-    ;[ordem[a], ordem[b]] = [ordem[b], ordem[a]]
-    setMovendo(true); setErro('')
+  // A fila inteira na ordem (o que tem data). Mudar a ordem (↑↓ ou arrastar) aparece NA HORA
+  // (ordemLocal) e grava por trás; se o servidor recusar, volta (24/11/2026: "tá meio lagado").
+  const [ordemLocal, setOrdemLocal] = useState<string[] | null>(null)
+  const [arrastando, setArrastando] = useState<string | null>(null)
+  const [sobre, setSobre] = useState<string | null>(null)
+  const comData = useMemo(() => {
+    const base = f ? [...f.hoje, ...f.semana, ...(f.listaDepois || [])] : []
+    if (!ordemLocal) return base
+    const k = new Map(ordemLocal.map((id, i) => [id, i]))
+    return [...base].sort((a, b) => (k.get(a.id) ?? 1e9) - (k.get(b.id) ?? 1e9))
+  }, [f, ordemLocal])
+  const gravarOrdem = async (ordem: string[]) => {
+    setOrdemLocal(ordem); setMovendo(true); setErro('')
     try {
       const r = await fetch('/api/trabalho/fila', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ ordem }) })
       const j = await r.json().catch(() => ({}))
       if (!r.ok) setErro(j.error || 'Não deu para mudar a ordem')
       await carregar()
-    } catch { setErro('Falha de conexão') } finally { setMovendo(false) }
+    } catch { setErro('Falha de conexão') } finally { setMovendo(false); setOrdemLocal(null) }
+  }
+  const ordemAtual = () => ordemLocal || f?.ordem || []
+  const mover = (id: string, dir: -1 | 1) => {
+    if (!f || movendo) return
+    const k = comData.findIndex((x) => x.id === id)
+    const viz = comData[k + dir]
+    if (k < 0 || !viz || viz.urgente) return
+    const ordem = [...ordemAtual()]
+    const a = ordem.indexOf(id), b = ordem.indexOf(viz.id)
+    if (a < 0 || b < 0) return
+    ;[ordem[a], ordem[b]] = [ordem[b], ordem[a]]
+    void gravarOrdem(ordem)
+  }
+  // Arrastar: solta EM CIMA de outro item = fica logo antes dele.
+  const soltar = (alvo: string) => {
+    const id = arrastando
+    setArrastando(null); setSobre(null)
+    if (!f || !id || id === alvo || movendo) return
+    if (comData.find((x) => x.id === alvo)?.urgente) return
+    const ordem = ordemAtual().filter((x) => x !== id)
+    const i = ordem.indexOf(alvo)
+    if (i < 0) return
+    ordem.splice(i, 0, id)
+    void gravarOrdem(ordem)
   }
 
   const passa = (i: ItemResumo) => filtro === 'tudo' || (filtro === 'atrasados' ? i.atrasado : i.parado >= 14)
@@ -155,8 +180,14 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
       : i.urgente ? <SeloUrgente />
       : i.prazo ? <span className="mf-quando"><Clock3 size={13} style={{ verticalAlign: -2 }} /> prazo {br(i.prazo)}</span> : null
     return (
-      <div key={i.id} className="mf-it">
+      <div key={i.id} className={`mf-it${arrastando === i.id ? ' arrastando' : ''}${sobre === i.id && arrastando && arrastando !== i.id ? ' sobre' : ''}`}
+        draggable={!i.urgente && !i.continuo}
+        onDragStart={(e) => { setArrastando(i.id); e.dataTransfer.effectAllowed = 'move' }}
+        onDragEnd={() => { setArrastando(null); setSobre(null) }}
+        onDragOver={(e) => { if (!arrastando || i.continuo) return; e.preventDefault(); if (sobre !== i.id) setSobre(i.id) }}
+        onDrop={(e) => { e.preventDefault(); soltar(i.id) }}>
         <span className="mf-pos">
+          {!i.urgente && !i.continuo && <span className="mf-alca" title="Arraste para mudar a ordem" aria-hidden><GripVertical size={16} /></span>}
           {!i.urgente && !i.continuo ? (
             <span className="mf-setas">
               <button disabled={pos <= 0 || movendo || comData[pos - 1]?.urgente} onClick={() => mover(i.id, -1)} aria-label={`Subir #${i.numero}`} title="Subir na fila"><ChevronUp size={15} /></button>
@@ -173,7 +204,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
           {i.continuo ? <span>na rotina</span> : (
             <button className="mf-link" title={i.semEstimativa ? 'Ninguém disse quanto tempo leva. Clique para escolher (o sistema sugere).' : 'Mudar o tempo deste trabalho'}
               onClick={() => setEstimando(estimando?.id === i.id ? null : { id: i.id, titulo: i.titulo })}>
-              {i.semEstimativa ? '? h' : `${nf(i.horas)} h`}
+              {i.semEstimativa ? <span style={{ color: COR.atencao }}>~{nf(i.horas)} h</span> : `${nf(i.horas)} h`}
             </button>
           )}
           {!i.continuo && <span>{quando}</span>}
@@ -272,7 +303,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
             const filaCompleta = (
               <>
                 {avisoSemTempo}
-                {f && secao('Hoje', 'objetivo do dia', COR.info, <Sun size={16} />, f.hoje, (i) => (i.fim > hoje ? `até ${br(i.fim)}` : 'termina hoje'), 'Nada na fila para hoje.')}
+                {f && secao('Hoje', 'objetivo do dia · arraste ⠿ ou use ↑↓ para mudar a ordem', COR.info, <Sun size={16} />, f.hoje, (i) => (i.fim > hoje ? `até ${br(i.fim)}` : 'termina hoje'), 'Nada na fila para hoje.')}
                 {f && secao('Esta semana', 'objetivo da semana', COR.info, <CalendarRange size={16} />, f.semana, (i) => `começa ${br(i.inicio)}`, 'Nada mais previsto até sexta.')}
                 {f && secao('Depois', 'o resto da fila, na ordem', '#475569', <ListOrdered size={16} />, f.listaDepois || [], (i) => `${br(i.inicio)}–${br(i.fim)}`, 'Nada depois desta semana.')}
                 {f && (f.listaContinuos || []).length > 0 && secao('Rotina', 'sem prazo, dentro da 1,5 h de rotina', COR.info, <Repeat size={16} />, f.listaContinuos, () => '', '')}
@@ -281,7 +312,7 @@ export default function MinhaFila({ layout = 'lista' }: { layout?: LayoutFila } 
             // Foco: só os próximos (o "Agora" já está em cima); "ver a fila completa" abre o resto.
             const proximos = f && (verTudo ? filaCompleta : (
               <>
-                {secao('Próximos', 'na ordem da fila', COR.info, <ListOrdered size={16} />, comData.filter((x) => x.id !== agora?.rodando?.ticket_id).slice(1, 7), (i) => (i.inicio <= hoje ? 'hoje' : `começa ${br(i.inicio)}`), 'Nada depois deste.')}
+                {secao('Próximos', 'arraste ⠿ ou use ↑↓ para mudar a ordem', COR.info, <ListOrdered size={16} />, comData.filter((x) => x.id !== agora?.rodando?.ticket_id).slice(1, 7), (i) => (i.inicio <= hoje ? 'hoje' : `começa ${br(i.inicio)}`), 'Nada depois deste.')}
                 {comData.length > 7 && <button className="mf-btn" onClick={() => setVerTudo(true)}>Ver a fila completa ({comData.length} itens)</button>}
                 {avisoSemTempo}
               </>
