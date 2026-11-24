@@ -87,11 +87,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const nomeAntes = ticket.quadro_id ? (await carregarQuadro(ticket.quadro_id))?.quadro.nome ?? null : null
       if (quadroId === null) {
         // Todo ticket fica num bloco (Central de Trabalho): não dá para tirar.
-        return 'Todo ticket precisa ficar num bloco — escolha outro bloco em vez de tirar.'
+        return 'Todo ticket precisa ficar num quadro — escolha outro quadro em vez de tirar.'
       } else {
         const destino = await carregarQuadro(quadroId)
-        if (!destino || destino.quadro.arquivado) return 'Bloco não encontrado.'
-        if (!papeis(destino, auth).trabalhar) return 'Você não participa deste bloco.'
+        if (!destino || destino.quadro.arquivado) return 'Quadro não encontrado.'
+        if (!papeis(destino, auth).trabalhar) return 'Você não participa deste quadro.'
         patch.quadro_id = quadroId
         patch.quadro_coluna_id = colunaDoTicket(null, destino.colunas)
         evento.quadro = { de: nomeAntes, para: destino.quadro.nome }
@@ -210,7 +210,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // Quem recebeu já escolhe o bloco e se fica privado (antes de gravar o
       // aceite: bloco inválido não pode deixar o ticket confirmado pela metade).
       // Todo ticket precisa estar num bloco: sem bloco não confirma.
-      if (!ticket.quadro_id && !quadroDoCorpo()) return erro('Escolha em qual bloco este ticket vai ficar.')
+      if (!ticket.quadro_id && !quadroDoCorpo()) return erro('Escolha em qual quadro este ticket vai ficar.')
       const errOrg = await organizar(quadroDoCorpo(), body.visibilidade)
       if (errOrg) return erro(errOrg)
       const { error } = await supabaseAdmin.from('tickets').update(patch).eq('id', id)
@@ -253,7 +253,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // confirma/contesta/cancela sempre (ticket antigo sem bloco não trava).
     const andamento = !['cancelado', 'fechado'].includes(para) && !(souSolicitante && ticket.status === 'resolvido')
     // Execução de POP não pede bloco (nasce confirmada; o lugar dela é o módulo de POPs).
-    if (!ticket.quadro_id && andamento && ticket.tipo !== 'pop') return erro('Ponha este ticket num bloco antes de trabalhar nele.')
+    if (!ticket.quadro_id && andamento && ticket.tipo !== 'pop') return erro('Ponha este ticket num quadro antes de trabalhar nele.')
     const motivo = String(body.motivo || '').trim()
 
     // Coluna do bloco acompanha a fase (resolvido → "Feito", voltou → volta).
@@ -491,7 +491,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (destinoId === (ticket.quadro_id || null)) return erro('O ticket já está neste quadro.')
     const nomeAntes = ticket.quadro_id ? (await carregarQuadro(ticket.quadro_id))?.quadro.nome ?? null : null
     // Todo ticket fica num bloco: dá para trocar, não para tirar.
-    if (!destinoId) return erro('Todo ticket precisa ficar num bloco — escolha outro bloco.')
+    if (!destinoId) return erro('Todo ticket precisa ficar num quadro — escolha outro quadro.')
     const destino = await carregarQuadro(destinoId)
     if (!destino || destino.quadro.arquivado) return erro('Quadro não encontrado', 404)
     if (!papeis(destino, auth).trabalhar) return erro('Você não é integrante deste quadro.', 403)

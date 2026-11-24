@@ -301,7 +301,7 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
               )}
               {p !== 'cancelada' && (
                 <div style={{ borderTop: '1px solid var(--portal-border,#e2e8f0)', paddingTop: 12 }}>
-                  {!det ? <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#64748b)' }}>Carregando tarefas…</div> : (
+                  {!det ? <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#64748b)' }}>Carregando ações…</div> : (
                     <TarefasRapidas reuniaoId={t.id} pessoas={pres} usuarios={usuarios} acoes={det.acoes}
                       podeCriar={det.posso_conduzir || !!det.meu_papel} onCriada={() => carregarDet(t.id)} onAbrir={setTicketAberto} />
                   )}
@@ -439,7 +439,7 @@ export default function AgendaReunioes({ meuId, isAdmin, onNova, onAviso, modo =
                   {d.salas[t.id] && <span><MapPin size={13} style={{ verticalAlign: -2 }} /> {d.salas[t.id]}</span>}
                 </div>
                 <div className="lin">{pessoas(t)}<span>· {n ? `${n} ${n === 1 ? 'assunto' : 'assuntos'}` : 'nenhum assunto'}</span></div>
-                <div className="acoes">{botoes(t)}<button className="ag-btn" onClick={() => abrir(t)}><ListPlus size={15} /> Tarefa</button></div>
+                <div className="acoes">{botoes(t)}<button className="ag-btn" onClick={() => abrir(t)}><ListPlus size={15} /> Ação</button></div>
               </div>
             )
           })}

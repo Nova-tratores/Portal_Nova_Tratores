@@ -1,14 +1,15 @@
 'use client'
 // CENTRAL DE TRABALHO — barra única do módulo. Fica no topo de /tickets*,
-// /cronograma* e /tarefas. Quadros (os blocos de cada um) é a casa; Cronograma
+// /cronograma* e /tarefas. Quadros (os de cada um) é a casa; Cronograma
 // é a visão geral por dia; Pendências só aparece pra quem tem tarefas
-// automáticas (robôs do estoque / DRE). Criar ticket e tarefa = botões.
+// automáticas (robôs do estoque / DRE). Criar ticket = botão; o checklist
+// (passos) se cria dentro do ticket (Fase 0, 24/11/2026: sem "Nova tarefa" solta).
 import { useEffect, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutGrid, Ticket as TicketIcon, GanttChartSquare, SquareCheck, X, ListTodo,
+  LayoutGrid, Ticket as TicketIcon, GanttChartSquare, X, ListTodo,
   ArrowRight, Users, Lock, Calendar, BarChart3, Lightbulb, CalendarClock, MapPin, CalendarDays,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
@@ -16,7 +17,6 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import FormTicket from '@/components/tickets/FormTicket'
 import TicketModal from '@/components/tickets/TicketModal'
 import { useBlocoAtual, type BlocoAtual } from '@/lib/trabalho/bloco-atual'
-import FormTarefa from './FormTarefa'
 import { ESTILO_CENTRAL_VN } from './visualCentral'
 
 export default function CentralNav() {
@@ -47,7 +47,6 @@ export default function CentralNav() {
     if (bloco) { setPerguntaBloco(true); return }
     setNoBloco(null); setNovoTicket(true)
   }
-  const [novaTarefa, setNovaTarefa] = useState(false)
   const [ticketAberto, setTicketAberto] = useState<string | null>(null)
   const [pendencias, setPendencias] = useState(0)
   const [reunioesHoje, setReunioesHoje] = useState(0)
@@ -103,8 +102,6 @@ export default function CentralNav() {
     <>
       {/* Tela estreita: abas numa linha (rolam de lado) e os botões de criar na linha de baixo. */}
       <style>{ESTILO_CENTRAL_VN}</style>
-      {/* tema escuro: branco sobre #16a34a não dá 4,5:1 — o verde do "Nova tarefa" escurece um tom */}
-      <style>{`[data-theme="dark"] .ct-btn-verde{background:#15803d !important}`}</style>
       <style>{`@media (max-width: 900px){.ct-nav{flex-wrap:wrap;padding:0 12px !important}.ct-nav-abas{flex:1 1 100% !important}.ct-nav-acoes{flex:1 1 100%;margin-left:0 !important;padding:8px 0 10px !important;justify-content:flex-end}.ct-nav-acoes button{min-height:36px}.ct-nav-acoes .ct-nav-ajuda{width:36px !important;height:36px !important}}`}</style>
       <nav aria-label="Central de Trabalho" className="ct-nav" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 16px', borderBottom: '1px solid var(--portal-border,#eee)', background: 'var(--portal-surface,#fff)' }}>
         <div className="ct-nav-abas" style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 0, overflowX: 'auto' }}>
@@ -119,7 +116,6 @@ export default function CentralNav() {
         <span className="ct-nav-acoes" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12 }}>
           {/* só na aba Quadros (José, 17/11/2026) */}
           {emQuadros && <button onClick={abrirNovoTicket} style={botao('#dc2626')}><TicketIcon size={15} /> Novo ticket</button>}
-          {emQuadros && <button className="ct-btn-verde" onClick={() => setNovaTarefa(true)} style={botao('#16a34a')}><SquareCheck size={15} /> Nova tarefa</button>}
           <button className="ct-nav-ajuda" onClick={() => setAjuda(true)} title="Como funciona" aria-label="Como funciona a Central de Trabalho"
             style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>?</button>
         </span>
@@ -134,11 +130,6 @@ export default function CentralNav() {
           quadro={noBloco ? { id: noBloco.id, nome: noBloco.nome, colunaId: noBloco.colunaId ?? null } : undefined}
           onFechar={() => { setNovoTicket(false); setPreenchido(null); setNoBloco(null) }}
           onCriado={(id) => { setNovoTicket(false); setNoBloco(null); avisarMudanca(); setTicketAberto(id) }} />
-      )}
-      {novaTarefa && (
-        <FormTarefa onFechar={() => setNovaTarefa(false)}
-          onNovoTicket={() => { setNovaTarefa(false); setNovoTicket(true) }}
-          onCriada={(id) => { setNovaTarefa(false); avisarMudanca(); setTicketAberto(id) }} />
       )}
       {ticketAberto && <TicketModal id={ticketAberto} onFechar={() => setTicketAberto(null)} onMudou={avisarMudanca} />}
     </>
@@ -157,19 +148,19 @@ function ConfirmarBloco({ nome, onEscolher, onFechar }: { nome: string; onEscolh
       <div onClick={(e) => e.stopPropagation()}
         style={{ width: '100%', maxWidth: 400, background: 'var(--portal-surface,#fff)', borderRadius: 14, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, color: 'var(--portal-text,#111)', marginBottom: 8 }}>
-          <LayoutGrid size={18} color="#dc2626" /> Abrir no bloco {nome}?
+          <LayoutGrid size={18} color="#dc2626" /> Abrir no quadro {nome}?
         </div>
         <p style={{ margin: '0 0 18px', fontSize: 14, lineHeight: 1.5, color: 'var(--portal-text-secondary,#555)' }}>
-          Você está dentro do bloco <strong>{nome}</strong>. O ticket novo já entra nele.
+          Você está dentro do quadro <strong>{nome}</strong>. O ticket novo já entra nele.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button autoFocus onClick={() => onEscolher(true)}
             style={{ padding: '10px 14px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-            Sim, abrir no bloco {nome}
+            Sim, abrir no quadro {nome}
           </button>
           <button onClick={() => onEscolher(false)}
             style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', color: 'var(--portal-text-secondary,#555)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-            Não, abrir fora do bloco
+            Não, abrir fora do quadro
           </button>
         </div>
       </div>
@@ -185,10 +176,10 @@ function ComoFunciona({ onFechar }: { onFechar: () => void }) {
   const seta: React.CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text-muted,#888)', textAlign: 'center', flex: 'none' }
   const passos = [
     ['1. Peça', 'Novo ticket: o que precisa, para quem e até quando. Quem pediu acompanha o dia e a situação até o fim.'],
-    ['2. Quem recebe organiza', 'Confirma (ou propõe outra data / recusa) e escolhe em qual BLOCO o ticket vai e se fica privado ou compartilhado com o bloco.'],
-    ['3. Blocos', 'Cada pessoa tem os seus blocos, por assunto, cada um de uma cor. Dá pra convidar colegas para um bloco.'],
-    ['4. Tarefas', 'Nova tarefa sempre dentro de um ticket (que você criou ou recebeu): os passos pequenos, com quem faz e prazo.'],
-    ['5. Cronograma', 'Tudo que você pode ver, por dia, cada ticket na cor do seu bloco. Atrasados aparecem primeiro.'],
+    ['2. Quem recebe organiza', 'Confirma (ou propõe outra data / recusa) e escolhe em qual QUADRO o ticket vai e se fica privado ou compartilhado com o quadro.'],
+    ['3. Quadros', 'Cada pessoa tem os seus quadros, por assunto, cada um de uma cor. Dá pra convidar colegas para um quadro.'],
+    ['4. Checklist e Ações', 'Dentro do ticket, o checklist são os passos pequenos, com quem faz e prazo. Na reunião, o que fica combinado vira Ação, que é um ticket.'],
+    ['5. Cronograma', 'Tudo que você pode ver, por dia, cada ticket na cor do seu quadro. Atrasados aparecem primeiro.'],
   ]
   return (
     <div onClick={(e) => { if (e.target === e.currentTarget) onFechar() }} style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -199,18 +190,18 @@ function ComoFunciona({ onFechar }: { onFechar: () => void }) {
         </header>
         <div style={{ padding: 18, color: 'var(--portal-text,#111)' }}>
           <p style={{ margin: 0, color: 'var(--portal-text-secondary,#555)', fontSize: 13.5 }}>
-            O <b>Ticket</b> é o pedido. Quem recebe guarda num dos seus <b>Blocos</b> (por assunto, cada um de uma cor). As <b>Tarefas</b> são os passos dentro do ticket. O <b>Cronograma</b> junta tudo por dia.
+            O <b>Ticket</b> é o pedido. Quem recebe guarda num dos seus <b>Quadros</b> (por assunto, cada um de uma cor). O <b>Checklist</b> são os passos dentro do ticket. O <b>Cronograma</b> junta tudo por dia.
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0', flexWrap: 'wrap' }}>
             <div style={caixa(true)}><TicketIcon size={22} color="#dc2626" /><b>Ticket</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>o pedido</small></div>
             <div style={seta}><span>quem recebe<br />escolhe</span><ArrowRight size={18} /></div>
-            <div style={caixa(false)}><LayoutGrid size={22} color="#dc2626" /><b>Bloco</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>organização, com cor</small></div>
+            <div style={caixa(false)}><LayoutGrid size={22} color="#dc2626" /><b>Quadro</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>organização, com cor</small></div>
             <div style={seta}><span>por dia</span><ArrowRight size={18} /></div>
-            <div style={caixa(false)}><Calendar size={22} color="#dc2626" /><b>Cronograma</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>tudo, na cor do bloco</small></div>
+            <div style={caixa(false)}><Calendar size={22} color="#dc2626" /><b>Cronograma</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>tudo, na cor do quadro</small></div>
           </div>
           <div style={{ display: 'grid', gap: 6, marginBottom: 14, fontSize: 13.5 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Lock size={16} color="#6b7280" /> <b>Privado</b>: só você, quem pediu e quem estiver no ticket</div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Users size={16} color="#059669" /> <b>Compartilhado</b>: quem participa do bloco também vê</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Users size={16} color="#059669" /> <b>Compartilhado</b>: quem participa do quadro também vê</div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(210px,100%),1fr))', gap: 10 }}>
             {passos.map(([t, d]) => (

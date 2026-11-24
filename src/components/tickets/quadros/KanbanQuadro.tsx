@@ -177,8 +177,8 @@ export default function KanbanQuadro({
                         </span>
                       )}
                       {passos[t.id] && (
-                        <span title="Tarefas deste ticket" style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, color: passos[t.id].feitas === passos[t.id].total ? '#16a34a' : undefined }}>
-                          <SquareCheck size={11} /> {passos[t.id].feitas}/{passos[t.id].total} tarefas
+                        <span title="Checklist deste ticket" style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, color: passos[t.id].feitas === passos[t.id].total ? '#16a34a' : undefined }}>
+                          <SquareCheck size={11} /> {passos[t.id].feitas}/{passos[t.id].total} passos
                         </span>
                       )}
                       {etapas[t.id]?.fim && etapas[t.id].status !== 'concluida' && (

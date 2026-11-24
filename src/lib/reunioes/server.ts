@@ -603,6 +603,6 @@ export async function publicarAta(auth: Autenticado, r: ReuniaoCarregada, link: 
     if (prox) await puxarSugestoes(prox, r.serie, auth.userId)
   }
   const destinatarios = r.presencas.map((p) => p.usuario_id)
-  await notificarTicket(r.ticket, destinatarios, auth.userId, `Ata publicada: ${r.ticket.titulo}`, `${decididos} decisão(ões) · ${lista.length} tarefa(s) · ${pend.atrasadas.length} pendência(s) atrasada(s).`)
+  await notificarTicket(r.ticket, destinatarios, auth.userId, `Ata publicada: ${r.ticket.titulo}`, `${decididos} decisão(ões) · ${lista.length} ação(ões) · ${pend.atrasadas.length} pendência(s) atrasada(s).`)
   return ata
 }

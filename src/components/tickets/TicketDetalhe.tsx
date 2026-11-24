@@ -424,13 +424,13 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             </a>
           )}
           {quadro && (
-            <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o bloco"
+            <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o quadro"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, fontSize: 12, fontWeight: 700, textDecoration: 'none', color: 'var(--portal-text,#111)', background: quadro.cor + '1f', border: `1px solid ${quadro.cor}55` }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: quadro.cor }} /> {quadro.nome}
             </a>
           )}
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--portal-text-muted,#999)' }}>
-            {ticket.visibilidade === 'privado' ? <><Lock size={11} /> privado</> : <><Globe size={11} /> {quadro ? 'compartilhado com o bloco' : 'visível a todos'}</>}
+            {ticket.visibilidade === 'privado' ? <><Lock size={11} /> privado</> : <><Globe size={11} /> {quadro ? 'compartilhado com o quadro' : 'visível a todos'}</>}
           </span>
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             {scInfo
@@ -478,12 +478,12 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600 }}>
             <LayoutGrid size={15} />
             <span style={{ flex: 1, minWidth: 200 }}>
-              {souResponsavel ? 'Este ticket ainda não está em nenhum bloco. Escolha um para poder trabalhar nele.' : 'Esperando quem recebeu escolher o bloco.'}
+              {souResponsavel ? 'Este ticket ainda não está em nenhum quadro. Escolha um para poder trabalhar nele.' : 'Esperando quem recebeu escolher o quadro.'}
             </span>
             {podeMoverQuadro && (
               <button disabled={agindo} onClick={abrirModalQuadro}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: 'none', background: '#d97706', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
-                <LayoutGrid size={14} /> Escolher bloco
+                <LayoutGrid size={14} /> Escolher quadro
               </button>
             )}
           </div>
@@ -672,12 +672,12 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
               <div style={{ ...tituloCartao, marginBottom: 10 }}><LayoutGrid size={13} /> Bloco</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {quadro ? (
-                  <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o bloco"
+                  <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o quadro"
                     style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 9, fontSize: 13.5, fontWeight: 800, textDecoration: 'none',
                       color: 'var(--portal-text,#111)', background: quadro.cor + '1f', border: `1px solid ${quadro.cor}55` }}>
                     <span style={{ width: 11, height: 11, borderRadius: 3, background: quadro.cor }} /> {quadro.nome}
                   </a>
-                ) : <span style={{ fontSize: 13, color: '#b45309', fontWeight: 600 }}>Sem bloco</span>}
+                ) : <span style={{ fontSize: 13, color: '#b45309', fontWeight: 600 }}>Sem quadro</span>}
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {podeMoverQuadro && (
                     <button disabled={agindo} style={botaoMini} onClick={abrirModalQuadro}>
@@ -687,7 +687,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                   {podeVisibilidade && (
                     <button disabled={agindo} style={botaoMini}
                       onClick={() => acao({ acao: 'visibilidade', para: ticket.visibilidade === 'privado' ? 'publico' : 'privado' })}>
-                      {ticket.visibilidade === 'privado' ? <><Globe size={12} /> {quadro ? 'Compartilhar com o bloco' : 'Tornar visível'}</> : <><Lock size={12} /> Tornar privado</>}
+                      {ticket.visibilidade === 'privado' ? <><Globe size={12} /> {quadro ? 'Compartilhar com o quadro' : 'Tornar visível'}</> : <><Lock size={12} /> Tornar privado</>}
                     </button>
                   )}
                 </div>
@@ -952,15 +952,15 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           <div onClick={(e) => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 420, maxHeight: '80vh', overflowY: 'auto', background: 'var(--portal-surface,#fff)', borderRadius: 14, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, margin: '0 0 6px', color: 'var(--portal-text,#111)' }}>
-              <LayoutGrid size={16} color="#dc2626" /> {quadro ? 'Trocar de bloco' : 'Pôr num bloco'}
+              <LayoutGrid size={16} color="#dc2626" /> {quadro ? 'Trocar de quadro' : 'Pôr num quadro'}
             </h3>
             <p style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)', margin: '0 0 14px' }}>
               A situação do ticket não muda.
             </p>
             {opcoesQuadro === null ? (
-              <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Carregando blocos...</div>
+              <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Carregando quadros...</div>
             ) : opcoesQuadro.filter((q) => q.id !== quadro?.id).length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Você não tem outro bloco. Crie um na página Quadros.</div>
+              <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Você não tem outro quadro. Crie um na página Quadros.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {opcoesQuadro.filter((q) => q.id !== quadro?.id).map((q) => (
@@ -974,7 +974,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 16 }}>
               {/* Todo ticket fica num bloco: dá para trocar, não para tirar. */}
-              <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)', alignSelf: 'center' }}>Todo ticket fica num bloco.</span>
+              <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)', alignSelf: 'center' }}>Todo ticket fica num quadro.</span>
               <button onClick={() => setModalQuadro(false)}
                 style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--portal-text-secondary,#555)' }}>
                 Fechar
@@ -1034,10 +1034,10 @@ function LinhaEvento({ e, uid, nome, usuarios }: {
   else if (e.tipo === 'edicao') {
     if (e.payload.campo === 'visibilidade') texto = <>tornou o ticket <strong>{e.payload.para === 'publico' ? 'compartilhado' : 'privado'}</strong></>
     else if (e.payload.campo === 'quadro') texto = e.payload.para
-      ? <>colocou no bloco <strong>{String(e.payload.para)}</strong></>
-      : <>tirou do bloco{e.payload.de ? <> <strong>{String(e.payload.de)}</strong></> : null}</>
-    else if (e.payload.campo === 'tarefa' && e.payload.acao === 'editada') texto = <>editou a tarefa <strong>{String(e.payload.titulo || '')}</strong>{Array.isArray(e.payload.mudou) && e.payload.mudou.length ? <> ({(e.payload.mudou as string[]).join(', ')})</> : null}</>
-    else if (e.payload.campo === 'tarefa') texto = <>{e.payload.acao === 'criada' ? 'criou a tarefa' : e.payload.acao === 'feita' ? 'concluiu a tarefa' : e.payload.acao === 'removida' ? 'removeu a tarefa' : 'reabriu a tarefa'} <strong>{String(e.payload.titulo || '')}</strong></>
+      ? <>colocou no quadro <strong>{String(e.payload.para)}</strong></>
+      : <>tirou do quadro{e.payload.de ? <> <strong>{String(e.payload.de)}</strong></> : null}</>
+    else if (e.payload.campo === 'tarefa' && e.payload.acao === 'editada') texto = <>editou o passo <strong>{String(e.payload.titulo || '')}</strong>{Array.isArray(e.payload.mudou) && e.payload.mudou.length ? <> ({(e.payload.mudou as string[]).join(', ')})</> : null}</>
+    else if (e.payload.campo === 'tarefa') texto = <>{e.payload.acao === 'criada' ? 'adicionou ao checklist' : e.payload.acao === 'feita' ? 'concluiu o passo' : e.payload.acao === 'removida' ? 'removeu do checklist' : 'reabriu o passo'} <strong>{String(e.payload.titulo || '')}</strong></>
     else if (e.payload.campo === 'cronograma') texto = <>colocou o ticket no <strong>cronograma</strong></>
     else if (e.payload.campo === 'coluna') texto = <>moveu o cartão{e.payload.de ? <> de {String(e.payload.de)}</> : null} para <strong>{String(e.payload.para)}</strong></>
     else {

@@ -44,7 +44,7 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
     try {
       const res = await fetch(`/api/tickets/${ticketId}/tarefas`, { headers: await authHeaders() })
       const json = await res.json()
-      if (!res.ok) { setErro(json.error || 'Falha ao carregar as tarefas'); setPassos([]); return }
+      if (!res.ok) { setErro(json.error || 'Falha ao carregar o checklist'); setPassos([]); return }
       setPassos(json.passos || []); setUsuarios(json.usuarios || {}); setPodeMexer(!!json.pode_mexer)
     } catch { setErro('Falha de conexão'); setPassos([]) }
   }, [ticketId])
@@ -84,7 +84,7 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
   return (
     <div style={{ marginTop: 14, border: `2px solid ${VERDE}`, borderRadius: 12, padding: '12px 14px', background: 'rgba(22,163,74,.05)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <b style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, color: 'var(--portal-text,#111)' }}><SquareCheck size={16} color={VERDE} /> Tarefas deste ticket</b>
+        <b style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, color: 'var(--portal-text,#111)' }}><SquareCheck size={16} color={VERDE} /> Checklist</b>
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>
           {passos === null ? '' : lista.length ? `${feitas} de ${lista.length} feitas` : 'quebre o trabalho em passos'}
         </span>
@@ -97,7 +97,7 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
       {passos === null && <div style={{ padding: 8 }}><Loader2 size={16} className="spin" /></div>}
       {passos !== null && lista.length === 0 && (
         <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>
-          Divida este ticket em passos menores. Cada tarefa tem quem faz e prazo, e fica aqui dentro do ticket.
+          Divida este ticket em passos menores. Cada passo tem quem faz e prazo, e fica aqui dentro do ticket.
         </p>
       )}
       {lista.map((p) => {
@@ -106,7 +106,7 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
           const campo: React.CSSProperties = { padding: '7px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontSize: 13, minWidth: 0 }
           return (
             <div key={p.id} className="tarefas-ticket-form" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 190px 150px auto', gap: 6, padding: '8px 0', borderBottom: '1px dashed var(--portal-border,#e5e7eb)' }}>
-              <input autoFocus value={editando.titulo} maxLength={200} aria-label="Texto da tarefa"
+              <input autoFocus value={editando.titulo} maxLength={200} aria-label="Texto do passo"
                 onChange={(e) => setEditando({ ...editando, titulo: e.target.value })}
                 onKeyDown={(e) => { if (e.key === 'Enter') salvarEdicao(); if (e.key === 'Escape') setEditando(null) }}
                 style={campo} />
@@ -136,7 +136,7 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
             {p.prazo && <span style={{ fontSize: 12, fontWeight: atrasada ? 700 : 400, color: atrasada ? '#dc2626' : 'var(--portal-text-muted,#888)' }}>{fmt(p.prazo)}</span>}
             {podeMexer && !encerrado && (removendo === p.id ? (
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#dc2626' }}>
-                Remover esta tarefa?
+                Remover este passo?
                 <button onClick={async () => { setRemovendo(null); await chamar('DELETE', undefined, `?tarefa_id=${p.id}`) }}
                   style={{ padding: '3px 10px', borderRadius: 6, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700, cursor: 'pointer' }}>Remover</button>
                 <button onClick={() => setRemovendo(null)}
@@ -145,9 +145,9 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
             ) : (
               <span style={{ display: 'flex' }}>
                 <button onClick={() => { setRemovendo(null); setEditando({ id: p.id, titulo: p.titulo, resp: p.atribuido_a || '', prazo: p.prazo ? p.prazo.slice(0, 10) : '' }) }}
-                  title="Editar tarefa" aria-label={`Editar tarefa: ${p.titulo}`}
+                  title="Editar passo" aria-label={`Editar passo: ${p.titulo}`}
                   style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted,#888)', display: 'flex', padding: 4 }}><Pencil size={14} /></button>
-                <button onClick={() => setRemovendo(p.id)} title="Remover tarefa" aria-label="Remover tarefa"
+                <button onClick={() => setRemovendo(p.id)} title="Remover passo" aria-label="Remover passo"
                   style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted,#aaa)', display: 'flex', padding: 4 }}><Trash2 size={14} /></button>
               </span>
             ))}
@@ -158,7 +158,7 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 190px 150px auto', gap: 6, marginTop: 10 }} className="tarefas-ticket-form">
           <input id={`nova-tarefa-${ticketId}`} value={titulo} onChange={(e) => setTitulo(e.target.value)} maxLength={200}
             onKeyDown={(e) => { if (e.key === 'Enter') adicionar() }}
-            placeholder="+ Adicionar tarefa a este ticket (ex.: pedir orçamento)"
+            placeholder="+ Adicionar passo ao checklist (ex.: pedir orçamento)"
             style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontSize: 13, minWidth: 0 }} />
           <UserSelect value={resp} autoFocus={false} placeholder="Responsável"
             onChange={(id, u) => { setResp(id); if (u) setNomeResp((n) => ({ ...n, [id]: u.nome })) }} />

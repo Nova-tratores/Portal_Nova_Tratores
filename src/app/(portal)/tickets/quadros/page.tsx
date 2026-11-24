@@ -119,7 +119,7 @@ export default function QuadrosPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>
             {q.visibilidade === 'privado'
-              ? <><Lock size={12} /> Só quem está no bloco vê</>
+              ? <><Lock size={12} /> Só quem está no quadro vê</>
               : <><Globe size={12} /> Todos podem ver</>}
             {q.arquivado && <b> · arquivado</b>}
           </div>
@@ -186,7 +186,7 @@ export default function QuadrosPage() {
                       </button>
                       <button onClick={() => setOrganizando({ id: t.id, numero: t.numero, titulo: t.titulo, prazo: t.prazo, visibilidade: t.visibilidade, aceite: t.aceite, solicitante_nome: t.solicitante_id === userProfile?.id ? undefined : nome(t.solicitante_id) })}
                         style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: pendente ? '#059669' : '#dc2626', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-                        <LayoutGrid size={14} /> {pendente ? 'Confirmar e organizar' : 'Pôr num bloco'}
+                        <LayoutGrid size={14} /> {pendente ? 'Confirmar e organizar' : 'Pôr num quadro'}
                       </button>
                     </div>
                   )
@@ -196,7 +196,7 @@ export default function QuadrosPage() {
           )}
 
           {/* 2) Meus blocos */}
-          {secao(<LayoutGrid size={17} color="#dc2626" />, 'Meus blocos', (
+          {secao(<LayoutGrid size={17} color="#dc2626" />, 'Meus quadros', (
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-muted,#888)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} /> Mostrar arquivados
@@ -207,18 +207,18 @@ export default function QuadrosPage() {
               </button>
               <button onClick={() => setNovo(true)} disabled={!!aviso}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', minHeight: isMobile ? 36 : undefined, borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: aviso ? .5 : 1 }}>
-                <Plus size={15} /> Novo bloco
+                <Plus size={15} /> Novo quadro
               </button>
             </div>
           ))}
           {meus.length === 0 && !aviso ? (
             <div style={{ padding: '36px 20px', textAlign: 'center', borderRadius: 12, border: '1px dashed var(--portal-border,#ddd)', color: 'var(--portal-text-muted,#888)' }}>
               <LayoutGrid size={30} style={{ opacity: .35, marginBottom: 8 }} />
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Você ainda não tem nenhum bloco.</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Você ainda não tem nenhum quadro.</div>
               <div style={{ fontSize: 13, marginTop: 6 }}>Crie um por assunto (ex.: Oficina, Compras, Loja) e escolha a cor. Os tickets que você recebe vão para eles.</div>
               <button onClick={() => setNovo(true)} disabled={!!aviso}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, padding: '9px 16px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                <Plus size={16} /> Criar meu primeiro bloco
+                <Plus size={16} /> Criar meu primeiro quadro
               </button>
             </div>
           ) : (
@@ -228,7 +228,7 @@ export default function QuadrosPage() {
           )}
           {outrosPublicos.length > 0 && (
             <details style={{ marginTop: 12 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>Blocos públicos de outras pessoas ({outrosPublicos.length})</summary>
+              <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>Quadros públicos de outras pessoas ({outrosPublicos.length})</summary>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(230px, 100%), 1fr))', gap: 12, marginTop: 10 }}>
                 {outrosPublicos.map(cartaoBloco)}
               </div>

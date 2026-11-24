@@ -14,7 +14,7 @@ export const PASSOS_TUTORIAL: Passo[] = [
     icone: <CalendarClock size={30} />, cor: '#dc2626',
     texto: [
       'Aqui a reunião tem três momentos: a pauta antes, a condução na hora e a ata depois.',
-      'O que for decidido vira tarefa com responsável e prazo, e é cobrado na reunião seguinte. Nada se perde no "a gente vê depois".',
+      'O que for decidido vira ação com responsável e prazo, e é cobrado na reunião seguinte. Nada se perde no "a gente vê depois".',
     ],
   },
   {
@@ -40,11 +40,11 @@ export const PASSOS_TUTORIAL: Passo[] = [
     icone: <Play size={30} />, cor: '#d97706',
     texto: [
       'O condutor clica em "Iniciar reunião", marca as presenças e, se precisar, inclui alguém de última hora.',
-      'Primeiro vêm as pendências: tarefas de reuniões anteriores atrasadas ou vencendo.',
+      'Primeiro vêm as pendências: ações de reuniões anteriores atrasadas ou vencendo.',
       'Em cada item, registre o resultado: Decidido (com decisão e motivo), Informado, Discutido, "Adiar p/ próxima" ou "Fora do tema". Os dois últimos são reagendados para a próxima reunião da série.',
       'Alguém precisa fazer algo? Depois de decidir, clique em "+ Criar ação desta decisão" (ou em "+ Ação", na barra de baixo). A ação vira um ticket com UM responsável e um prazo; a pessoa recebe o aviso e confirma.',
     ],
-    dica: 'Tarefa para várias pessoas? Crie uma ação para cada uma, com a parte e o prazo de cada. Surgiu outro assunto no meio da conversa? Escreva no campo de baixo e clique em "Anotar p/ próxima".',
+    dica: 'Ação para várias pessoas? Crie uma ação para cada uma, com a parte e o prazo de cada. Surgiu outro assunto no meio da conversa? Escreva no campo de baixo e clique em "Anotar p/ próxima".',
   },
   {
     titulo: '4. Pendências: cobre o combinado',

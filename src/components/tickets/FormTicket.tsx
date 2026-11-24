@@ -309,7 +309,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {([
                 { valor: 'privado' as const, rotulo: 'Privado (só envolvidos)', icone: <Lock size={14} /> },
-                { valor: 'publico' as const, rotulo: quadro ? `Compartilhado com o bloco ${quadro.nome}` : 'Visível a todos', icone: <Globe size={14} /> },
+                { valor: 'publico' as const, rotulo: quadro ? `Compartilhado com o quadro ${quadro.nome}` : 'Visível a todos', icone: <Globe size={14} /> },
               ]).map((op) => (
                 <button key={op.valor} type="button" onClick={() => setVisibilidade(op.valor)}
                   style={{

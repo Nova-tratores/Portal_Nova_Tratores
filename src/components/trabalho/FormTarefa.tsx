@@ -1,4 +1,6 @@
 'use client'
+// TODO fase 1: remover. Sem uso desde 24/11/2026 (o botão "Nova tarefa" saiu do topo;
+// o checklist se cria dentro do ticket). Mantido pela regra "não apagar funcionalidade".
 // CENTRAL DE TRABALHO — Nova tarefa. Toda tarefa mora DENTRO de um ticket
 // (um que eu criei, pra mim ou pra outra pessoa, ou que eu recebi) e aparece
 // na caixa "Tarefas deste ticket". Não existe mais tarefa solta.

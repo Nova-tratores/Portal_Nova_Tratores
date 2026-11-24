@@ -218,7 +218,7 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
                   </span>
                   <span style={{ fontSize: 12, color: muted }}>
                     {t.oculto ? 'horário ocupado' : <>
-                    {q ? <span style={{ color: q.cor, fontWeight: 700 }}>{q.nome}</span> : <span style={{ color: '#b45309', fontWeight: 700 }}>sem bloco</span>}
+                    {q ? <span style={{ color: q.cor, fontWeight: 700 }}>{q.nome}</span> : <span style={{ color: '#b45309', fontWeight: 700 }}>sem quadro</span>}
                     {' · '}de {dados.usuarios[t.solicitante_id]?.nome || '—'}
                     </>}
                   </span>

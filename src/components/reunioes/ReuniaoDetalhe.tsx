@@ -466,7 +466,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
       {acaoDe !== false && (
         <FormAcaoReuniao tituloInicial={acaoDe?.decisao_texto || ''} categoriaInicial={r.categoria === 'Reunião' ? '' : r.categoria}
           pessoas={d.presencas.map((p) => p.usuario_id)} usuarios={d.usuarios}
-          descricaoInicial={acaoDe ? `Decidido em "${r.titulo}" — ${acaoDe.pergunta}\nDecisão: ${acaoDe.decisao_texto || ''}\nMotivo: ${acaoDe.decisao_motivo || ''}` : `Tarefa combinada em "${r.titulo}".`}
+          descricaoInicial={acaoDe ? `Decidido em "${r.titulo}" — ${acaoDe.pergunta}\nDecisão: ${acaoDe.decisao_texto || ''}\nMotivo: ${acaoDe.decisao_motivo || ''}` : `Ação combinada em "${r.titulo}".`}
           onFechar={() => setAcaoDe(false)}
           onCriar={async (a) => { await acao({ acao: 'criar_acao', ...a, item_id: acaoDe ? acaoDe.id : undefined }); window.dispatchEvent(new Event('central-trabalho-mudou')) }} />
       )}

@@ -297,7 +297,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (acao === 'criar_acao') {
       // José, 17/11/2026 ("muito difícil"): qualquer participante cria, antes, durante ou depois da reunião.
       const participa = r.presencas.some((p) => p.usuario_id === auth.userId)
-      if (!conduz && !participa) return erro('Só quem participa da reunião cria tarefas dela.', 403)
+      if (!conduz && !participa) return erro('Só quem participa da reunião cria ações dela.', 403)
       if (etapa === 'cancelada') return erro('Reunião cancelada — abra um ticket comum.', 409)
       const titulo = String(body.titulo || '').trim()
       const responsavel = String(body.responsavel_id || '')

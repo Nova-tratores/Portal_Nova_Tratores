@@ -63,13 +63,13 @@ export default function EscolhaBloco({ valor, onChange: onChangeExterno, autoSel
   return (
     <div style={{ display: 'grid', gap: 14 }}>
       <div>
-        <span style={rotulo}>Em qual bloco vai?</span>
+        <span style={rotulo}>Em qual quadro vai?</span>
         {blocos === null ? (
-          <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Carregando seus blocos...</div>
+          <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Carregando seus quadros...</div>
         ) : (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {blocos.length === 0 && (
-              <span style={{ fontSize: 13, color: 'var(--portal-text-secondary,#555)', alignSelf: 'center' }}>Você ainda não tem nenhum bloco.</span>
+              <span style={{ fontSize: 13, color: 'var(--portal-text-secondary,#555)', alignSelf: 'center' }}>Você ainda não tem nenhum quadro.</span>
             )}
             {blocos.map((b) => (
               <button key={b.id} type="button" onClick={() => onChange({ ...valor, quadroId: valor.quadroId === b.id ? null : b.id })}
@@ -78,7 +78,7 @@ export default function EscolhaBloco({ valor, onChange: onChangeExterno, autoSel
               </button>
             ))}
             <button type="button" onClick={() => setCriando(true)} style={{ ...chip(false), borderStyle: 'dashed', color: '#dc2626' }}>
-              <Plus size={14} /> {blocos.length === 0 ? 'Criar meu primeiro bloco' : 'Novo bloco'}
+              <Plus size={14} /> {blocos.length === 0 ? 'Criar meu primeiro quadro' : 'Novo quadro'}
             </button>
           </div>
         )}
@@ -91,13 +91,13 @@ export default function EscolhaBloco({ valor, onChange: onChangeExterno, autoSel
             <Lock size={14} /> Privado
           </button>
           <button type="button" onClick={() => onChange({ ...valor, visibilidade: 'publico' })} style={chip(valor.visibilidade === 'publico')}>
-            <Users size={14} /> {valor.quadroId ? 'Compartilhado com o bloco' : 'Visível a todos'}
+            <Users size={14} /> {valor.quadroId ? 'Compartilhado com o quadro' : 'Visível a todos'}
           </button>
         </div>
         <small style={{ display: 'block', marginTop: 6, color: 'var(--portal-text-muted,#888)', fontSize: 12 }}>
           {valor.visibilidade === 'privado'
             ? 'Só você, quem pediu e quem estiver no ticket. Quem pediu sempre acompanha o dia e a situação.'
-            : valor.quadroId ? 'Quem participa do bloco também vê.' : 'Qualquer pessoa da Central de Trabalho vê.'}
+            : valor.quadroId ? 'Quem participa do quadro também vê.' : 'Qualquer pessoa da Central de Trabalho vê.'}
         </small>
       </div>
 
