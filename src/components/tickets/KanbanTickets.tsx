@@ -41,6 +41,9 @@ export default function KanbanTickets({
   const [arrastando, setArrastando] = useState<{ id: string; permitidos: Set<TicketStatus> } | null>(null)
   const [colunaOver, setColunaOver] = useState<TicketStatus | null>(null)
   const [salvando, setSalvando] = useState<string | null>(null)
+  // Coluna vazia recolhida numa faixa (Fase 0, 24/11/2026), igual ao kanban dos Quadros:
+  // abre no clique e TODAS abrem enquanto um cartão é arrastado.
+  const [abertas, setAbertas] = useState<Set<TicketStatus>>(new Set())
 
   const colunas: TicketStatus[] = encerrados ? [...STATUS_ATIVOS, ...STATUS_FINAIS] : STATUS_ATIVOS
   const porStatus: Partial<Record<TicketStatus, Ticket[]>> = {}
@@ -82,9 +85,10 @@ export default function KanbanTickets({
     await mover(atual.id, para)
   }
 
+  const recolhida = (s: TicketStatus) => !arrastando && !abertas.has(s) && !(porStatus[s] || []).length
   return (
     <div className="kt-board" style={{
-      display: 'grid', gridTemplateColumns: `repeat(${colunas.length}, minmax(230px, 1fr))`, gap: 12,
+      display: 'grid', gridTemplateColumns: colunas.map((s) => (recolhida(s) ? '44px' : 'minmax(230px, 1fr)')).join(' '), gap: 12,
       overflowX: 'auto', alignItems: 'start', paddingBottom: 8, maxWidth: '100%',
     }}>
       {/* Celular/tablet: as colunas rolam de lado e "encaixam" uma por vez. */}
@@ -95,6 +99,15 @@ export default function KanbanTickets({
         const final = STATUS_FINAIS.includes(status)
         const bloqueada = !!arrastando && !arrastando.permitidos.has(status)
         const alvo = !!arrastando && colunaOver === status && !bloqueada
+        if (recolhida(status)) return (
+          <button key={status} type="button" className="kt-col" onClick={() => setAbertas(new Set(abertas).add(status))}
+            title={`${info.label}: vazia. Clique para abrir.`} aria-label={`Abrir coluna ${info.label} (vazia)`}
+            style={{ minHeight: 160, borderRadius: 12, padding: '10px 0', border: '1.5px solid transparent', cursor: 'pointer', font: 'inherit',
+              background: 'var(--portal-bg,#f9fafb)', color: 'var(--portal-text-muted,#888)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 800 }}>0</span>
+            <span style={{ writingMode: 'vertical-rl', fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', color: info.cor }}>{info.label}</span>
+          </button>
+        )
         return (
           <div key={status} className="kt-col"
             onDragOver={(e) => {
