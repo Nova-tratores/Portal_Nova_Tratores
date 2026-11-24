@@ -9,7 +9,16 @@ import { CAPACIDADE_PADRAO, itemDoTicket, ordenarFila, planejarFila, sextaDaSema
 /** Mesmo filtro da /api/trabalho/fila: resolvido já foi feito; compras e reunião não entram. */
 const FORA = '(resolvido,fechado,cancelado)'
 
-export interface ItemResumo { id: string; numero: number; titulo: string; prazo: string | null; horas: number; inicio: string; fim: string; atrasado: boolean; urgente: boolean; semEstimativa: boolean; visibilidade: string; solicitante_id: string }
+export interface ItemResumo {
+  id: string; numero: number; titulo: string; prazo: string | null; horas: number; inicio: string; fim: string
+  atrasado: boolean; urgente: boolean; semEstimativa: boolean; continuo: boolean; visibilidade: string; solicitante_id: string
+  status: string
+  /** Dias sem movimento (updated_at). */
+  parado: number
+  /** Só com { detalhes: true }: quem pediu (null = a própria pessoa) e o quadro. */
+  pedidoPor?: string | null
+  quadro?: { nome: string; cor: string } | null
+}
 export interface ResumoFila {
   /** O que a fila põe para HOJE, na ordem (objetivo do dia). */
   hoje: ItemResumo[]
@@ -17,6 +26,9 @@ export interface ResumoFila {
   semana: ItemResumo[]
   depois: number
   continuos: number
+  /** A fila COMPLETA: o que vem depois desta semana e os contínuos (na rotina). */
+  listaDepois: ItemResumo[]
+  listaContinuos: ItemResumo[]
   /** Pedidos que chegaram e a pessoa ainda não aceitou. */
   aceitar: number
   total: number
@@ -33,22 +45,37 @@ export function feriadosDoAno(hoje: string): Set<string> {
   return new Set([...feriadosNacionais(ano), ...feriadosNacionais(ano + 1), ...feriadosExtras()])
 }
 
-type Tk = { id: string; numero: number; titulo: string; prazo: string | null; payload: unknown; responsavel_id: string; aceite?: string | null; visibilidade: string; solicitante_id: string }
+type Tk = { id: string; numero: number; titulo: string; prazo: string | null; payload: unknown; responsavel_id: string; aceite?: string | null; visibilidade: string; solicitante_id: string
+  status: string; quadro_id: string | null; updated_at: string }
 
 /** Resumo da fila de cada pessoa pedida (quem não tem nada volta com a fila vazia). */
-export async function resumoDasFilas(userIds: string[]): Promise<Map<string, ResumoFila>> {
+export async function resumoDasFilas(userIds: string[], opc: { detalhes?: boolean } = {}): Promise<Map<string, ResumoFila>> {
   const hoje = hojeSP()
   const sexta = sextaDaSemana(hoje)
   const feriados = feriadosDoAno(hoje)
   const out = new Map<string, ResumoFila>()
   if (!userIds.length) return out
   const [tks, plano] = await Promise.all([
-    supabaseAdmin.from('tickets').select('id, numero, titulo, prazo, payload, responsavel_id, aceite, visibilidade, solicitante_id')
+    supabaseAdmin.from('tickets').select('id, numero, titulo, prazo, payload, responsavel_id, aceite, visibilidade, solicitante_id, status, quadro_id, updated_at')
       .in('responsavel_id', userIds).not('tipo', 'in', '(compras,reuniao)').not('status', 'in', FORA).limit(3000),
     supabaseAdmin.from('tickets_plano').select('ticket_id, posicao, user_id').in('user_id', userIds),
   ])
   const porPessoa = new Map<string, Tk[]>()
   for (const t of (tks.data || []) as Tk[]) porPessoa.set(t.responsavel_id, [...(porPessoa.get(t.responsavel_id) || []), t])
+  // "De quem é": nome de quem pediu e o quadro (só quando pedem detalhes — a carga da Equipe não precisa).
+  const nomes = new Map<string, string>(), quadros = new Map<string, { nome: string; cor: string }>()
+  if (opc.detalhes) {
+    const lista = (tks.data || []) as Tk[]
+    const uids = [...new Set(lista.map((t) => t.solicitante_id))]
+    const qids = [...new Set(lista.map((t) => t.quadro_id).filter((x): x is string => !!x))]
+    const [us, qs] = await Promise.all([
+      uids.length ? supabaseAdmin.from('financeiro_usu').select('id, nome').in('id', uids) : Promise.resolve({ data: [] }),
+      qids.length ? supabaseAdmin.from('tickets_quadros').select('id, nome, cor').in('id', qids) : Promise.resolve({ data: [] }),
+    ])
+    for (const u of (us.data || []) as { id: string; nome: string }[]) nomes.set(u.id, u.nome)
+    for (const q of (qs.data || []) as { id: string; nome: string; cor: string }[]) quadros.set(q.id, { nome: q.nome, cor: q.cor })
+  }
+  const agoraMs = Date.now()
   const posDe = new Map<string, Map<string, number>>()
   for (const p of (plano.data || []) as { ticket_id: string; posicao: number; user_id: string }[]) {
     if (!posDe.has(p.user_id)) posDe.set(p.user_id, new Map())
@@ -67,18 +94,21 @@ export async function resumoDasFilas(userIds: string[]): Promise<Map<string, Res
     const res = (i: (typeof itens)[number], p: Previsao): ItemResumo => {
       const t = porId.get(i.id)!
       return { id: i.id, numero: i.numero, titulo: t.titulo, prazo: i.prazo, horas: p.horas, inicio: p.inicio, fim: p.fim,
-        atrasado: !!i.prazo && i.prazo < hoje, urgente: i.urgente, semEstimativa: i.semEstimativa, visibilidade: t.visibilidade, solicitante_id: t.solicitante_id }
+        atrasado: !!i.prazo && i.prazo < hoje, urgente: i.urgente, semEstimativa: i.semEstimativa, continuo: !!i.continuo,
+        visibilidade: t.visibilidade, solicitante_id: t.solicitante_id, status: t.status,
+        parado: Math.max(0, Math.floor((agoraMs - Date.parse(t.updated_at)) / 86400000)),
+        ...(opc.detalhes ? { pedidoPor: t.solicitante_id === uid ? null : nomes.get(t.solicitante_id) || 'Alguém', quadro: t.quadro_id ? quadros.get(t.quadro_id) || null : null } : {}) }
     }
-    const hojeL: ItemResumo[] = [], semana: ItemResumo[] = []
-    let depois = 0
+    const hojeL: ItemResumo[] = [], semana: ItemResumo[] = [], listaDepois: ItemResumo[] = []
     for (const i of comFim) {
       const p = prev.get(i.id)!
       if (p.inicio <= hoje) hojeL.push(res(i, p))
       else if (p.inicio <= sexta) semana.push(res(i, p))
-      else depois++
+      else listaDepois.push(res(i, p))
     }
+    const listaContinuos = itens.filter((i) => i.continuo).map((i) => res(i, prev.get(i.id)!))
     out.set(uid, {
-      hoje: hojeL, semana, depois, continuos: itens.length - comFim.length, aceitar,
+      hoje: hojeL, semana, depois: listaDepois.length, continuos: listaContinuos.length, listaDepois, listaContinuos, aceitar,
       total: itens.length,
       horas: comFim.reduce((s, i) => s + (prev.get(i.id)?.horas || 0), 0),
       atrasados: itens.filter((i) => i.prazo && i.prazo < hoje).length,

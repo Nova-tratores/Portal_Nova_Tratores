@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   const [pend, itens, confirmado, pref, filas] = await Promise.all([
     pendentesDeAceite(auth.userId), itensDoDia(auth.userId), diaConfirmado(auth.userId), preferencias(auth.userId),
     // Lembrete do dia na ORDEM DA FILA (24/11/2026): o que cabe hoje, a semana e quanto tem.
-    resumoDasFilas([auth.userId]).catch(() => null),
+    resumoDasFilas([auth.userId], { detalhes: true }).catch(() => null),
   ])
   // nomes de quem pediu e dos quadros
   const pessoas = [...new Set(pend.map((p: { solicitante_id: string }) => p.solicitante_id))]

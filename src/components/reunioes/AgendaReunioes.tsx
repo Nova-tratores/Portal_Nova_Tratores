@@ -108,7 +108,7 @@ const CSS = `
 .ag-lista{display:flex;flex-direction:column;gap:18px}
 .ag-dia h3{margin:0 0 8px;font-size:14px;font-weight:600;color:var(--portal-text-secondary,#475569)}
 .ag-dia.hoje h3{color:#2563eb}
-.ag-lin{display:grid;grid-template-columns:92px minmax(0,1fr) auto;gap:14px;align-items:center;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;border-radius:14px;border:1px solid var(--portal-border,#e2e8f0);border-left:4px solid var(--c);background:var(--portal-surface,#fefefe);cursor:pointer;color:inherit;font:inherit}
+.ag-lin{display:grid;grid-template-columns:92px minmax(0,1fr) auto;gap:14px;align-items:center;width:100%;text-align:left;padding:12px 14px;margin-bottom:8px;border-radius:14px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);cursor:pointer;color:inherit;font:inherit}
 .ag-lin:hover{box-shadow:0 10px 22px -18px rgba(15,23,42,.55)}
 .ag-lin.cancelada{opacity:.55}
 .ag-lin.cancelada .t{text-decoration:line-through}
