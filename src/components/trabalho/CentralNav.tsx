@@ -102,13 +102,15 @@ export default function CentralNav() {
     <>
       {/* Tela estreita: abas numa linha (rolam de lado) e os botões de criar na linha de baixo. */}
       <style>{ESTILO_CENTRAL_VN}</style>
+      {/* 901–1100 px (Fase 0, 24/11/2026): sem rolar de lado. Aba que não está aberta mostra só o ícone; o nome vem no title. */}
+      <style>{`@media (min-width: 901px) and (max-width: 1100px){.ct-aba{padding:9px 10px 10px !important}.ct-aba:not(.on) .ct-aba-txt{display:none}}`}</style>
       <style>{`@media (max-width: 900px){.ct-nav{flex-wrap:wrap;padding:0 12px !important}.ct-nav-abas{flex:1 1 100% !important}.ct-nav-acoes{flex:1 1 100%;margin-left:0 !important;padding:8px 0 10px !important;justify-content:flex-end}.ct-nav-acoes button{min-height:36px}.ct-nav-acoes .ct-nav-ajuda{width:36px !important;height:36px !important}}`}</style>
       <nav aria-label="Central de Trabalho" className="ct-nav" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 16px', borderBottom: '1px solid var(--portal-border,#eee)', background: 'var(--portal-surface,#fff)' }}>
         <div className="ct-nav-abas" style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 0, overflowX: 'auto' }}>
         {/* abas estilo Chrome, sem o nome do módulo ao lado (José, 04/11/2026 — docs/padrao-telas.md); CSS em visualCentral.ts */}
         {abas.map((a) => (
-          <Link key={a.label} href={a.href} className={`ct-aba${a.ativo ? ' on' : ''}`} aria-current={a.ativo ? 'page' : undefined}>
-            <span className="ct-aba-ic">{a.icone}</span> {a.label}
+          <Link key={a.label} href={a.href} className={`ct-aba${a.ativo ? ' on' : ''}`} aria-current={a.ativo ? 'page' : undefined} title={a.label} aria-label={a.label}>
+            <span className="ct-aba-ic">{a.icone}</span> <span className="ct-aba-txt">{a.label}</span>
             {'n' in a && typeof a.n === 'number' && a.n > 0 && <span className="ct-aba-n">{a.n}</span>}
           </Link>
         ))}
