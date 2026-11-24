@@ -157,8 +157,11 @@ export const TAREFAS: Record<string, Tarefa> = {
   'marketing-diario': async () => {
     if (desligada('MARKETING_DIARIO')) return { pular: 'desligado (MARKETING_DIARIO=off)' };
     const { cronMarketingDiario } = await import('@/lib/marketing/diario');
+    const { gerarIdeiasDePost } = await import('@/lib/marketing/pautas');
     const r = await cronMarketingDiario();
-    const resumo = `promoções desligadas ${r.promocoesDesligadas} · avisadas ${r.promocoesAvisadas} · campanhas paradas ${r.campanhasAvisadas}`;
+    // Fase 6.1 (24/11/2026): ideias de post que nascem de venda, revisão, aniversário de compra e busca sem resultado
+    const id = await gerarIdeiasDePost().catch((e) => ({ pulado: (e as Error).message, criadas: 0 }));
+    const resumo = `promoções desligadas ${r.promocoesDesligadas} · avisadas ${r.promocoesAvisadas} · campanhas paradas ${r.campanhasAvisadas} · ${id.pulado ? `ideias: ${id.pulado}` : `${id.criadas} ideia(s) de post`}`;
     if (r.erros.length === 3) throw new Error(r.erros.join(' | '));
     return { resumo: r.erros.length ? `${resumo} · ${r.erros.join(' | ')}` : resumo };
   },
