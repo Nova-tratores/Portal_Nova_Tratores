@@ -56,8 +56,19 @@ export default function KanbanTickets({
   const destinosDe = (t: Ticket): TicketStatus[] => {
     const souSolicitante = t.solicitante_id === meuId
     const todos = statusDisponiveis(t.status, t.responsavel_id === meuId, souSolicitante, isAdmin)
-    if (t.quadro_id) return todos
+    // Quem FAZ anda mesmo sem quadro: o servidor põe no quadro dele sozinho (24/11/2026).
+    if (t.quadro_id || t.responsavel_id === meuId) return todos
     return todos.filter((s) => s === 'cancelado' || s === 'fechado' || (souSolicitante && t.status === 'resolvido'))
+  }
+  // Os estados que a pessoa NÃO pode escolher, com o motivo (melhorias 1.5: antes só sumiam e
+  // "só Cancelado" parecia bug). Mesma regra do servidor (statusDisponiveis por papel).
+  const bloqueadosDe = (t: Ticket): { s: TicketStatus; motivo: string }[] => {
+    const podem = new Set(destinosDe(t))
+    const peloQueFaz = new Set(statusDisponiveis(t.status, true, false, false))
+    const peloQuePediu = new Set(statusDisponiveis(t.status, false, true, false))
+    return ([...STATUS_ATIVOS, ...STATUS_FINAIS] as TicketStatus[])
+      .filter((s) => s !== t.status && !podem.has(s) && (peloQueFaz.has(s) || peloQuePediu.has(s)))
+      .map((s) => ({ s, motivo: peloQueFaz.has(s) && !peloQuePediu.has(s) ? 'só quem faz' : peloQuePediu.has(s) && !peloQueFaz.has(s) ? 'só quem pediu' : 'sem permissão' }))
   }
 
   const iniciarArrasto = (t: Ticket, e: React.DragEvent) => {
@@ -204,14 +215,16 @@ export default function KanbanTickets({
                       )}
                     </div>
                     {/* Celular não arrasta: "Mover para…" faz o mesmo que soltar na coluna */}
-                    {!ehSC && destinos.length > 0 && (
-                      <select value="" disabled={salvando === t.id} aria-label={`Mover o ticket #${t.numero} para…`}
+                    {!ehSC && (destinos.length > 0 || bloqueadosDe(t).length > 0) && (
+                      <select value="" disabled={salvando === t.id} aria-label={`Mover o pedido #${t.numero} para…`}
+                        title="Só aparecem liberados os estados que você pode escolher. Quem faz muda o andamento; quem pediu confirma, cancela ou fecha."
                         onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
                         onChange={(e) => { const v = e.target.value as TicketStatus; e.target.value = ''; if (v) mover(t.id, v) }}
                         style={{ alignSelf: 'flex-start', maxWidth: '100%', padding: '3px 6px', borderRadius: 7, fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
                           border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text-secondary,#555)' }}>
                         <option value="">{salvando === t.id ? 'Mudando…' : 'Mover para…'}</option>
                         {destinos.map((s) => <option key={s} value={s}>{STATUS_INFO[s].label}</option>)}
+                        {bloqueadosDe(t).map(({ s, motivo }) => <option key={s} value="" disabled>{STATUS_INFO[s].label} — {motivo}</option>)}
                       </select>
                     )}
                     {visao === 'fila' && !final && (
