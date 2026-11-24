@@ -16,7 +16,7 @@ import RemarcarReuniao from './RemarcarReuniao'
 import EditarReuniao from './EditarReuniao'
 import ConviteReuniao from './ConviteReuniao'
 import TicketModal from '@/components/tickets/TicketModal'
-import { chamar, horaDe, primeiroNome, hojeISO, CronometroReuniao } from './comum'
+import { chamar, horaDe, hojeISO, CronometroReuniao } from './comum'
 
 type Lista = { reunioes: Ticket[]; presencas: Record<string, PresencaRow[]>; itens: Record<string, number>; usuarios: Record<string, UsuarioMin>; series: Serie[]; salas?: Record<string, string> }
 
@@ -343,41 +343,31 @@ export default function AgendaReunioes({ meuId, isAdmin, onAviso, modo = 'proxim
     </>
   )
 
-  // soComReuniao (Histórico, José 17/11/2026): só os dias que tiveram reunião, sem colunas "Livre"
-  const gradeSemana = (segunda: string, n: number, filtro: (t: Ticket) => boolean, soComReuniao = false) => {
-    const diasG = Array.from({ length: n }, (_, i) => somarDia(segunda, i)).filter((dia) => !soComReuniao || (porDia.get(dia) || []).some(filtro))
+  // Linha de reunião (Próximas e Histórico): hora · título · etiqueta do estado · sala · pessoas,
+  // e o botão do próximo passo em AZUL (regra de cores: azul = o que você pode fazer; a cor do
+  // estado fica só na etiqueta). Clicar na linha abre a janela da reunião.
+  const linha = (t: Ticket, botao?: React.ReactNode) => {
+    const p = passo(t); const info = PASSO[p]
     return (
-    <div className="ag-sem-wrap">
-      <div className="ag-sem" style={{ ['--n' as string]: diasG.length, ...(soComReuniao ? { gridTemplateColumns: `repeat(${diasG.length}, minmax(220px, 300px))`, minWidth: 0 } : {}) }}>
-        {diasG.map((dia) => {
-          const lista = (porDia.get(dia) || []).filter(filtro)
-          return (
-            <div key={dia} className={`ag-col${dia === hoje ? ' hoje' : dia < hoje ? ' passado' : ''}`}>
-              <div className="ag-cab"><b>{Number(dia.slice(8, 10))}</b><span>{dia === hoje ? 'Hoje' : SEMANA_LONGA[dowDe(dia)]}</span>{lista.length > 0 && <span className="q">{lista.length}</span>}</div>
-              {lista.length === 0 && <div className="ag-nada">Livre</div>}
-              {lista.map((t) => {
-                const p = passo(t); const info = PASSO[p]; const c = condutor(t); const np = (d.presencas[t.id] || []).length
-                return (
-                  <button key={t.id} className={`ag-mini${p === 'cancelada' ? ' cancelada' : ''}`} style={{ ['--c' as string]: info.cor }} onClick={() => abrir(t)}>
-                    <span className="topo">
-                      <span className="ag-ic p">{info.ic}</span>
-                      <span className="h">{horaDe(t.reuniao_inicio)}<small>até {horaDe(fimDe(t))}</small></span>
-                    </span>
-                    <span className="t">{titulo(t)}</span>
-                    <span className="pe"><Av u={d.usuarios[c]} nome={nome(c)} /> {primeiroNome(nome(c))}{np > 1 ? ` + ${np - 1}` : ''}</span>
-                    <span style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
-                      <span className="ag-chip"><i />{info.texto}</span>
-                      {info.dica && <span className="dica">{info.dica}</span>}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          )
-        })}
+      <div key={t.id} role="button" tabIndex={0} className={`ag-lin${p === 'cancelada' ? ' cancelada' : ''}`} style={{ ['--c' as string]: info.cor }}
+        onClick={() => abrir(t)} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrir(t) } }}>
+        <span className="h">{horaDe(t.reuniao_inicio)}<small>até {horaDe(fimDe(t))}</small></span>
+        <span style={{ minWidth: 0 }}>
+          <span className="t">{titulo(t)}</span>
+          <span className="info">
+            <span className="ag-chip"><i />{info.texto}</span>
+            {d.salas[t.id] && <span><MapPin size={13} style={{ verticalAlign: -2 }} /> {d.salas[t.id]}</span>}
+            {pessoas(t)}
+          </span>
+        </span>
+        {botao ?? (p !== 'cancelada' && (
+          <button className="ag-btn cheio peq" style={{ ['--c' as string]: '#2563eb' }}
+            onClick={(e) => { e.stopPropagation(); router.push(`/reunioes/${t.id}`) }}>
+            {info.icone} {info.botao}
+          </button>
+        ))}
       </div>
-    </div>
-  )
+    )
   }
 
   // Histórico: só o que já passou (ou foi encerrado), agrupado por semana, mais nova primeiro.
@@ -413,7 +403,14 @@ export default function AgendaReunioes({ meuId, isAdmin, onAviso, modo = 'proxim
       {semanasComReuniao.slice(0, semanasHist).map((seg) => (
         <div key={seg} style={{ marginBottom: 22 }}>
           <div className="ag-sec"><h2 style={{ fontSize: 16 }}>Semana de {ddmm(seg)} a {ddmm(somarDia(seg, 6))}</h2></div>
-          {gradeSemana(seg, 7, filtroH, true)}
+          <div className="ag-lista">
+            {Array.from({ length: 7 }, (_, i) => somarDia(seg, i)).filter((dia) => (porDia.get(dia) || []).some(filtroH)).map((dia) => (
+              <section key={dia} className="ag-dia">
+                <h3>{SEMANA_LONGA[dowDe(dia)]}, {ddmm(dia)}</h3>
+                {(porDia.get(dia) || []).filter(filtroH).map((t) => linha(t))}
+              </section>
+            ))}
+          </div>
         </div>
       ))}
       {semanasComReuniao.length > semanasHist && <button className="ag-btn" onClick={() => setSemanasHist(semanasHist + 8)}>Ver semanas mais antigas</button>}
@@ -443,27 +440,12 @@ export default function AgendaReunioes({ meuId, isAdmin, onAviso, modo = 'proxim
         {diasLista.map((dia) => (
           <section key={dia} className={`ag-dia${dia === hoje ? ' hoje' : ''}`}>
             <h3>{nomeDia(dia)}</h3>
-            {futuras.filter((t) => diaSP(t.reuniao_inicio!) === dia).map((t) => {
-              const p = passo(t); const info = PASSO[p]
-              return (
-                <div key={t.id} role="button" tabIndex={0} className={`ag-lin${p === 'cancelada' ? ' cancelada' : ''}`} style={{ ['--c' as string]: info.cor }}
-                  onClick={() => abrir(t)} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrir(t) } }}>
-                  <span className="h">{horaDe(t.reuniao_inicio)}<small>até {horaDe(fimDe(t))}</small></span>
-                  <span style={{ minWidth: 0 }}>
-                    <span className="t">{titulo(t)}</span>
-                    <span className="info">
-                      <span className="ag-chip"><i />{info.texto}</span>
-                      {d.salas[t.id] && <span><MapPin size={13} style={{ verticalAlign: -2 }} /> {d.salas[t.id]}</span>}
-                      {pessoas(t)}
-                    </span>
-                  </span>
-                  <button className="ag-btn cheio peq" style={{ ['--c' as string]: info.cor, ['--cb' as string]: FUNDO_ESCURO[info.cor] || info.cor }}
-                    onClick={(e) => { e.stopPropagation(); router.push(`/reunioes/${t.id}`) }}>
-                    {p === 'agora' ? <><Play size={14} /> Entrar</> : <><FileText size={14} /> Abrir pauta</>}
-                  </button>
-                </div>
-              )
-            })}
+            {futuras.filter((t) => diaSP(t.reuniao_inicio!) === dia).map((t) => linha(t, passo(t) === 'cancelada' ? null : (
+              <button className="ag-btn cheio peq" style={{ ['--c' as string]: '#2563eb' }}
+                onClick={(e) => { e.stopPropagation(); router.push(`/reunioes/${t.id}`) }}>
+                {passo(t) === 'agora' ? <><Play size={14} /> Entrar</> : <><FileText size={14} /> Abrir pauta</>}
+              </button>
+            )))}
           </section>
         ))}
       </div>
