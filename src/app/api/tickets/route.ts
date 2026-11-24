@@ -17,6 +17,9 @@ import { colunaDoTicket } from '@/lib/tickets/quadros'
 import { planejarTicket, ErroTrabalho, etapasDosTickets, hojeSP } from '@/lib/trabalho/cronograma-server'
 import { dataMinima, erroFimDeSemana } from '@/lib/trabalho/agenda'
 import { contagemPassos } from '@/lib/trabalho/tarefas-server'
+import { planoDeHoras } from '@/lib/trabalho/estimativa'
+import { CAPACIDADE_PADRAO } from '@/lib/trabalho/fila'
+import { colocarNoFimDaFila } from '@/lib/trabalho/fila-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -192,6 +195,10 @@ export async function POST(req: NextRequest) {
   if (erroFds) return NextResponse.json({ error: erroFds }, { status: 400 })
   const inicioTrabalho = /^\d{4}-\d{2}-\d{2}$/.test(String(body.inicio || '')) && (!prazo || String(body.inicio) <= prazo) ? String(body.inicio) : null
 
+  // Tempo escolhido no pedido (bloquinho de tamanho, 24/11/2026): vira dias × horas_dia, como a Fila lê.
+  const horasPedido = Number(body.horas)
+  const tempo = horasPedido >= 0.5 && horasPedido <= 600 ? planoDeHoras(horasPedido, CAPACIDADE_PADRAO) : null
+
   // O responsável precisa ser um usuário ativo do portal.
   const { data: resp } = await supabaseAdmin
     .from('financeiro_usu').select('id, nome, ativo').eq('id', responsavelId).maybeSingle()
@@ -215,7 +222,7 @@ export async function POST(req: NextRequest) {
     solicitante_id: auth.userId,
     responsavel_id: responsavelId,
     // payload.inicio = 1º dia do trabalho (o Cronograma mostra do início ao prazo)
-    ...(urgente || inicioTrabalho ? { payload: { ...(urgente ? { urgente: true } : {}), ...(inicioTrabalho ? { inicio: inicioTrabalho } : {}) } } : {}),
+    ...(urgente || inicioTrabalho || tempo ? { payload: { ...(urgente ? { urgente: true } : {}), ...(inicioTrabalho ? { inicio: inicioTrabalho } : {}), ...(tempo ? { dias: tempo.dias, horas_dia: tempo.horasDia } : {}) } } : {}),
     ...noQuadro,
   }
   // Quem recebe confirma (Central de Trabalho). Sem a coluna, cria como antes.
@@ -236,6 +243,10 @@ export async function POST(req: NextRequest) {
     `Novo ticket #${ticket.numero}: ${titulo}`,
     responsavelId === auth.userId ? 'Você é o responsável por este ticket.' : 'Você é o responsável. Confirme se consegue fazer.',
   )
+
+  // Pedido vai para o FIM da fila de quem faz (24/11/2026) — não fura a fila pelo prazo.
+  // Urgente continua no topo. Falhou: fica na ordem por prazo, como antes.
+  try { await colocarNoFimDaFila(responsavelId, ticket.id) } catch { /* segue */ }
 
   // Já entra no cronograma do quadro, na data escolhida (agenda do responsável).
   let avisoCronograma = ''

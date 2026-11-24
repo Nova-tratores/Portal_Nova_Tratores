@@ -9,6 +9,8 @@ import { supabase } from '@/lib/supabase'
 import { CATEGORIAS_SUGERIDAS, type TicketVisibilidade } from '@/lib/tickets/constantes'
 import UserSelect from './UserSelect'
 import CargaDaPessoa from '@/components/trabalho/CargaDaPessoa'
+import EstimarTempo from '@/components/trabalho/EstimarTempo'
+import { ESTILO_FILA } from '@/components/trabalho/estiloFila'
 import { dataMinima, diaUtil, fimDeSemana } from '@/lib/trabalho/agenda'
 import SeletorDataAgenda from '@/components/trabalho/SeletorDataAgenda'
 
@@ -53,6 +55,8 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
   const [descricao, setDescricao] = useState(descricaoInicial || '')
   const [responsavelId, setResponsavelId] = useState(responsavelInicial || '')
   const [categoria, setCategoria] = useState('')
+  // Tempo do trabalho escolhido no bloquinho (vai junto ao criar; o pedido entra no fim da fila).
+  const [horasPedido, setHorasPedido] = useState<number | null>(null)
   const [prazo, setPrazo] = useState('')
   // Agenda do responsável (Central de Trabalho)
   const [inicio, setInicio] = useState('')
@@ -148,6 +152,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
           // Contínuo não começa no fim de semana: cai na segunda.
           inicio: inicio ? (indeterminado ? diaUtil(inicio) : inicio) : null,
           ...(urgente ? { urgente: true } : {}),
+          ...(horasPedido ? { horas: horasPedido } : {}),
           ...(quadro?.temCronograma && noCronograma ? { cronograma: true, duracao } : {}),
           terceiro_envolvido: terceiro.trim(),
           visibilidade,
@@ -198,6 +203,13 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
           </div>
           {/* A fila dessa pessoa antes de pedir (24/11/2026): pedido é uma porta só, com a carga na frente. */}
           {responsavelId && <CargaDaPessoa userId={responsavelId} />}
+          {/* Quanto tempo leva + quando sai (24/11/2026): entra no FIM da fila dessa pessoa */}
+          {responsavelId && (
+            <>
+              <style>{ESTILO_FILA}</style>
+              <EstimarTempo pedido={{ userId: responsavelId, titulo: titulo.trim(), categoria: categoria.trim() || undefined }} titulo={titulo.trim()} onEscolher={setHorasPedido} />
+            </>
+          )}
 
           {responsavelId && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 12, borderRadius: 10, border: '1px solid var(--portal-border, #e5e7eb)', background: 'var(--portal-bg, #fafafa)' }}>

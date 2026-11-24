@@ -134,12 +134,10 @@ export function proximosDiasUteis(hoje: string, feriados: Set<string>, n: number
   return out
 }
 
-/**
- * "Se este ticket tiver X horas, termina quando?" — para cada total de horas pedido, encaixa o
- * ticket na fila de quem faz (mesma ordem e capacidade da Fila) e devolve o último dia dele.
- * Ticket ainda não aceito entra como se tivesse sido aceito agora.
- */
-export async function previsoesDoTicket(userId: string, ticketId: string, totais: number[]): Promise<Record<string, string>> {
+export interface Previsto { inicio: string; fim: string; naFrente: number }
+
+/** A fila da pessoa hoje, na ordem, SEM o ticket indicado (para encaixá-lo depois). */
+async function filaAtual(userId: string, semTicket: string | null) {
   const hoje = hojeSP()
   const feriados = feriadosDoAno(hoje)
   const [tks, plano] = await Promise.all([
@@ -148,16 +146,44 @@ export async function previsoesDoTicket(userId: string, ticketId: string, totais
     supabaseAdmin.from('tickets_plano').select('ticket_id, posicao').eq('user_id', userId),
   ])
   const pos = new Map(((plano.data || []) as { ticket_id: string; posicao: number }[]).map((p) => [p.ticket_id, p.posicao]))
-  const lista = ((tks.data || []) as { id: string; numero: number; prazo: string | null; payload: unknown; aceite?: string | null }[])
-    .filter((t) => t.aceite !== 'pendente' || t.id === ticketId)
-  const out: Record<string, string> = {}
+  const todos = (tks.data || []) as { id: string; numero: number; prazo: string | null; payload: unknown; aceite?: string | null }[]
+  const alvo = semTicket ? todos.find((t) => t.id === semTicket) || null : null
+  const itens = ordenarFila(todos.filter((t) => t.aceite !== 'pendente' && t.id !== semTicket).map((t) => itemDoTicket(t, CAPACIDADE_PADRAO, feriados)), pos)
+  return { hoje, feriados, itens, pos, alvo }
+}
+
+/**
+ * "Se este trabalho tiver X horas, começa e termina quando?" (24/11/2026). Pedido novo ou ainda
+ * sem lugar na fila entra NO FIM (José: "vai para o fim da fila e soma as horas"); ticket que já
+ * tem lugar (ordem manual) fica onde está. ticketId null = pedido que ainda vai ser criado.
+ */
+export async function previsoesDoTicket(userId: string, ticketId: string | null, totais: number[]): Promise<Record<string, Previsto>> {
+  const { hoje, feriados, itens, pos, alvo } = await filaAtual(userId, ticketId)
+  const jaTemLugar = !!ticketId && pos.has(ticketId)
+  const out: Record<string, Previsto> = {}
   for (const total of totais) {
     const { dias, horasDia } = planoDeHoras(total, CAPACIDADE_PADRAO)
-    const itens = ordenarFila(lista.map((t) => {
-      const i = itemDoTicket(t, CAPACIDADE_PADRAO, feriados)
-      return t.id === ticketId ? { ...i, dias, horasDia, continuo: false } : i
-    }), pos)
-    out[String(total)] = planejarFila(itens, hoje, feriados, CAPACIDADE_PADRAO).get(ticketId)?.fim || ''
+    const base = alvo ? itemDoTicket(alvo, CAPACIDADE_PADRAO, feriados) : { id: '__novo', numero: 0, prazo: null, urgente: false, dias: 1, horasDia: 1 }
+    const novo = { ...base, id: ticketId || '__novo', dias, horasDia, continuo: false }
+    // No fim: todo mundo na ordem de agora (0..n-1) e o novo depois. Já com lugar: ordem normal.
+    const ordem = jaTemLugar
+      ? ordenarFila([...itens, novo], pos)
+      : ordenarFila([...itens, novo], new Map([...itens.map((i, k) => [i.id, k] as [string, number]), [novo.id, itens.length]]))
+    const p = planejarFila(ordem, hoje, feriados, CAPACIDADE_PADRAO).get(novo.id)
+    out[String(total)] = { inicio: p?.inicio || '', fim: p?.fim || '', naFrente: ordem.filter((i) => !i.continuo).findIndex((i) => i.id === novo.id) }
   }
   return out
+}
+
+/**
+ * Pedido novo vai para o FIM da fila de quem faz (24/11/2026): grava a ordem de agora + ele no fim
+ * (tickets_plano). Sem isso, a fila ordenava pelo prazo e o pedido podia furar a fila de quem faz.
+ * Urgente continua no topo (regra da ordenarFila).
+ */
+export async function colocarNoFimDaFila(userId: string, ticketId: string): Promise<void> {
+  const { itens } = await filaAtual(userId, ticketId)
+  const agora = new Date().toISOString()
+  const ordem = [...itens.map((i) => i.id), ticketId]
+  await supabaseAdmin.from('tickets_plano')
+    .upsert(ordem.map((ticket_id, posicao) => ({ user_id: userId, ticket_id, posicao, updated_at: agora })), { onConflict: 'user_id,ticket_id' })
 }
