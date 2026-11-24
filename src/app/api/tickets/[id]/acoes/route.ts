@@ -24,6 +24,7 @@ import { sincronizarEtapaDoTicket, moverEtapaDoTicket, hojeSP } from '@/lib/trab
 import { erroFimDeSemana } from '@/lib/trabalho/agenda'
 import { contaReprogramacao } from '@/lib/reunioes/regras'
 import { aoConcluirExecucao } from '@/lib/pops/roteiros-server'
+import { quadroPadraoDe } from '@/lib/tickets/quadro-padrao'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -210,8 +211,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // Quem recebeu já escolhe o bloco e se fica privado (antes de gravar o
       // aceite: bloco inválido não pode deixar o ticket confirmado pela metade).
       // Todo ticket precisa estar num bloco: sem bloco não confirma.
-      if (!ticket.quadro_id && !quadroDoCorpo()) return erro('Escolha em qual quadro este ticket vai ficar.')
-      const errOrg = await organizar(quadroDoCorpo(), body.visibilidade)
+      // Sem quadro escolhido: vai sozinho para o quadro de quem recebeu (24/11/2026, sem
+      // a etapa "escolha o quadro"). Quem não é o responsável continua tendo que escolher.
+      let qAceite = quadroDoCorpo()
+      if (!ticket.quadro_id && !qAceite) {
+        if (!souResponsavel) return erro('Escolha em qual quadro este ticket vai ficar.')
+        qAceite = await quadroPadraoDe(auth)
+      }
+      const errOrg = await organizar(qAceite, body.visibilidade)
       if (errOrg) return erro(errOrg)
       const { error } = await supabaseAdmin.from('tickets').update(patch).eq('id', id)
       if (error) return erro(error.code === '42703' ? 'A confirmação ainda não foi ativada no banco (rode sql/central-trabalho.sql).' : error.message, error.code === '42703' ? 503 : 500)
@@ -253,7 +260,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // confirma/contesta/cancela sempre (ticket antigo sem bloco não trava).
     const andamento = !['cancelado', 'fechado'].includes(para) && !(souSolicitante && ticket.status === 'resolvido')
     // Execução de POP não pede bloco (nasce confirmada; o lugar dela é o módulo de POPs).
-    if (!ticket.quadro_id && andamento && ticket.tipo !== 'pop') return erro('Ponha este ticket num quadro antes de trabalhar nele.')
+    if (!ticket.quadro_id && andamento && ticket.tipo !== 'pop') {
+      // Quem faz começa a trabalhar sem escolher quadro: entra no quadro dele sozinho (24/11/2026).
+      if (!souResponsavel) return erro('Ponha este ticket num quadro antes de trabalhar nele.')
+      const qid = await quadroPadraoDe(auth)
+      const errQ = await organizar(qid, undefined)
+      if (errQ) return erro(errQ)
+      ticket.quadro_id = qid
+    }
     const motivo = String(body.motivo || '').trim()
 
     // Coluna do bloco acompanha a fase (resolvido → "Feito", voltou → volta).
