@@ -28,7 +28,11 @@ interface Props {
   onAbrir: (id: string) => void
   /** Novo 1º dia do trabalho + novo prazo (arrastar no Gantt/Calendário). */
   onMudarDatas: (id: string, inicio: string, prazo: string | null) => void
+  /** Nome de quem FAZ o ticket (24/11/2026: "não só o que fazer, mas de quem é"). */
+  usuarios?: Record<string, { nome: string }>
 }
+
+const iniciaisDe = (n: string) => n.split(' ').filter(Boolean).map((x) => x[0]).slice(0, 2).join('').toUpperCase()
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const diaDe = (s: string) => new Date(s.slice(0, 10) + 'T12:00:00')
@@ -78,7 +82,7 @@ export default function VistasCronogramaGeral(p: Props) {
 }
 
 // ─────────────────────────────────────────────────────────────── Gantt
-function Gantt({ tickets, hoje, corDe, progresso, onAbrir, onMudarDatas }: Props) {
+function Gantt({ tickets, hoje, corDe, progresso, onAbrir, onMudarDatas, usuarios }: Props) {
   const [modo, setModo] = useState<ViewMode>('Day')
   const comPrazo = tickets // todos entram (sem prazo = barra contínua até hoje)
 
@@ -88,7 +92,7 @@ function Gantt({ tickets, hoje, corDe, progresso, onAbrir, onMudarDatas }: Props
     const p = noPlano(t, hoje)
     return {
       id: t.id,
-      name: `${ehUrgente(t) ? '🔥 ' : ''}#${t.numero} ${t.titulo}${p.atrasado ? ` (atrasado desde ${br(t.prazo)})` : p.continuo ? ' (contínuo)' : ''}`,
+      name: `${ehUrgente(t) ? '🔥 ' : ''}#${t.numero} ${t.titulo}${usuarios?.[t.responsavel_id]?.nome ? ` · ${usuarios[t.responsavel_id].nome.split(' ')[0]}` : ''}${p.atrasado ? ` (atrasado desde ${br(t.prazo)})` : p.continuo ? ' (contínuo)' : ''}`,
       start: p.inicio,
       end: p.fim,
       progress: progresso(t) ?? 0,
@@ -96,7 +100,7 @@ function Gantt({ tickets, hoje, corDe, progresso, onAbrir, onMudarDatas }: Props
       // derruba a página inteira (InvalidCharacterError).
       custom_class: `cg-cor-${cores.indexOf(corDe(t))}${p.atrasado ? '-atrasado' : p.continuo ? '-continuo' : ''}`,
     }
-  }), [comPrazo, cores, corDe, progresso, hoje])
+  }), [comPrazo, cores, corDe, progresso, hoje, usuarios])
 
   const aoMover = useCallback((id: string, inicio: Date, fim: Date) => {
     const t = comPrazo.find((x) => x.id === id)
@@ -142,7 +146,8 @@ function Gantt({ tickets, hoje, corDe, progresso, onAbrir, onMudarDatas }: Props
 }
 
 // ────────────────────────────────────────────────────────── Calendário
-function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
+function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas, usuarios }: Props) {
+  const nomeDe = (id: string) => usuarios?.[id]?.nome || ''
   const [mes, setMes] = useState(() => { const d = diaDe(hoje); return new Date(d.getFullYear(), d.getMonth(), 1) })
   const [arr, setArr] = useState<string | null>(null)
   const [arrDe, setArrDe] = useState<string | null>(null) // dia de onde saiu o arraste
@@ -247,8 +252,9 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
                   <div key={t.id} draggable
                     onDragStart={() => { setArr(t.id); setArrDe(k) }} onDragEnd={() => { setArr(null); setArrDe(null); setSobre(null) }}
                     onClick={() => onAbrir(t.id)}
-                    title={`#${t.numero} ${t.titulo} — ${STATUS_INFO[t.status]?.label || t.status}${atrasado ? ` · atrasado desde ${br(t.prazo)}` : ''}`}
+                    title={`#${t.numero} ${t.titulo} — ${STATUS_INFO[t.status]?.label || t.status}${nomeDe(t.responsavel_id) ? ` · faz: ${nomeDe(t.responsavel_id)}` : ''}${atrasado ? ` · atrasado desde ${br(t.prazo)}` : ''}`}
                     style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', marginBottom: 2, borderRadius: 5, cursor: 'grab', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#fff', background: corDe(t), outline: atrasado ? '2px solid #dc2626' : undefined, outlineOffset: -2 }}>
+                    {nomeDe(t.responsavel_id) && <span style={{ display: 'inline-grid', placeItems: 'center', width: 17, height: 17, marginRight: 4, borderRadius: '50%', fontSize: 8.5, verticalAlign: -3, background: 'rgba(255,255,255,.3)', color: '#fff' }}>{iniciaisDe(nomeDe(t.responsavel_id))}</span>}
                     {ehUrgente(t) && '🔥 '}#{t.numero} {t.titulo}{atrasado ? ` · desde ${br(t.prazo)}` : p.continuo ? ' · ∞' : total > 1 ? ` · dia ${diaN}/${total}` : ''}
                   </div>
                 )

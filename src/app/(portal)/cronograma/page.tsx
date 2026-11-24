@@ -184,7 +184,7 @@ export default function CronogramaGeralPage() {
           </div>
         ) : (
           <VistasCronogramaGeral vista={vista} tickets={noPlanoVisiveis} hoje={hoje} corDe={corDe} progresso={progresso}
-            onAbrir={setTicketAberto} onMudarDatas={mudarDatas} />
+            onAbrir={setTicketAberto} onMudarDatas={mudarDatas} usuarios={dados?.usuarios} />
         )
       )}
 
