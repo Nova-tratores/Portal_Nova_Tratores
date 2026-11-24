@@ -38,6 +38,10 @@ import PainelCompras from '@/components/tickets/compras/PainelCompras'
 import SeletorDataAgenda from '@/components/trabalho/SeletorDataAgenda'
 import { fimDeSemana } from '@/lib/trabalho/agenda'
 import EstimarTempo from '@/components/trabalho/EstimarTempo'
+
+/** O quadro saiu da Central (24/11/2026): o servidor escolhe sozinho e ninguém precisa ver nem
+ *  escolher. true = volta a etiqueta, o aviso "escolha um quadro" e o Trocar/Escolher. */
+const MOSTRAR_QUADRO = false
 import { ESTILO_FILA } from '@/components/trabalho/estiloFila'
 
 const fmtData = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("pt-BR")
@@ -372,7 +376,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   // Sem bloco o ticket não anda (mesma regra do servidor): quem pediu ainda
   // confirma/contesta o resolvido e todos podem cancelar.
   const semBlocoPode = (s: TicketStatus) => s === 'fechado' || (souSolicitante && ticket.status === 'resolvido')
-  const statusBotoes = ehSC || ehRevisaoPop ? [] : proximosStatus.filter((s) => s !== 'cancelado' && ROTULO_STATUS_ACAO[s] && (!!quadro || semBlocoPode(s) || ehExecPop))
+  const statusBotoes = ehSC || ehRevisaoPop ? [] : proximosStatus.filter((s) => s !== 'cancelado' && ROTULO_STATUS_ACAO[s] && (!!quadro || souResponsavel || semBlocoPode(s) || ehExecPop))
     .sort((a, b) => Number(!!ROTULO_STATUS_ACAO[b]?.destaque) - Number(!!ROTULO_STATUS_ACAO[a]?.destaque))
   const podeCancelar = !ehSC && proximosStatus.includes('cancelado')
   const continuo = !ticket.prazo
@@ -439,14 +443,14 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
               📋 {ticket.tipo === 'pop' ? 'Abrir execução do POP' : 'Revisão de POP — abrir'}
             </a>
           )}
-          {quadro && (
+          {MOSTRAR_QUADRO && quadro && (
             <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o quadro"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, fontSize: 12, fontWeight: 700, textDecoration: 'none', color: 'var(--portal-text,#111)', background: quadro.cor + '1f', border: `1px solid ${quadro.cor}55` }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: quadro.cor }} /> {quadro.nome}
             </a>
           )}
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--portal-text-muted,#999)' }}>
-            {ticket.visibilidade === 'privado' ? <><Lock size={11} /> privado</> : <><Globe size={11} /> {quadro ? 'compartilhado com o quadro' : 'visível a todos'}</>}
+            {ticket.visibilidade === 'privado' ? <><Lock size={11} /> privado</> : <><Globe size={11} /> visível a todos</>}
           </span>
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             {scInfo
@@ -490,7 +494,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
         )}
 
         {/* Todo ticket precisa estar num bloco antes de andar */}
-        {!ehSC && !ehExecPop && !ehRevisaoPop && !quadro && !encerrado && (
+        {MOSTRAR_QUADRO && !ehSC && !ehExecPop && !ehRevisaoPop && !quadro && !encerrado && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600 }}>
             <LayoutGrid size={15} />
             <span style={{ flex: 1, minWidth: 200 }}>
@@ -682,20 +686,23 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             </div>
           )}
 
-          {/* Bloco e privacidade */}
+          {/* Quem vê (antes "Bloco/Quadro" — o quadro saiu da tela em 24/11/2026; fica a privacidade) */}
           {!ehSC && (
             <div style={cartao}>
-              <div style={{ ...tituloCartao, marginBottom: 10 }}><LayoutGrid size={13} /> Quadro</div>
+              <div style={{ ...tituloCartao, marginBottom: 10 }}>{ticket.visibilidade === 'privado' ? <Lock size={13} /> : <Globe size={13} />} Quem vê</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {quadro ? (
+                <span style={{ fontSize: 13, color: 'var(--portal-text-secondary,#555)' }}>
+                  {ticket.visibilidade === 'privado' ? 'Privado: só quem pediu, quem faz e quem está no ticket.' : 'Visível para todos da Central.'}
+                </span>
+                {MOSTRAR_QUADRO && (quadro ? (
                   <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o quadro"
                     style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 9, fontSize: 13.5, fontWeight: 800, textDecoration: 'none',
                       color: 'var(--portal-text,#111)', background: quadro.cor + '1f', border: `1px solid ${quadro.cor}55` }}>
                     <span style={{ width: 11, height: 11, borderRadius: 3, background: quadro.cor }} /> {quadro.nome}
                   </a>
-                ) : <span style={{ fontSize: 13, color: '#b45309', fontWeight: 600 }}>Sem quadro</span>}
+                ) : <span style={{ fontSize: 13, color: '#b45309', fontWeight: 600 }}>Sem quadro</span>)}
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {podeMoverQuadro && (
+                  {MOSTRAR_QUADRO && podeMoverQuadro && (
                     <button disabled={agindo} style={botaoMini} onClick={abrirModalQuadro}>
                       <LayoutGrid size={12} /> {quadro ? 'Trocar' : 'Escolher'}
                     </button>
@@ -703,7 +710,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                   {podeVisibilidade && (
                     <button disabled={agindo} style={botaoMini}
                       onClick={() => acao({ acao: 'visibilidade', para: ticket.visibilidade === 'privado' ? 'publico' : 'privado' })}>
-                      {ticket.visibilidade === 'privado' ? <><Globe size={12} /> {quadro ? 'Compartilhar com o quadro' : 'Tornar visível'}</> : <><Lock size={12} /> Tornar privado</>}
+                      {ticket.visibilidade === 'privado' ? <><Globe size={12} /> Tornar visível</> : <><Lock size={12} /> Tornar privado</>}
                     </button>
                   )}
                 </div>
