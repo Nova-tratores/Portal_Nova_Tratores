@@ -4,7 +4,8 @@
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { feriadosNacionais, feriadosExtras } from '@/lib/assistente/horario'
 import { hojeSP } from './cronograma-server'
-import { CAPACIDADE_PADRAO, itemDoTicket, ordenarFila, planejarFila, sextaDaSemana, type Previsao } from './fila'
+import { CAPACIDADE_PADRAO, ehDiaUtil, itemDoTicket, ordenarFila, planejarFila, sextaDaSemana, type Previsao } from './fila'
+import { planoDeHoras } from './estimativa'
 
 /** Mesmo filtro da /api/trabalho/fila: resolvido já foi feito; compras e reunião não entram. */
 const FORA = '(resolvido,fechado,cancelado)'
@@ -38,6 +39,8 @@ export interface ResumoFila {
   livreEm: string
   /** Ids na ordem da fila inteira (o PUT /api/trabalho/fila precisa da lista toda para reordenar). */
   ordem: string[]
+  /** Plano dos próximos 10 dias úteis: quanto de cada item cai em cada dia (desenho da semana). */
+  plano: { dia: string; itens: { id: string; horas: number }[] }[]
 }
 
 export function feriadosDoAno(hoje: string): Set<string> {
@@ -89,7 +92,8 @@ export async function resumoDasFilas(userIds: string[], opc: { detalhes?: boolea
     const lista = todos.filter((t) => t.aceite !== 'pendente')
     const porId = new Map(lista.map((t) => [t.id, t]))
     const itens = ordenarFila(lista.map((t) => itemDoTicket(t, CAPACIDADE_PADRAO, feriados)), posDe.get(uid) || new Map())
-    const prev = planejarFila(itens, hoje, feriados, CAPACIDADE_PADRAO)
+    const aloc = new Map<string, { id: string; horas: number }[]>()
+    const prev = planejarFila(itens, hoje, feriados, CAPACIDADE_PADRAO, aloc)
     const comFim = itens.filter((i) => !i.continuo)
     const res = (i: (typeof itens)[number], p: Previsao): ItemResumo => {
       const t = porId.get(i.id)!
@@ -114,7 +118,46 @@ export async function resumoDasFilas(userIds: string[], opc: { detalhes?: boolea
       atrasados: itens.filter((i) => i.prazo && i.prazo < hoje).length,
       livreEm: comFim.map((i) => prev.get(i.id)?.fim || '').sort().pop() || '',
       ordem: itens.map((i) => i.id),
+      plano: proximosDiasUteis(hoje, feriados, 10).map((dia) => ({ dia, itens: aloc.get(dia) || [] })),
     })
+  }
+  return out
+}
+
+/** Os próximos n dias úteis a partir de hoje (inclusive). */
+export function proximosDiasUteis(hoje: string, feriados: Set<string>, n: number): string[] {
+  const out: string[] = []
+  for (let d = hoje, i = 0; out.length < n && i < 60; i++) {
+    if (ehDiaUtil(d, feriados)) out.push(d)
+    const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); d = x.toISOString().slice(0, 10)
+  }
+  return out
+}
+
+/**
+ * "Se este ticket tiver X horas, termina quando?" — para cada total de horas pedido, encaixa o
+ * ticket na fila de quem faz (mesma ordem e capacidade da Fila) e devolve o último dia dele.
+ * Ticket ainda não aceito entra como se tivesse sido aceito agora.
+ */
+export async function previsoesDoTicket(userId: string, ticketId: string, totais: number[]): Promise<Record<string, string>> {
+  const hoje = hojeSP()
+  const feriados = feriadosDoAno(hoje)
+  const [tks, plano] = await Promise.all([
+    supabaseAdmin.from('tickets').select('id, numero, titulo, prazo, payload, aceite').eq('responsavel_id', userId)
+      .not('tipo', 'in', '(compras,reuniao)').not('status', 'in', FORA).limit(1000),
+    supabaseAdmin.from('tickets_plano').select('ticket_id, posicao').eq('user_id', userId),
+  ])
+  const pos = new Map(((plano.data || []) as { ticket_id: string; posicao: number }[]).map((p) => [p.ticket_id, p.posicao]))
+  const lista = ((tks.data || []) as { id: string; numero: number; prazo: string | null; payload: unknown; aceite?: string | null }[])
+    .filter((t) => t.aceite !== 'pendente' || t.id === ticketId)
+  const out: Record<string, string> = {}
+  for (const total of totais) {
+    const { dias, horasDia } = planoDeHoras(total, CAPACIDADE_PADRAO)
+    const itens = ordenarFila(lista.map((t) => {
+      const i = itemDoTicket(t, CAPACIDADE_PADRAO, feriados)
+      return t.id === ticketId ? { ...i, dias, horasDia, continuo: false } : i
+    }), pos)
+    out[String(total)] = planejarFila(itens, hoje, feriados, CAPACIDADE_PADRAO).get(ticketId)?.fim || ''
   }
   return out
 }

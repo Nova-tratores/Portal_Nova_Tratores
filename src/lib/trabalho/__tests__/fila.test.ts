@@ -92,3 +92,12 @@ describe('fila — ticket vira item (Minha fila, Equipe e lembrete usam a mesma 
     expect(sextaDaSemana('2026-11-29')).toBe('2026-12-04') // domingo → a próxima
   })
 })
+
+describe('fila — plano por dia (desenho da semana)', () => {
+  it('diz quanto de cada item cai em cada dia', () => {
+    const porDia = new Map<string, { id: string; horas: number }[]>()
+    planejarFila([item('a', 1, 3), item('b', 1, 4.5)], '2026-10-07', FERIADOS, 4.5, porDia)
+    expect(porDia.get('2026-10-07')).toEqual([{ id: 'a', horas: 3 }, { id: 'b', horas: 1.5 }])
+    expect(porDia.get('2026-10-08')).toEqual([{ id: 'b', horas: 3 }])
+  })
+})

@@ -79,6 +79,8 @@ export function ordenarFila<T extends { id: string; numero: number; prazo: strin
  */
 export function planejarFila(
   fila: ItemFila[], hoje: string, feriados: Set<string>, capacidade = CAPACIDADE_PADRAO,
+  /** Opcional: recebe, por dia, quanto de cada item cai nele (o "plano da semana" desenha isso). */
+  alocacao?: Map<string, { id: string; horas: number }[]>,
 ): Map<string, Previsao> {
   const uso = new Map<string, number>()
   const out = new Map<string, Previsao>()
@@ -100,6 +102,7 @@ export function planejarFila(
       if (livre <= 0.001) continue
       const h = Math.min(porDia, livre, restante)
       uso.set(d, (uso.get(d) || 0) + h)
+      alocacao?.set(d, [...(alocacao.get(d) || []), { id: t.id, horas: h }])
       restante -= h
       if (!inicio) inicio = d
       fim = d
