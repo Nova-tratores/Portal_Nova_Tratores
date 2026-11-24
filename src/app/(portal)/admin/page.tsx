@@ -18,6 +18,7 @@ import { ModalAcessos } from '@/components/admin/DistribuirAcessos'
 import ResumoAcessos, { type FiltroPapel } from '@/components/admin/ResumoAcessos'
 import ContasSemCadastro from '@/components/admin/ContasSemCadastro'
 import TrocarEmailModal from '@/components/admin/TrocarEmailModal'
+import CelularModal, { celularBonito } from '@/components/admin/CelularModal'
 import AvisosTratorilson from '@/components/admin/AvisosTratorilson'
 import NotificacoesAdmin from '@/components/admin/NotificacoesAdmin'
 import BuscaModulo from '@/components/admin/BuscaModulo'
@@ -35,6 +36,8 @@ interface Usuario {
   avatar_url: string
   email: string
   ativo?: boolean
+  /** só dígitos com 55 (avisos pelo Chatwoot) */
+  celular?: string | null
 }
 
 interface Permissao {
@@ -124,6 +127,7 @@ export default function AdminPage() {
   const [criarErro, setCriarErro] = useState('')
   const [versaoContas, setVersaoContas] = useState(0)
   const [trocarEmailDe, setTrocarEmailDe] = useState<{ id: string; nome?: string; email?: string | null } | null>(null)
+  const [celularDe, setCelularDe] = useState<{ id: string; nome?: string; celular?: string | null } | null>(null)
 
   const resetarSenha = async (email: string) => {
     if (!email) { alert('Usuário sem email cadastrado'); return }
@@ -155,8 +159,10 @@ export default function AdminPage() {
   }, [loadingPerm, podeEntrar, userProfile, router])
 
   const carregar = async () => {
-    const { data: users } = await supabase.from('financeiro_usu').select('id, nome, funcao, avatar_url, email, ativo').order('nome')
-    setUsuarios(users || [])
+    // celular (24/11/2026): sem a coluna (sql/reunioes-convite.sql) lê sem ela
+    let q = await supabase.from('financeiro_usu').select('id, nome, funcao, avatar_url, email, ativo, celular').order('nome')
+    if (q.error) q = await supabase.from('financeiro_usu').select('id, nome, funcao, avatar_url, email, ativo').order('nome') as typeof q
+    setUsuarios(q.data || [])
 
     const { data: perms } = await supabase.from('portal_permissoes').select('*')
     const map: Record<string, Permissao> = {}
@@ -718,7 +724,7 @@ export default function AdminPage() {
                 </span>
                 <span className="adm-quem">
                   <b>{user.nome}{isMe && <em> (você)</em>}</b>
-                  <small>{user.email || user.funcao || ''}</small>
+                  <small>{user.email || user.funcao || ''}{user.celular ? ` · ${celularBonito(user.celular)}` : ''}</small>
                 </span>
               </button>
 
@@ -776,6 +782,7 @@ export default function AdminPage() {
                     if (confirm(`Enviar email de redefinição de senha para ${user.email}?`)) resetarSenha(user.email)
                   }}
                   onEmail={() => setTrocarEmailDe({ id: user.id, nome: user.nome, email: user.email })}
+                  onCelular={() => setCelularDe({ id: user.id, nome: user.nome, celular: user.celular })}
                   onAssinatura={() => setAssinaturaDe({ id: user.id, nome: user.nome })}
                   onInativar={() => { if (!isMe && confirm(`Inativar ${user.nome}? Ele não conseguirá entrar e some das listas, mas os dados ficam.`)) toggleAtivo(user.id, false) }}
                 />}
@@ -873,6 +880,14 @@ export default function AdminPage() {
 
       {/* ===== Logins sem cadastro (Auth sem financeiro_usu) ===== */}
       {isAdmin && <ContasSemCadastro versao={versaoContas} onCadastrar={isDev ? (email) => { setNovoEmail(email); setCriarErro(''); setShowNovoUsuario(true) } : undefined} onTrocarEmail={(c) => setTrocarEmailDe({ id: c.id, email: c.email })} />}
+
+      {celularDe && (
+        <CelularModal
+          usuario={celularDe}
+          onFechar={() => setCelularDe(null)}
+          onSalvo={(cel) => setUsuarios((us) => us.map((u) => (u.id === celularDe.id ? { ...u, celular: cel } : u)))}
+        />
+      )}
 
       {trocarEmailDe && (
         <TrocarEmailModal

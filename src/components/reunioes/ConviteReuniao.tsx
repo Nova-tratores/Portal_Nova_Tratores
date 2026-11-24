@@ -2,7 +2,8 @@
 // Convite da reunião (José, 23/11/2026):
 // - quem foi chamado vê "Vai participar?" com Aceitar / Recusar;
 // - quem conduz/criou vê quem aceitou, recusou ou não respondeu, e um botão de WhatsApp por pessoa.
-//   Sem celular no cadastro: o botão pede o número, grava no cadastro e abre a conversa.
+//   O convite já sai sozinho pelo Chatwoot ao marcar; o botão manda de novo (24/11/2026).
+//   Sem celular no cadastro: o botão pede o número, grava no cadastro e manda.
 // Sem sql/reunioes-convite.sql rodado, as presenças não trazem `resposta` e a parte de aceitar fica escondida.
 import { useState } from 'react'
 import { Check, X, MessageCircle } from 'lucide-react'
@@ -34,6 +35,7 @@ export default function ConviteReuniao({ reuniaoId, presencas, usuarios, meuId, 
   const [numero, setNumero] = useState('')
   // números salvos agora (o resto vem do servidor; assim recarregar a reunião não apaga o que acabou de digitar)
   const [celulares, setCelulares] = useState<Record<string, string | null>>({})
+  const [enviados, setEnviados] = useState<Record<string, boolean>>({})
 
   const temResposta = presencas.some((p) => 'resposta' in p)
   const eu = presencas.find((p) => p.usuario_id === meuId)
@@ -45,20 +47,22 @@ export default function ConviteReuniao({ reuniaoId, presencas, usuarios, meuId, 
     catch (e) { setErro(e instanceof Error ? e.message : 'Falha') } finally { setOcupado(false) }
   }
 
-  const abrirZap = (cel: string, uid: string, janela?: Window | null) => {
-    const url = `https://wa.me/${cel}?text=${encodeURIComponent(convite?.textos[uid] || '')}`
-    if (janela) janela.location.href = url; else window.open(url, '_blank', 'noopener')
+  // 24/11/2026: o convite sai pelo Chatwoot (NovaZap) — antes abria o wa.me e a pessoa tinha que enviar na mão
+  const mandarZap = async (uid: string) => {
+    setOcupado(true); setErro('')
+    try {
+      await chamar(`/api/reunioes/${reuniaoId}/acoes`, { json: { acao: 'mandar_whats', usuario_id: uid } })
+      setEnviados((s) => ({ ...s, [uid]: true }))
+    } catch (e) { setErro(e instanceof Error ? e.message : 'Falha') } finally { setOcupado(false) }
   }
 
-  const salvarEAbrir = async (uid: string) => {
-    // abre a aba ANTES do await: depois dele o navegador trata como pop-up e bloqueia
-    const janela = window.open('', '_blank')
+  const salvarEMandar = async (uid: string) => {
     setOcupado(true); setErro('')
     try {
       const j = await chamar<{ celular: string }>(`/api/reunioes/${reuniaoId}/acoes`, { json: { acao: 'salvar_celular', usuario_id: uid, celular: numero } })
       setCelulares((c) => ({ ...c, [uid]: j.celular })); setPedindo(null); setNumero('')
-      abrirZap(j.celular, uid, janela)
-    } catch (e) { janela?.close(); setErro(e instanceof Error ? e.message : 'Falha') } finally { setOcupado(false) }
+    } catch (e) { setErro(e instanceof Error ? e.message : 'Falha'); setOcupado(false); return }
+    await mandarZap(uid)
   }
 
   const outros = presencas.filter((p) => p.usuario_id !== meuId)
@@ -103,15 +107,15 @@ export default function ConviteReuniao({ reuniaoId, presencas, usuarios, meuId, 
                 {!encerrada && (pedindo === p.usuario_id ? (
                   <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
                     <input autoFocus value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="(15) 99999-1234" inputMode="tel"
-                      onKeyDown={(e) => { if (e.key === 'Enter' && numero.trim()) salvarEAbrir(p.usuario_id); if (e.key === 'Escape') setPedindo(null) }}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && numero.trim()) salvarEMandar(p.usuario_id); if (e.key === 'Escape') setPedindo(null) }}
                       style={{ height: 34, width: 150, padding: '0 10px', borderRadius: 9, border: '1px solid #16a34a', background: 'var(--portal-bg,#fefefe)', color: 'var(--portal-text,#0f172a)', fontFamily: 'inherit', fontSize: 13.5 }} />
-                    <button disabled={ocupado || !numero.trim()} onClick={() => salvarEAbrir(p.usuario_id)} style={botaoP('#16a34a', true)}>Salvar e abrir</button>
+                    <button disabled={ocupado || !numero.trim()} onClick={() => salvarEMandar(p.usuario_id)} style={botaoP('#16a34a', true)}>Salvar e mandar</button>
                     <button onClick={() => setPedindo(null)} style={botaoP('#64748b')} aria-label="Cancelar"><X size={14} /></button>
                   </span>
                 ) : (
-                  <button onClick={() => cel ? abrirZap(cel, p.usuario_id) : (setPedindo(p.usuario_id), setNumero(''))}
-                    title={cel ? 'Abrir a conversa com o convite já escrito' : 'Sem celular no cadastro: digite uma vez e fica salvo'} style={botaoP('#16a34a')}>
-                    <MessageCircle size={14} /> {cel ? 'WhatsApp' : 'WhatsApp (pôr número)'}
+                  <button disabled={ocupado} onClick={() => cel ? mandarZap(p.usuario_id) : (setPedindo(p.usuario_id), setNumero(''))}
+                    title={cel ? 'Manda o convite no WhatsApp da pessoa, pelo Chatwoot' : 'Sem celular no cadastro: digite uma vez, fica salvo e o convite já vai'} style={botaoP('#16a34a', !!enviados[p.usuario_id])}>
+                    {enviados[p.usuario_id] ? <><Check size={14} /> Enviado</> : <><MessageCircle size={14} /> {cel ? 'Mandar no WhatsApp' : 'Sem celular — pôr número'}</>}
                   </button>
                 ))}
               </div>

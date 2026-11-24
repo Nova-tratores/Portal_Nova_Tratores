@@ -43,6 +43,29 @@ export function textoConviteWhats(t: Ticket, nomePessoa: string, quemConvida: st
   ].filter(Boolean).join('\n')
 }
 
+/**
+ * Manda o convite pelo NovaZap/Chatwoot (José, 24/11/2026: "em reuniões também é pelo Chatwoot").
+ * Devolve quem ficou sem (sem celular no cadastro ou erro) para quem chamou avisar o autor.
+ */
+export async function enviarConvitesWhats(t: Ticket, pessoas: string[], autorId: string | null): Promise<{ nome: string; motivo: string }[]> {
+  const { avisarPeloChatwoot, motivoTxt } = await import('@/lib/chatwoot/avisar-pessoa')
+  const alvo = [...new Set(pessoas)].filter((id) => id && id !== autorId)
+  if (!alvo.length) return []
+  const ids = autorId ? [...alvo, autorId] : alvo
+  let q = await supabaseAdmin.from('financeiro_usu').select('id, nome, celular, ativo').in('id', ids)
+  if (q.error) q = await supabaseAdmin.from('financeiro_usu').select('id, nome, ativo').in('id', ids) as typeof q   // sem a coluna celular
+  const porId = new Map((q.data || []).map((u) => [u.id as string, u as { id: string; nome: string; celular?: string | null; ativo: boolean | null }]))
+  const quem = (autorId && porId.get(autorId)?.nome) || 'Alguém'
+  const falhas: { nome: string; motivo: string }[] = []
+  for (const id of alvo) {
+    const u = porId.get(id)
+    if (!u || u.ativo === false) continue
+    const r = await avisarPeloChatwoot(u.celular, u.nome, textoConviteWhats(t, u.nome || '', quem))
+    if (!r.ok) falhas.push({ nome: u.nome, motivo: motivoTxt(r) })
+  }
+  return falhas
+}
+
 /** Manda o convite por e-mail para cada pessoa (uma mensagem por pessoa, com o nome dela). */
 export async function enviarConvitesEmail(t: Ticket, pessoas: string[], autorId: string | null): Promise<void> {
   try {

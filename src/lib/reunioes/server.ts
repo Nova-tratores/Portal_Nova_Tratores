@@ -2,7 +2,7 @@
 // Regras puras em ./regras.ts. Migration: sql/reunioes.sql.
 // Toda escrita passa pelas rotas /api/reunioes/*; o navegador só lê (RLS).
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
-import { enviarConvitesEmail } from './convite'
+import { enviarConvitesEmail, enviarConvitesWhats } from './convite'
 import { migrationFaltou } from '@/lib/marketing/erros'
 import type { Autenticado } from '@/lib/auth/server'
 import {
@@ -297,6 +297,12 @@ export async function criarReuniao(auth: Autenticado, n: NovaReuniao): Promise<R
   // Sem a coluna `resposta` (sql/reunioes-convite.sql ainda não rodou) o update só falha em silêncio.
   await supabaseAdmin.from('reunioes_presencas').update({ resposta: 'aceito', respondido_em: agoraISO() }).eq('reuniao_id', ticket.id).eq('usuario_id', condutor)
   if (!n.semConvite) await extra('convite', () => enviarConvitesEmail(ticket, participantes.filter((u) => u !== condutor), auth.userId))
+  // ...e pelo Chatwoot (24/11/2026); quem ficou sem (sem celular) vira aviso para quem marcou
+  if (!n.semConvite) await extra('convite-whats', async () => {
+    const falhas = await enviarConvitesWhats(ticket, participantes.filter((u) => u !== condutor), auth.userId)
+    if (falhas.length) await notificarTicket(ticket, [auth.userId], null, `Convite pelo WhatsApp não foi para ${falhas.map((f) => f.nome.split(' ')[0]).join(', ')}`,
+      `${falhas.map((f) => `${f.nome}: ${f.motivo}`).join('\n')}\nO e-mail foi. Na reunião, use o botão WhatsApp ao lado do nome para pôr o número e mandar.`)
+  })
   if (ocupados.length) await extra('aviso-ocupado', () => notificarTicket(ticket, [condutor], null, `Participante indisponível: ${titulo}`, `${mensagemIndisponiveis(ocupados)} (bloqueou na agenda pessoal). Veja se dá para mudar o horário.`))
   if (avisoSala) await extra('aviso-sala', () => notificarTicket(ticket, [condutor], null, `Sala ocupada: ${titulo}`, `${avisoSala}. A reunião foi marcada sem sala — escolha outro horário ou local.`))
   return (await carregarReuniao(ticket.id))!

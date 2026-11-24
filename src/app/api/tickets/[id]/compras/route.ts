@@ -22,6 +22,7 @@ import {
   faseFabricaAposPC, type PayloadSC, type ScAcao, type ScEtapa,
 } from '@/lib/tickets/compras'
 import { avaliarBloqueio, carregarConfigCompras } from '@/lib/tickets/compras-server'
+import { avisarAutorizacao } from '@/lib/autorizacoes/avisar'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -165,6 +166,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const alvo = [...new Set([...envolvidos(ticket, participantes), ...novosAtores])]
   await notificarTicket({ ...ticket, responsavel_id: novoResponsavel }, alvo, auth.userId, notifTitulo, notifDescricao)
+
+  // Voltou para a Diretoria decidir: e-mail + WhatsApp (Chatwoot) (24/11/2026)
+  if (para === 'diretoria') {
+    await avisarAutorizacao({
+      chave: `sc:${id}:${acao}`, para: novosAtores.filter((u): u is string => !!u), autorId: auth.userId, quemPediu: await nomeDe(auth.userId),
+      oque: 'uma solicitação de compra', titulo: `SC #${ticket.numero}: ${payload.produto || ticket.titulo}`,
+      valor: payload.valor_total != null ? Number(payload.valor_total) : null,
+      linhas: [acao === 'reprovar' ? 'Voltou do Financeiro (reprovada).' : 'Reenviada pelo vendedor.'], linkPedido: `/tickets/${id}`,
+    })
+  }
 
   return NextResponse.json({ ok: true })
 }

@@ -10,6 +10,7 @@ import {
 import { STATUS_FINAIS, type Ticket, type TicketPlanoItem, type TicketVisibilidade } from '@/lib/tickets/constantes'
 import { validarNovaSC, pessoasDoPapel, pessoasComPapel } from '@/lib/tickets/compras'
 import { carregarConfigCompras, avaliarBloqueio } from '@/lib/tickets/compras-server'
+import { avisarAutorizacao } from '@/lib/autorizacoes/avisar'
 import type { Autenticado } from '@/lib/auth/server'
 import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
 import { colunaDoTicket } from '@/lib/tickets/quadros'
@@ -307,6 +308,14 @@ async function criarSC(auth: Autenticado, body: Record<string, unknown>) {
     `Nova Solicitação de Compras #${ticket.numero}: ${payload.produto}`,
     'Você é a Diretoria responsável por avaliar esta SC.',
   )
+  // e-mail + WhatsApp (Chatwoot) para a Diretoria (24/11/2026)
+  const { data: eu } = await supabaseAdmin.from('financeiro_usu').select('nome').eq('id', auth.userId).maybeSingle()
+  await avisarAutorizacao({
+    chave: `sc:${ticket.id}`, para: diretoria, autorId: auth.userId, quemPediu: eu?.nome || 'Alguém',
+    oque: 'uma solicitação de compra', titulo: `SC #${ticket.numero}: ${payload.produto || titulo}`,
+    valor: payload.valor_total != null ? Number(payload.valor_total) : null,
+    linhas: [payload.quantidade_solicitada ? `Quantidade: ${payload.quantidade_solicitada}` : ''], linkPedido: `/tickets/${ticket.id}`,
+  })
 
   return NextResponse.json({ ticket })
 }

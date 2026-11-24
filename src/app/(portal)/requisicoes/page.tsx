@@ -247,6 +247,18 @@ function RequisicoesPageInner() {
     } catch { /* aviso é bônus: não trava a mudança */ }
   }, [userProfile?.id]);
 
+  // Pediu autorização (24/11/2026): o servidor manda e-mail + mensagem no Chatwoot para quem vai autorizar.
+  // Quem ficou sem o WhatsApp (sem celular no cadastro) aparece aqui na hora e também no sino.
+  const avisarAutorizadores = useCallback(async (id: number) => {
+    try {
+      const r = await fetch('/api/autorizacoes/avisar', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ id }) });
+      const j = await r.json().catch(() => ({}));
+      if (Array.isArray(j?.semWhats) && j.semWhats.length) {
+        alert(`Autorização pedida. O e-mail foi, mas o WhatsApp não foi para:\n\n${j.semWhats.map((s: { nome: string; motivo: string }) => `• ${s.nome}: ${s.motivo}`).join('\n')}\n\nAvise a pessoa ou peça para cadastrar o celular.`);
+      }
+    } catch { /* aviso é bônus: o pedido já está gravado */ }
+  }, []);
+
   // Rastreia quais cards foram editados enquanto estavam abertos
   const cardsEditadosRef = useRef<Set<number>>(new Set());
 
@@ -263,6 +275,7 @@ function RequisicoesPageInner() {
     if (error && /autoriza/i.test(String(error.message || ''))) { alert(error.message); carregarDados(true); return }
     if (error) { console.error('[Requisições] Erro ao atualizar:', error?.message, error?.code, error?.details, error?.hint); carregarDados(true); return }
     auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'requisicao', entidade_id: String(id), detalhes: dados });
+    if (dados.autorizacao_status === 'aguardando') void avisarAutorizadores(id);
     // Chegou ao financeiro: o motor da frota fecha na hora a pendência do carro
     // ligada a esta requisição (sem isso, só fechava na rodada de 15 min)
     if (dados.status === 'financeiro') {
@@ -271,7 +284,7 @@ function RequisicoesPageInner() {
     // Marca que esse card foi editado (notificação só ao fechar)
     cardsEditadosRef.current.add(id);
     if (typeof dados.status === 'string' && dados.status !== 'lixeira') avisarSolicitante(id, dados.status);
-  }, [carregarDados, auditLog, avisarSolicitante])
+  }, [carregarDados, auditLog, avisarSolicitante, avisarAutorizadores])
 
   const handleCardFechado = useCallback((id: number) => {
     // Fechou o card do deep-link: solta o destaque (senão ele reabre no rerender)
@@ -952,6 +965,7 @@ function RequisicoesPageInner() {
                   }).catch(() => {});
                 }
               }
+              if (ins?.id && nova.autorizacao_status === 'aguardando') void avisarAutorizadores(Number(ins.id));
               apagarRascunho(RASCUNHO_NOVA_REQ); // criou: o rascunho não serve mais
               auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'requisicao', entidade_label: String(nova.titulo || '') });
               notificarUsuariosReq('requisicao', `${userName} criou uma requisição`, String(nova.titulo || 'Nova requisição'), '/requisicoes');

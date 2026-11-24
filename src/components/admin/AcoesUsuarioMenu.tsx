@@ -2,11 +2,11 @@
 // Ações da conta num menu "⋯" (José, 21/10/2026: "melhora esses botões") — resetar senha, trocar e-mail, inativar.
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreHorizontal, KeyRound, Mail, Ban, PenLine } from 'lucide-react';
+import { MoreHorizontal, KeyRound, Mail, Ban, PenLine, Smartphone } from 'lucide-react';
 
-interface Props { podeInativar: boolean; motivo?: string; onResetar: () => void; onEmail: () => void; onInativar: () => void; onAssinatura?: () => void }
+interface Props { podeInativar: boolean; motivo?: string; onResetar: () => void; onEmail: () => void; onInativar: () => void; onAssinatura?: () => void; onCelular?: () => void }
 
-export default function AcoesUsuarioMenu({ podeInativar, motivo, onResetar, onEmail, onInativar, onAssinatura }: Props) {
+export default function AcoesUsuarioMenu({ podeInativar, motivo, onResetar, onEmail, onInativar, onAssinatura, onCelular }: Props) {
   const [aberto, setAberto] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
@@ -30,6 +30,7 @@ export default function AcoesUsuarioMenu({ podeInativar, motivo, onResetar, onEm
           <style>{ESTILO_AUM}</style>
           {item(<KeyRound size={15} />, 'Enviar redefinição de senha', onResetar)}
           {item(<Mail size={15} />, 'Trocar e-mail de login', onEmail)}
+          {onCelular && item(<Smartphone size={15} />, 'Celular (WhatsApp)', onCelular)}
           {onAssinatura && item(<PenLine size={15} />, 'Assinatura (comissões)', onAssinatura)}
           <div className="aum-sep" />
           {item(<Ban size={15} />, 'Inativar conta', onInativar, true, !podeInativar, motivo)}

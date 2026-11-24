@@ -23,7 +23,7 @@ import { mensagemIndisponiveis } from '@/lib/agenda/bloqueios'
 import { isoDe, fimDaReuniao, localDe } from '@/lib/salas/regras'
 import type { Ticket } from '@/lib/tickets/constantes'
 import { hojeSP } from '@/lib/trabalho/cronograma-server'
-import { enviarConvitesEmail, normalizarCelular } from '@/lib/reunioes/convite'
+import { enviarConvitesEmail, enviarConvitesWhats, normalizarCelular } from '@/lib/reunioes/convite'
 import { erroFimDeSemana, dataMinima } from '@/lib/trabalho/agenda'
 import {
   podeMoverEtapa, podeConduzir, podeReabrir, REABRIR_PARA, validarResultado, validarPublicacao, validarSaida, ETAPA_INFO,
@@ -209,7 +209,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : ''
       await notificarTicket(r.ticket, [uid], auth.userId, `Você foi incluído na reunião: ${r.ticket.titulo}`, quando ? `${quando}.` : undefined)
       await enviarConvitesEmail(r.ticket, [uid], auth.userId)
-      return NextResponse.json({ ok: true })
+      const falhas = await enviarConvitesWhats(r.ticket, [uid], auth.userId)   // Chatwoot (24/11/2026)
+      return NextResponse.json({ ok: true, semWhats: falhas })
     }
 
     // ----------------------------------------------------------- responder
@@ -240,6 +241,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const { error } = await supabaseAdmin.from('financeiro_usu').update({ celular }).eq('id', uid)
       if (error) return erro(/celular/.test(error.message) ? 'Falta rodar sql/reunioes-convite.sql no Supabase.' : error.message, 500)
       return NextResponse.json({ ok: true, celular })
+    }
+
+    // -------------------------------------------------------- mandar_whats
+    // { usuario_id } — manda (de novo) o convite pelo Chatwoot para uma pessoa (24/11/2026; antes abria o wa.me).
+    if (acao === 'mandar_whats') {
+      const uid = String(body.usuario_id || '')
+      if (!uuidValido(uid)) return erro('usuario_id inválido')
+      if (!conduz && (await criadorDaReuniao(id)) !== auth.userId) return erro('Só quem conduz ou quem marcou a reunião manda o convite.', 403)
+      if (!r.presencas.some((p) => p.usuario_id === uid)) return erro('Essa pessoa não está na reunião.', 404)
+      const falhas = await enviarConvitesWhats(r.ticket, [uid], auth.userId)
+      if (falhas.length) return erro(`Não foi: ${falhas[0].motivo}.`, 502)
+      return NextResponse.json({ ok: true })
     }
 
     // ------------------------------------------ remover_participante
