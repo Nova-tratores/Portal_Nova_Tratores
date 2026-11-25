@@ -12,6 +12,7 @@ import {
 } from '@/lib/garantias/email';
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 import { fetchInterno } from '@/lib/auth/chamada-interna';
+import { refOS } from '@/lib/garantias/so-pecas';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -180,7 +181,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // [GAR-XXXX] no assunto: âncora pro cron de recebimento casar a resposta
     const assunto = tagAssuntoGarantia(
-      `Ressarcimento Garantia ${numeroRef} - ${g.cliente || ''} - OS ${g.id_ordem}`,
+      `Ressarcimento Garantia ${numeroRef} - ${g.cliente || ''} - ${refOS(g)}`,
       g.numero,
     );
     try {
@@ -239,7 +240,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   });
   await notificarGarantistas({
     titulo: `Ressarcimento da garantia ${g.numero} solicitado`,
-    descricao: `OS ${g.id_ordem} · ${fmtBRL(vh + vk)}`,
+    descricao: `${refOS(g)} · ${fmtBRL(vh + vk)}`,
     link: `/garantias?id=${id}`,
   });
 
