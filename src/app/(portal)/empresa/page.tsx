@@ -294,7 +294,13 @@ export default function ComoEstaAEmpresa() {
     setCarregando(true)
     const h = await authHeaders()
     const d = new Date(), mes = d.getMonth() + 1, ano = d.getFullYear()
-    const get = (u: string) => fetch(u, { headers: h, cache: 'no-store' }).then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    // cada busca tem até 40 s (iPhone, 25/11: uma busca sem resposta deixava a tela toda em "Carregando…" para sempre)
+    const get = (u: string) => {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 40_000)
+      return fetch(u, { headers: h, cache: 'no-store', signal: ctl.signal })
+        .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+        .finally(() => clearTimeout(t))
+    }
     const ini = new Date(ano, mes - 6, 1)
     // as áreas gravadas (Comercial, resultado dos setores) saem na frente — não esperam as buscas pesadas abaixo
     get(`/api/empresa/dre-gerencial${recalc}`).then((j) => { setDreG(Array.isArray(j?.meses) ? j.meses : null); setGravadoEm((g) => ({ ...g, dre: j?.calculadoEm || null })) }).catch(() => setDreG(null))
@@ -478,7 +484,7 @@ export default function ComoEstaAEmpresa() {
                   <span className="ce-setor-nome">{s.nome}</span>
                   {s.ok && <span className="ce-selo" style={{ color: perdeu ? COR.vermelho : COR.verde, background: perdeu ? 'var(--mx-p-red, #fef2f2)' : 'var(--mx-p-green, #f0fdf4)' }}>{perdeu ? 'prejuízo' : 'lucro'} {compacto(Math.abs(s.sobrou))}</span>}
                 </button>
-                {!s.ok ? <div className="ce-mudo">{carregando ? 'Carregando…' : 'Sem acesso a estes números.'}</div> : (
+                {!s.ok ? <div className="ce-mudo">{carregando ? 'Carregando…' : 'Não carregou (sem acesso ou internet lenta). Toque em "Atualizar agora".'}</div> : (
                   <>
                     <div className="ce-meio">
                       <Pizza fatias={fs} tam={isMobile ? 130 : 138} onFatia={(f) => nova(f.id === 'lucro' ? { tipo: 'termo', id: 'sobrou' } : { tipo: 'fatia', k: s.k, id: f.id })}

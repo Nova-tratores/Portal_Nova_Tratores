@@ -6,9 +6,9 @@
 // de qualquer dia. Reusa o MapaCarros do supervisor em modo="frota": a lista e
 // os marcadores vêm de /api/frota/mapa/vivo. Camadas opcionais (começam
 // desligadas): LOCAIS (geocercas + propriedades de clientes) e VISITAS do dia.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Map as MapIcon, Search, X } from 'lucide-react';
+import { Map as MapIcon, Maximize2, Minimize2, Search, X } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { supabase } from '@/lib/supabase';
 import { resolverPlaca } from '@/lib/frota/placa';
@@ -39,6 +39,48 @@ export default function MapaFrotaTela({ titulo = 'Mapa & rastreamento' }: { titu
   const [busca, setBusca] = useState('');
   const [buscaAberta, setBuscaAberta] = useState(false);
   const [foco, setFoco] = useState<{ lat: number; lng: number; nome?: string; subtitulo?: string } | null>(null);
+
+  // Tela cheia: a caixa do mapa vira "position: fixed" cobrindo a tela toda
+  // (funciona em qualquer aparelho, inclusive iPhone, que NÃO deixa usar a tela
+  // cheia de verdade fora de vídeo). Onde o navegador deixa (PC, Android),
+  // também pede a tela cheia de verdade, que some com as barras do navegador.
+  const caixaMapaRef = useRef<HTMLDivElement>(null);
+  const [telaCheia, setTelaCheia] = useState(false);
+  const entrarTelaCheia = () => {
+    setTelaCheia(true);
+    const el: any = caixaMapaRef.current;
+    const pedir = el?.requestFullscreen || el?.webkitRequestFullscreen;
+    if (pedir) { try { const p = pedir.call(el); if (p?.catch) p.catch(() => {}); } catch { /* fica só a versão CSS */ } }
+  };
+  const sairTelaCheia = () => {
+    setTelaCheia(false);
+    const d: any = document;
+    if (d.fullscreenElement || d.webkitFullscreenElement) {
+      try { const p = (d.exitFullscreen || d.webkitExitFullscreen).call(d); if (p?.catch) p.catch(() => {}); } catch { /* ignora */ }
+    }
+  };
+  useEffect(() => {
+    if (!telaCheia) return;
+    // Esc sai; e se o navegador sair da tela cheia sozinho (Esc, gesto), sai também
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') sairTelaCheia(); };
+    const onFs = () => {
+      const d: any = document;
+      if (!d.fullscreenElement && !d.webkitFullscreenElement) setTelaCheia(false);
+    };
+    // trava a rolagem da página por trás (no iPhone o dedo arrastava a página junto)
+    const overflowAntes = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('fullscreenchange', onFs);
+    document.addEventListener('webkitfullscreenchange', onFs);
+    return () => {
+      document.body.style.overflow = overflowAntes;
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('fullscreenchange', onFs);
+      document.removeEventListener('webkitfullscreenchange', onFs);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [telaCheia]);
 
   // Camada de locais: geocercas + propriedades de clientes (falha em silêncio —
   // o mapa funciona sem ela)
@@ -177,13 +219,42 @@ export default function MapaFrotaTela({ titulo = 'Mapa & rastreamento' }: { titu
             </div>
           )}
         </div>
+        <button
+          onClick={entrarTelaCheia}
+          title="Mostrar o mapa em tela cheia"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 36 }}
+        >
+          <Maximize2 size={15} /> Tela cheia
+        </button>
       </div>
+      {/* Altura: 100dvh = altura que SOBRA de verdade no celular. O 100vh do
+          iPhone conta a área atrás da barra do Safari: o mapa ficava maior que
+          a tela, a página rolava junto com o mapa e "bugava" no arrastar. */}
+      <style>{`
+        .frota-mapa-caixa { height: calc(100vh - 230px); }
+        @supports (height: 100dvh) { .frota-mapa-caixa { height: calc(100dvh - 230px); } }
+        @media (max-width: 768px) {
+          .frota-mapa-caixa { height: calc(100vh - 200px); min-height: 380px !important; }
+          @supports (height: 100dvh) { .frota-mapa-caixa { height: calc(100dvh - 200px); } }
+        }
+        .frota-mapa-caixa.cheia { position: fixed !important; inset: 0; z-index: 10000 !important; width: 100vw !important; height: 100vh; height: 100dvh; min-height: 0 !important; border: none !important; }
+      `}</style>
       {/* O MapaCarros usa height:100% — sem um pai com ALTURA EXPLÍCITA o
           Leaflet monta num container de 0px e a tela fica em branco. */}
       {/* position+zIndex criam um contexto de empilhamento: os painéis do
           Leaflet (zIndex até 1000) ficam presos DENTRO do mapa e não cobrem a
           ajuda "?" nem os menus do portal */}
-      <div style={{ position: 'relative', zIndex: 0, width: '100%', height: 'calc(100vh - 230px)', minHeight: 480, borderRadius: 0, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
+      <div ref={caixaMapaRef} className={`frota-mapa-caixa${telaCheia ? ' cheia' : ''}`} style={{ position: 'relative', zIndex: 0, width: '100%', minHeight: 480, borderRadius: 0, overflow: 'hidden', border: '1px solid var(--portal-border)', background: '#e5e7eb' }}>
+        {telaCheia && (
+          // em cima no meio: os cantos já têm o painel da frota, as Camadas e o "Fechar"
+          <button
+            onClick={sairTelaCheia}
+            title="Sair da tela cheia (Esc)"
+            style={{ position: 'absolute', top: 'calc(8px + env(safe-area-inset-top, 0px))', left: '50%', transform: 'translateX(-50%)', zIndex: 1002, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, border: '1px solid #e2e8f0', background: 'rgba(255,255,255,0.97)', color: '#0f172a', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 6px 18px -10px rgba(15,23,42,.5)' }}
+          >
+            <Minimize2 size={15} /> Sair
+          </button>
+        )}
         <MapaCarros
           carros={[]}
           modo="frota"

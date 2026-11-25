@@ -191,6 +191,20 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     carRendererRef.current = L.canvas({ padding: 0.5 })
   }, [ready])
 
+  // A caixa do mapa mudou de tamanho (tela cheia, giro do celular, barra do
+  // Safari aparecendo/sumindo): o Leaflet só escuta o resize da JANELA, então
+  // sem isto ficava um pedaço cinza sem mapa e os cliques caíam no lugar errado.
+  useEffect(() => {
+    if (!ready || !mapRef.current || typeof ResizeObserver === 'undefined') return
+    let raf = 0
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => mapInstance.current?.invalidateSize())
+    })
+    ro.observe(mapRef.current)
+    return () => { cancelAnimationFrame(raf); ro.disconnect() }
+  }, [ready])
+
   // "Voar até" o ponto buscado (cliente/local) — abre um popup no destino.
   useEffect(() => {
     if (!ready || !mapInstance.current || !foco?.lat || !foco?.lng) return
