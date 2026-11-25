@@ -23,14 +23,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const r = await carregarReuniao(id)
     if (!r || !(await podeVerReuniao(r, auth))) return NextResponse.json({ error: 'Reunião não encontrada' }, { status: 404 })
-    const [pend, acoes] = await Promise.all([
+    // melhorias 4.5 ("Carregando reunião…" de vários segundos): era uma consulta depois da outra
+    // (~250 ms cada). Agora tudo que só depende da reunião vai junto, inclusive nomes e celulares.
+    const pessoasDaReuniao = r.presencas.map((p) => p.usuario_id)
+    const [pend, acoes, reag, reserva, criador, usuariosBase, cels] = await Promise.all([
       blocoPendencias(r),
       supabaseAdmin.from('tickets').select('id, numero, titulo, status, prazo, responsavel_id, aceite, origem_reuniao_item_id, prazo_reprogramacoes')
         .eq('origem_reuniao_id', r.ticket.id).order('created_at'),
+      reagendamentos(r),
+      reservaDaReuniao(r.ticket.id).catch(() => null),
+      criadorDaReuniao(r.ticket.id).catch(() => null),
+      usuariosMin([auth.userId, ...pessoasDaReuniao, ...r.itens.map((i) => i.trazido_por)]),
+      supabaseAdmin.from('financeiro_usu').select('id, celular').in('id', pessoasDaReuniao),   // sem a coluna: data null, segue sem celular
     ])
-    const { destinos, origens, proxima } = await reagendamentos(r)
-    const reserva = await reservaDaReuniao(r.ticket.id).catch(() => null)
-    const criador = await criadorDaReuniao(r.ticket.id).catch(() => null)
+    const { destinos, origens, proxima } = reag
     const sala = reserva ? { id: reserva.sala_id, nome: reserva.sala_nome || 'Sala', inicio: reserva.inicio, fim: reserva.fim } : null
     const condutor = condutorDe(r)
     const secretario = secretarioDe(r)
@@ -39,15 +45,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       ...pend.atrasadas.map((p) => p.responsavel_id), ...pend.vencendo.map((p) => p.responsavel_id),
       ...((acoes.data || []) as { responsavel_id: string }[]).map((a) => a.responsavel_id),
     ]
-    const usuarios = await usuariosMin(ids)
+    // Só busca os nomes que ainda faltam (responsáveis de pendências e ações).
+    const faltam = ids.filter((x) => x && !usuariosBase[x])
+    const usuarios = { ...usuariosBase, ...(faltam.length ? await usuariosMin(faltam) : {}) }
     // Convite por WhatsApp (23/11/2026): só quem conduz/criou recebe celulares e o texto pronto de cada pessoa.
     const gere = podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId
     const convite: { celulares: Record<string, string | null>; textos: Record<string, string> } | null = gere ? { celulares: {}, textos: {} } : null
     if (convite) {
-      const pessoas = r.presencas.map((p) => p.usuario_id)
-      const { data: cel } = await supabaseAdmin.from('financeiro_usu').select('id, celular').in('id', pessoas)   // sem a coluna: data null, segue sem celular
-      for (const c of (cel || []) as { id: string; celular: string | null }[]) convite.celulares[c.id] = c.celular
-      const quem = usuarios[auth.userId]?.nome || (await usuariosMin([auth.userId]))[auth.userId]?.nome || 'Alguém'
+      const pessoas = pessoasDaReuniao
+      for (const c of (cels.data || []) as { id: string; celular: string | null }[]) convite.celulares[c.id] = c.celular
+      const quem = usuarios[auth.userId]?.nome || 'Alguém'
       for (const u of pessoas) if (u !== auth.userId) convite.textos[u] = textoConviteWhats(r.ticket, usuarios[u]?.nome || '', quem)
     }
     const corte = r.ticket.reuniao_inicio ?corteEm(r.ticket.reuniao_inicio, r.serie?.corte_antecedencia_horas ?? 18).toISOString() : null

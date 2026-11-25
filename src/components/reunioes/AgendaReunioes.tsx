@@ -17,6 +17,9 @@ import EditarReuniao from './EditarReuniao'
 import ConviteReuniao from './ConviteReuniao'
 import TicketModal from '@/components/tickets/TicketModal'
 import { chamar, horaDe, hojeISO, CronometroReuniao } from './comum'
+import { horasPessoa, textoCusto, textoHoras } from '@/lib/reunioes/fila-reuniao'
+
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 
 type Lista = { reunioes: Ticket[]; presencas: Record<string, PresencaRow[]>; itens: Record<string, number>; usuarios: Record<string, UsuarioMin>; series: Serie[]; salas?: Record<string, string> }
 
@@ -246,7 +249,7 @@ export default function AgendaReunioes({ meuId, isAdmin, onAviso, modo = 'proxim
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         <span style={{ display: 'inline-flex' }}>{pres.slice(0, max).map((p, i) => <Av key={p.usuario_id} i={i} u={d.usuarios[p.usuario_id]} nome={nome(p.usuario_id)} />)}</span>
-        {pres.length} {pres.length === 1 ? 'pessoa' : 'pessoas'}
+        <span title="Custo da reunião: pessoas × duração">{textoCusto(pres.length, durDe(t))}</span>
       </span>
     )
   }
@@ -385,9 +388,31 @@ export default function AgendaReunioes({ meuId, isAdmin, onAviso, modo = 'proxim
   const filtroH = (t: Ticket) => passadas.includes(t) && (filtroHist === 'todas' || passo(t) === filtroHist) && casaBusca(t)
   const semanasComReuniao = [...new Set(passadas.filter(filtroH).map((t) => segundaDe(diaSP(t.reuniao_inicio!))))].sort().reverse()
 
+  // Horas em reunião neste mês, por série (melhorias 4.3): só a que não foi cancelada; quem foi
+  // marcado como ausente não conta.
+  const mesAtual = hoje.slice(0, 7)
+  const custoMes = (() => {
+    const porSerie = new Map<string, number>()
+    for (const t of passadas) {
+      if (!t.reuniao_inicio || diaSP(t.reuniao_inicio).slice(0, 7) !== mesAtual || passo(t) === 'cancelada') continue
+      const n = (d.presencas[t.id] || []).filter((p) => p.presente !== false).length
+      const k = t.reuniao_serie_id || ''
+      porSerie.set(k, (porSerie.get(k) || 0) + horasPessoa(n, durDe(t)))
+    }
+    const nomeSerie = (id: string) => (id ? d.series.find((x) => x.id === id)?.nome || 'Série' : 'Avulsas')
+    const linhas = [...porSerie].map(([id, h]) => ({ nome: nomeSerie(id), h })).sort((a, b) => b.h - a.h)
+    return { total: linhas.reduce((x, l) => x + l.h, 0), linhas }
+  })()
+
   if (modo === 'historico') return (
     <div className="ag">
       <style>{CSS}</style>
+      {custoMes.total > 0 && (
+        <div className="ag-sec" style={{ fontSize: 13.5, color: 'var(--portal-text-secondary,#475569)', flexWrap: 'wrap', gap: '4px 14px' }}>
+          <span>Em {MESES[Number(mesAtual.slice(5, 7)) - 1]}: <b style={{ fontWeight: 500, color: 'var(--portal-text,#0f172a)' }}>{textoHoras(custoMes.total)} de pessoas em reunião</b></span>
+          {custoMes.linhas.map((l) => <span key={l.nome}>{l.nome} · {textoHoras(l.h)}</span>)}
+        </div>
+      )}
       <div className="ag-sec">
         {FILTROS_HIST.map((f) => (
           <button key={f.id} className="ag-btn peq" onClick={() => setFiltroHist(f.id)}

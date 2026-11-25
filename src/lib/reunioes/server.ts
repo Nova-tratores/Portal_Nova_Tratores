@@ -135,14 +135,15 @@ export async function editarSerie(id: string, campos: Partial<Serie>): Promise<S
 // --------------------------------------------------------------- reuniões
 export async function carregarReuniao(id: string): Promise<ReuniaoCarregada | null> {
   if (!uuidValido(id)) return null
-  const base = await carregarTicket(id)
-  if (!base || base.ticket.tipo !== 'reuniao') return null
-  const [itens, presencas, ata, serie] = await Promise.all([
+  // Tudo que só depende do id vai junto (melhorias 4.5: cada ida ao banco custa ~250 ms); a série vem depois.
+  const [base, itens, presencas, ata] = await Promise.all([
+    carregarTicket(id),
     supabaseAdmin.from('reunioes_itens').select('*').eq('reuniao_id', id).order('ordem').order('criado_em'),
     supabaseAdmin.from('reunioes_presencas').select('*').eq('reuniao_id', id),
     supabaseAdmin.from('reunioes_ata').select('*').eq('reuniao_id', id).maybeSingle(),
-    base.ticket.reuniao_serie_id ? carregarSerie(base.ticket.reuniao_serie_id) : Promise.resolve(null),
   ])
+  if (!base || base.ticket.tipo !== 'reuniao') return null
+  const serie = base.ticket.reuniao_serie_id ? await carregarSerie(base.ticket.reuniao_serie_id) : null
   const s = serie as Serie | null
   return {
     ticket: base.ticket, participantes: base.participantes, serie: s,
@@ -436,16 +437,19 @@ export async function acoesDaSerieOuCondutor(r: ReuniaoCarregada): Promise<AcaoD
 }
 
 export async function blocoPendencias(r: ReuniaoCarregada): Promise<BlocoPendencias & { limite: string; desde: string | null }> {
-  const acoes = await acoesDaSerieOuCondutor(r)
   const diaReuniao = r.ticket.prazo || hojeSP()
   const hoje = hojeSP()
   const ref = hoje > diaReuniao ? hoje : diaReuniao
   let limite: string | null = null
   let desde: string | null = null
+  // As três consultas são independentes: vão juntas (melhorias 4.5).
+  const [acoes, prox, ant] = await Promise.all([
+    acoesDaSerieOuCondutor(r),
+    r.serie ? proximaReuniaoDaSerie(r.serie.id, r.ticket.reuniao_inicio!, r.ticket.id) : Promise.resolve(null),
+    r.serie ? reuniaoAnteriorDaSerie(r.serie.id, r.ticket.reuniao_inicio!, r.ticket.id) : Promise.resolve(null),
+  ])
   if (r.serie) {
-    const prox = await proximaReuniaoDaSerie(r.serie.id, r.ticket.reuniao_inicio!, r.ticket.id)
     limite = prox?.prazo || (r.serie.recorrencia !== 'nenhuma' ? proximaDataDaSerie(r.serie, diaReuniao) : null)
-    const ant = await reuniaoAnteriorDaSerie(r.serie.id, r.ticket.reuniao_inicio!, r.ticket.id)
     desde = ant?.reuniao_inicio || null
   }
   const bloco = classificarPendencias(acoes, { hoje: ref, limiteVencendo: limite, desde })

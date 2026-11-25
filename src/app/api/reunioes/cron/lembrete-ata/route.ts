@@ -1,13 +1,14 @@
 // REUNIÕES — cron de hora em hora: lembra a ata não publicada em 24 h (R11); desde 23/11/2026 também avisa
 // quem tem reunião na próxima hora e fecha como "não registrada" a que ficou 7 dias sem ninguém registrar.
+// Desde 25/11/2026 (melhorias 4.2): reunião nas próximas 24 h sem nenhum assunto → avisa quem conduz.
 // GitHub Actions (.github/workflows/reunioes-lembrete-ata.yml) → POST com x-cron-secret. Idempotente.
 import { NextRequest, NextResponse } from 'next/server'
 import { comCronRun } from '@/lib/cron/observar'
-import { cronLembreteAta, cronLembreteInicio, cronFecharSemRegistro } from '@/lib/reunioes/crons'
+import { cronLembreteAta, cronLembreteInicio, cronFecharSemRegistro, cronSemPauta } from '@/lib/reunioes/crons'
 
 // cada parte isolada: erro numa não impede as outras
 const seguro = async <T,>(f: () => Promise<T>) => { try { return await f() } catch (e) { return { erro: (e as Error).message } } }
-const tudo = async () => ({ ata: await seguro(() => cronLembreteAta()), inicio: await seguro(() => cronLembreteInicio()), semRegistro: await seguro(() => cronFecharSemRegistro()) })
+const tudo = async () => ({ ata: await seguro(() => cronLembreteAta()), inicio: await seguro(() => cronLembreteInicio()), semRegistro: await seguro(() => cronFecharSemRegistro()), semPauta: await seguro(() => cronSemPauta()) })
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

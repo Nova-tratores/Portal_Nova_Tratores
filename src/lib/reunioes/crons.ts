@@ -120,6 +120,41 @@ export async function cronLembreteInicio(agora = new Date()) {
   return resultado
 }
 
+// ------------------------------------------------ sem pauta → cancelar? (melhorias 4.2)
+/**
+ * (25/11/2026) Reunião que começa nas próximas 24 h e continua SEM ASSUNTO na pauta → avisa quem conduz
+ * (e quem marcou): "Reunião sem pauta amanhã às 15:00". O clique abre a reunião, que mostra
+ * Montar pauta · Cancelar esta · Manter. Uma vez por reunião (evento-marcador), roda de hora em hora.
+ */
+export async function cronSemPauta(agora = new Date()) {
+  const ate = new Date(agora.getTime() + 24 * 3600_000).toISOString()
+  const reunioes = ok(await supabaseAdmin.from('tickets').select('*').eq('tipo', 'reuniao')
+    .in('reuniao_etapa', ['agendada', 'pauta_fechada']).gt('reuniao_inicio', agora.toISOString()).lte('reuniao_inicio', ate).limit(100)) as Ticket[]
+  const resultado = { avaliadas: reunioes.length, avisadas: 0, erros: [] as string[] }
+  for (const t of reunioes) {
+    try {
+      const [{ count }, { data: ja }] = await Promise.all([
+        supabaseAdmin.from('reunioes_itens').select('id', { count: 'exact', head: true }).eq('reuniao_id', t.id),
+        supabaseAdmin.from('tickets_eventos').select('id').eq('ticket_id', t.id).eq('tipo', 'edicao').eq('payload->>campo', 'aviso_sem_pauta').limit(1),
+      ])
+      if ((count || 0) > 0 || ja?.length) continue
+      const { data: pres } = await supabaseAdmin.from('reunioes_presencas').select('usuario_id, papel').eq('reuniao_id', t.id)
+      const condutor = ((pres || []) as { usuario_id: string; papel: string }[]).find((p) => p.papel === 'condutor')?.usuario_id
+      const alvo = [...new Set([condutor, t.solicitante_id].filter((x): x is string => !!x))]
+      const quando = new Date(t.reuniao_inicio!)
+      const hora = quando.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
+      const dia = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(quando)
+      const hojeSPd = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(agora)
+      const quandoTxt = dia === hojeSPd ? 'hoje' : 'amanhã'
+      await notificarTicket(t, alvo, null, `Reunião sem pauta ${quandoTxt} às ${hora}: ${t.titulo}`,
+        'Montar pauta · Cancelar esta · Manter — abra a reunião para escolher.', undefined, `/reunioes/${t.id}`)
+      await registrarEvento(t.id, null, 'edicao', { campo: 'aviso_sem_pauta', auto: true, para: alvo })
+      resultado.avisadas++
+    } catch (e) { resultado.erros.push(`${t.numero}: ${e instanceof Error ? e.message : String(e)}`) }
+  }
+  return resultado
+}
+
 // ------------------------------------------------ "Sem registro" esquecidas
 /**
  * (23/11/2026) Reunião que nunca começou (agendada/pauta fechada) e já passou há mais de 7 dias vira

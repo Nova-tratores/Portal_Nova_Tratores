@@ -23,7 +23,10 @@ import EditarReuniao from './EditarReuniao'
 import ConviteReuniao from './ConviteReuniao'
 import VirarSerie from './VirarSerie'
 import AoVivo, { type Gravacao } from './AoVivo'
-import { chamar, horaDe, brCurto, primeiroNome, CronometroReuniao } from './comum'
+import { chamar, horaDe, brCurto, primeiroNome, CronometroReuniao, hojeISO } from './comum'
+import SugestoesPauta from './SugestoesPauta'
+import EncaminhamentosAta from './EncaminhamentosAta'
+import { encaminhamentosDaAta, jaCriado, textoCusto, type Encaminhamento } from '@/lib/reunioes/fila-reuniao'
 
 // situação em palavras simples (a etapa técnica fica escondida)
 const SITUACAO: Record<string, { texto: string; cor: string }> = {
@@ -87,7 +90,7 @@ ${adendos.map((a) => `<div class="ad"><small>Adendo · ${esc(a.quem)} · ${esc(a
 }
 
 /** Ata escrita durante a reunião — salva sozinha 1 s depois de parar de digitar. */
-function AtaDuranteReuniao({ reuniaoId, inicial, inicialEm, podeEscrever }: { reuniaoId: string; inicial: string; inicialEm: string | null; podeEscrever: boolean }) {
+function AtaDuranteReuniao({ reuniaoId, inicial, inicialEm, podeEscrever, onTexto }: { reuniaoId: string; inicial: string; inicialEm: string | null; podeEscrever: boolean; onTexto?: (t: string) => void }) {
   const [texto, setTexto] = useState(inicial)
   const [estado, setEstado] = useState<'' | 'salvando' | 'salvo' | 'erro'>('')
   const [salvoEm, setSalvoEm] = useState('')
@@ -122,15 +125,37 @@ function AtaDuranteReuniao({ reuniaoId, inicial, inicialEm, podeEscrever }: { re
         </div>
       )}
       <textarea className="rd-ata" value={texto} maxLength={20000}
-        placeholder={'Anote aqui o que está sendo falado e decidido, durante a reunião.\nEx.: Ficou combinado trocar o fornecedor de filtros a partir de dezembro.'}
+        placeholder={'Anote aqui o que está sendo falado e decidido, durante a reunião.\nEx.: Ficou combinado trocar o fornecedor de filtros a partir de dezembro.\n\nLinha que começa com @pessoa vira pedido ao publicar:\n@Henri trocar o fornecedor de filtros até 05/12'}
         onChange={(e) => {
-          const t = e.target.value; setTexto(t); setEstado('')
+          const t = e.target.value; setTexto(t); setEstado(''); onTexto?.(t)
           if (timer.current) window.clearTimeout(timer.current)
           timer.current = window.setTimeout(() => salvar(t), 1000)
         }} />
       <span style={{ fontSize: 12.5, color: estado === 'erro' ? '#dc2626' : 'var(--portal-text-muted,#64748b)' }}>
         {estado === 'salvando' ? 'Salvando…' : estado === 'salvo' ? `Salvo às ${salvoEm}` : estado === 'erro' ? 'Não salvou — confira a internet e digite de novo' : 'Salva sozinha enquanto você escreve'}
+        {estado !== 'erro' && ' · @pessoa no começo da linha vira pedido ao publicar'}
       </span>
+    </div>
+  )
+}
+
+/** Esqueleto enquanto carrega (melhorias 4.5): o formato da página aparece na hora, no lugar do texto. */
+function EsqueletoReuniao() {
+  const barra = (w: string, h = 14) => <span className="rd-esq" style={{ width: w, height: h }} />
+  return (
+    <div aria-busy="true" aria-label="Carregando a reunião" style={{ padding: 'clamp(12px,2vw,28px)', display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 1100 }}>
+      <style href="rd-esqueleto" precedence="default">{`.rd-esq{display:block;border-radius:8px;background:linear-gradient(90deg,var(--portal-border,#e2e8f0) 25%,var(--portal-bg-secondary,#f1f5f9) 50%,var(--portal-border,#e2e8f0) 75%);background-size:200% 100%;animation:rd-esq 1.2s linear infinite}
+@keyframes rd-esq{from{background-position:200% 0}to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.rd-esq{animation:none}}`}</style>
+      {barra('45%', 26)}
+      {barra('30%')}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(260px,100%),1fr))', gap: 14, marginTop: 8 }}>
+        {[0, 1].map((k) => (
+          <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 16, borderRadius: 16, border: '1px solid var(--portal-border,#e2e8f0)' }}>
+            {barra('40%', 16)}{barra('90%')}{barra('75%')}{barra('82%')}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -155,6 +180,11 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   const [editandoTudo, setEditandoTudo] = useState(false)
   const [novoTitulo, setNovoTitulo] = useState('')
   const [aviso, setAviso] = useState('')
+  // Ata → pedidos (melhorias 4.4): o texto mais novo da ata e a prévia dos @encaminhamentos.
+  const ataAgora = useRef<string | null>(null)
+  const [previa, setPrevia] = useState<Encaminhamento[] | null>(null)
+  // "Manter" / "Montar pauta" na faixa de reunião sem pauta (melhorias 4.2): some até recarregar.
+  const [semPautaOk, setSemPautaOk] = useState(false)
   // campanhas de marketing para ligar os assuntos da pauta (linha do tempo da campanha, 18/11/2026)
   const [campanhas, setCampanhas] = useState<CampanhaPauta[]>([])
   useEffect(() => {
@@ -194,7 +224,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   const tratadas = useMemo(() => eventos.filter((e) => e.tipo === 'pendencia_tratada'), [eventos])
 
   if (erro && !d) return <div style={{ padding: 30, color: '#dc2626' }}>{erro}</div>
-  if (!d) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando reunião…</div>
+  if (!d) return <EsqueletoReuniao />
 
   const r = d.reuniao
   const etapa = r.reuniao_etapa || 'agendada'
@@ -215,8 +245,32 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   const principal = !conduz || cancelada ? null
     : antes ? <button className="rd-btn cheio" style={{ ['--c' as string]: '#d97706' }} disabled={ocupado} onClick={() => acao({ acao: 'etapa', para: 'em_andamento' }).catch(() => {})}><Play size={15} /> Começar reunião</button>
     : conducao ? <button className="rd-btn cheio" style={{ ['--c' as string]: '#7c3aed' }} disabled={ocupado} onClick={() => acao({ acao: 'etapa', para: 'ata_rascunho' }).catch(() => {})}><Square size={15} /> Encerrar reunião</button>
-    : rascunho ? <button className="rd-btn cheio" style={{ ['--c' as string]: '#059669' }} disabled={ocupado} onClick={() => acao({ acao: 'publicar_ata' }).catch(() => {})}><FileCheck2 size={15} /> Publicar a ata</button>
+    : rascunho ? <button className="rd-btn cheio" style={{ ['--c' as string]: '#059669' }} disabled={ocupado} onClick={publicar}><FileCheck2 size={15} /> Publicar a ata</button>
     : null
+
+  // "Publicar a ata": se a ata tem linhas @pessoa que ainda não viraram pedido, mostra a prévia antes.
+  const pessoasAta = d.presencas.map((p) => ({ id: p.usuario_id, nome: d.usuarios[p.usuario_id]?.nome || '' })).filter((p) => p.nome)
+  function publicar() {
+    const lista = encaminhamentosDaAta(ataAgora.current ?? ataTexto, pessoasAta, hojeISO())
+      .filter((e) => !e.responsavel_id || !jaCriado(e, (d?.acoes || []) as { responsavel_id: string; titulo: string }[]))
+    if (lista.length) { setPrevia(lista); return }
+    acao({ acao: 'publicar_ata' }).catch(() => {})
+  }
+  const criarEPublicar = async (marcados: { titulo: string; responsavel_id: string; prazo: string }[]) => {
+    const erros: string[] = []
+    // a ata salva primeiro (o salvar automático pode estar esperando)
+    if (ataAgora.current !== null && ataAgora.current !== ataTexto) {
+      try { await chamar(`/api/reunioes/${id}/acoes`, { json: { acao: 'anotacoes', texto: ataAgora.current, base_em: ataEm } }) } catch (e) { erros.push(e instanceof Error ? e.message : 'A ata não salvou') }
+    }
+    for (const m of marcados) {
+      try { await chamar(`/api/reunioes/${id}/acoes`, { json: { acao: 'criar_acao', ...m } }) }
+      catch (e) { erros.push(`${m.titulo}: ${e instanceof Error ? e.message : 'não criou'}`) }
+    }
+    if (erros.length) { await carregar(); return erros }
+    try { await acao({ acao: 'publicar_ata' }); setPrevia(null); window.dispatchEvent(new Event('central-trabalho-mudou')) }
+    catch (e) { return [e instanceof Error ? e.message : 'A ata não foi publicada'] }
+    return []
+  }
 
   const onTratar = async (ticketId: string, saida: SaidaPendencia, extra: Record<string, unknown>) => { await acao({ acao: 'tratar_pendencia', ticket_id: ticketId, saida, ...extra }) }
   const onResultado = async (itemId: string, res: { resultado: ItemResultado; decisao_texto?: string; decisao_motivo?: string }) => { await acao({ acao: 'item_resultado', item_id: itemId, ...res }) }
@@ -279,6 +333,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
           )}
           <span style={{ display: 'flex', alignItems: 'center', gap: '6px 16px', flexWrap: 'wrap', fontSize: 14, color: 'var(--portal-text-secondary,#475569)' }}>
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>{horaDe(r.reuniao_inicio)}{fim ? ` às ${horaDe(fim)}` : ''} · {d.duracao_min} min</span>
+            <span title="Custo da reunião: pessoas × duração">{textoCusto(d.presencas.length, d.duracao_min)}</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Av u={d.usuarios[condutor]} nome={nome(condutor)} /> {primeiroNome(nome(condutor))} conduz</span>
             {d.sala && <a href="/salas" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'inherit', textDecoration: 'none' }}><MapPin size={14} /> {d.sala.nome}</a>}
           </span>
@@ -313,6 +368,18 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
       )}
       {(aviso || d.aviso) && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#b45309' }}><AlertTriangle size={14} /> {aviso || d.aviso}</div>}
 
+      {/* melhorias 4.2: sem assunto nas 24 h antes → Montar pauta · Cancelar esta · Manter */}
+      {antes && d.itens.length === 0 && !semPautaOk && (conduz || d.criador_id === userProfile?.id) && r.reuniao_inicio
+        && Date.parse(r.reuniao_inicio) - Date.now() < 24 * 3600_000 && Date.parse(r.reuniao_inicio) > Date.now() && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(217,119,6,.35)', background: 'rgba(217,119,6,.08)', fontSize: 14 }}>
+          <AlertTriangle size={16} color="#b45309" />
+          <span style={{ flex: 1, minWidth: 200 }}><b style={{ fontWeight: 500 }}>Esta reunião está sem pauta</b> e começa às {horaDe(r.reuniao_inicio)}. Reunião sem assunto costuma virar conversa solta.</span>
+          <button className="rd-btn cheio" style={{ ['--c' as string]: '#2563eb' }} onClick={() => { setSemPautaOk(true); document.getElementById('rd-pauta')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>Montar pauta</button>
+          <button className="rd-btn" disabled={ocupado} onClick={() => { if (window.confirm('Cancelar esta reunião? Todos recebem o aviso.')) acao({ acao: 'etapa', para: 'cancelada' }).catch(() => {}) }}><Ban size={15} /> Cancelar esta</button>
+          <button className="rd-btn" onClick={() => setSemPautaOk(true)}>Manter</button>
+        </div>
+      )}
+
       {temPendencias && !cancelada && !publicada && (
         <BlocoPendencias pend={d.pendencias} usuarios={d.usuarios} modoConducao={conducao && conduz} onTratar={onTratar} onAbrirTicket={setTicketAberto} />
       )}
@@ -335,6 +402,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
                 gravacoes={((r.payload as { gravacoes?: Gravacao[] } | null)?.gravacoes) || []} onGravou={() => carregar()} />
             </section>
           )}
+          <div id="rd-pauta" style={{ scrollMarginTop: 80 }} />
           <PautaItens itens={d.itens} usuarios={d.usuarios} destinos={d.destinos} origens={d.origens} proxima={d.proxima} temSerie={!!d.serie}
             onAbrirReuniao={(rid) => router.push(`/reunioes/${rid}`)}
             modo={antes ? (cancelada ? 'leitura' : 'pauta') : publicada || cancelada ? 'leitura' : 'conducao'}
@@ -343,17 +411,21 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
             onResultado={publicada ? undefined : onResultado} onCriarAcao={publicada ? undefined : (item) => setAcaoDe(item)} onAbrirTicket={setTicketAberto}
             campanhas={campanhas} onCampanha={!cancelada && (participo || conduz || d.criador_id === userProfile?.id || isAdmin) ? (item_id, campanha_id) => itemAcao({ acao: 'campanha', item_id, campanha_id }) : undefined} />
 
+          {antes && !cancelada && (
+            <SugestoesPauta reuniaoId={id} podeIncluir={participo || conduz || d.criador_id === userProfile?.id} onIncluido={() => carregar()} onAbrirTicket={setTicketAberto} />
+          )}
+
           {!cancelada && (
             <section className="rd-card">
               <div className="rd-sec" style={{ ['--c' as string]: '#7c3aed' }}>
                 <span className="ic"><NotebookPen size={16} /></span>
                 <span><b>Ata</b><small>{publicada ? 'O que foi falado e decidido' : 'Escreva durante a reunião o que está sendo falado e decidido'}</small></span>
               </div>
-              <AtaDuranteReuniao key={id} reuniaoId={id} inicial={ataTexto} inicialEm={ataEm} podeEscrever={!publicada && (conduz || participo)} />
+              <AtaDuranteReuniao key={id} reuniaoId={id} inicial={ataTexto} inicialEm={ataEm} podeEscrever={!publicada && (conduz || participo)} onTexto={(t) => { ataAgora.current = t }} />
               {rascunho && conduz && (
                 <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: 'color-mix(in srgb,#059669 7%,transparent)', fontSize: 13.5, color: 'var(--portal-text-secondary,#475569)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <CircleCheck size={16} color="#059669" /> <span style={{ flex: 1 }}>Revise e publique: todos recebem a ata no sino. Depois de publicada, correção só por adendo.</span>
-                  <button className="rd-btn cheio" style={{ ['--c' as string]: '#059669' }} disabled={ocupado} onClick={() => acao({ acao: 'publicar_ata' }).catch(() => {})}><FileCheck2 size={15} /> Publicar a ata</button>
+                  <button className="rd-btn cheio" style={{ ['--c' as string]: '#059669' }} disabled={ocupado} onClick={publicar}><FileCheck2 size={15} /> Publicar a ata</button>
                 </div>
               )}
               {publicada && d.ata && (
@@ -484,6 +556,11 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
       {remarcando && (
         <RemarcarReuniao reuniaoId={id} inicio={r.reuniao_inicio ?? null} duracaoMin={d.duracao_min}
           onFechar={() => setRemarcando(false)} onFeito={(av) => { setRemarcando(false); setAviso(av || ''); carregar() }} />
+      )}
+      {previa && (
+        <EncaminhamentosAta lista={previa} nomes={Object.fromEntries(pessoasAta.map((p) => [p.id, p.nome]))}
+          onCriar={criarEPublicar} onFechar={() => setPrevia(null)}
+          onPublicarSem={() => { setPrevia(null); acao({ acao: 'publicar_ata' }).catch(() => {}) }} />
       )}
       {ticketAberto && <TicketModal id={ticketAberto} onFechar={() => setTicketAberto(null)} onMudou={() => carregar()} />}
     </div>

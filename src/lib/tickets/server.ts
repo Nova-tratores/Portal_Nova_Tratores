@@ -119,6 +119,8 @@ export async function notificarTicket(
   titulo: string,
   descricao?: string,
   variante?: VarianteNotifTicket,
+  /** Outro destino para o clique (ex.: /reunioes/:id). Padrão: /tickets/:id. */
+  link?: string,
 ) {
   const alvo = [...new Set(destinatarios)].filter((id) => id && id !== autorId)
   if (alvo.length === 0) return
@@ -137,7 +139,7 @@ export async function notificarTicket(
       tipo: 'tickets',
       titulo,
       descricao: descricao || null,
-      link: `/tickets/${t.id}`,
+      link: link || `/tickets/${t.id}`,
       icone: variante || null,
     })),
   )
