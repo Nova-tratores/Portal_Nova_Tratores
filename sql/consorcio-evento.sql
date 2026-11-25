@@ -49,6 +49,16 @@ create table if not exists consorcio_inscricoes (
   constraint consorcio_insc_tel_uk    unique (evento_id, telefone_norm)
 );
 create index if not exists consorcio_insc_evento_idx on consorcio_inscricoes (evento_id, criado_em desc);
+-- de onde o cliente veio (plano Supersafra 1.4): link ?origem=insta|face|whats|estande|banner|cartao&v=<vendedor>&utm_*
+alter table consorcio_inscricoes add column if not exists origem text;
+alter table consorcio_inscricoes add column if not exists utm    jsonb;
+-- ficha do VENDEDOR (24/11/2026, José: o QR só atrai; quem cadastra é o vendedor) — plano Supersafra 1.6
+alter table consorcio_inscricoes add column if not exists temperatura        text check (temperatura in ('quente','morno','frio'));
+alter table consorcio_inscricoes add column if not exists usado_para_lance   boolean;   -- tem usado que pode virar dinheiro para lance?
+alter table consorcio_inscricoes add column if not exists usado_descricao    text;
+alter table consorcio_inscricoes add column if not exists proximo_passo      text;
+alter table consorcio_inscricoes add column if not exists proximo_passo_data date;
+alter table consorcio_inscricoes add column if not exists observacao         text;
 
 -- 3) Cada giro do sorteio ---------------------------------------------
 create table if not exists consorcio_sorteios (
@@ -63,6 +73,21 @@ create table if not exists consorcio_sorteios (
 );
 create index if not exists consorcio_sorteios_evento_idx on consorcio_sorteios (evento_id, sorteado_em);
 
+-- 3b) Cliques nos botões de WhatsApp da página de divulgação (revisão de design, 24/11/2026).
+-- A página não tem formulário: é isto que mostra quantos clicaram, em qual trator, em que parte da página e por qual link.
+create table if not exists consorcio_cliques (
+  id         bigserial primary key,
+  evento_id  uuid not null references consorcio_eventos(id) on delete cascade,
+  modelo     text,                -- trator da mensagem (vazio = a carta destaque)
+  lugar      text,                -- topo | carta | outras | mapa | barra (celular)
+  origem     text,                -- ?origem= do link (insta, face, whats, banner, cartao…)
+  vendedor   text,                -- ?v= do QR do cartão
+  utm        jsonb,
+  criado_em  timestamptz not null default now()
+);
+create index if not exists consorcio_cliques_evento_idx on consorcio_cliques (evento_id, criado_em desc);
+alter table consorcio_cliques    enable row level security;
+
 alter table consorcio_eventos    enable row level security;
 alter table consorcio_inscricoes enable row level security;
 alter table consorcio_sorteios   enable row level security;
@@ -73,16 +98,21 @@ language plpgsql security definer set search_path = public as $$
 declare v_ev consorcio_eventos; v_lead uuid;
 begin
   select * into v_ev from consorcio_eventos where id = new.evento_id;
-  insert into mkt_leads (acao_id, texto, nome, telefone, cidade, interesse, qualificacao, origem, capturado_em, capturado_por_nome)
+  insert into mkt_leads (acao_id, texto, nome, telefone, cidade, interesse, qualificacao, origem, capturado_em, capturado_por_nome,
+                         temperatura, proximo_contato, responsavel_nome, observacoes)
   values (
     v_ev.acao_id,
     concat_ws(' · ',
       'Consórcio no evento ' || v_ev.nome,
       'nº da sorte ' || lpad(new.numero::text, 3, '0'),
       case when new.credito is not null then 'simulou crédito de R$ ' || to_char(new.credito, 'FM999G999G990D00') end,
-      case when new.tem_trator is true then 'já tem trator' when new.tem_trator is false then 'ainda não tem trator' end),
+      case when new.tem_trator is true then 'já tem trator' when new.tem_trator is false then 'ainda não tem trator' end,
+      case when new.usado_para_lance is true then 'tem usado para lance' || coalesce(' (' || new.usado_descricao || ')', '') end,
+      case when new.proximo_passo is not null then 'próximo passo: ' || new.proximo_passo || coalesce(' em ' || to_char(new.proximo_passo_data, 'DD/MM'), '') end,
+      case when new.origem is not null then 'veio por: ' || new.origem end),
     new.nome, new.telefone, new.cidade, new.interesse, 'novo', 'feira', new.criado_em,
-    coalesce('Estande: ' || nullif(trim(new.vendedor), ''), 'Página do consórcio (QR code)'))
+    coalesce('Estande: ' || nullif(trim(new.vendedor), ''), 'Página do consórcio (QR code)'),
+    new.temperatura, new.proximo_passo_data, nullif(trim(new.vendedor), ''), new.observacao)
   returning id into v_lead;
   new.lead_id := v_lead;
   return new;
@@ -92,9 +122,14 @@ create trigger trg_consorcio_para_lead before insert on consorcio_inscricoes
   for each row execute function consorcio_inscricao_para_lead();
 
 -- 5) Inscrever: dá o próximo número sem repetir, mesmo com 2 celulares ao mesmo tempo
+-- (a versão antiga, sem origem/utm, sai: senão ficariam duas funções com o mesmo nome)
+drop function if exists consorcio_inscrever(uuid, text, text, text, text, numeric, boolean, boolean, text);
+drop function if exists consorcio_inscrever(uuid, text, text, text, text, numeric, boolean, boolean, text, text, jsonb);
 create or replace function consorcio_inscrever(
   p_evento uuid, p_nome text, p_telefone text, p_cidade text, p_interesse text,
-  p_credito numeric, p_tem_trator boolean, p_aceite boolean, p_vendedor text
+  p_credito numeric, p_tem_trator boolean, p_aceite boolean, p_vendedor text,
+  p_origem text default null, p_utm jsonb default null,
+  p_extra jsonb default null   -- ficha do vendedor: temperatura, usado_para_lance, usado_descricao, proximo_passo, proximo_passo_data, observacao
 ) returns table (o_numero int, o_ja_inscrito boolean)
 language plpgsql set search_path = public as $$
 declare v_tel text := regexp_replace(coalesce(p_telefone, ''), '[^0-9]', '', 'g'); v_num int;
@@ -103,13 +138,30 @@ begin
   perform pg_advisory_xact_lock(hashtext('consorcio:' || p_evento::text));
   select i.numero into v_num from consorcio_inscricoes i where i.evento_id = p_evento and i.telefone_norm = v_tel;
   if found then
+    -- já cadastrado: mantém o número, mas o que o vendedor preencheu agora atualiza a ficha (sem apagar o que já havia)
+    update consorcio_inscricoes i set
+      cidade             = coalesce(nullif(trim(p_cidade), ''), i.cidade),
+      interesse          = coalesce(nullif(trim(p_interesse), ''), i.interesse),
+      credito            = coalesce(p_credito, i.credito),
+      tem_trator         = coalesce(p_tem_trator, i.tem_trator),
+      vendedor           = coalesce(nullif(trim(p_vendedor), ''), i.vendedor),
+      temperatura        = coalesce(nullif(p_extra->>'temperatura', ''), i.temperatura),
+      usado_para_lance   = coalesce((p_extra->>'usado_para_lance')::boolean, i.usado_para_lance),
+      usado_descricao    = coalesce(nullif(trim(p_extra->>'usado_descricao'), ''), i.usado_descricao),
+      proximo_passo      = coalesce(nullif(trim(p_extra->>'proximo_passo'), ''), i.proximo_passo),
+      proximo_passo_data = coalesce(nullif(p_extra->>'proximo_passo_data', '')::date, i.proximo_passo_data),
+      observacao         = coalesce(nullif(trim(p_extra->>'observacao'), ''), i.observacao)
+     where i.evento_id = p_evento and i.telefone_norm = v_tel;
     return query select v_num, true;
     return;
   end if;
   select coalesce(max(i.numero), 0) + 1 into v_num from consorcio_inscricoes i where i.evento_id = p_evento;
-  insert into consorcio_inscricoes (evento_id, numero, nome, telefone, cidade, interesse, credito, tem_trator, aceite_lgpd, vendedor)
+  insert into consorcio_inscricoes (evento_id, numero, nome, telefone, cidade, interesse, credito, tem_trator, aceite_lgpd, vendedor, origem, utm,
+                                    temperatura, usado_para_lance, usado_descricao, proximo_passo, proximo_passo_data, observacao)
   values (p_evento, v_num, trim(p_nome), trim(p_telefone), nullif(trim(p_cidade), ''), nullif(trim(p_interesse), ''),
-          p_credito, p_tem_trator, coalesce(p_aceite, false), nullif(trim(p_vendedor), ''));
+          p_credito, p_tem_trator, coalesce(p_aceite, false), nullif(trim(p_vendedor), ''), nullif(trim(p_origem), ''), p_utm,
+          nullif(p_extra->>'temperatura', ''), (p_extra->>'usado_para_lance')::boolean, nullif(trim(p_extra->>'usado_descricao'), ''),
+          nullif(trim(p_extra->>'proximo_passo'), ''), nullif(p_extra->>'proximo_passo_data', '')::date, nullif(trim(p_extra->>'observacao'), ''));
   return query select v_num, false;
 end $$;
 
@@ -134,33 +186,66 @@ begin
 end $$;
 
 -- só o servidor chama estas funções
-revoke all on function consorcio_inscrever(uuid, text, text, text, text, numeric, boolean, boolean, text) from public, anon, authenticated;
+revoke all on function consorcio_inscrever(uuid, text, text, text, text, numeric, boolean, boolean, text, text, jsonb, jsonb) from public, anon, authenticated;
 revoke all on function consorcio_sortear(uuid, text) from public, anon, authenticated;
 
 -- 7) O primeiro evento (os campos vazios você preenche no portal: Marketing → Consórcio) -
-insert into consorcio_eventos (slug, nome, config)
-values ('supersafra-2026', 'Supersafra 2026', '{
+-- 3 grupos (tabelas de dez/2026): 6005 (cabinados), 6008 e 6009. Mesmas taxas; cada grupo com suas datas.
+-- O 5050 está no 6008 e no 6009: a página mostra um cartão só com os dois grupos.
+-- (um bloco só: o editor do Supabase não mantém tabela temporária entre comandos)
+do $cfg$
+declare v_cfg jsonb := '{
   "administradora": "Mahindra Consórcio Nacional (Ápice)",
-  "grupo": "6008",
+  "whatsapp": "551433516049",
+  "destaque": "MH0903",
+  "estande_local": "",
+  "endereco": "ROD PR 218 KM 17\nSítio São Luiz, s/n · Pinheirinho\nCarlópolis - PR · CEP 86422-890",
+  "abertura": "08:00",
+  "horario": "",
+  "whatsapp_evento": "",
+  "vendedores": [],
   "prazo_meses": 120,
   "taxa_adm_pct": 15,
   "fundo_reserva_pct": 1,
   "seguro_pct": 0.084,
   "lance_embutido_pct": 20,
-  "vencimento": "2026-12-10",
-  "proxima_assembleia": "2026-12-16",
+  "lance_fixo_pct": 30,
+  "grupos": [
+    { "grupo": "6005", "vencimento": "2026-11-26", "proxima_assembleia": "2026-12-02" },
+    { "grupo": "6008", "vencimento": "2026-12-10", "proxima_assembleia": "2026-12-16" },
+    { "grupo": "6009", "vencimento": "2026-12-10", "proxima_assembleia": "2026-12-17" }
+  ],
   "destaques": [
     "Sem juros: só taxa de administração de 15%, dividida no prazo todo",
     "Use até 20% da própria carta como lance (lance embutido)",
-    "Lance fixo de 30% e 40%, lance livre e sorteio todo mês",
-    "Super Assembleia em maio/2027 com até 41 cartas contempladas"
+    "Todo mês: 1 por sorteio, 1 por lance fixo de 30% e 1 por lance livre",
+    "Nas Super Assembleias entra também o lance fixo de 40%"
+  ],
+  "super_assembleia": { "grupo": "6008", "quando": "maio/2027", "cartas": 41, "por_mes": 3, "total_ate": 56 },
+  "desconto_parcela": { "numero": 3, "pct": 50 },
+  "condicoes": [
+    "Sem entrada: você já começa pagando só a 1ª parcela",
+    "1ª parcela no Pix, aqui mesmo no estande",
+    "Da 2ª em diante, no boleto"
   ],
   "modelos": [
-    { "nome": "Mahindra 2025 25cv com carregador frontal L15", "codigo": "MH0903", "credito": 146685 },
-    { "nome": "Mahindra 5050 49cv", "codigo": "MH0937", "credito": 181286 }
+    { "nome": "Mahindra 2025 25cv com carregador frontal L15", "codigo": "MH0903", "credito": 146685, "grupo": "6008", "foto": "/consorcio/2025.webp" },
+    { "nome": "Mahindra 5050 49cv", "codigo": "MH0937", "credito": 181286, "grupo": "6008", "foto": "/consorcio/5050.webp" },
+    { "nome": "Mahindra 5050 49cv", "codigo": "MH0937", "credito": 181286, "grupo": "6009", "foto": "/consorcio/5050.webp" },
+    { "nome": "Mahindra 6060 57cv MDA", "codigo": "MH0938", "credito": 231000, "grupo": "6009", "foto": "/consorcio/6060.webp" },
+    { "nome": "Mahindra 6075 80cv plataforma e redutor", "codigo": "MH0936", "credito": 278497, "grupo": "6009", "foto": "/consorcio/6075.webp" },
+    { "nome": "Mahindra 86-110P 110cv cabine", "codigo": "MH0902", "credito": 468000, "grupo": "6005", "foto": "/consorcio/86-110p.webp" }
   ]
-}'::jsonb)
-on conflict (slug) do nothing;
+}'::jsonb;
+begin
+  insert into consorcio_eventos (slug, nome, config) values ('supersafra-2026', 'Supersafra 2026', v_cfg)
+  on conflict (slug) do nothing;
+  -- se o evento já existia no formato antigo (um grupo só, sem "grupos"), troca pela tabela nova.
+  -- Config já editada no portal no formato novo não é tocada.
+  update consorcio_eventos set config = v_cfg, atualizado_em = now()
+   where slug = 'supersafra-2026' and not (config ? 'grupos');
+end
+$cfg$;
 
 -- liga à campanha SUPERSAFRA 2026 do Marketing (criada em 24/11/2026) e copia datas e cidade dela.
 -- Os leads do QR code entram nessa campanha. Só preenche o que ainda está vazio.
@@ -179,7 +264,7 @@ notify pgrst, 'reload schema';
 
 -- Desfazer (se precisar):
 -- drop table if exists consorcio_sorteios, consorcio_inscricoes, consorcio_eventos cascade;
--- drop function if exists consorcio_inscrever(uuid, text, text, text, text, numeric, boolean, boolean, text);
+-- drop function if exists consorcio_inscrever(uuid, text, text, text, text, numeric, boolean, boolean, text, text, jsonb, jsonb);
 -- drop function if exists consorcio_sortear(uuid, text);
 -- drop function if exists consorcio_inscricao_para_lead();
 -- delete from mkt_leads where texto like 'Consórcio no evento %';
