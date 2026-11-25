@@ -22,8 +22,13 @@ export const PORTAL = (process.env.PORTAL_URL || 'https://portal.novatratores.co
 /** Tem que ser IGUAL ao cadastrado no app da Meta (URL de redirecionamento). */
 export const RETORNO = `${PORTAL}/api/marketing/redes/meta/retorno`
 
-export function metaPronta(): boolean {
-  return !!(process.env.META_APP_ID && process.env.META_APP_SECRET && process.env.META_CONFIG_ID)
+/** Redes que ligam pela Meta. Cada uma tem a sua configuração do Login para Empresas no app. */
+export type RedeMeta = 'instagram' | 'facebook'
+/** Instagram: META_CONFIG_ID (1354618726691953). Facebook/Página: META_CONFIG_ID_FACEBOOK (2686053825156996, 25/11/2026). */
+const configDa = (rede: RedeMeta) => (rede === 'facebook' ? process.env.META_CONFIG_ID_FACEBOOK : process.env.META_CONFIG_ID) || ''
+
+export function metaPronta(rede: RedeMeta = 'instagram'): boolean {
+  return !!(process.env.META_APP_ID && process.env.META_APP_SECRET && configDa(rede))
 }
 
 // ----------------------------------------------------------------- state assinado
@@ -31,32 +36,32 @@ export function metaPronta(): boolean {
 // chave secreta do app: ninguém forja um retorno nem reaproveita um velho (vale 15 min).
 const assinar = (txt: string) => createHmac('sha256', process.env.META_APP_SECRET || '').update(txt).digest('base64url')
 
-export function criarState(quem: string): string {
-  const corpo = Buffer.from(JSON.stringify({ q: quem.slice(0, 80), t: Date.now(), n: randomBytes(6).toString('hex') })).toString('base64url')
+export function criarState(quem: string, rede: RedeMeta = 'instagram'): string {
+  const corpo = Buffer.from(JSON.stringify({ q: quem.slice(0, 80), r: rede, t: Date.now(), n: randomBytes(6).toString('hex') })).toString('base64url')
   return `${corpo}.${assinar(corpo)}`
 }
 
-export function lerState(state: string | null): { quem: string } | null {
+export function lerState(state: string | null): { quem: string; rede: RedeMeta } | null {
   if (!state || !process.env.META_APP_SECRET) return null
   const [corpo, ass] = state.split('.')
   if (!corpo || !ass) return null
   const a = Buffer.from(ass), b = Buffer.from(assinar(corpo))
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null
   try {
-    const j = JSON.parse(Buffer.from(corpo, 'base64url').toString()) as { q?: string; t?: number }
+    const j = JSON.parse(Buffer.from(corpo, 'base64url').toString()) as { q?: string; r?: string; t?: number }
     if (!j.t || Date.now() - j.t > 15 * 60_000) return null
-    return { quem: String(j.q || 'Portal') }
+    return { quem: String(j.q || 'Portal'), rede: j.r === 'facebook' ? 'facebook' : 'instagram' }
   } catch { return null }
 }
 
-export function urlDoLogin(quem: string): string {
+export function urlDoLogin(quem: string, rede: RedeMeta = 'instagram'): string {
   const p = new URLSearchParams({
     client_id: process.env.META_APP_ID || '',
     redirect_uri: RETORNO,
-    config_id: process.env.META_CONFIG_ID || '',
+    config_id: configDa(rede),
     response_type: 'code',
     override_default_response_type: 'true',
-    state: criarState(quem),
+    state: criarState(quem, rede),
   })
   return `https://www.facebook.com/${VERSAO}/dialog/oauth?${p}`
 }
@@ -166,6 +171,36 @@ export async function acharInstagram(token: string): Promise<ContaIG> {
   }
   console.warn('[meta] achar Instagram:', { ids: [...ids], paginas: [...paginas], falhas })
   throw new Error(`A Meta não mostrou o Instagram nessa autorização (${ids.size} id(s) achado(s)). ${falhas.slice(0, 3).join(' | ')}`.slice(0, 280))
+}
+
+/**
+ * Qual Página do Facebook o token alcança (configuração "Portal - Página", 25/11/2026). Como no Instagram, o
+ * login unificado entrega ao USUÁRIO DO SISTEMA: o caminho certo deve ser me/assigned_pages (precisa de
+ * pages_read_engagement; sem ela a Meta recusa — foi o erro visto no teste do Instagram). Reservas: me/accounts e debug_token.
+ */
+export async function acharPagina(token: string): Promise<{ id: string; nome: string }> {
+  const falhas: string[] = []
+  for (const caminho of ['me/assigned_pages', 'me/accounts']) {
+    try {
+      const j = await graph(token, caminho, { fields: 'id,name' })
+      const p = ((j.data as { id: string; name?: string }[]) || [])[0]
+      if (p?.id) return { id: p.id, nome: p.name || 'Página' }
+    } catch (e) { falhas.push(`${caminho}: ${(e as Error).message}`) }
+  }
+  try {
+    const url = new URL(`https://graph.facebook.com/${VERSAO}/debug_token`)
+    url.searchParams.set('input_token', token)
+    url.searchParams.set('access_token', `${process.env.META_APP_ID}|${process.env.META_APP_SECRET}`)
+    const j = (await (await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(20_000) })).json()) as
+      { data?: { granular_scopes?: { scope: string; target_ids?: string[] }[] } }
+    const id = (j.data?.granular_scopes || []).find((g) => g.scope.startsWith('pages_') && g.target_ids?.length)?.target_ids?.[0]
+    if (id) {
+      const p = await graph(token, id, { fields: 'id,name' }).catch(() => ({ id, name: 'Página' }))
+      return { id: String(p.id || id), nome: String(p.name || 'Página') }
+    }
+  } catch (e) { falhas.push(`debug_token: ${(e as Error).message}`) }
+  console.warn('[meta] achar Página:', falhas)
+  throw new Error(`A Meta não mostrou a Página nessa autorização. ${falhas.slice(0, 2).join(' | ')}`.slice(0, 280))
 }
 
 // ----------------------------------------------------------------- números

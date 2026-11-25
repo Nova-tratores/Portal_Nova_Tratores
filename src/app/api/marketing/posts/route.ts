@@ -125,6 +125,7 @@ export async function GET(req: Request) {
     ok: true, posts: noPeriodo.data || [], ideias: ideias.data || [], contas: contas.data || [], podeEditar: podeEditar(g.user),
     whatsapp: await whatsDaEmpresa(), siteUrl: SITE_URL, podeAprovar: podeAprovar(g.user),
     metaConfigurada: !!(process.env.META_APP_ID && process.env.META_APP_SECRET && process.env.META_CONFIG_ID),
+    metaFacebook: !!(process.env.META_APP_ID && process.env.META_APP_SECRET && process.env.META_CONFIG_ID_FACEBOOK),
   })
 }
 
