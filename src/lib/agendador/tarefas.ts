@@ -188,6 +188,13 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: partes.join(' · ') };
   },
 
+  // Central de Trabalho: resumo de fim de dia no sino (melhorias 6.1; sql/central-resumo-dia.sql).
+  'central-resumo-dia': async () => {
+    if (desligada('CENTRAL_RESUMO_DIA')) return { pular: 'desligado (CENTRAL_RESUMO_DIA=off)' };
+    const { resumoDoDia } = await import('@/lib/trabalho/painel-server');
+    return resumoDoDia();
+  },
+
   // Reuniões: gravações ao vivo ficam 60 dias no bucket `reunioes-gravacoes` (José, 17/11/2026).
   'reunioes-gravacoes-limpar': async () => {
     if (desligada('REUNIOES_GRAVACOES_LIMPAR')) return { pular: 'desligado (REUNIOES_GRAVACOES_LIMPAR=off)' };

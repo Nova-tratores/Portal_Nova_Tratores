@@ -24,6 +24,7 @@ import StatusBadge from '@/components/tickets/StatusBadge'
 import FormTicket from '@/components/tickets/FormTicket'
 import KanbanTickets from '@/components/tickets/KanbanTickets'
 import TicketModal from '@/components/tickets/TicketModal'
+import PainelFluxo from '@/components/trabalho/PainelFluxo'
 import SeloAtrasado from '@/components/tickets/SeloAtrasado'
 import { casaBusca } from '@/lib/texto'
 
@@ -275,6 +276,8 @@ function TicketsPageInner() {
 
   return (
     <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: kanban ? undefined : 1100, margin: '0 auto' }}>
+      {/* Painel de fluxo da gerência (melhorias 6.2) */}
+      {visao === 'gerencial' && isAdmin && <PainelFluxo />}
       {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <div style={{ display: visao === 'gerencial' ? 'none' : 'flex', gap: 6, flexWrap: 'wrap' }}>
