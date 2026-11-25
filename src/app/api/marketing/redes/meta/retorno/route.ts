@@ -21,6 +21,11 @@ export async function GET(req: Request) {
 
   try {
     const { token, expiraEm } = await trocarCodigo(code)
+    // Guarda o acesso ANTES de procurar o Instagram: se a busca falhar, dá para investigar sem ligar de novo.
+    // Sem conta_id, a tela não conta como ligada e o robô pula.
+    await sb.from('site_redes_contas').upsert({
+      rede: 'instagram', nome: null, conta_id: null, token, expira_em: expiraEm, ligado_por: st.quem, atualizado_em: new Date().toISOString(),
+    }, { onConflict: 'rede' })
     const ig = await acharInstagram(token)
     const { error } = await sb.from('site_redes_contas').upsert({
       rede: 'instagram', nome: ig.username ? `@${ig.username}` : 'Instagram', conta_id: ig.id, token,

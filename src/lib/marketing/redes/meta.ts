@@ -111,24 +111,55 @@ export async function acharInstagram(token: string): Promise<ContaIG> {
     return { id: String(j.user_id || j.id), username: String(j.username || ''), seguidores: typeof j.followers_count === 'number' ? j.followers_count : null }
   }
   const ids = new Set<string>()
-  try {
+  const paginas = new Set<string>()
+  const falhas: string[] = []
+  const tentar = async (nome: string, fn: () => Promise<void>) => { try { await fn() } catch (e) { falhas.push(`${nome}: ${(e as Error).message}`) } }
+
+  // 1. debug_token: ids autorizados por permissão (Instagram direto, ou Páginas que levam ao Instagram)
+  await tentar('debug_token', async () => {
     const app = `${process.env.META_APP_ID}|${process.env.META_APP_SECRET}`
     const url = new URL(`https://graph.facebook.com/${VERSAO}/debug_token`)
     url.searchParams.set('input_token', token)
     url.searchParams.set('access_token', app)
     const j = (await (await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(20_000) })).json()) as
-      { data?: { granular_scopes?: { scope: string; target_ids?: string[] }[] } }
-    for (const g of j.data?.granular_scopes || []) if (g.scope.startsWith('instagram_')) for (const t of g.target_ids || []) ids.add(t)
-  } catch { /* segue para as páginas */ }
-  try {
-    const j = await graph(token, 'me/accounts', { fields: 'instagram_business_account{id}' })
-    for (const p of (j.data as { instagram_business_account?: { id: string } }[]) || []) if (p.instagram_business_account?.id) ids.add(p.instagram_business_account.id)
-  } catch { /* sem páginas */ }
+      { data?: { granular_scopes?: { scope: string; target_ids?: string[] }[] }; error?: { message?: string } }
+    if (j.error) throw new Error(j.error.message)
+    for (const g of j.data?.granular_scopes || []) {
+      if (g.scope.startsWith('instagram_')) for (const t of g.target_ids || []) ids.add(t)
+      if (g.scope.startsWith('pages_')) for (const t of g.target_ids || []) paginas.add(t)
+    }
+  })
+  // 2. Páginas do Facebook com Instagram ligado
+  await tentar('me/accounts', async () => {
+    const j = await graph(token, 'me/accounts', { fields: 'id,instagram_business_account{id}' })
+    for (const p of (j.data as { id: string; instagram_business_account?: { id: string } }[]) || []) {
+      if (p.instagram_business_account?.id) ids.add(p.instagram_business_account.id)
+      paginas.add(p.id)
+    }
+  })
+  for (const pg of paginas) await tentar(`página ${pg}`, async () => {
+    const j = await graph(token, pg, { fields: 'instagram_business_account{id}' })
+    const ig = (j.instagram_business_account as { id?: string } | undefined)?.id
+    if (ig) ids.add(ig)
+  })
+  // 3. Login unificado: o Instagram mora no portfólio empresarial
+  if (!ids.size) await tentar('portfólios', async () => {
+    const j = await graph(token, 'me/businesses', { fields: 'id' })
+    for (const b of (j.data as { id: string }[]) || []) {
+      for (const borda of ['instagram_business_accounts', 'owned_instagram_accounts', 'client_instagram_accounts']) {
+        await tentar(`${b.id}/${borda}`, async () => {
+          const r = await graph(token, `${b.id}/${borda}`, { fields: 'id,username' })
+          for (const a of (r.data as { id: string }[]) || []) ids.add(a.id)
+        })
+      }
+    }
+  })
   for (const id of ids) {
     const c = await perfil(token, id)
     if (c?.username) return c
   }
-  throw new Error('A Meta não mostrou nenhum Instagram profissional nessa autorização. Na hora de ligar, marque o Instagram da Nova Tratores.')
+  console.warn('[meta] achar Instagram:', { ids: [...ids], paginas: [...paginas], falhas })
+  throw new Error(`A Meta não mostrou o Instagram nessa autorização (${ids.size} id(s) achado(s)). ${falhas.slice(0, 3).join(' | ')}`.slice(0, 280))
 }
 
 // ----------------------------------------------------------------- números

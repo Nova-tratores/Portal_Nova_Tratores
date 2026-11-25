@@ -11,7 +11,7 @@ import { IconeRede } from '@/components/marketing/redes/Artes';
 import { REDE, type RedeId } from '@/lib/marketing/redes/redes';
 import { T1, T2, T3, bt, cartaoNP, grade, ic } from '@/components/marketing/redes/np';
 
-type Conta = { rede: RedeId; nome: string | null; ligado_por: string | null; atualizado_em: string; expira_em: string | null };
+type Conta = { rede: RedeId; nome: string | null; conta_id: string | null; ligado_por: string | null; atualizado_em: string; expira_em: string | null };
 
 const PASSOS: Record<Exclude<RedeId, 'site'>, { etapa: string; hoje: string; falta: string[] }> = {
   // 25/11/2026: app da Meta criado ("Portal Nova Tratores", login unificado, compatível com o Login do Instagram).
@@ -80,7 +80,8 @@ export default function ContasRedes() {
       {ok && <Aviso tom="info">{ok}</Aviso>}
       <div style={grade(280)}>
         {(['instagram', 'facebook', 'tiktok', 'youtube'] as const).map((id) => {
-          const c = (contas || []).find((x) => x.rede === id);
+          // sem conta_id = o acesso chegou mas o Instagram não foi achado: ainda não está ligada
+          const c = (contas || []).find((x) => x.rede === id && x.conta_id);
           const p = PASSOS[id];
           const r = REDE[id];
           const podeLigar = id === 'instagram' && meta && !indo;
