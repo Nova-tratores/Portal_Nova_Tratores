@@ -10,6 +10,7 @@ import SubAbas from '@/components/marketing/redes/SubAbas';
 import { ABAS_ACESSOS } from '@/components/marketing/redes/abasAcessos';
 import { REDE, STATUS_POST, ehRede, type RedeId, type StatusPost } from '@/lib/marketing/redes/redes';
 import { T1, T2, T3, bt, cartaoNP, grade, ic } from '@/components/marketing/redes/np';
+import InstagramDetalhe from '@/components/marketing/redes/InstagramDetalhe';
 
 type Metrica = { dia: string; seguidores: number | null; alcance: number | null; visualizacoes: number | null; interacoes: number | null; cliques: number | null };
 type PostR = { id: string; titulo: string; quando: string | null; status: StatusPost; resultado: Record<string, { ok?: boolean; link?: string | null }> };
@@ -85,6 +86,8 @@ export default function AcessosRede({ params }: { params: Promise<{ rede: string
           </>
         )}
       </div>
+
+      {rede === 'instagram' && resumo.tem && <InstagramDetalhe />}
 
       <section style={{ ...cartaoNP, display: 'grid', gap: 10 }}>
         <span style={{ fontSize: 16 }}>Posts do calendário no {r.nome}</span>
