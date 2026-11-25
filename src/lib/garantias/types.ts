@@ -55,7 +55,7 @@ export type GuardaStatus = 'nao_aplicavel' | 'pendente' | 'descartada' | 'dispen
 
 export type PendenciaTipo = 'bo' | 'info_fabrica';
 export type PendenciaStatus = 'aberta' | 'respondida';
-export type PecaOrigem = 'ppv' | 'pecasinfo_manual';
+export type PecaOrigem = 'ppv' | 'pecasinfo_manual' | 'manual';
 export type PecaResultado = 'pendente' | 'aprovada' | 'rejeitada';
 export type AnexoCategoria =
   | 'tecnico'
@@ -209,7 +209,9 @@ export interface Garantia {
   id: string;
   numero: string;
   numero_externo: string | null;
-  id_ordem: string;
+  /** null = garantia só de peças (sem OS) */
+  id_ordem: string | null;
+  so_pecas?: boolean;
   chassis: string | null;
   modelo: string | null;
   cliente: string | null;

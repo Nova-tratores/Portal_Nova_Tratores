@@ -3,6 +3,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PECAS } from '@/lib/garantias/constants';
 import { registrarEvento, notificarTecnico } from '@/lib/garantias/server';
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
+import { refOS } from '@/lib/garantias/so-pecas';
 
 // POST /api/garantias/[id]/reabrir-recusa
 // Reverte uma recusa interna (garantista) e volta a garantia pra 'em_analise'.
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   });
   await notificarTecnico(g.tecnico_nome, {
     titulo: `Garantia ${g.numero} reaberta`,
-    descricao: `A recusa da OS ${g.id_ordem} foi reaberta — o garantista vai reanalisar.`,
+    descricao: `A recusa da ${refOS(g)} foi reaberta — o garantista vai reanalisar.`,
     link: `/os/${g.id_ordem}`,
   });
 
