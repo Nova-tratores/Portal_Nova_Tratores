@@ -4,6 +4,7 @@ import { TBL_GARANTIAS, TBL_GAR_ANEXOS, GUARDA_DIAS_PADRAO } from '@/lib/garanti
 import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 import { diasAte } from '@/lib/garantias/format';
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
+import { refOS } from '@/lib/garantias/so-pecas';
 
 // PATCH /api/garantias/[id]/guarda — guarda das peças antes do descarte
 // (padrão da empresa, todas as montadoras). Pendência anexa à garantia
@@ -166,7 +167,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (acao === 'descartar') {
     await notificarGarantistas({
       titulo: `Peças da garantia ${g.numero} descartadas`,
-      descricao: `OS ${g.id_ordem}${g.localizacao ? ` · estavam em ${g.localizacao}` : ''} — guarda encerrada.`,
+      descricao: `${refOS(g)}${g.localizacao ? ` · estavam em ${g.localizacao}` : ''} — guarda encerrada.`,
       link: `/garantias?id=${id}`,
     });
   }

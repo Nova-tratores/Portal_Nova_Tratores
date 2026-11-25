@@ -63,7 +63,7 @@ export default function GarantiaMiniCard({ garantia: g, onClick, cor, extra }: P
       </div>
 
       <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', display: 'flex', flexWrap: 'wrap', gap: '2px 8px' }}>
-        <span>OS {g.id_ordem}</span>
+        <span>{g.id_ordem ? `OS ${g.id_ordem}` : 'Só peças (sem OS)'}</span>
         {g.chassis && <span>· {g.chassis}</span>}
       </div>
 
