@@ -2,7 +2,13 @@
 // Kit visual do módulo Site (estilo POS NewPortal: cartão 16px, borda fina, sem faixa lateral, pesos 400/500).
 import { useEffect, useState, type ReactNode } from 'react';
 
-export const tela: React.CSSProperties = { padding: 'clamp(12px, 2vw, 28px)', display: 'grid', gap: 16 };
+// 25/11/2026: --surface e --border só existiam dentro do Pós-Vendas; aqui ficavam vazios e cartões/janelas saíam
+// transparentes (a janela do "Todas as redes" aparecia por cima da página sem fundo). A tela agora define os dois.
+export const tela = {
+  padding: 'clamp(12px, 2vw, 28px)', display: 'grid', gap: 16,
+  '--surface': 'var(--portal-bg-card, #ffffff)',
+  '--border': 'color-mix(in srgb, var(--portal-text, #0f172a) 12%, transparent)',
+} as React.CSSProperties;
 
 export const cartao: React.CSSProperties = {
   background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 'clamp(14px, 1.6vw, 20px)', minWidth: 0,

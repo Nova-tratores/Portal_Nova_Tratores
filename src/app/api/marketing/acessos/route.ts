@@ -74,6 +74,14 @@ export async function GET(req: Request) {
     desde = new Date(`${mes}-01T00:00:00-03:00`).toISOString()
     ate = new Date(`${m === 12 ? a + 1 : a}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01T00:00:00-03:00`).toISOString()
   }
+  // ?de=AAAA-MM-DD&ate=AAAA-MM-DD (25/11/2026, José: "colocar de dia tal a dia tal"): os dois dias entram inteiros.
+  // O período anterior (comparação) tem o mesmo tamanho, logo antes. Até 366 dias.
+  const deP = params.get('de') || '', ateP = params.get('ate') || ''
+  let tamFaixa = 0
+  if (!mes && /^\d{4}-\d{2}-\d{2}$/.test(deP) && /^\d{4}-\d{2}-\d{2}$/.test(ateP) && deP <= ateP) {
+    const d0 = Date.parse(`${deP}T00:00:00-03:00`), d1 = Date.parse(`${ateP}T00:00:00-03:00`) + 86_400_000
+    if (d1 - d0 <= 366 * 86_400_000) { desde = new Date(d0).toISOString(); ate = new Date(d1).toISOString(); tamFaixa = d1 - d0 }
+  }
   // Período anterior do mesmo tamanho (7 dias antes dos 7 dias; o mês anterior inteiro)
   let antesDe: string
   const antesAte = desde
@@ -82,7 +90,7 @@ export async function GET(req: Request) {
     const ma = m === 1 ? `${a - 1}-12` : `${a}-${String(m - 1).padStart(2, '0')}`
     antesDe = new Date(`${ma}-01T00:00:00-03:00`).toISOString()
   } else {
-    antesDe = new Date(Date.parse(desde) - dias * 86_400_000).toISOString()
+    antesDe = new Date(Date.parse(desde) - (tamFaixa || dias * 86_400_000)).toISOString()
   }
 
   let eventos: EventoSite[], eventosAntes: EventoSite[], pedidos: PedidoLinha[], pedidosAntes: number

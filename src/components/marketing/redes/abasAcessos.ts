@@ -5,6 +5,6 @@ import { REDES } from '@/lib/marketing/redes/redes';
 export const ABAS_ACESSOS: SubAba[] = [
   { label: 'Todas as redes', href: '/marketing/acessos/todas', icone: 'fa-solid fa-layer-group' },
   ...REDES.map((r) => (r.id === 'site'
-    ? { label: 'Site', href: '/marketing/acessos', icone: r.icone }
-    : { label: r.nome, href: `/marketing/acessos/${r.id}`, icone: r.icone })),
+    ? { label: 'Site', href: '/marketing/acessos', icone: r.icone, rede: r.id }
+    : { label: r.nome, href: `/marketing/acessos/${r.id}`, icone: r.icone, rede: r.id })),
 ];

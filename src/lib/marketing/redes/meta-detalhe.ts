@@ -120,3 +120,136 @@ export async function detalheInstagram(dias: 7 | 30, forcar = false): Promise<De
   cache.set(dias, { ate: Date.now() + 15 * 60_000, v })
   return v
 }
+
+// =============================================================================
+// Facebook (Página) ao vivo, 25/11/2026. José: "quero os antigos posts também".
+// Testado com a Página real: published_posts traz TODOS os posts (desde 2022) sem pedir permissão nova;
+// reações e comentários direto no post pedem pages_read_user_content, então as reações vêm pelo
+// insights do post (post_reactions_by_type_total) e os comentários ficam de fora por enquanto.
+// =============================================================================
+export type PostFB = {
+  id: string; tipo: string; quando: string; link: string | null; miniatura: string | null; legenda: string
+  visualizacoes: number | null; alcance: number | null; reacoes: number | null; cliques: number | null
+  compartilhamentos: number; videoViews: number | null
+}
+export type DetalheFB = {
+  conta: string; seguidores: number | null; dias: number; atualizadoEm: string
+  visualizacoes: number | null; alcance: number | null; interacoes: number | null; visitas: number | null; videoViews: number | null
+  deSeguidores: Par[]; deAnuncio: Par[]
+  comecaram: number | null; deixaram: number | null
+  viewsPorDia: { dia: string; valor: number }[]; novosPorDia: { dia: string; valor: number }[]
+  posts: PostFB[]; avisos: string[]
+}
+
+const TIPO_FB: Record<string, string> = { photo: 'Foto', video: 'Vídeo', album: 'Álbum', link: 'Link', share: 'Compartilhado', event: 'Evento' }
+const cacheFB = new Map<number, { ate: number; v: DetalheFB }>()
+
+export async function detalheFacebook(dias: 7 | 28, forcar = false): Promise<DetalheFB | null> {
+  const c = cacheFB.get(dias)
+  if (!forcar && c && c.ate > Date.now()) return c.v
+  const { data: conta } = await sb.from('site_redes_contas').select('conta_id, token, nome').eq('rede', 'facebook').maybeSingle()
+  if (!conta?.token || !conta.conta_id) return null
+  const id = conta.conta_id as string
+  const avisos: string[] = []
+
+  const g = async (caminho: string, q: Record<string, string>, tok: string) => {
+    const proxima = caminho.startsWith('http')   // "paging.next" da Meta já vem com o token dentro
+    const u = new URL(proxima ? caminho : `https://graph.facebook.com/${VERSAO}/${caminho}`)
+    for (const [k, v] of Object.entries(q)) u.searchParams.set(k, v)
+    if (!proxima) u.searchParams.set('access_token', tok)
+    const r = await fetch(u, { cache: 'no-store', signal: AbortSignal.timeout(20_000) })
+    const j = (await r.json().catch(() => ({}))) as Record<string, unknown> & { error?: { message?: string } }
+    if (!r.ok || j.error) throw new Error(j.error?.message || `HTTP ${r.status}`)
+    return j
+  }
+  // Os números da Página só saem com o token DA PÁGINA
+  const pg = await g(id, { fields: 'access_token,name,followers_count' }, conta.token as string)
+  const tok = String(pg.access_token || conta.token)
+
+  const agora = Math.floor(Date.now() / 1000)
+  const periodo = { period: 'day', since: String(agora - dias * 86400), until: String(agora) }
+  type Val = { value: number; end_time: string } & Record<string, unknown>
+  const serie = async (metric: string, extra: Record<string, string> = {}): Promise<Val[]> => {
+    try {
+      const j = await g(`${id}/insights`, { metric, ...periodo, ...extra }, tok)
+      return ((j.data as { values?: Val[] }[]) || []).flatMap((x) => x.values || [])
+    } catch (e) { avisos.push(`${metric}: ${(e as Error).message}`); return [] }
+  }
+  const soma = (l: Val[]) => (l.length ? l.reduce((s, x) => s + (Number(x.value) || 0), 0) : null)
+  const porDia = (l: Val[]) => l.map((x) => ({ dia: new Date(new Date(x.end_time).getTime() - 864e5).toISOString().slice(0, 10), valor: Number(x.value) || 0 }))
+  // Quebra (is_from_followers / is_from_ads): "1" e "0" viram nomes
+  const quebra = (l: Val[], campo: string, sim: string, nao: string): Par[] => {
+    const t: Record<string, number> = { [sim]: 0, [nao]: 0 }
+    for (const x of l) t[String(x[campo]) === '1' ? sim : nao] += Number(x.value) || 0
+    return Object.entries(t).map(([nome, valor]) => ({ nome, valor })).filter((x) => x.valor > 0).sort((a, b) => b.valor - a.valor)
+  }
+  // Alcance não se soma dia a dia (a mesma pessoa contaria várias vezes): a Meta dá o do período pronto
+  const alcanceDoPeriodo = async () => {
+    try {
+      const j = await g(`${id}/insights`, { metric: 'page_total_media_view_unique', period: dias === 7 ? 'week' : 'days_28' }, tok)
+      const v = ((j.data as { values?: Val[] }[])?.[0]?.values || []).at(-1)?.value
+      return typeof v === 'number' ? v : null
+    } catch (e) { avisos.push(`alcance: ${(e as Error).message}`); return null }
+  }
+
+  // Todos os posts (páginas de 100, até 500)
+  const todosPosts = async () => {
+    const lista: Record<string, unknown>[] = []
+    try {
+      let j = await g(`${id}/published_posts`, { fields: 'id,created_time,message,permalink_url,full_picture,status_type,shares,attachments{media_type}', limit: '100' }, tok)
+      lista.push(...((j.data as Record<string, unknown>[]) || []))
+      for (let i = 0; i < 4 && (j.paging as { next?: string } | undefined)?.next; i++) {
+        j = await g((j.paging as { next: string }).next, {}, tok)
+        lista.push(...((j.data as Record<string, unknown>[]) || []))
+      }
+    } catch (e) { avisos.push(`posts: ${(e as Error).message}`) }
+    return lista
+  }
+
+  const [views, alcance, engaj, visitas, videos, deSeg, deAds, novos, perdidos, lista] = await Promise.all([
+    serie('page_media_view'), alcanceDoPeriodo(), serie('page_post_engagements'), serie('page_views_total'), serie('page_video_views'),
+    serie('page_media_view', { breakdown: 'is_from_followers' }), serie('page_media_view', { breakdown: 'is_from_ads' }),
+    serie('page_daily_follows_unique'), serie('page_daily_unfollows_unique'), todosPosts(),
+  ])
+
+  // Números de cada post, de 20 em 20 para não afogar a Meta
+  const posts: PostFB[] = []
+  for (let i = 0; i < lista.length; i += 20) {
+    posts.push(...(await Promise.all(lista.slice(i, i + 20).map(async (m) => {
+      const tipo = ((m.attachments as { data?: { media_type?: string }[] } | undefined)?.data?.[0]?.media_type) || String(m.status_type || '')
+      const p: PostFB = {
+        id: String(m.id), tipo: TIPO_FB[tipo] || (tipo.includes('video') ? 'Vídeo' : 'Post'), quando: String(m.created_time),
+        link: (m.permalink_url as string) || null, miniatura: (m.full_picture as string) || null, legenda: String(m.message || ''),
+        visualizacoes: null, alcance: null, reacoes: null, cliques: null,
+        compartilhamentos: Number((m.shares as { count?: number } | undefined)?.count) || 0, videoViews: null,
+      }
+      try {
+        const j = await g(`${p.id}/insights`, { metric: 'post_media_view,post_total_media_view_unique,post_clicks,post_reactions_by_type_total,post_video_views', period: 'lifetime' }, tok)
+        // period=lifetime: sem ele a Meta manda também o valor do DIA (0) depois do total, e o 0 ficava
+        for (const x of (j.data as { name: string; values?: { value: unknown }[] }[]) || []) {
+          const v = x.values?.[0]?.value
+          if (x.name === 'post_media_view') p.visualizacoes = Number(v) || 0
+          if (x.name === 'post_total_media_view_unique') p.alcance = Number(v) || 0
+          if (x.name === 'post_clicks') p.cliques = Number(v) || 0
+          if (x.name === 'post_video_views' && p.tipo === 'Vídeo') p.videoViews = Number(v) || 0
+          if (x.name === 'post_reactions_by_type_total') p.reacoes = Object.values((v as Record<string, number>) || {}).reduce((s, n) => s + (Number(n) || 0), 0)
+        }
+      } catch { /* sem números: fica só o post */ }
+      return p
+    }))))
+  }
+
+  const v: DetalheFB = {
+    conta: String(pg.name || conta.nome || 'Página'),
+    seguidores: typeof pg.followers_count === 'number' ? pg.followers_count : null,
+    dias, atualizadoEm: new Date().toISOString(),
+    visualizacoes: soma(views), alcance, interacoes: soma(engaj), visitas: soma(visitas), videoViews: soma(videos),
+    deSeguidores: quebra(deSeg, 'is_from_followers', 'Seguidores', 'Não seguidores'),
+    deAnuncio: quebra(deAds, 'is_from_ads', 'Anúncio pago', 'Orgânico (sem pagar)'),
+    comecaram: soma(novos), deixaram: soma(perdidos),
+    viewsPorDia: porDia(views), novosPorDia: porDia(novos),
+    posts, avisos,
+  }
+  cacheFB.set(dias, { ate: Date.now() + 15 * 60_000, v })
+  return v
+}

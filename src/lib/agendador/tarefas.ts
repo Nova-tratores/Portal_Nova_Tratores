@@ -170,9 +170,12 @@ export const TAREFAS: Record<string, Tarefa> = {
   // dos últimos 3 dias, pela conta ligada em Conteúdo e publicar → Contas (lib/marketing/redes/meta.ts).
   'marketing-redes-numeros': async () => {
     if (desligada('MARKETING_REDES_NUMEROS')) return { pular: 'desligado (MARKETING_REDES_NUMEROS=off)' };
-    const { coletarInstagram } = await import('@/lib/marketing/redes/meta');
-    const r = await coletarInstagram(3);
-    return r.pulado ? { pular: r.pulado } : { resumo: r.resumo };
+    const { coletarInstagram, coletarFacebook } = await import('@/lib/marketing/redes/meta');
+    // Uma rede com erro não impede a outra (25/11/2026: Facebook entrou)
+    const rs: { resumo: string; pulado?: string }[] = await Promise.all([coletarInstagram(3), coletarFacebook(3)]
+      .map((p) => p.catch((e: Error) => ({ resumo: `erro: ${e.message}` }))));
+    const feitos = rs.filter((r) => !r.pulado).map((r) => r.resumo);
+    return feitos.length ? { resumo: feitos.join(' | ') } : { pular: rs.map((r) => r.pulado).join(' · ') };
   },
 
   // Marketing (Fase 4.3, 23/11/2026): conversa que começou com o código de um post conta como contato dele.

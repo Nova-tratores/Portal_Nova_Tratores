@@ -4,7 +4,7 @@
 // (instagram ou facebook). Ver lib/marketing/redes/meta.ts.
 import { NextResponse } from 'next/server'
 import { sb } from '@/lib/marketing/redes/server'
-import { PORTAL, acharInstagram, acharPagina, coletarInstagram, lerState, trocarCodigo } from '@/lib/marketing/redes/meta'
+import { PORTAL, acharInstagram, acharPagina, coletarFacebook, coletarInstagram, lerState, trocarCodigo } from '@/lib/marketing/redes/meta'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -34,6 +34,7 @@ export async function GET(req: Request) {
       nome = pg.nome
       const { error } = await sb.from('site_redes_contas').upsert({ ...base, nome, conta_id: pg.id }, { onConflict: 'rede' })
       if (error) throw new Error(error.message)
+      coletarFacebook(90).catch((e) => console.warn('[meta] primeira coleta Facebook:', (e as Error).message))
     } else {
       const ig = await acharInstagram(token)
       nome = ig.username ? `@${ig.username}` : 'Instagram'

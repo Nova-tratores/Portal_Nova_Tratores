@@ -5,10 +5,15 @@ import type { CSSProperties, ReactNode } from 'react';
 
 // ---- Estilo NewPortal (docs/estilo-pos-newportal.md): sem negrito, sem caixa alta, texto escuro, cartão 16, ícone em quadradinho
 export const T1 = 'var(--portal-text, #0f172a)';
-export const T2 = 'var(--portal-text-secondary, #475569)';
-export const T3 = 'var(--portal-text-muted, #64748b)';
+// 25/11/2026 (José: "tá difícil de ler"): o cinza do portal (#737373 / #a3a3a3) some no fundo claro.
+// T2 e T3 agora saem do texto principal com transparência: escuros no claro, claros no escuro.
+export const T2 = 'color-mix(in srgb, var(--portal-text, #0f172a) 88%, transparent)';
+export const T3 = 'color-mix(in srgb, var(--portal-text, #0f172a) 74%, transparent)';
+/** Fundo e borda de cartão: --surface/--border só existem dentro do Pós-Vendas; fora dele o cartão ficava transparente. */
+export const FUNDO = 'var(--surface, var(--portal-bg-card, #ffffff))';
+export const BORDA = 'var(--border, color-mix(in srgb, var(--portal-text, #0f172a) 12%, transparent))';
 export const AZUL = '#2563eb';
-export const cartaoNP: CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '16px 18px 14px', minWidth: 0 };
+export const cartaoNP: CSSProperties = { background: FUNDO, border: `1px solid ${BORDA}`, borderRadius: 16, padding: '16px 18px 14px', minWidth: 0 };
 export const campoNP: CSSProperties = {
   width: '100%', minHeight: 40, padding: '8px 12px', borderRadius: 10, boxSizing: 'border-box', font: 'inherit', fontSize: 14,
   border: '1px solid color-mix(in srgb, var(--portal-text, #0f172a) 18%, transparent)', background: 'var(--surface)', color: T1,
@@ -17,7 +22,7 @@ export const bt = (cor: string, cheio = false): CSSProperties => ({
   display: 'inline-flex', alignItems: 'center', gap: 7, minHeight: 40, padding: '8px 14px', borderRadius: 11, font: 'inherit', fontSize: 14, fontWeight: 500,
   cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap',
   border: `1px solid ${cheio ? cor : `color-mix(in srgb, ${cor} 30%, var(--border))`}`,
-  background: cheio ? cor : 'var(--surface)', color: cheio ? '#fefefe' : cor,
+  background: cheio ? cor : FUNDO, color: cheio ? '#fefefe' : cor, transition: 'transform .15s ease, box-shadow .15s ease',
 });
 export const ic = (nome: string) => <i className={`fa-solid ${nome}`} style={{ fontWeight: 900 }} />;
 
@@ -72,5 +77,26 @@ export function Voltar({ para, atual, onClick, direita }: { para: string; atual:
       <span style={{ fontSize: 16, color: T1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '0 1 auto' }}>{atual}</span>
       {direita && <span style={{ marginLeft: 'auto' }}>{direita}</span>}
     </div>
+  );
+}
+
+/**
+ * Movimento das telas de Redes (25/11/2026, José: "deixa algo mais animado, dinâmico"). Vai uma vez na página
+ * (pelo SubAbas). Classes: np-sobe (cartão sobe no mouse), np-entra (aparece subindo), np-barra (barra cresce
+ * da esquerda), np-coluna (coluna cresce de baixo). Quem pediu menos movimento no sistema não vê animação.
+ */
+export function EstiloNP() {
+  return (
+    <style>{`
+      .np-sobe { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+      .np-sobe:hover { transform: translateY(-3px); box-shadow: 0 12px 26px -14px rgba(15,23,42,.45); }
+      @keyframes npEntra { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+      .np-entra { animation: npEntra .45s cubic-bezier(.2,.8,.2,1) both; }
+      @keyframes npCresce { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+      .np-barra { transform-origin: left center; animation: npCresce .8s cubic-bezier(.2,.8,.2,1) both; }
+      @keyframes npColuna { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+      .np-coluna { transform-origin: center bottom; animation: npColuna .6s cubic-bezier(.2,.8,.2,1) both; }
+      @media (prefers-reduced-motion: reduce) { .np-sobe, .np-entra, .np-barra, .np-coluna { animation: none !important; transition: none !important; } }
+    `}</style>
   );
 }

@@ -3,17 +3,23 @@
 // seguidores × não seguidores). Lê ao vivo da Meta por /api/marketing/redes/instagram.
 // Gráficos: uma série cada → uma cor só (rosa do Instagram, magnitude), número em texto neutro, sem legenda;
 // o título do cartão é a conclusão; passar o mouse mostra o número de cada barra.
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { fetchAuth } from '@/lib/auth/client';
 import type { DetalheIG, PostIG } from '@/lib/marketing/redes/meta-detalhe';
 import { T1, T2, T3, bt, cartaoNP, grade, ic } from './np';
+import { CartaoPost, JanelaPost, type PostVis } from './PostsRede';
+
+/** Post do Instagram → cartão comum (os 3 números que mais importam; o resto abre na janela). */
+const paraVis = (p: PostIG): PostVis => ({ id: p.id, tipo: p.tipo, quando: p.quando, link: p.link, miniatura: p.miniatura, legenda: p.legenda,
+  numeros: [{ rotulo: 'Visualizações', valor: p.visualizacoes }, { rotulo: 'Alcance', valor: p.alcance }, { rotulo: 'Curtidas', valor: p.curtidas }] });
 
 const COR = '#c13584';
 const n = (x: number | null | undefined) => (x == null ? '—' : x.toLocaleString('pt-BR'));
 const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : '0%');
 type Par = { nome: string; valor: number };
 
-function Barras({ linhas, total, vazio = 'Sem dados.' }: { linhas: Par[]; total?: number; vazio?: string }) {
+// Barras e Cartao também servem ao FacebookDetalhe (cada rede passa a sua cor)
+export function Barras({ linhas, total, vazio = 'Sem dados.', cor = COR }: { linhas: Par[]; total?: number; vazio?: string; cor?: string }) {
   const soma = total ?? linhas.reduce((s, l) => s + l.valor, 0);
   const max = Math.max(1, ...linhas.map((l) => l.valor));
   if (!linhas.length) return <span style={{ fontSize: 13, color: T3 }}>{vazio}</span>;
@@ -26,7 +32,7 @@ function Barras({ linhas, total, vazio = 'Sem dados.' }: { linhas: Par[]; total?
             <span style={{ flex: 'none', fontVariantNumeric: 'tabular-nums' }}>{n(l.valor)} <span style={{ color: T3 }}>· {pct(l.valor, soma)}</span></span>
           </div>
           <div style={{ height: 8, borderRadius: 4, background: 'var(--portal-bg)' }}>
-            <div style={{ height: '100%', width: `${(l.valor / max) * 100}%`, borderRadius: 4, background: COR }} />
+            <div style={{ height: '100%', width: `${(l.valor / max) * 100}%`, borderRadius: 4, background: `linear-gradient(90deg, color-mix(in srgb, ${cor} 70%, #fff), ${cor})` }} className="np-barra" />
           </div>
         </div>
       ))}
@@ -34,11 +40,11 @@ function Barras({ linhas, total, vazio = 'Sem dados.' }: { linhas: Par[]; total?
   );
 }
 
-function Cartao({ assunto, icone, titulo, children, largo }: { assunto: string; icone: string; titulo: ReactNode; children: ReactNode; largo?: boolean }) {
+export function Cartao({ assunto, icone, titulo, children, largo, cor = COR }: { assunto: string; icone: string; titulo: ReactNode; children: ReactNode; largo?: boolean; cor?: string }) {
   return (
-    <section style={{ ...cartaoNP, display: 'grid', gap: 12, alignContent: 'start', gridColumn: largo ? '1 / -1' : undefined }}>
+    <section className="np-entra np-sobe" style={{ ...cartaoNP, display: 'grid', gap: 12, alignContent: 'start', gridColumn: largo ? '1 / -1' : undefined }}>
       <div style={{ display: 'grid', gap: 2 }}>
-        <span style={{ fontSize: 12, color: T3, display: 'flex', gap: 6, alignItems: 'center' }}><span style={{ color: COR }}>{ic(icone)}</span>{assunto}</span>
+        <span style={{ fontSize: 12, color: T3, display: 'flex', gap: 6, alignItems: 'center' }}><span style={{ color: cor }}>{ic(icone)}</span>{assunto}</span>
         <span style={{ fontSize: 16, color: T1, lineHeight: 1.35 }}>{titulo}</span>
       </div>
       {children}
@@ -49,45 +55,14 @@ function Cartao({ assunto, icone, titulo, children, largo }: { assunto: string; 
 const ORDENS = { visualizacoes: 'Mais vistos', alcance: 'Maior alcance', curtidas: 'Mais curtidos', quando: 'Mais recentes' } as const;
 type Ordem = keyof typeof ORDENS;
 
-function CartaoPost({ p }: { p: PostIG }) {
-  const num = (icone: string, rotulo: string, v: number | null) => (
-    <span title={rotulo} style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 12.5, color: T2, fontVariantNumeric: 'tabular-nums' }}>
-      <span style={{ color: T3 }}>{ic(icone)}</span>{n(v)}
-    </span>
-  );
-  return (
-    <a href={p.link || undefined} target="_blank" rel="noreferrer"
-      style={{ ...cartaoNP, padding: 0, overflow: 'hidden', display: 'grid', gridTemplateRows: 'auto 1fr', textDecoration: 'none', color: T1 }}>
-      <div style={{ position: 'relative', aspectRatio: '4 / 5', background: 'var(--portal-bg)' }}>
-        {p.miniatura
-          // eslint-disable-next-line @next/next/no-img-element
-          ? <img src={p.miniatura} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-          : <span style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', color: T3 }}>{ic('fa-image')}</span>}
-        <span style={{ position: 'absolute', top: 8, left: 8, fontSize: 11.5, padding: '3px 8px', borderRadius: 999, background: 'rgba(0,0,0,.6)', color: '#fff' }}>
-          {p.tipo} · {new Date(p.quando).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' })}
-        </span>
-      </div>
-      <div style={{ display: 'grid', gap: 8, padding: '10px 12px 12px', alignContent: 'start' }}>
-        <span style={{ fontSize: 13, color: T2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.legenda || 'Sem legenda'}</span>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 6 }}>
-          {num('fa-eye', 'Visualizações', p.visualizacoes)}
-          {num('fa-bullhorn', 'Alcance (contas diferentes)', p.alcance)}
-          {num('fa-heart', 'Curtidas', p.curtidas)}
-          {num('fa-comment', 'Comentários', p.comentarios)}
-          {num('fa-bookmark', 'Salvos', p.salvos)}
-          {num('fa-paper-plane', 'Compartilhamentos', p.compartilhamentos)}
-        </div>
-      </div>
-    </a>
-  );
-}
-
 export default function InstagramDetalhe() {
   const [dias, setDias] = useState<7 | 30>(30);
   const [d, setD] = useState<DetalheIG | null>(null);
   const [erro, setErro] = useState('');
   const [ordem, setOrdem] = useState<Ordem>('visualizacoes');
   const [carregando, setCarregando] = useState(false);
+  const [aberto, setAberto] = useState<PostVis | null>(null);
+  const fechar = useCallback(() => setAberto(null), []);
 
   const carregar = async (forcar = false) => {
     setCarregando(true);
@@ -157,7 +132,7 @@ export default function InstagramDetalhe() {
                   <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 70 }}>
                     {d.novosPorDia.map((x) => (
                       <div key={x.dia} title={`${x.dia.split('-').reverse().slice(0, 2).join('/')}: ${x.valor} novo(s)`}
-                        style={{ flex: 1, height: `${(x.valor / maxNovo) * 100}%`, minHeight: 2, borderRadius: '4px 4px 0 0', background: x.valor ? COR : 'var(--border)' }} />
+                        className="np-coluna" style={{ flex: 1, height: `${(x.valor / maxNovo) * 100}%`, minHeight: 2, borderRadius: '4px 4px 0 0', background: x.valor ? COR : 'var(--border)' }} />
                     ))}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: T3 }}>
@@ -184,16 +159,17 @@ export default function InstagramDetalhe() {
 
           <section style={{ ...cartaoNP, display: 'grid', gap: 12 }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: 16, color: T1, marginRight: 'auto' }}>Posts no Instagram <span style={{ color: T3, fontSize: 13 }}>· {d.posts.length} · toque para abrir</span></span>
+              <span style={{ fontSize: 16, color: T1, marginRight: 'auto' }}>Posts no Instagram <span style={{ color: T3, fontSize: 13 }}>· {d.posts.length} · toque num post para ver tudo dele</span></span>
               {(Object.keys(ORDENS) as Ordem[]).map((o) => (
                 <button key={o} type="button" style={{ ...bt(COR, ordem === o), minHeight: 32, padding: '3px 10px', fontSize: 13 }} onClick={() => setOrdem(o)}>{ORDENS[o]}</button>
               ))}
             </div>
             {!posts.length ? <span style={{ fontSize: 13, color: T3 }}>Nenhum post na conta.</span> : (
-              <div style={grade(200)}>{posts.map((p) => <CartaoPost key={p.id} p={p} />)}</div>
+              <div style={grade(200)}>{posts.map((p, i) => { const v = paraVis(p); return <CartaoPost key={p.id} p={v} cor={COR} atraso={Math.min(i, 12) * 40} onAbrir={() => setAberto(v)} />; })}</div>
             )}
             <span style={{ fontSize: 12, color: T3 }}>Números de cada post desde que ele saiu (não só do período). Atualizado {new Date(d.atualizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}.</span>
           </section>
+          {aberto && <JanelaPost rede="instagram" cor={COR} p={aberto} onFechar={fechar} />}
           {d.avisos.length > 0 && <span style={{ fontSize: 12, color: T3 }}>A Meta não mandou: {d.avisos.join(' · ')}</span>}
         </>
       )}

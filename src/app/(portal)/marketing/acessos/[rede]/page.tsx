@@ -11,6 +11,7 @@ import { ABAS_ACESSOS } from '@/components/marketing/redes/abasAcessos';
 import { REDE, STATUS_POST, ehRede, type RedeId, type StatusPost } from '@/lib/marketing/redes/redes';
 import { T1, T2, T3, bt, cartaoNP, grade, ic } from '@/components/marketing/redes/np';
 import InstagramDetalhe from '@/components/marketing/redes/InstagramDetalhe';
+import FacebookDetalhe from '@/components/marketing/redes/FacebookDetalhe';
 
 type Metrica = { dia: string; seguidores: number | null; alcance: number | null; visualizacoes: number | null; interacoes: number | null; cliques: number | null };
 type PostR = { id: string; titulo: string; quando: string | null; status: StatusPost; resultado: Record<string, { ok?: boolean; link?: string | null }> };
@@ -21,6 +22,8 @@ export default function AcessosRede({ params }: { params: Promise<{ rede: string
   const rede = ehRede(id) && id !== 'site' ? (id as RedeId) : null;
   const [dados, setDados] = useState<{ metricas: Metrica[]; conta: { nome: string | null } | null; posts: PostR[] } | null>(null);
   const [erro, setErro] = useState('');
+  // 25/11/2026 (José: "tem como deixar esses botões clicáveis"): o cartão tocado abre o gráfico dia a dia dele
+  const [aberto, setAberto] = useState<keyof Metrica | null>(null);
   useEffect(() => {
     if (!rede) return;
     fetchAuth(`/api/marketing/redes?rede=${rede}`).then(async (r) => {
@@ -51,13 +54,37 @@ export default function AcessosRede({ params }: { params: Promise<{ rede: string
 
   if (!rede) return <div style={tela}><SubAbas abas={ABAS_ACESSOS} /><Aviso>Rede desconhecida.</Aviso></div>;
   const r = REDE[rede];
-  const cartao = (icone: string, titulo: string, valor: string, sub: string, cor = r.cor) => (
-    <section style={{ ...cartaoNP, display: 'grid', gap: 6 }}>
-      <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: T2 }}><span style={{ color: cor }}>{ic(icone)}</span>{titulo}</span>
-      <span style={{ fontSize: 26, color: T1 }}>{valor}</span>
-      <span style={{ fontSize: 12.5, color: T3 }}>{sub}</span>
-    </section>
-  );
+  const cartao = (icone: string, titulo: string, valor: string, sub: string, cor = r.cor, campo?: keyof Metrica) => {
+    const on = !!campo && aberto === campo;
+    const corpo = (
+      <>
+        <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: T2 }}>
+          <span style={{ width: 28, height: 28, borderRadius: 8, display: 'grid', placeItems: 'center', color: cor, background: `color-mix(in srgb, ${cor} 12%, transparent)` }}>{ic(icone)}</span>
+          {titulo}
+          {campo && <span style={{ marginLeft: 'auto', fontSize: 12, color: on ? cor : T3 }}>{ic(on ? 'fa-chevron-up' : 'fa-chart-column')}</span>}
+        </span>
+        <span style={{ fontSize: 28, fontWeight: 500, color: T1, fontVariantNumeric: 'tabular-nums' }}>{valor}</span>
+        <span style={{ fontSize: 12.5, color: T2 }}>{sub}</span>
+      </>
+    );
+    if (!campo) return <section className="np-entra" style={{ ...cartaoNP, display: 'grid', gap: 6 }}>{corpo}</section>;
+    return (
+      <button type="button" className="np-entra np-sobe" onClick={() => setAberto(on ? null : campo)} title="Ver dia a dia"
+        style={{ ...cartaoNP, display: 'grid', gap: 6, textAlign: 'left', font: 'inherit', color: T1, cursor: 'pointer',
+          outline: on ? `2px solid ${cor}` : 'none', background: on ? `color-mix(in srgb, ${cor} 6%, var(--surface))` : cartaoNP.background }}>
+        {corpo}
+      </button>
+    );
+  };
+  // Gráfico dia a dia do cartão aberto (últimos 30 dias gravados pelo robô)
+  const ROTULO: Partial<Record<keyof Metrica, string>> = { seguidores: 'Seguidores', alcance: 'Alcance', visualizacoes: 'Visualizações', interacoes: 'Interações', cliques: 'Cliques' };
+  const serie = aberto ? (dados?.metricas || []).slice(-30).map((m) => ({ dia: m.dia, v: m[aberto] == null ? null : Number(m[aberto]) })) : [];
+  const vals = serie.map((x) => x.v).filter((v): v is number => v != null);
+  // seguidores: a barra começa perto do menor valor (senão 1.030 e 1.035 parecem iguais)
+  const base = aberto === 'seguidores' && vals.length ? Math.floor(Math.min(...vals) * 0.98) : 0;
+  const topo = Math.max(base + 1, ...vals);
+  const melhor = serie.reduce<(typeof serie)[number] | null>((m, x) => (x.v != null && (!m || (m.v ?? -1) < x.v) ? x : m), null);
+  const ddmm = (d: string) => `${d.slice(8)}/${d.slice(5, 7)}`;
 
   return (
     <div style={{ ...tela, color: T1 }}>
@@ -72,11 +99,12 @@ export default function AcessosRede({ params }: { params: Promise<{ rede: string
       <div style={grade(200)}>
         {resumo.tem ? (
           <>
-            {cartao('fa-users', 'Seguidores', resumo.seguidores != null ? n(resumo.seguidores) : '—', resumo.ganhou != null ? `${resumo.ganhou >= 0 ? '+' : ''}${n(resumo.ganhou)} em 30 dias` : '')}
-            {cartao('fa-bullhorn', 'Alcance (30 dias)', n(resumo.alcance), 'pessoas diferentes que viram')}
-            {cartao('fa-eye', 'Visualizações (30 dias)', n(resumo.views), 'vezes que os posts apareceram')}
-            {cartao('fa-heart', 'Interações (30 dias)', n(resumo.interacoes), 'curtidas, comentários, salvos')}
-            {cartao('fa-arrow-pointer', 'Cliques (30 dias)', n(resumo.cliques), 'no link e no WhatsApp')}
+            {cartao('fa-users', 'Seguidores', resumo.seguidores != null ? n(resumo.seguidores) : '—', resumo.ganhou != null ? `${resumo.ganhou >= 0 ? '+' : ''}${n(resumo.ganhou)} em 30 dias` : '', r.cor, 'seguidores')}
+            {cartao('fa-bullhorn', 'Alcance (30 dias)', n(resumo.alcance), 'pessoas diferentes que viram', r.cor, 'alcance')}
+            {cartao('fa-eye', 'Visualizações (30 dias)', n(resumo.views), 'vezes que os posts apareceram', r.cor, 'visualizacoes')}
+            {cartao('fa-heart', 'Interações (30 dias)', n(resumo.interacoes), 'curtidas, comentários, salvos', r.cor, 'interacoes')}
+            {/* Facebook: a Meta não dá toque no link da Página (as visitas à Página estão no painel abaixo) */}
+            {rede !== 'facebook' && cartao('fa-arrow-pointer', 'Cliques (30 dias)', n(resumo.cliques), 'no link e no WhatsApp', r.cor, 'cliques')}
           </>
         ) : (
           <>
@@ -87,7 +115,35 @@ export default function AcessosRede({ params }: { params: Promise<{ rede: string
         )}
       </div>
 
+      {aberto && resumo.tem && (
+        <section className="np-entra" style={{ ...cartaoNP, display: 'grid', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 16, marginRight: 'auto' }}>
+              {ROTULO[aberto]} dia a dia
+              {melhor && aberto !== 'seguidores' && <span style={{ fontSize: 13, color: T2 }}> · melhor dia {ddmm(melhor.dia)} ({n(melhor.v || 0)})</span>}
+            </span>
+            <button type="button" style={{ ...bt('#64748b'), minHeight: 32, padding: '3px 10px' }} onClick={() => setAberto(null)}>{ic('fa-xmark')}Fechar</button>
+          </div>
+          {!vals.length ? <span style={{ fontSize: 13, color: T2 }}>A Meta não mandou esse número dia a dia.</span> : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 160, borderBottom: '1px solid var(--border)' }}>
+                {serie.map((x, i) => (
+                  <div key={x.dia} title={`${ddmm(x.dia)}: ${x.v == null ? 'sem dado' : n(x.v)}`} style={{ flex: 1, height: '100%', display: 'flex', alignItems: 'flex-end' }}>
+                    <div className="np-coluna" style={{ width: '100%', minHeight: x.v ? 3 : 0, height: `${x.v == null ? 0 : ((x.v - base) / (topo - base)) * 100}%`, borderRadius: '4px 4px 0 0',
+                      animationDelay: `${i * 15}ms`, background: x === melhor ? r.cor : `color-mix(in srgb, ${r.cor} 60%, transparent)` }} />
+                  </div>
+                ))}
+              </div>
+              <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: T2 }}>
+                <span>{serie[0] && ddmm(serie[0].dia)}</span><span>passe o mouse numa barra para ver o número</span><span>{serie.at(-1) && ddmm(serie.at(-1)!.dia)}</span>
+              </span>
+            </>
+          )}
+        </section>
+      )}
+
       {rede === 'instagram' && resumo.tem && <InstagramDetalhe />}
+      {rede === 'facebook' && resumo.tem && <FacebookDetalhe />}
 
       <section style={{ ...cartaoNP, display: 'grid', gap: 10 }}>
         <span style={{ fontSize: 16 }}>Posts do calendário no {r.nome}</span>

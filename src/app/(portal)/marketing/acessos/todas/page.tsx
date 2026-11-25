@@ -90,8 +90,8 @@ function exemplo(dias: number): { blocos: Bloco[]; top: TopPost[] } {
 }
 
 // ---------- Dados reais ----------
-function reais(dias: number, site: RespSite | null, metricas: Metrica[], posts: PostR[]): Bloco[] {
-  const hoje = hojeSP();
+function reais(dias: number, site: RespSite | null, metricas: Metrica[], posts: PostR[], fim = hojeSP()): Bloco[] {
+  const hoje = fim;   // último dia do período (hoje, ou o "até" escolhido)
   const desde = menos(hoje, dias - 1);
   const antesDe = menos(hoje, dias * 2 - 1);
   const janela: string[] = []; for (let i = dias - 1; i >= 0; i--) janela.push(menos(hoje, i));
@@ -114,11 +114,11 @@ function reais(dias: number, site: RespSite | null, metricas: Metrica[], posts: 
     const antesM = m.filter((x) => x.dia >= antesDe && x.dia < desde);
     return {
       id, ligada: m.length > 0, temInteracao: true,
-      atual: somar(m.filter((x) => x.dia >= desde).map(paraTot)),
+      atual: somar(m.filter((x) => x.dia >= desde && x.dia <= hoje).map(paraTot)),
       antes: antesM.length ? somar(antesM.map(paraTot)) : null,
       dias: janela.map((dia) => ({ dia, ...(mapa.get(dia) || ZERO) })),
       seguidores: ultimo, novosSeg: ultimo != null && noInicio != null ? ultimo - noInicio : null,
-      posts: posts.filter((p) => p.quando && p.quando.slice(0, 10) >= desde && p.resultado?.[id]?.ok).length,
+      posts: posts.filter((p) => p.quando && p.quando.slice(0, 10) >= desde && p.quando.slice(0, 10) <= hoje && p.resultado?.[id]?.ok).length,
     };
   });
 }
@@ -130,6 +130,11 @@ export default function AcessosTodas() {
   const [redes, setRedes] = useState<{ metricas: Metrica[]; posts: PostR[] } | null>(null);
   const [erro, setErro] = useState('');
   const [foco, setFoco] = useState<number | null>(null);
+  // 25/11/2026 (José: "colocar de dia tal a dia tal"): período escolhido; null = os botões 7/30/90 dias
+  const [faixa, setFaixa] = useState<{ de: string; ate: string } | null>(null);
+  const [rasc, setRasc] = useState({ de: '', ate: '' });
+  const diasFaixa = faixa ? Math.round((Date.parse(`${faixa.ate}T12:00:00Z`) - Date.parse(`${faixa.de}T12:00:00Z`)) / 864e5) + 1 : null;
+  const diasUsados = !ex && diasFaixa ? diasFaixa : dias;
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -144,7 +149,12 @@ export default function AcessosTodas() {
     if (e) q.set('exemplo', '1');
     window.history.replaceState(null, '', q.toString() ? `?${q}` : window.location.pathname);
   };
-  const trocar = (d: number) => { setDias(d); setFoco(null); urlCom(d, ex); };
+  const trocar = (d: number) => { setDias(d); setFaixa(null); setFoco(null); urlCom(d, ex); };
+  const aplicarFaixa = () => {
+    if (!rasc.de || !rasc.ate) return;
+    const [de, ate] = rasc.de <= rasc.ate ? [rasc.de, rasc.ate] : [rasc.ate, rasc.de];
+    setFaixa({ de, ate: ate > hojeSP() ? hojeSP() : ate }); setFoco(null);
+  };
   const trocarEx = (e: boolean) => { setEx(e); setFoco(null); urlCom(dias, e); };
 
   useEffect(() => {
@@ -152,23 +162,25 @@ export default function AcessosTodas() {
     let vivo = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSite(null);
-    fetchAuth(`/api/marketing/acessos?dias=${dias}`).then(async (r) => {
+    fetchAuth(faixa ? `/api/marketing/acessos?de=${faixa.de}&ate=${faixa.ate}` : `/api/marketing/acessos?dias=${dias}`).then(async (r) => {
       const j = await r.json().catch(() => ({}));
       if (!vivo) return;
       if (!r.ok || !j.ok) { setErro(j.erro || 'Não consegui ler os acessos do site.'); setSite({ resumo: { visitantes: 0, visitas: 0, conversoes: 0, porDia: [] }, anterior: { visitantes: 0, visitas: 0, conversoes: 0 } }); return; }
       setSite({ resumo: j.resumo, anterior: j.anterior });
     });
     return () => { vivo = false; };
-  }, [dias, ex]);
+  }, [dias, ex, faixa]);
   useEffect(() => {
-    fetchAuth('/api/marketing/redes?rede=todas').then(async (r) => {
+    // período escolhido: pede desde antes do "de" (o período anterior, para comparar)
+    const desde = faixa && diasFaixa ? menos(faixa.de, diasFaixa) : '';
+    fetchAuth(`/api/marketing/redes?rede=todas${desde ? `&desde=${desde}` : ''}`).then(async (r) => {
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) { setErro(j.erro || 'Não consegui ler as redes.'); setRedes({ metricas: [], posts: [] }); return; }
       setRedes({ metricas: j.metricas || [], posts: j.posts || [] });
     });
-  }, []);
+  }, [faixa, diasFaixa]);
 
-  const { blocos, top } = useMemo(() => (ex ? exemplo(dias) : { blocos: reais(dias, site, redes?.metricas || [], redes?.posts || []), top: [] as TopPost[] }), [ex, dias, site, redes]);
+  const { blocos, top } = useMemo(() => (ex ? exemplo(dias) : { blocos: reais(diasUsados, site, redes?.metricas || [], redes?.posts || [], faixa?.ate), top: [] as TopPost[] }), [ex, dias, diasUsados, site, redes, faixa]);
   const carregando = !ex && (site === null || redes === null);
   const ligados = blocos.filter((b) => b.ligada);
   const tot = somar(ligados.map((b) => b.atual));
@@ -209,12 +221,14 @@ export default function AcessosTodas() {
     return () => window.removeEventListener('keydown', esc);
   }, [janela]);
 
-  const periodo = `Nos últimos ${dias} dias`;
+  const periodo = !ex && faixa ? `De ${ddmm(faixa.de)}/${faixa.de.slice(2, 4)} a ${ddmm(faixa.ate)}/${faixa.ate.slice(2, 4)}` : `Nos últimos ${dias} dias`;
   const comparar = (a: number, b: number | null | undefined) => {
     const v = variacao(a, b);
     if (v == null) return null;
-    if (v === 0) return <span style={{ color: T2 }}>igual aos {dias} dias antes</span>;
-    return <span style={{ color: v > 0 ? VERDE : VERMELHO }}>{v > 0 ? '▲' : '▼'} {Math.abs(v)}% {v > 0 ? 'a mais' : 'a menos'} que nos {dias} dias antes</span>;
+    if (v === 0) return <span style={{ color: T2 }}>igual aos {diasUsados} dias antes</span>;
+    // período anterior quase vazio (rede ligada agora) dá "+19.626%": acima de 500% vira "bem mais"
+    if (v > 500) return <span style={{ color: VERDE }}>▲ bem mais que nos {diasUsados} dias antes</span>;
+    return <span style={{ color: v > 0 ? VERDE : VERMELHO }}>{v > 0 ? '▲' : '▼'} {Math.abs(v)}% {v > 0 ? 'a mais' : 'a menos'} que nos {diasUsados} dias antes</span>;
   };
   const ranking = [...blocos].sort((a, b) => (b.ligada ? 1 : 0) - (a.ligada ? 1 : 0) || b.atual.pessoas - a.atual.pessoas);
   const maiorRede = Math.max(1, ...ligados.map((b) => b.atual.pessoas));
@@ -223,7 +237,7 @@ export default function AcessosTodas() {
 
   const barra = (pct: number, cor = COR, alto = 12) => (
     <span style={{ display: 'block', height: alto, background: 'color-mix(in srgb, var(--portal-text, #0f172a) 6%, transparent)', borderRadius: 4, overflow: 'hidden' }}>
-      <span style={{ display: 'block', height: '100%', width: `${Math.max(1.5, Math.min(100, pct))}%`, background: cor, borderRadius: 4 }} />
+      <span className="np-barra" style={{ display: 'block', height: '100%', width: `${Math.max(1.5, Math.min(100, pct))}%`, background: cor, borderRadius: 4 }} />
     </span>
   );
 
@@ -241,15 +255,18 @@ export default function AcessosTodas() {
   };
 
   // cartão de conclusão: título é a conclusão, uma frase embaixo, toque abre o detalhe
+  // 25/11/2026 (José: "isso aqui aparece no topo de uma forma dinâmica"): ficam em cima, entram um depois do outro e sobem no mouse
+  let ordemConclusao = 0;
   const conclusao = (icone: string, titulo: ReactNode, frase: ReactNode, abrir: Janela, logo?: RedeId) => (
-    <button type="button" onClick={() => setJanela(abrir)}
-      style={{ ...cartaoNP, display: 'grid', gap: 6, alignContent: 'start', textAlign: 'left', font: 'inherit', color: T1, cursor: 'pointer' }}>
-      <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: T3 }}>
-        {logo ? <LogoRede id={logo} tam={22} /> : <span style={{ color: COR }}>{ic(icone)}</span>}
-        <span style={{ marginLeft: 'auto', fontSize: 12.5 }}>ver mais {ic('fa-chevron-right')}</span>
+    <button type="button" onClick={() => setJanela(abrir)} className="np-entra np-sobe"
+      style={{ ...cartaoNP, display: 'grid', gap: 6, alignContent: 'start', textAlign: 'left', font: 'inherit', color: T1, cursor: 'pointer', animationDelay: `${ordemConclusao++ * 90}ms`,
+        background: `linear-gradient(135deg, color-mix(in srgb, ${logo ? 'var(--portal-text, #0f172a)' : COR} 5%, var(--surface)), var(--surface) 60%)` }}>
+      <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: T2 }}>
+        {logo ? <LogoRede id={logo} tam={26} /> : <span style={{ width: 26, height: 26, borderRadius: 8, display: 'grid', placeItems: 'center', color: COR, background: `color-mix(in srgb, ${COR} 14%, transparent)` }}>{ic(icone)}</span>}
+        <span style={{ marginLeft: 'auto', fontSize: 12.5, color: COR }}>ver mais {ic('fa-chevron-right')}</span>
       </span>
-      <span style={{ fontSize: 17, lineHeight: 1.3 }}>{titulo}</span>
-      <span style={{ fontSize: 13, color: T2, lineHeight: 1.4 }}>{frase}</span>
+      <span style={{ fontSize: 17, fontWeight: 500, lineHeight: 1.3 }}>{titulo}</span>
+      <span style={{ fontSize: 13.5, color: T2, lineHeight: 1.4 }}>{frase}</span>
     </button>
   );
 
@@ -402,7 +419,19 @@ export default function AcessosTodas() {
       {erro && !ex && <Aviso>{erro}</Aviso>}
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        {PERIODOS.map(([d, rot]) => <button key={d} style={{ ...bt(COR, dias === d), minHeight: 36 }} onClick={() => trocar(d)}>{rot}</button>)}
+        {PERIODOS.map(([d, rot]) => <button key={d} style={{ ...bt(COR, !faixa && dias === d), minHeight: 36 }} onClick={() => trocar(d)}>{rot}</button>)}
+        {!ex && (
+          <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', padding: '3px 6px 3px 12px', borderRadius: 11,
+            border: `1px solid ${faixa ? COR : 'var(--border)'}`, background: faixa ? `color-mix(in srgb, ${COR} 8%, var(--surface))` : 'var(--surface)', fontSize: 14, color: T1 }}>
+            {ic('fa-calendar-days')} De
+            <input type="date" value={rasc.de} max={rasc.ate || hojeSP()} onChange={(e) => setRasc((r) => ({ ...r, de: e.target.value }))}
+              style={{ font: 'inherit', fontSize: 14, color: T1, background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 6px' }} />
+            até
+            <input type="date" value={rasc.ate} min={rasc.de || undefined} max={hojeSP()} onChange={(e) => setRasc((r) => ({ ...r, ate: e.target.value }))}
+              style={{ font: 'inherit', fontSize: 14, color: T1, background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 6px' }} />
+            <button type="button" style={{ ...bt(COR, true), minHeight: 32, padding: '3px 12px' }} disabled={!rasc.de || !rasc.ate} onClick={aplicarFaixa}>Ver</button>
+          </span>
+        )}
         <span style={{ marginLeft: 'auto' }}>
           {ex
             ? <button style={{ ...bt('#b45309'), minHeight: 36 }} onClick={() => trocarEx(false)}>{ic('fa-xmark')}Sair do exemplo</button>
@@ -429,8 +458,32 @@ export default function AcessosTodas() {
 
       {!vazio && !carregando && (
         <>
+          {/* conclusões no topo, uma por cartão (José 25/11/2026: "isso aqui aparece no topo de uma forma dinâmica") */}
+          <div style={grade(240)}>
+            {quemMaisContato && quemMaisContato.atual.contatos > 0 && conclusao('fa-comment-dots',
+              <>{REDE[quemMaisContato.id].nome} é quem mais traz contato</>,
+              <>{fmt(quemMaisContato.atual.contatos)} dos {fmt(tot.contatos)} contatos vieram {quemMaisContato.id === 'site' ? 'do site' : `do ${REDE[quemMaisContato.id].nome}`}.</>,
+              { tipo: 'contato' }, quemMaisContato.id)}
+            {melhorSemana.media > 0 && conclusao('fa-calendar-day',
+              <>{nomeSemana(melhorSemana.w)} é o melhor dia para postar</>,
+              <>Em média {curto(melhorSemana.media)} pessoas nesse dia.</>,
+              { tipo: 'semana' })}
+            {melhorDia && conclusao('fa-chart-column',
+              <>O dia mais forte foi {ddmm(melhorDia.dia)}</>,
+              <>{fmt(melhorDia.total)} pessoas num dia só. Toque para ver dia a dia.</>,
+              { tipo: 'dias' })}
+            {novosSeg > 0 && conclusao('fa-user-plus',
+              <>Ganhou {fmt(novosSeg)} seguidores</>,
+              <>{maisSeg[0] ? `${REDE[maisSeg[0].id].nome} foi a que mais cresceu.` : ''}</>,
+              { tipo: 'seguidores' })}
+            {top.length > 0 && conclusao('fa-trophy',
+              <>Post campeão: {top[0].titulo}</>,
+              <>{fmt(top[0].pessoas)} pessoas viram e {fmt(top[0].contatos)} chamaram.</>,
+              { tipo: 'posts' }, top[0].rede)}
+          </div>
+
           {/* 1. a frase do período */}
-          <section style={{ ...cartaoNP, display: 'grid', gap: 8, padding: '20px 22px' }}>
+          <section className="np-entra" style={{ ...cartaoNP, display: 'grid', gap: 8, padding: '20px 22px' }}>
             <span style={{ fontSize: 14, color: T3 }}>{periodo}</span>
             <span style={{ fontSize: 'clamp(20px, 3.2vw, 28px)', lineHeight: 1.25 }}>
               <span style={{ color: COR, fontVariantNumeric: 'tabular-nums' }}>{curto(tot.pessoas)} pessoas</span> viram a Nova Tratores
@@ -459,30 +512,6 @@ export default function AcessosTodas() {
               </button>
             ))}
           </section>
-
-          {/* 3. conclusões, uma por cartão */}
-          <div style={grade(240)}>
-            {quemMaisContato && quemMaisContato.atual.contatos > 0 && conclusao('fa-comment-dots',
-              <>{REDE[quemMaisContato.id].nome} é quem mais traz contato</>,
-              <>{fmt(quemMaisContato.atual.contatos)} dos {fmt(tot.contatos)} contatos vieram {quemMaisContato.id === 'site' ? 'do site' : `do ${REDE[quemMaisContato.id].nome}`}.</>,
-              { tipo: 'contato' }, quemMaisContato.id)}
-            {melhorSemana.media > 0 && conclusao('fa-calendar-day',
-              <>{nomeSemana(melhorSemana.w)} é o melhor dia para postar</>,
-              <>Em média {curto(melhorSemana.media)} pessoas nesse dia.</>,
-              { tipo: 'semana' })}
-            {melhorDia && conclusao('fa-chart-column',
-              <>O dia mais forte foi {ddmm(melhorDia.dia)}</>,
-              <>{fmt(melhorDia.total)} pessoas num dia só. Toque para ver dia a dia.</>,
-              { tipo: 'dias' })}
-            {novosSeg > 0 && conclusao('fa-user-plus',
-              <>Ganhou {fmt(novosSeg)} seguidores</>,
-              <>{maisSeg[0] ? `${REDE[maisSeg[0].id].nome} foi a que mais cresceu.` : ''}</>,
-              { tipo: 'seguidores' })}
-            {top.length > 0 && conclusao('fa-trophy',
-              <>Post campeão: {top[0].titulo}</>,
-              <>{fmt(top[0].pessoas)} pessoas viram e {fmt(top[0].contatos)} chamaram.</>,
-              { tipo: 'posts' }, top[0].rede)}
-          </div>
         </>
       )}
 

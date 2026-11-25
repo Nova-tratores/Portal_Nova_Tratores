@@ -266,3 +266,70 @@ export async function coletarInstagram(dias = 3): Promise<{ resumo: string; pula
   const nome = (conta as { nome?: string }).nome || 'Instagram'
   return { resumo: `${nome}: ${gravados} dia(s) gravados${atual?.seguidores != null ? ` · ${atual.seguidores} seguidores` : ''}${erros.size ? ` · avisos: ${[...erros].slice(0, 2).join(' | ')}` : ''}` }
 }
+
+// ----------------------------------------------------------------- Facebook (Página), 25/11/2026
+// Testado com a Página real: a Meta desligou page_impressions/page_fans em 2025. As que respondem são
+// page_media_view (visualizações), page_total_media_view_unique (alcance), page_post_engagements,
+// page_views_total (visitas à Página) e page_follows (total de seguidores em cada dia).
+// Tudo pede o TOKEN DA PÁGINA, que sai do token guardado ({id}?fields=access_token).
+
+/** Token da Página + seguidores de hoje. */
+export async function tokenDaPagina(token: string, id: string): Promise<{ token: string; nome: string; seguidores: number | null }> {
+  const j = await graph(token, id, { fields: 'access_token,name,followers_count' })
+  if (!j.access_token) throw new Error('A Meta não entregou o acesso da Página.')
+  return { token: String(j.access_token), nome: String(j.name || 'Página'), seguidores: typeof j.followers_count === 'number' ? j.followers_count : null }
+}
+
+/** Métrica da Página → coluna de site_redes_metricas. Sem "cliques": a Meta não dá toque no link da Página, e as
+ *  visitas à Página NÃO são contato (gravar ali fez o Todas as redes dizer "44 chamaram"). Visitas ficam no painel ao vivo. */
+const METRICAS_FB = { page_total_media_view_unique: 'alcance', page_media_view: 'visualizacoes', page_post_engagements: 'interacoes', page_follows: 'seguidores' } as const
+
+/** O valor "day" da Meta termina às 08:00 UTC do dia seguinte (meia-noite na Califórnia): o dia é o anterior. */
+const diaDoFim = (fim: string) => new Date(new Date(fim).getTime() - 864e5).toISOString().slice(0, 10)
+
+export async function coletarFacebook(dias = 3): Promise<{ resumo: string; pulado?: string }> {
+  const { data: conta, error } = await sb.from('site_redes_contas').select('conta_id, token, nome').eq('rede', 'facebook').maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!conta?.token || !conta.conta_id) return { resumo: '', pulado: 'Facebook não ligado' }
+  const id = conta.conta_id as string
+  const pg = await tokenDaPagina(conta.token as string, id)
+
+  const hoje = diaSP(new Date())
+  const desde = diaSP(new Date(new Date(`${hoje}T12:00:00-03:00`).getTime() - dias * 864e5))
+  const linhas = new Map<string, Record<string, unknown>>()
+  const erros = new Set<string>()
+  // Uma pergunta por métrica cobrindo o período todo (a Meta aceita até 90 dias por vez)
+  for (const [m, col] of Object.entries(METRICAS_FB)) {
+    try {
+      const j = await graph(pg.token, `${id}/insights`, { metric: m, period: 'day', since: String(unix(desde)), until: String(unix(hoje)) })
+      for (const v of ((j.data as { values?: { value: number; end_time: string }[] }[])?.[0]?.values || [])) {
+        const dia = diaDoFim(v.end_time)
+        if (dia < desde || dia >= hoje) continue
+        const l = linhas.get(dia) || {}
+        l[col] = typeof v.value === 'number' ? v.value : 0
+        linhas.set(dia, l)
+      }
+    } catch (e) { erros.add(`${m}: ${(e as Error).message}`) }
+  }
+
+  // Posts de cada dia (a lista de posts funciona sem a permissão de ler comentários)
+  const posts = new Map<string, PostDia[]>()
+  try {
+    const j = await graph(pg.token, `${id}/published_posts`, { fields: 'id,message,permalink_url,created_time', since: String(unix(desde)), limit: '100' })
+    for (const p of (j.data as Record<string, unknown>[]) || []) {
+      const dia = diaSP(new Date(String(p.created_time)))
+      const l = posts.get(dia) || []
+      l.push({ id: String(p.id), link: (p.permalink_url as string) || null, titulo: String(p.message || '').split('\n')[0].slice(0, 90), views: null, curtidas: 0, comentarios: 0 })
+      posts.set(dia, l)
+    }
+  } catch (e) { erros.add(`posts: ${(e as Error).message}`) }
+
+  let gravados = 0
+  for (const [dia, n] of [...linhas].sort(([a], [b]) => a.localeCompare(b))) {
+    const { error: e } = await sb.from('site_redes_metricas').upsert(
+      { rede: 'facebook', dia, ...n, posts: posts.get(dia) || [], atualizado_em: new Date().toISOString() }, { onConflict: 'rede,dia' })
+    if (e) erros.add(e.message); else gravados++
+  }
+  if (!gravados && erros.size) throw new Error([...erros].slice(0, 3).join(' | '))
+  return { resumo: `${pg.nome} (Facebook): ${gravados} dia(s) gravados${pg.seguidores != null ? ` · ${pg.seguidores} seguidores` : ''}${erros.size ? ` · avisos: ${[...erros].slice(0, 2).join(' | ')}` : ''}` }
+}
