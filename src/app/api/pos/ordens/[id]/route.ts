@@ -8,6 +8,7 @@ import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
 import { normalizarAlimentacoes, agregadosAlimentacao, desligarAlimentacaoNoPdfAoEntrar } from "@/lib/pos/alimentacao-os";
+import { linhasHistoricoRemocao, normalizarRemocoes } from "@/lib/pos/alimentacao-remocao";
 import { parseValorMisto } from "@/lib/marketing/custos";
 import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
 import { totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
@@ -299,6 +300,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const valNovo = String(dados[c.d] || "").trim();
       if (valDb !== valNovo) {
         await supabase.from(TBL_LOGS_PPO).insert({ ...logBase, acao: `${c.lbl} alterado`, Status_Atual: dados.status });
+      }
+    }
+    // Alimentação removida: quem (login), quando e o motivo escrito na tela
+    if (Array.isArray(dados.alimentacoes)) {
+      const linhas = linhasHistoricoRemocao(
+        normalizarAlimentacoes(safeGet(atual, "Alimentacoes")),
+        normalizarAlimentacoes(dados.alimentacoes),
+        normalizarRemocoes(dados.remocoesAlimentacao),
+      );
+      for (const acao of linhas) {
+        await supabase.from(TBL_LOGS_PPO).insert({ ...logBase, acao: acao.slice(0, 600), Status_Atual: dados.status });
       }
     }
   }

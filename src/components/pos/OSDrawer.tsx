@@ -10,6 +10,7 @@ import { useFasesDo } from "@/hooks/useFasesQuadro";
 import { faltaParaEnviarOmie } from "@/lib/pos/envio-omie-regras";
 import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/lib/pos/types";
+import { motivoValido, type RemocaoAlimentacao } from "@/lib/pos/alimentacao-remocao";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import SearchModal from "./SearchModal";
 import LogPanel from "./LogPanel";
@@ -470,7 +471,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [servicoOficina, setServicoOficina] = useState(false);
   const [servicoInterno, setServicoInterno] = useState(false);
   const internoOriginalRef = useRef(false);
-  const [alimentacoes, setAlimentacoes] = useState<AlimentacaoItem[]>([]);
+  // _salvo = veio do banco: tirar esse dia pede MOTIVO (vai pro Histórico ao salvar)
+  const [alimentacoes, setAlimentacoes] = useState<(AlimentacaoItem & { _salvo?: boolean })[]>([]);
+  const [remocoesAlim, setRemocoesAlim] = useState<RemocaoAlimentacao[]>([]);
+  const [removerAlimIdx, setRemoverAlimIdx] = useState<number | null>(null);
+  const [motivoRemAlim, setMotivoRemAlim] = useState("");
   // Fotos das notas de almoço enviadas pelo técnico, casadas por dia ({ data → foto }).
   const [fotosAlmocoDia, setFotosAlmocoDia] = useState<Record<string, string>>({});
   // upload da NOTA pelo admin — anexou, a despesa automática abre NA HORA
@@ -1044,6 +1049,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       servicoInterno,
       // item com NOTA anexada mas valor ainda não lançado não pode sumir no save
       alimentacoes: alimentacoes.filter(a => (a.valor || 0) > 0 || a.foto),
+      remocoesAlimentacao: remocoesAlim,
       userName,
     };
     try {
@@ -1106,6 +1112,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       }
       if (aConcluir.length) setLembretes((prev) => prev.filter((x) => !aConcluir.some((c) => c.id === x.id && !(c.resto && c.resto > 0))));
       setSaving(false);
+      // gravou: o que ficou na lista agora é "salvo" (tirar depois pede motivo) e os motivos já foram pro Histórico
+      setAlimentacoes((prev) => prev.map((a) => ((a.valor || 0) > 0 || a.foto ? { ...a, _salvo: true } : a)));
+      setRemocoesAlim([]);
       setLogRefreshKey((k) => k + 1);
       // Avisa quando a ordem muda de externa↔interna (muda só o destino das peças)
       if (mode === "edit" && servicoInterno !== internoOriginalRef.current) {
@@ -1130,7 +1139,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   }, [mode, osId, clienteChave, clienteInfo, tecnico1, tecnico2, tipoServico, revisao, projeto,
       servSolicitado, qtdHoras, qtdKm, ppv, status, ordemOmie, motivoCancel, descValor,
       descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento, dataFimServico, servicoNumero,
-      gerarPPV, servicoOficina, servicoInterno, alimentacoes, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved, podeEditar, podeCancelar,
+      gerarPPV, servicoOficina, servicoInterno, alimentacoes, remocoesAlim, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved, podeEditar, podeCancelar,
       pecasPendentes, abrirReqDepois, esp, descHoraEf, descKmEf, userName]);
 
   // Aplicou valor de lembrete: salva a OS assim que o estado novo (espelho/desconto) estiver no salvar
@@ -1209,7 +1218,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setLembretes([]); setEditingLembreteId(null);
     setServicoOficina(false);
     setServicoInterno(false);
-    setAlimentacoes([]);
+    setAlimentacoes([]); setRemocoesAlim([]); setRemoverAlimIdx(null);
     setAba("os");
   }, []);
 
@@ -1277,6 +1286,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           setServicoInterno(!!d.servicoInterno);
           internoOriginalRef.current = !!d.servicoInterno;
           // Alimentações: usa o array novo; se vazio mas houver valor antigo, migra p/ 1 linha
+          setRemocoesAlim([]); setRemoverAlimIdx(null);
           if (Array.isArray(d.alimentacoes) && d.alimentacoes.length > 0) {
             setAlimentacoes(d.alimentacoes.map((a: any) => ({
               data: typeof a?.data === 'string' ? a.data.slice(0, 10) : '',
@@ -1284,9 +1294,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
               tecnicos: Array.isArray(a?.tecnicos) ? a.tecnicos.filter(Boolean).slice(0, 2) : [],
               no_pdf: !!a?.no_pdf,
               foto: typeof a?.foto === 'string' && a.foto ? a.foto : null, // nota do admin
+              _salvo: true,
             })));
           } else if (d.alimentacaoTecnico && parseFloat(d.alimentacaoValor || 0) > 0) {
-            setAlimentacoes([{ data: (d.Data || '').slice(0, 10), valor: parseFloat(d.alimentacaoValor || 0), tecnicos: [d.tecnicoResponsavel || ''].filter(Boolean), no_pdf: !!d.alimentacaoNoPdf }]);
+            setAlimentacoes([{ data: (d.Data || '').slice(0, 10), valor: parseFloat(d.alimentacaoValor || 0), tecnicos: [d.tecnicoResponsavel || ''].filter(Boolean), no_pdf: !!d.alimentacaoNoPdf, _salvo: true }]);
           } else {
             setAlimentacoes([]);
           }
@@ -1437,7 +1448,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   </span>
                 );
               })()}
-              <button type="button" onClick={() => setAlimentacoes(prev => prev.filter((_, idx) => idx !== i))} title="Remover este dia" style={{ marginLeft: 'auto', width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface, #fefefe)', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
+              <button type="button"
+                onClick={() => {
+                  // dia já salvo (com valor ou nota) só sai com motivo escrito
+                  if (mode === 'edit' && a._salvo && ((a.valor || 0) > 0 || a.foto)) { setMotivoRemAlim(''); setRemoverAlimIdx(i); return; }
+                  setAlimentacoes(prev => prev.filter((_, idx) => idx !== i));
+                }}
+                title="Remover este dia" style={{ marginLeft: 'auto', width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface, #fefefe)', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
                 <i className="fas fa-trash" style={{ fontSize: 12 }} />
               </button>
             </div>
@@ -1469,6 +1486,51 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
             </span>
           </div>
         </div>)
+      })()}
+
+      {/* Motivo OBRIGATÓRIO para tirar um dia de alimentação já salvo (vai pro Histórico ao salvar a OS) */}
+      {removerAlimIdx !== null && alimentacoes[removerAlimIdx] && (() => {
+        const alvo = alimentacoes[removerAlimIdx];
+        const ok = motivoValido(motivoRemAlim);
+        const fechar = () => { setRemoverAlimIdx(null); setMotivoRemAlim(''); };
+        const confirmar = () => {
+          if (!ok) return;
+          setRemocoesAlim(prev => [...prev, { data: alvo.data, valor: alvo.valor || 0, tecnicos: alvo.tecnicos || [], motivo: motivoRemAlim.replace(/\s+/g, ' ').trim() }]);
+          setAlimentacoes(prev => prev.filter((_, idx) => idx !== removerAlimIdx));
+          fechar();
+        };
+        return (
+          <div className="pos-rem-alim" onClick={fechar} style={{ position: 'fixed', inset: 0, zIndex: 100002, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <style>{`@media (max-width: 600px) { .pos-rem-alim { padding: 0 !important; } .pos-rem-alim > div { width: 100% !important; max-width: 100% !important; height: 100%; border-radius: 0 !important; } }`}</style>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--surface, #fefefe)', border: '2px solid #DC2626', borderRadius: 16, width: 480, maxWidth: '94vw', overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '14px 18px', background: '#DC2626', color: '#fefefe', display: 'flex', alignItems: 'center', gap: 10, fontWeight: 800, fontSize: 15 }}>
+                <i className="fas fa-trash" /> Remover alimentação
+              </div>
+              <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+                <div style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
+                  <b>{alvo.data ? alvo.data.split('-').reverse().join('/') : 'Sem data'}</b> · R$ {fmtBR(alvo.valor)}{alvo.tecnicos?.length ? ` · ${alvo.tecnicos.join(' e ')}` : ''}
+                </div>
+                <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'none', letterSpacing: 0, margin: 0 }}>
+                  Por que está retirando esta despesa? <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <textarea autoFocus value={motivoRemAlim} onChange={(e) => setMotivoRemAlim(e.target.value)} maxLength={400} rows={4}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) confirmar(); }}
+                  placeholder="Ex.: lançado em dobro, cliente pagou o almoço, dia não trabalhado…"
+                  style={{ width: '100%', padding: 10, border: `1px solid ${ok || !motivoRemAlim ? 'var(--border)' : '#DC2626'}`, borderRadius: 10, fontSize: 14, fontFamily: 'inherit', resize: 'vertical', marginBottom: 0 }} />
+                <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
+                  Fica no Histórico da OS com o seu nome, a data e a hora quando você <b>salvar a OS</b>.
+                </div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 'auto', flexWrap: 'wrap' }}>
+                  <button type="button" onClick={fechar} style={{ minHeight: 42, padding: '0 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface, #fefefe)', color: 'var(--portal-text)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
+                  <button type="button" onClick={confirmar} disabled={!ok} title={ok ? '' : 'Escreva o motivo (pelo menos 5 letras)'}
+                    style={{ minHeight: 42, padding: '0 16px', borderRadius: 10, border: 'none', background: ok ? '#DC2626' : '#fca5a5', color: '#fefefe', fontWeight: 800, cursor: ok ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                    <i className="fas fa-trash" style={{ marginRight: 6 }} /> Remover
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
       })()}
     </div>
   );
