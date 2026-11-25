@@ -4,6 +4,7 @@ import { TBL_GARANTIAS, STATUS_FINALIZADOS } from '@/lib/garantias/constants';
 import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 import type { GarantiaStatus } from '@/lib/garantias/types';
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
+import { refOS } from '@/lib/garantias/so-pecas';
 
 // POST /api/garantias/[id]/cancelar-duplicada
 // body: { duplicada_de: "GAR-0070" | "0070", ator }
@@ -78,12 +79,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     statusAnterior: g.status,
     statusNovo: 'cancelada',
     ator,
-    detalhe: `Cancelada por DUPLICAÇÃO — este caso é o mesmo da ${orig.numero} (OS ${orig.id_ordem}), que segue valendo.`,
+    detalhe: `Cancelada por DUPLICAÇÃO — este caso é o mesmo da ${orig.numero} (${refOS(orig)}), que segue valendo.`,
   });
   await registrarEvento(orig.id, {
     tipo: 'duplicada_cancelada',
     ator,
-    detalhe: `A ${g.numero} (OS ${g.id_ordem}) foi cancelada como duplicata DESTA garantia.`,
+    detalhe: `A ${g.numero} (${refOS(g)}) foi cancelada como duplicata DESTA garantia.`,
   });
   await notificarGarantistas({
     titulo: `Garantia ${g.numero} cancelada (duplicada)`,

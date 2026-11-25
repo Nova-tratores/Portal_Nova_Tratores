@@ -6,9 +6,10 @@ import { buscaTermoSchema, produtoManualSchema, editarPrecoSchema } from "@/lib/
 import type { ProdutoBusca } from "@/lib/ppv/types";
 import { filtroBuscaProdutos } from "@/lib/ppv/busca-produtos";
 
-// GET - Buscar produtos: PPV, POS (busca de peça na OS) e Orçamentos (busca e importar kit).
+// GET - Buscar produtos: PPV, POS (busca de peça na OS), Orçamentos (busca e importar kit)
+// e Garantias (garantia só de peças, sem OS).
 export async function GET(req: NextRequest) {
-  const g = await protegerRota(req, [{ modulo: "ppv" }, { modulo: "pos" }, { modulo: "orcamentos" }]);
+  const g = await protegerRota(req, [{ modulo: "ppv" }, { modulo: "pos" }, { modulo: "orcamentos" }, { modulo: "garantias" }]);
   if (g.resposta) return g.resposta;
   const termo = req.nextUrl.searchParams.get("termo") || "";
   const parsed = buscaTermoSchema.safeParse({ termo });
