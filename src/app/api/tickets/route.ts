@@ -19,7 +19,7 @@ import { dataMinima, erroFimDeSemana } from '@/lib/trabalho/agenda'
 import { contagemPassos } from '@/lib/trabalho/tarefas-server'
 import { planoDeHoras } from '@/lib/trabalho/estimativa'
 import { CAPACIDADE_PADRAO } from '@/lib/trabalho/fila'
-import { colocarNoFimDaFila } from '@/lib/trabalho/fila-server'
+import { colocarNoFimDaFila, avisarEmpurrados } from '@/lib/trabalho/fila-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -249,6 +249,10 @@ export async function POST(req: NextRequest) {
   // Pedido vai para o FIM da fila de quem faz (24/11/2026) — não fura a fila pelo prazo.
   // Urgente continua no topo. Falhou: fica na ordem por prazo, como antes.
   try { await colocarNoFimDaFila(responsavelId, ticket.id) } catch { /* segue */ }
+  // Urgente fura a fila (melhorias 3.1): quem pediu os pedidos que ficaram para depois é avisado.
+  if (urgente && responsavelId !== auth.userId) {
+    try { await avisarEmpurrados(responsavelId, ticket.id, auth.userId, resp.nome || '') } catch { /* segue */ }
+  }
 
   // Já entra no cronograma do quadro, na data escolhida (agenda do responsável).
   let avisoCronograma = ''

@@ -207,7 +207,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
           {responsavelId && (
             <>
               <style>{ESTILO_FILA}</style>
-              <EstimarTempo pedido={{ userId: responsavelId, titulo: titulo.trim(), categoria: categoria.trim() || undefined }} titulo={titulo.trim()} onEscolher={setHorasPedido} />
+              <EstimarTempo pedido={{ userId: responsavelId, titulo: titulo.trim(), categoria: categoria.trim() || undefined, urgente }} titulo={titulo.trim()} onEscolher={setHorasPedido} />
             </>
           )}
 

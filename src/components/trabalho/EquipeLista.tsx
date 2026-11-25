@@ -59,7 +59,7 @@ export default function EquipeLista({ pessoas, eu, onPedir, onAbrir }: {
                 <span className="mf-av" style={{ width: 30, height: 30, fontSize: 11 }}>{iniciais(p.nome)}</span>
                 <span style={{ minWidth: 0 }}>
                   <span style={{ display: 'block', fontSize: 14.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}{p.id === eu ? ' (você)' : ''}</span>
-                  <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>{p.setor}</span>
+                  <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>{p.setor}{p.fazendoAgora && <span style={{ color: COR.ok }}> · fazendo agora</span>}</span>
                 </span>
               </span>
               <span style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
@@ -69,6 +69,7 @@ export default function EquipeLista({ pessoas, eu, onPedir, onAbrir }: {
                 </span>
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                {(p.bolasParadas || 0) > 0 && <span className="mf-pill" style={{ ['--c' as string]: COR.atencao }} title="Pedidos em que a pessoa não mexe há 5+ dias úteis (urgente: 1+)">{p.bolasParadas} {p.bolasParadas === 1 ? 'bola parada' : 'bolas paradas'}</span>}
                 {p.atrasados > 0 && <SeloAtrasado>{p.atrasados} {p.atrasados === 1 ? 'atrasado' : 'atrasados'}</SeloAtrasado>}
                 {p.id !== eu && <button className="mf-btn peq" onClick={(e) => { e.stopPropagation(); onPedir(p.id) }}><Send size={14} /> Pedir</button>}
               </span>

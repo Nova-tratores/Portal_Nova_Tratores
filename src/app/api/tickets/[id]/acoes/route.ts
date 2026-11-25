@@ -323,19 +323,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: true })
   }
 
-  // --------------------------------------------------- pedir atualização
+  // --------------------------------------------------- pedir atualização = CUTUCAR (melhorias 3.2)
+  // Limite: 1 por pessoa a cada 24 h em cada pedido (vale para o botão da janela e para o
+  // "Cutucar" da Minha fila). Evento continua 'pedido_atualizacao' (o CHECK do banco não tem
+  // 'cutucada'); payload.cutucada marca quando veio da Minha fila.
   if (acao === 'pedir_atualizacao') {
     if (encerrado) return erro('Ticket encerrado.')
     if (souResponsavel) return erro('Você já é o responsável — a bola está com você.')
     if (!ehEnvolvido(ticket, participantes, auth) && !auth.isAdmin) {
       return erro('Só envolvidos podem pedir atualização.', 403)
     }
+    const { data: ultima } = await supabaseAdmin.from('tickets_eventos').select('created_at')
+      .eq('ticket_id', id).eq('autor_id', auth.userId).eq('tipo', 'pedido_atualizacao')
+      .gte('created_at', new Date(Date.now() - 86400000).toISOString()).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    if (ultima?.created_at) {
+      const proxima = new Date(Date.parse(ultima.created_at as string) + 86400000)
+      const hora = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(proxima)
+      const amanha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(proxima) !== new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+      return NextResponse.json({ error: `Você já cutucou hoje — próxima ${amanha ? 'amanhã ' : ''}às ${hora}.`, proxima: proxima.toISOString() }, { status: 429 })
+    }
     const texto = String(body.texto || '').trim()
-    const err = await registrarEvento(id, auth.userId, 'pedido_atualizacao', texto ? { texto } : {})
+    const err = await registrarEvento(id, auth.userId, 'pedido_atualizacao', { ...(texto ? { texto } : {}), ...(body.cutucada === true ? { cutucada: true } : {}) })
     if (err) return erro(err, 500)
     const autor = await nomeDe(auth.userId)
     await notificarTicket(ticket, [ticket.responsavel_id], auth.userId,
-      `${autor} pediu atualização no ticket #${ticket.numero}`,
+      body.cutucada === true ? `${autor} cutucou: como está o pedido #${ticket.numero}?` : `${autor} pediu atualização no ticket #${ticket.numero}`,
       texto || ticket.titulo)
     return NextResponse.json({ ok: true })
   }

@@ -17,9 +17,16 @@ export const ESTILO_FILA = `
 .mf i,.mf [class*="fa-"]{font-weight:900}
 @keyframes mf-entra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .mf-anim{animation:mf-entra .35s ease both}
-@media (prefers-reduced-motion:reduce){.mf-anim{animation:none}.mf-card,.mf-it{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 12px 10px 8px;margin-top:8px;border:1px solid var(--portal-border,#e2e8f0);border-radius:12px;background:var(--portal-surface,#fefefe);transition:box-shadow .2s,border-color .2s,opacity .2s}
+@media (prefers-reduced-motion:reduce){.mf-anim{animation:none}.mf-card,.mf-it{transition:none!important}}
+.mf-it{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 12px 10px 8px;margin-top:8px;border:1px solid var(--portal-border,#e2e8f0);border-radius:12px;background:var(--portal-surface,#fefefe);transition:box-shadow .2s,border-color .2s,opacity .2s}
 .mf-it:hover{border-color:color-mix(in srgb,#2563eb 35%,var(--portal-border,#e2e8f0));box-shadow:0 8px 18px -14px rgba(15,23,42,.45)}
 .mf-it[draggable="true"]{cursor:grab}
+.mf-it.bola1{border-color:#fcd34d;box-shadow:inset 3px 0 0 #f59e0b}
+.mf-it.bola2{border-color:#fdba74;box-shadow:inset 3px 0 0 #ea580c}
+.mf-it.bola3{border-color:#fca5a5;box-shadow:inset 3px 0 0 #dc2626}
+.mf-cutucar{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:9px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);color:#2563eb;font:inherit;font-size:12.5px;cursor:pointer}
+.mf-cutucar:hover{background:color-mix(in srgb,#2563eb 7%,var(--portal-surface,#fefefe))}
+.mf-cutucar:disabled{opacity:.55;cursor:default}
 .mf-it.arrastando{opacity:.45}
 .mf-it.sobre{box-shadow:0 -3px 0 0 #2563eb}
 .mf-alca{display:grid;place-items:center;color:var(--portal-text-muted,#94a3b8);cursor:grab}

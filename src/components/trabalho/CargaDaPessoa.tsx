@@ -6,7 +6,9 @@ import { useEffect, useState } from 'react'
 import { ListOrdered, AlarmClock } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 
-export interface Carga { id: string; nome: string; setor: string; itens: number; horas: number; atrasados: number; aceitar: number; livreEm: string; hoje: number; diasFila?: number }
+export interface Carga { id: string; nome: string; setor: string; itens: number; horas: number; atrasados: number; aceitar: number; livreEm: string; hoje: number; diasFila?: number
+  /** melhorias 3.2/3.3: quantos pedidos com a bola parada e se está com o cronômetro ligado (sem título). */
+  bolasParadas?: number; fazendoAgora?: boolean }
 
 const br = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 

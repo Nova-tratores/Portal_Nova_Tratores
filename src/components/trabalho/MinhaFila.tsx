@@ -11,7 +11,7 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import {
   Check, CalendarClock, CircleX, Send, ListOrdered, Users, Sun, CalendarRange, Inbox, Repeat, ChevronUp, ChevronDown,
-  AlarmClock, HelpCircle, Clock3, Layers, GripVertical,
+  AlarmClock, HelpCircle, Clock3, Layers, GripVertical, BellRing,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
@@ -89,6 +89,16 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
     } catch { setErro('Falha de conexão') }
   }
   const [agora, setAgora] = useState<Agora | null>(null)
+  // Cutucar (melhorias 3.2): 1 vez por dia em cada pedido; o servidor valida e diz "próxima às…".
+  const [cutucadas, setCutucadas] = useState<Record<string, { enviando?: boolean; ok?: boolean; erro?: string }>>({})
+  const cutucar = async (id: string) => {
+    setCutucadas((c) => ({ ...c, [id]: { enviando: true } }))
+    try {
+      const r = await fetch(`/api/tickets/${id}/acoes`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ acao: 'pedir_atualizacao', cutucada: true }) })
+      const j = await r.json().catch(() => ({}))
+      setCutucadas((c) => ({ ...c, [id]: r.ok ? { ok: true } : { erro: j.error || 'Não deu certo' } }))
+    } catch { setCutucadas((c) => ({ ...c, [id]: { erro: 'Falha de conexão' } })) }
+  }
   // Estimar o tempo de um item (ou aceitar um pedido já dizendo quanto leva).
   const [estimando, setEstimando] = useState<{ id: string; titulo: string; aceitar?: boolean } | null>(null)
   const [verTudo, setVerTudo] = useState(false)
@@ -219,7 +229,7 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
       : i.urgente ? <SeloUrgente />
       : i.prazo ? <span className="mf-quando"><Clock3 size={13} style={{ verticalAlign: -2 }} /> prazo {br(i.prazo)}</span> : null
     return (
-      <div key={i.id} className={`mf-it${arrastando === i.id ? ' arrastando' : ''}${sobre === i.id && arrastando && arrastando !== i.id ? ' sobre' : ''}`}
+      <div key={i.id} className={`mf-it${arrastando === i.id ? ' arrastando' : ''}${sobre === i.id && arrastando && arrastando !== i.id ? ' sobre' : ''}${i.bola ? ` bola${Math.min(3, Math.floor(i.bola.dias / i.bola.limite))}` : ''}`}
         draggable={!i.urgente && !i.continuo}
         onDragStart={(e) => { setArrastando(i.id); e.dataTransfer.effectAllowed = 'move' }}
         onDragEnd={() => { setArrastando(null); setSobre(null) }}
@@ -248,7 +258,9 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
           )}
           {!i.continuo && <span>{quando}</span>}
           {i.status === 'em_andamento' && <span style={{ color: COR.ok }}>fazendo</span>}
-          {i.parado >= 14 && !diasAtraso && <span style={{ color: COR.atencao }}>parado {i.parado} dias</span>}
+          {i.bola
+            ? <span style={{ color: COR.atencao }} title={`Você não mexe neste pedido há ${i.bola.dias} dias úteis (limite: ${i.bola.limite}). Um comentário, uma mudança de situação ou de data já conta.`}>bola parada há {i.bola.dias} {i.bola.dias === 1 ? 'dia' : 'dias'}</span>
+            : i.parado >= 14 && !diasAtraso && <span style={{ color: COR.atencao }}>parado {i.parado} dias</span>}
         </span>
         {i.semEstimativa && !i.continuo && !tempoSalvo.has(i.id) && estimando?.id !== i.id && (
           <div className="mf-chips-tempo" role="group" aria-label={`Quanto leva o #${i.numero}?`}>
@@ -332,6 +344,7 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
             <span><b style={{ fontWeight: 500, color: COR.ok }}>Verde</b> = feito ou fazendo agora</span>
             <span><b style={{ fontWeight: 500, color: COR.ruim }}>Vermelho</b> = atrasado</span>
             <span><b style={{ fontWeight: 500, color: COR.atencao }}>Amarelo</b> = atenção (parado, sem tempo)</span>
+            <span><b style={{ fontWeight: 500, color: COR.atencao }}>Borda que esquenta</b> = bola parada: você não mexe no pedido há 5 dias úteis (urgente: 1). Amarela, laranja, vermelha conforme passa o tempo</span>
             <span><b style={{ fontWeight: 500, color: COR.info }}>Cinza</b> = informação</span>
           </span>
         </div>
@@ -487,6 +500,9 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
                     const quem = central?.usuarios[p.responsavel_id]?.nome || 'Alguém'
                     const st = STATUS_INFO[p.status as TicketStatus]
                     const atrasado = !!p.prazo && p.prazo < hoje && p.status !== 'resolvido'
+                    const cut = cutucadas[p.id]
+                    // Resolvido = a bola está comigo (confirmar); aí não tem quem cutucar.
+                    const podeCutucar = p.status !== 'resolvido' && p.responsavel_id !== userProfile?.id
                     return (
                       <div key={p.id} className="mf-it" style={{ gridTemplateColumns: 'minmax(0,1fr)' }}>
                         <button className="mf-tit" onClick={() => setAberto(p.id)}>#{p.numero} {p.titulo}</button>
@@ -495,6 +511,10 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
                           {p.aceite === 'pendente' ? <span className="mf-pill" style={{ ['--c' as string]: COR.atencao }}>esperando aceitar</span>
                             : st && <span className="mf-pill" style={{ ['--c' as string]: COR.info }}>{st.label}</span>}
                           {atrasado ? <SeloAtrasado>desde {br(p.prazo!)}</SeloAtrasado> : p.prazo && <span><Clock3 size={13} /> {br(p.prazo)}</span>}
+                          {podeCutucar && (cut?.ok
+                            ? <span style={{ color: COR.ok }}>cutucado ✓</span>
+                            : <button className="mf-cutucar" disabled={cut?.enviando} onClick={() => cutucar(p.id)} title={`Manda um aviso no sino de ${primeiro(quem)}: “como está?”. Uma vez por dia.`}><BellRing size={13} /> Cutucar</button>)}
+                          {cut?.erro && <span style={{ color: COR.atencao }}>{cut.erro}</span>}
                         </span>
                       </div>
                     )

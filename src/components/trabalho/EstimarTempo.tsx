@@ -9,13 +9,15 @@
 //  · pedido que ainda vai ser criado (pedido={userId,titulo}): só ESCOLHE (onEscolher) — o
 //    formulário de pedido manda as horas junto ao criar.
 import { useEffect, useState } from 'react'
-import { Sparkles, Check, X, Clock3 } from 'lucide-react'
+import { Sparkles, Check, X, Clock3, Flame, Users } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { planoDeHoras } from '@/lib/trabalho/estimativa'
 import { COR } from './estiloFila'
 
 interface TamanhoComFim { id: string; rotulo: string; horas: number; dica: string; termina: string }
-interface Resp { atual: number | null; capacidade: number; naFrente: number; comeca: string; sugestao: { horas: number; tamanho: { id: string }; motivo: string; termina: string } | null; tamanhos: TamanhoComFim[] }
+interface Resp { atual: number | null; capacidade: number; naFrente: number; comeca: string
+  /** Só no pedido novo (melhorias 3.1): nome de quem faz, quantos o urgente empurra e alguém do setor com fila menor. */
+  quem?: string; empurra?: number; alternativa?: { nome: string; livre: string } | null; sugestao: { horas: number; tamanho: { id: string }; motivo: string; termina: string } | null; tamanhos: TamanhoComFim[] }
 
 const br = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 const nf = (h: number) => String(h).replace('.', ',')
@@ -29,7 +31,7 @@ async function post(url: string, corpo: Record<string, unknown>) {
 export default function EstimarTempo({ ticketId, pedido, titulo, aceitar, onFechar, onSalvo, onEscolher }: {
   ticketId?: string
   /** Pedido ainda não criado: de quem é a fila e o título (a sugestão usa o título). */
-  pedido?: { userId: string; titulo: string; categoria?: string }
+  pedido?: { userId: string; titulo: string; categoria?: string; urgente?: boolean }
   titulo: string
   aceitar?: boolean
   onFechar?: () => void
@@ -43,7 +45,7 @@ export default function EstimarTempo({ ticketId, pedido, titulo, aceitar, onFech
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
   const modoPedido = !ticketId && !!pedido
-  const chave = ticketId ? `ticket=${ticketId}` : pedido ? `user=${pedido.userId}&titulo=${encodeURIComponent(pedido.titulo)}${pedido.categoria ? `&categoria=${encodeURIComponent(pedido.categoria)}` : ''}` : ''
+  const chave = ticketId ? `ticket=${ticketId}` : pedido ? `user=${pedido.userId}&titulo=${encodeURIComponent(pedido.titulo)}${pedido.categoria ? `&categoria=${encodeURIComponent(pedido.categoria)}` : ''}${pedido.urgente ? '&urgente=1' : ''}` : ''
 
   useEffect(() => {
     if (!chave) return
@@ -92,11 +94,30 @@ export default function EstimarTempo({ ticketId, pedido, titulo, aceitar, onFech
       {d && (
         <>
           {/* Quando começa: explica por que tamanhos pequenos podem terminar no mesmo dia */}
-          {d.comeca && (
+          {d.comeca && modoPedido && pedido?.urgente && (
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 13, color: 'var(--cor-urgente-texto)', marginBottom: 6 }}>
+              <Flame size={14} style={{ flex: 'none', marginTop: 2 }} />
+              <span>Urgente fura a fila: <b style={{ fontWeight: 500 }}>{d.quem ? d.quem.split(' ')[0] : 'a pessoa'}</b> começa em <b style={{ fontWeight: 500 }}>{br(d.comeca)}</b>.
+                {(d.empurra || 0) > 0
+                  ? <> Isso empurra <b style={{ fontWeight: 500 }}>{d.empurra} {d.empurra === 1 ? 'pedido' : 'pedidos'}</b>{valido ? <> em ~{Math.max(1, Math.ceil(total! / d.capacidade))} {Math.ceil(total! / d.capacidade) > 1 ? 'dias' : 'dia'}</> : null}. Quem pediu será avisado.</>
+                  : <> Não empurra ninguém.</>}</span>
+            </div>
+          )}
+          {d.comeca && !(modoPedido && pedido?.urgente) && (
             <div style={{ fontSize: 13, color: 'var(--portal-text-secondary,#475569)', marginBottom: 6 }}>
-              {d.naFrente > 0
+              {modoPedido && d.quem ? <>Se pedir agora, <b style={{ fontWeight: 500 }}>{d.quem.split(' ')[0]}</b> </> : null}
+              {d.naFrente > 0 && modoPedido && d.quem
+                ? <>começa por volta de <b style={{ fontWeight: 500 }}>{br(d.comeca)}</b>, depois de {d.naFrente} {d.naFrente === 1 ? 'pedido' : 'pedidos'}.</>
+                : modoPedido && d.quem ? <>pode começar em <b style={{ fontWeight: 500 }}>{br(d.comeca)}</b>.</>
+                : d.naFrente > 0
                 ? <>Entra no fim da fila{modoPedido ? ' dessa pessoa' : ''}: começa em <b style={{ fontWeight: 500 }}>{br(d.comeca)}</b>, depois de {d.naFrente} {d.naFrente === 1 ? 'pedido' : 'pedidos'}.</>
                 : <>Fila livre: começa em <b style={{ fontWeight: 500 }}>{br(d.comeca)}</b>.</>}
+            </div>
+          )}
+          {modoPedido && d.alternativa && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--portal-text-secondary,#475569)', marginBottom: 6 }}>
+              <Users size={14} color={COR.info} style={{ flex: 'none' }} />
+              <span><b style={{ fontWeight: 500 }}>{d.alternativa.nome.split(' ')[0]}</b> (mesmo setor) está livre a partir de <b style={{ fontWeight: 500 }}>{br(d.alternativa.livre)}</b>.</span>
             </div>
           )}
           {d.sugestao

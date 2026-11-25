@@ -34,11 +34,15 @@ export async function GET(req: NextRequest) {
   if (error) return migrationFaltou(error) ? NextResponse.json({ rodando: null, horas: {}, semTabela: true }) : erro(error.message, 500)
   const agora = Date.now()
   const horas: Record<string, number> = {}
-  let rodando: { ticket_id: string; inicio: string } | null = null
+  let rodando: { ticket_id: string; inicio: string; antes: number } | null = null
+  const fechadas: Record<string, number> = {}
   for (const l of (data || []) as { ticket_id: string; inicio: string; fim: string | null }[]) {
-    if (!l.fim) rodando = { ticket_id: l.ticket_id, inicio: l.inicio }
+    if (!l.fim) rodando = { ticket_id: l.ticket_id, inicio: l.inicio, antes: 0 }
+    else fechadas[l.ticket_id] = (fechadas[l.ticket_id] || 0) + (Date.parse(l.fim) - Date.parse(l.inicio)) / 3600000
     horas[l.ticket_id] = (horas[l.ticket_id] || 0) + ((l.fim ? Date.parse(l.fim) : agora) - Date.parse(l.inicio)) / 3600000
   }
+  // antes = horas já feitas no item que está rodando, SEM a sessão aberta (o Modo foco soma ao vivo).
+  if (rodando) rodando.antes = fechadas[rodando.ticket_id] || 0
   return NextResponse.json({ rodando, horas })
 }
 
