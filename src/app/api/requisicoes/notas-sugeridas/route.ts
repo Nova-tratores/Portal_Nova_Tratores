@@ -43,8 +43,11 @@ export async function POST(req: NextRequest) {
   const sug = (await sugestoesDeNota({ forcar: true })).find((s) => s.nota.id === notaId && mesmo(s.reqIds, reqIds));
   if (!sug) return NextResponse.json({ error: 'Essa sugestão não vale mais (a requisição ou a nota mudou). Atualize a tela.' }, { status: 409 });
 
-  const { data: atuais } = await supabase.from('Requisicao').select('id,fornecedor,numero_nota,foto_nf').in('id', reqIds);
+  const { data: atuais } = await supabase.from('Requisicao').select('id,fornecedor,numero_nota,foto_nf,autorizacao_status').in('id', reqIds);
   if ((atuais || []).length !== reqIds.length) return NextResponse.json({ error: 'requisição não encontrada' }, { status: 404 });
+  // sem autorização do Diretor não anexa nada (25/11/2026), nem a nota achada no Omie
+  const semAut = (atuais || []).find((r) => ['falta_pedir', 'aguardando', 'recusada'].includes(String(r.autorizacao_status || '')));
+  if (semAut) return NextResponse.json({ error: `A requisição #${semAut.id} ainda não tem a autorização do Diretor: não dá para ligar a nota.` }, { status: 409 });
   if ((atuais || []).some((r) => String(r.numero_nota || '').replace(/\D/g, ''))) return NextResponse.json({ error: 'Uma dessas requisições já tem nº de nota.' }, { status: 409 });
 
   const cnpj = sug.nota.cnpj;

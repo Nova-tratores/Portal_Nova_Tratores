@@ -1,25 +1,15 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { X, Clock, PlusCircle, Pencil, ArrowRightLeft, ShieldCheck, ShieldX, ShieldAlert, Trash2 } from 'lucide-react';
+import { X, Clock, PlusCircle, Pencil, ArrowRightLeft, ShieldCheck, ShieldX, ShieldAlert, Trash2, Paperclip, BadgeDollarSign } from 'lucide-react';
+import { eventoDoLog, type EventoHist } from '@/lib/requisicoes/historico';
 
 interface Props { reqId: number; titulo?: string; open: boolean; onClose: () => void }
 
-interface Evento {
-  tipo: 'criar' | 'editar' | 'mover_status' | 'deletar' | 'pedido' | 'aprovado' | 'recusado' | 'consumido';
+interface Evento extends EventoHist {
   quando: string;
   quem: string;
-  descricao: string;
-  detalhe?: string;
 }
-
-const FMT_CAMPOS: Record<string, string> = {
-  valor_despeza: 'Valor', valor_cobrado_cliente: 'Valor cobrado ao cliente', fornecedor: 'Fornecedor',
-  numero_nota: 'Nº da Nota', titulo: 'Título', tipo: 'Tipo', setor: 'Setor', solicitante: 'Solicitante',
-  data: 'Data', obs: 'Observação', status: 'Status', hodometro: 'Hodómetro', ordem_servico: 'Ordem de Serviço',
-  Chassis_Modelo: 'Chassis / Modelo', cliente: 'Cliente', veiculo: 'Veículo', quem_ferramenta: 'Destinação',
-  enviado_financeiro_data: 'Envio ao Financeiro',
-};
 
 const dataHora = (iso: string) => {
   try { return new Date(iso).toLocaleString('pt-BR'); } catch { return iso; }
@@ -38,29 +28,9 @@ export default function HistoricoModal({ reqId, titulo, open, onClose }: Props) 
 
     const evs: Evento[] = [];
 
+    // cada linha vira uma frase com a ação de verdade (lib/requisicoes/historico)
     for (const a of (aud.data || [])) {
-      const campos = a.detalhes && typeof a.detalhes === 'object'
-        ? Object.keys(a.detalhes).map(k => FMT_CAMPOS[k] || k)
-        : [];
-      if (a.acao === 'criar') {
-        evs.push({ tipo: 'criar', quando: a.created_at, quem: a.user_nome || '—', descricao: 'Requisição criada' });
-      } else if (a.acao === 'mover_status') {
-        const de = a.detalhes?.de, para = a.detalhes?.para;
-        evs.push({ tipo: 'mover_status', quando: a.created_at, quem: a.user_nome || '—', descricao: 'Mudou de fase', detalhe: de && para ? `${de} → ${para}` : undefined });
-      } else if (a.acao === 'aprovar_compra') {
-        evs.push({ tipo: 'aprovado', quando: a.created_at, quem: a.user_nome || '—', descricao: 'Aprovou a compra' });
-      } else if (a.acao === 'retirar_aprovacao') {
-        evs.push({ tipo: 'recusado', quando: a.created_at, quem: a.user_nome || '—', descricao: 'Retirou a aprovação da compra', detalhe: a.detalhes?.antes ? `era de ${a.detalhes.antes}` : undefined });
-      } else if (a.acao === 'cotacao_indicada' || a.acao === 'cotacao_comprada') {
-        const n = a.detalhes?.numero;
-        const forn = a.detalhes?.fornecedor;
-        const oque = a.acao === 'cotacao_indicada' ? 'indicada' : 'comprada';
-        evs.push({ tipo: 'editar', quando: a.created_at, quem: a.user_nome || '—', descricao: n ? `Marcou a cotação ${oque}` : `Desmarcou a cotação ${oque}`, detalhe: n ? `${n}${forn ? ' · ' + forn : ''}` : undefined });
-      } else if (a.acao === 'deletar') {
-        evs.push({ tipo: 'deletar', quando: a.created_at, quem: a.user_nome || '—', descricao: 'Movida para a lixeira' });
-      } else {
-        evs.push({ tipo: 'editar', quando: a.created_at, quem: a.user_nome || '—', descricao: 'Alterou', detalhe: campos.join(', ') || undefined });
-      }
+      evs.push({ ...eventoDoLog(String(a.acao || ''), a.detalhes), quando: a.created_at, quem: a.user_nome || '—' });
     }
 
     for (const p of (aut.data || [])) {
@@ -88,8 +58,10 @@ export default function HistoricoModal({ reqId, titulo, open, onClose }: Props) 
     switch (t) {
       case 'criar': return <PlusCircle size={15} className="text-emerald-600" />;
       case 'editar': return <Pencil size={15} className="text-blue-600" />;
-      case 'mover_status': return <ArrowRightLeft size={15} className="text-indigo-600" />;
-      case 'deletar': return <Trash2 size={15} className="text-black" />;
+      case 'fase': return <ArrowRightLeft size={15} className="text-indigo-600" />;
+      case 'lixeira': return <Trash2 size={15} className="text-black" />;
+      case 'anexo': return <Paperclip size={15} className="text-sky-600" />;
+      case 'pago': return <BadgeDollarSign size={15} className="text-emerald-600" />;
       case 'pedido': return <ShieldAlert size={15} className="text-amber-600" />;
       case 'aprovado': return <ShieldCheck size={15} className="text-emerald-600" />;
       case 'recusado': return <ShieldX size={15} className="text-orange-600" />;

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import MapaCotacoesPDF from './MapaCotacoesPDF';
+import CarimbosReq from './CarimbosReq';
 
 const UNIDADES = {
   nova: {
@@ -109,7 +110,9 @@ export default function TemplatePDF({ req, anexos = [] }: { req: any, anexos?: {
         }
       `}} />
 
-      <div className="pdf-content flex flex-col font-sans bg-white text-black p-4">
+      <div className="pdf-content flex flex-col font-sans bg-white text-black p-4" style={{ position: 'relative' }}>
+        {/* carimbos NÃO AUTORIZADO / PAGO */}
+        <CarimbosReq req={req} />
         {/* CABEÇALHO */}
         <div className="flex justify-between items-start mb-6 border-b-2 border-black pb-4">
           <div className="space-y-1">

@@ -27,7 +27,7 @@ import DialogoImprimirReq from './DialogoImprimirReq';
 import LeituraNota from './LeituraNota';
 import { anexosNoDrive as anexosNoDriveDe, getUrlAnexo, CAMPOS_NF } from '@/lib/requisicoes/anexos';
 import { formatarLitros, formatarHodometro, mascaraDinheiro } from '@/lib/requisicoes/campos';
-import { prontaParaFinanceiro, CAMPOS_COMPROVANTE } from '@/lib/requisicoes/lembretes';
+import { prontaParaFinanceiro, presaNaAutorizacao, CAMPOS_COMPROVANTE } from '@/lib/requisicoes/lembretes';
 import AutorizacaoReq from './AutorizacaoReq';
 import { buscarContaDaReq, criarContaDaRequisicao, type ContaExistente } from '@/lib/financeiro/conta-da-requisicao';
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins';
@@ -79,6 +79,14 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   // Quem entra nesse fluxo sai da trava antiga de R$ 500 (uma alteração por vez).
   const autSt: string | null = req.autorizacao_status || null;
   const travadaAut = autSt === 'aguardando' || autSt === 'recusada';
+  // Sem autorização não anexa NADA (José, 25/11/2026): nem nota, nem recibo, nem boleto.
+  // "Falta pedir" ainda edita os campos (o pedido exige o cartão completo), mas não anexa.
+  const semAutorizacao = autSt === 'falta_pedir' || travadaAut;
+  const MSG_SEM_AUT = autSt === 'falta_pedir'
+    ? 'Esta requisição precisa da autorização do Diretor. Peça a autorização primeiro: depois de autorizada dá para anexar.'
+    : autSt === 'aguardando'
+      ? 'Esperando a autorização do Diretor: enquanto isso não dá para anexar nem alterar.'
+      : 'Requisição NÃO autorizada: não dá para anexar. Corrija o valor ou peça a autorização de novo.';
   const bloqueada = valorAlto && !isDev && !autoriz && !autSt;
   // Valor acabou de chegar ao limite (o banco virou para "falta_pedir") com o cartão aberto → abre a janela
   // "pedir já ou terminar de preencher antes" (José, 18/11/2026). Só na virada, não ao abrir um cartão que já estava assim.
@@ -349,10 +357,12 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const persist = useCallback((name: string, value: any) => {
     // Requisição de valor alto bloqueada: abre o pedido de permissão em vez de gravar
     if (bloqueada) { setPedirOpen(true); return; }
+    // anexo (pôr ou tirar) sem autorização: trancado
+    const ehAnexo = (CAMPOS_COMPROVANTE as readonly string[]).includes(name) || name === 'boleto_fornecedor';
+    if (semAutorizacao && ehAnexo) { alert(MSG_SEM_AUT); return; }
     if (travadaAut) {
-      const livre = (CAMPOS_COMPROVANTE as readonly string[]).includes(name) || name === 'boleto_fornecedor' || name === 'autorizacao_motivo'
-        || (autSt === 'recusada' && name === 'valor_despeza');
-      if (!livre) { alert(autSt === 'aguardando' ? 'Esperando a autorização do Diretor: por enquanto só dá para anexar.' : 'Não autorizada: corrija o valor ou peça de novo (abaixo do valor).'); return; }
+      const livre = name === 'autorizacao_motivo' || (autSt === 'recusada' && name === 'valor_despeza');
+      if (!livre) { alert(MSG_SEM_AUT); return; }
     }
     setLocalData((prev: any) => {
       if (prev[name] === value) return prev;
@@ -365,7 +375,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       consumirAutorizacao(autoriz.id);
       setAutoriz(null);
     }
-  }, [req.id, req, onUpdate, bloqueada, autoriz, valorAlto, isDev, travadaAut, autSt]);
+  }, [req.id, req, onUpdate, bloqueada, autoriz, valorAlto, isDev, travadaAut, autSt, semAutorizacao, MSG_SEM_AUT]);
 
   const enviarPedidoPermissao = useCallback(async () => {
     const motivo = motivoPedido.trim();
@@ -594,6 +604,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     const files = Array.from(e.target.files || []);
     e.target.value = '';   // deixa reescolher o MESMO arquivo depois de cancelar
     if (!files.length) return;
+    if (semAutorizacao) { alert(MSG_SEM_AUT); return; }
     if (files.length === 1) {
       const file = files[0];
       if (file.type.startsWith('image/')) { setRecorte({ arquivo: file, label, aoConfirmar: (f) => enviarAnexo(f, fieldName) }); return; }
@@ -612,6 +623,8 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   };
 
   const enviarAnexo = async (file: File, fieldName: string) => {
+    // nem sobe o arquivo sem autorização (vale também para a troca de tipo p/ Remuneração)
+    if (semAutorizacao) { alert(MSG_SEM_AUT); return false; }
     setUploading(fieldName);
     setUploadOk(null);
     try {
@@ -623,20 +636,21 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       if (fieldName.startsWith('foto_nf')) setGatilhoNota({ campo: fieldName, em: Date.now() });
       // Nota lançada e 2+ cotações sem a comprada marcada: pergunta qual foi (não trava nada).
       if (fieldName.startsWith('foto_nf') && precisaMarcarComprada(cotacaoRef.current, { ...localData, [fieldName]: filePath })) setEscolherComprada(true);
-      // Com a nota ou o recibo anexado (e valor + fornecedor preenchidos), a
-      // requisição vai sozinha para "Enviado Financeiro" (10/11/2026; antes só a
-      // Alimentação fazia isso). Boleto não conta. O robô das requisições faz o
-      // mesmo a cada 30 min para quem preencher o valor/fornecedor depois.
+      // Com a NOTA FISCAL anexada (e valor + fornecedor preenchidos), a requisição
+      // vai sozinha para "Enviado Financeiro". Recibo e boleto NÃO mandam (José,
+      // 25/11/2026), e sem autorização ela não sai de "Aguardando autorização".
+      // O robô das requisições faz o mesmo a cada 30 min (lib/requisicoes/lembretes).
       const depois = { ...localData, [fieldName]: filePath };
       // Alimentação segue como era: nota anexada = financeiro (inclusive a criada pela OS).
       const tipoReq = String(localData.tipo || localData.ReqTipo || '').toLowerCase();
-      const vai = tipoReq.startsWith('alimenta')
-        ? fieldName.startsWith('foto_nf') && !['financeiro', 'lixeira'].includes(String(localData.status || ''))
-        : (CAMPOS_COMPROVANTE as readonly string[]).includes(fieldName) && prontaParaFinanceiro(depois as never);
+      const ehNota = fieldName.startsWith('foto_nf');
+      const vai = ehNota && !presaNaAutorizacao(depois as never) && (tipoReq.startsWith('alimenta')
+        ? !['financeiro', 'lixeira'].includes(String(localData.status || ''))
+        : prontaParaFinanceiro(depois as never));
       if (vai && !bloqueada && !travadaAut) {
         const hoje = new Date().toISOString().slice(0, 10);
         setLocalData((prev: any) => ({ ...prev, status: 'financeiro', enviado_financeiro_data: hoje }));
-        onUpdate(req.id, { status: 'financeiro', enviado_financeiro_data: hoje });
+        onUpdate(req.id, { status: 'financeiro', enviado_financeiro_data: hoje }, { motivo: 'automático, ao anexar a nota fiscal' });
       }
       setUploadOk(fieldName);
       setTimeout(() => setUploadOk(null), 2000);
@@ -773,7 +787,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
           )
         )}
         {/* Anexo errado: tirar (pede confirmação; respeita somente-leitura e a trava de valor alto via persist) */}
-        {hasFile && !isUploading && podeEditar && (
+        {hasFile && !isUploading && podeEditar && !semAutorizacao && (
           <button type="button" onClick={() => { if (confirm(`Remover o anexo "${label}"?`)) persist(field, null) }}
             className="w-7 h-7 flex items-center justify-center rounded bg-zinc-200 text-black hover:bg-zinc-700 hover:text-white transition-all shrink-0" title="Remover anexo">
             <X size={12} />
@@ -781,12 +795,20 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
         )}
         {/* Sem botão de câmera: o seletor de arquivo do celular já oferece a câmera,
             e toda imagem anexada passa pelo corte antes de subir (handleFileUpload). */}
+        {/* sem autorização: cadeado no lugar do botão de enviar (clicar explica o porquê) */}
+        {semAutorizacao ? (
+          <button type="button" onClick={() => alert(MSG_SEM_AUT)} title="Precisa da autorização do Diretor para anexar"
+            className="w-7 h-7 flex items-center justify-center rounded bg-red-100 text-red-700 shrink-0">
+            <Lock size={12} />
+          </button>
+        ) : (
         <label className={`w-7 h-7 flex items-center justify-center rounded cursor-pointer transition-all shrink-0 ${
           justUploaded ? 'bg-emerald-500 text-white' : isUploading ? 'bg-zinc-200 text-black' : 'bg-zinc-200 text-black hover:bg-orange-600 hover:text-white'
         }`} title="Enviar arquivo — selecionando várias fotos, elas viram um PDF único neste anexo">
           {justUploaded ? <Check size={12} /> : <Upload size={12} />}
           <input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={e => handleFileUpload(e, field, label)} disabled={isUploading} />
         </label>
+        )}
       </div>
     );
   };
@@ -1658,6 +1680,32 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                     <Check size={13} className="text-emerald-600" />
                     <span className="text-sm text-emerald-700">Enviado ao financeiro em <strong>{new Date(req.enviado_financeiro_data.length > 10 ? req.enviado_financeiro_data : req.enviado_financeiro_data + 'T12:00:00').toLocaleDateString('pt-BR')}</strong></span>
                   </div>
+                )}
+
+                {/* FOI PAGO? (25/11/2026) — marcada, o PDF sai com o carimbo verde PAGO.
+                    Só aparece com a coluna no banco (sql/requisicao-pago.sql). Não passa
+                    pela trava de edição: pagar não muda o que foi pedido. */}
+                {'pago' in localData && (
+                  <label className={`flex items-center gap-3 min-h-[44px] px-3 mt-2 rounded-lg border ${localData.pago ? 'bg-emerald-50 border-emerald-400' : 'bg-white border-zinc-200'} ${podeEditar ? 'cursor-pointer' : 'opacity-60'}`}>
+                    <input
+                      type="checkbox"
+                      checked={!!localData.pago}
+                      disabled={!podeEditar}
+                      onChange={(e) => {
+                        const pago = e.target.checked;
+                        const dados = { pago, pago_em: pago ? new Date().toISOString() : null, pago_por: pago ? (userProfile?.nome || userEmail || null) : null };
+                        setLocalData((prev: any) => ({ ...prev, ...dados }));
+                        onUpdate(req.id, dados);
+                      }}
+                      className="w-5 h-5 accent-emerald-600 cursor-pointer"
+                    />
+                    <span className="text-sm font-semibold text-black">Foi pago?</span>
+                    {localData.pago && (
+                      <span className="text-[13px] text-emerald-800">
+                        PAGO{localData.pago_por ? ` · marcado por ${localData.pago_por}` : ''}{localData.pago_em ? ` em ${new Date(localData.pago_em).toLocaleDateString('pt-BR')}` : ''}
+                      </span>
+                    )}
+                  </label>
                 )}
 
               </div>

@@ -34,6 +34,7 @@ export interface ReqLembrete {
   solicitante?: string | null;
   fornecedor?: string | null;
   valor_despeza?: string | number | null;
+  autorizacao_status?: string | null;
   created_at?: string | null;
   [campo: string]: unknown;
 }
@@ -66,9 +67,22 @@ export function oQueFalta(r: ReqLembrete): string[] {
   return falta;
 }
 
-/** Pode ir sozinha ao financeiro agora? */
+/** Nota fiscal anexada (recibo não conta para a ida automática). */
+export const temNota = (r: ReqLembrete) => CAMPOS_COMPROVANTE.some((c) => c !== 'recibo_fornecedor' && preenchido(r[c]));
+
+/** Esperando o Diretor (falta pedir, aguardando ou não autorizada): não sai da fase sozinha. */
+export const presaNaAutorizacao = (r: ReqLembrete) =>
+  ['falta_pedir', 'aguardando', 'recusada'].includes(String(r.autorizacao_status || '')) || String(r.status || '') === 'recusada';
+
+/**
+ * Pode ir sozinha ao financeiro agora? (José, 25/11/2026)
+ *  - só com a NOTA FISCAL: recibo anexado não manda mais sozinho;
+ *  - sem autorização, NÃO sai de "Aguardando autorização" (o robô roda pelo
+ *    servidor e a trava do banco libera o servidor, então a regra é aqui).
+ */
 export function prontaParaFinanceiro(r: ReqLembrete): boolean {
-  return estaAberta(r) && !ehAlimentacaoDaOS(r) && oQueFalta(r).length === 0;
+  if (!estaAberta(r) || ehAlimentacaoDaOS(r) || presaNaAutorizacao(r)) return false;
+  return temNota(r) && oQueFalta(r).length === 0;
 }
 
 /** "a nota ou o recibo, o valor e o fornecedor" */

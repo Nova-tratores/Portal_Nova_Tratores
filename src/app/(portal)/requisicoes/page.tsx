@@ -35,6 +35,7 @@ import { ESTILO_REQ_VN } from '@/components/requisicoes/visualReq';
 import { normalizarStatus, normalizarTipo, ROTULO_FASE, type ItemAtencao } from '@/lib/requisicoes/inteligencia';
 
 import { mensagemErroFornecedor } from '@/lib/requisicoes/fornecedor-campos';
+import { registrosDaMudanca } from '@/lib/requisicoes/historico';
 /** Linha do banco → como a tela usa (colunas antigas do AppSheet + grafias diferentes juntadas). */
 function normalizarLinha(r: any) {
   return {
@@ -262,7 +263,9 @@ function RequisicoesPageInner() {
   // Rastreia quais cards foram editados enquanto estavam abertos
   const cardsEditadosRef = useRef<Set<number>>(new Set());
 
-  const handleUpdateReq = useCallback(async (id: number, dados: Record<string, unknown>, opcoes?: { soLocal?: boolean }) => {
+  const handleUpdateReq = useCallback(async (id: number, dados: Record<string, unknown>, opcoes?: { soLocal?: boolean; motivo?: string }) => {
+    // como estava ANTES (o histórico grava "de X para Y", não só o valor novo)
+    const antes = requisicoesRef.current.find(r => r.id === id);
     setRequisicoes(prev => prev.map(r => r.id === id ? { ...r, ...dados } : r));
     const { data: volta, error } = await supabase.from('Requisicao').update(dados).eq('id', id)
       .select('status, autorizacao_status, autorizacao_pedida_em').maybeSingle();
@@ -274,7 +277,10 @@ function RequisicoesPageInner() {
     // trava da autorização do Diretor (gatilho no banco) volta com a explicação: mostra e recarrega
     if (error && /autoriza/i.test(String(error.message || ''))) { alert(error.message); carregarDados(true); return }
     if (error) { console.error('[Requisições] Erro ao atualizar:', error?.message, error?.code, error?.details, error?.hint); carregarDados(true); return }
-    auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'requisicao', entidade_id: String(id), detalhes: dados });
+    // cada ação com nome próprio (mudou de fase, anexou, marcou pago, alterou X de A para B)
+    for (const reg of registrosDaMudanca(antes, dados, { motivo: opcoes?.motivo })) {
+      auditLog({ sistema: 'requisicoes', acao: reg.acao, entidade: 'requisicao', entidade_id: String(id), entidade_label: antes?.titulo || undefined, detalhes: reg.detalhes });
+    }
     if (dados.autorizacao_status === 'aguardando') void avisarAutorizadores(id);
     // Chegou ao financeiro: o motor da frota fecha na hora a pendência do carro
     // ligada a esta requisição (sem isso, só fechava na rodada de 15 min)
@@ -967,7 +973,8 @@ function RequisicoesPageInner() {
               }
               if (ins?.id && nova.autorizacao_status === 'aguardando') void avisarAutorizadores(Number(ins.id));
               apagarRascunho(RASCUNHO_NOVA_REQ); // criou: o rascunho não serve mais
-              auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'requisicao', entidade_label: String(nova.titulo || '') });
+              // com o nº da requisição: sem ele o "Criou" nunca aparecia no histórico dela
+              auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'requisicao', entidade_id: ins?.id != null ? String(ins.id) : undefined, entidade_label: String(nova.titulo || '') });
               notificarUsuariosReq('requisicao', `${userName} criou uma requisição`, String(nova.titulo || 'Nova requisição'), '/requisicoes');
               // Veicular Manutenção → a pendência da Frota nasce NA HORA (o motor
               // cria pro carro com o km do hodômetro e fecha sozinho quando a
