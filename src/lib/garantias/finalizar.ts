@@ -4,6 +4,7 @@
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PEND, TBL_GAR_PECAS, valoresFabrica, GUARDA_DIAS_PADRAO } from './constants';
 import { registrarEvento, notificarTecnico, notificarGarantistas } from './server';
+import { refOS } from '@/lib/garantias/so-pecas';
 
 // body: { resultado:'aprovada'|'rejeitada', motivo_recusa?, garantista_horas, garantista_km, garantista_obs?, garantista_nome?,
 //         pecas_aprovadas?, mo_aprovada?, desloc_aprovado?, devolucao_pedida?, guarda_pedida?, recusa_garantista? }
@@ -283,15 +284,15 @@ export async function finalizarGarantia(id: string, body: any, ator: string): Pr
         : `Garantia ${g.numero} não foi paga`,
     descricao:
       resultado === 'aprovada'
-        ? `A OS ${g.id_ordem} foi paga em garantia.`
+        ? `A ${refOS(g)} foi paga em garantia.`
         : recusaInterna
-          ? `O garantista entendeu que a OS ${g.id_ordem} não cabe garantia. Motivo: ${motivoCurto}`
-          : `A garantia da OS ${g.id_ordem} foi recusada pela fábrica.`,
+          ? `O garantista entendeu que a ${refOS(g)} não cabe garantia. Motivo: ${motivoCurto}`
+          : `A garantia da ${refOS(g)} foi recusada pela fábrica.`,
     link: `/os/${g.id_ordem}`,
   });
   await notificarGarantistas({
     titulo: `Garantia ${g.numero} finalizada (${resultado === 'aprovada' ? 'aprovada' : 'recusada'})`,
-    descricao: `OS ${g.id_ordem}${resultado === 'aprovada' && devolucaoPedida ? ` · devolver as peças à fábrica até ${prazoDevolucao.split('-').reverse().join('/')}` : ''}`,
+    descricao: `${refOS(g)}${resultado === 'aprovada' && devolucaoPedida ? ` · devolver as peças à fábrica até ${prazoDevolucao.split('-').reverse().join('/')}` : ''}`,
     link: `/garantias?id=${id}`,
   });
 

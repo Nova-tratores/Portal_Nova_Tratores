@@ -6,6 +6,7 @@ import { registrarEvento, notificarTecnico } from '@/lib/garantias/server';
 import type { ChecklistField } from '@/lib/garantias/types';
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 import { fetchInterno } from '@/lib/auth/chamada-interna';
+import { refOS } from '@/lib/garantias/so-pecas';
 
 // POST /api/garantias/[id]/enviar-fabrica
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   });
   await notificarTecnico(g.tecnico_nome, {
     titulo: `Garantia ${g.numero} enviada à fábrica`,
-    descricao: `A garantia da OS ${g.id_ordem} está em análise da fábrica.`,
+    descricao: `A garantia da ${refOS(g)} está em análise da fábrica.`,
     link: `/os/${g.id_ordem}`,
   });
 

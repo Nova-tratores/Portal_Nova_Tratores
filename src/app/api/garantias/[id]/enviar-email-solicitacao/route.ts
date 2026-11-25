@@ -15,6 +15,7 @@ import {
 } from '@/lib/garantias/email';
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 import { fetchInterno } from '@/lib/auth/chamada-interna';
+import { refOS } from '@/lib/garantias/so-pecas';
 
 export const runtime = 'nodejs';
 
@@ -263,7 +264,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     await notificarGarantistas({
       titulo: `Solicitação da garantia ${g.numero} enviada por e-mail`,
-      descricao: `${mont.nome} · OS ${g.id_ordem}`,
+      descricao: `${mont.nome} · ${refOS(g)}`,
       link: `/garantias?id=${id}`,
     });
 
