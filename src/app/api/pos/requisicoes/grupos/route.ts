@@ -41,9 +41,14 @@ export async function GET(req: NextRequest) {
     // grupo marcado "conclui sozinho": todas as requisições no financeiro → conclui agora (16/11/2026)
     await concluirProntos((grupos || []) as Record<string, unknown>[], porGrupo);
 
+    // 25/11/2026 (José): grupo de campanha PRIVADA → quem não é responsável (nem dev) vê das requisições
+    // dos outros só o título (a tela esconde o resto e não abre). As próprias continuam completas.
+    const soTitulo = await gruposSoTitulo(guarda.user.id, (grupos || []) as Record<string, unknown>[]);
+
     const result = (grupos || []).map((g: Record<string, unknown>) => ({
       ...g,
       membros: porGrupo[String(g.id)] || [],
+      ...(soTitulo.has(String(g.id)) ? { so_titulo: true } : {}),
     }));
     return NextResponse.json(result);
   } catch (e) {
@@ -52,6 +57,28 @@ export async function GET(req: NextRequest) {
 }
 
 const semColuna = (msg?: string) => /fecha_sozinho/.test(msg || "");
+
+/** ids dos grupos ligados a campanha privada em que esta pessoa não é responsável (dev vê tudo). */
+async function gruposSoTitulo(userId: string, grupos: Record<string, unknown>[]): Promise<Set<string>> {
+  const fora = new Set<string>();
+  const ligados = grupos.filter((g) => g.mkt_acao_id);
+  if (!ligados.length) return fora;
+  try {
+    const { data: perm } = await supabase.from("portal_permissoes").select("is_dev").eq("user_id", userId).maybeSingle();
+    if (perm?.is_dev) return fora;
+    const acaoIds = [...new Set(ligados.map((g) => String(g.mkt_acao_id)))];
+    const { data: acoes, error } = await supabase.from("mkt_acoes").select("id, visibilidade, responsavel_id").in("id", acaoIds);
+    if (error) return fora;   // SQL da visibilidade não rodou: tudo como antes
+    type A = { id: string; visibilidade?: string | null; responsavel_id?: string | null };
+    const privadas = ((acoes || []) as A[]).filter((a) => a.visibilidade === "privada" && a.responsavel_id !== userId);
+    if (!privadas.length) return fora;
+    const { data: resp } = await supabase.from("mkt_acao_responsaveis").select("acao_id").eq("user_id", userId).in("acao_id", privadas.map((a) => a.id));
+    const minhas = new Set(((resp || []) as { acao_id: string }[]).map((r) => String(r.acao_id)));
+    const bloqueadas = new Set(privadas.filter((a) => !minhas.has(String(a.id))).map((a) => String(a.id)));
+    for (const g of ligados) if (bloqueadas.has(String(g.mkt_acao_id))) fora.add(String(g.id));
+  } catch { /* na dúvida, não muda nada */ }
+  return fora;
+}
 
 /** conclui (no banco e no objeto da lista) os grupos abertos marcados que já estão prontos */
 async function concluirProntos(grupos: Record<string, unknown>[], porGrupo: Record<string, number[]>) {

@@ -26,6 +26,7 @@ import ResumoAba, { PainelDinheiro, RespostasQuestionario } from '@/components/m
 import LinhaDoTempoAba from '@/components/marketing/abas/LinhaDoTempoAba';
 import ApoiosAba from '@/components/marketing/abas/ApoiosAba';
 import CustosAba from '@/components/marketing/abas/CustosAba';
+import RequisicoesDaCampanha from '@/components/marketing/abas/RequisicoesDaCampanha';
 import LeadsAba from '@/components/marketing/abas/LeadsAba';
 import PropostasAba from '@/components/marketing/abas/PropostasAba';
 import ListaSimples, { SPEC_EQUIPE, SPEC_ITENS, SPEC_REALIZADAS, SPEC_CONCORRENTES, SPEC_MIDIAS } from '@/components/marketing/abas/ListaSimples';
@@ -125,6 +126,8 @@ export default function FichaAcaoPage() {
   const [migracao, setMigracao] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [aba, setAba] = useState<Aba>('Resumo');
+  // 25/11/2026: o aviso de comentário/tarefa abre /marketing/<id>?req=123 → vai direto para Dinheiro
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('req')) setAba('Dinheiro'); }, []);
   const [editando, setEditando] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState<string | null>(null);
@@ -420,6 +423,8 @@ export default function FichaAcaoPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <PainelDinheiro ficha={ficha} roi={roi} />
           <Bloco titulo="Investimento"><CustosAba acaoId={id} custos={ficha.custos} onMudou={carregar} /></Bloco>
+          {/* 25/11/2026: as requisições do grupo da campanha, com fases, comentários e tarefas */}
+          <Bloco titulo="Requisições da campanha"><RequisicoesDaCampanha acaoId={id} onMudou={carregar} /></Bloco>
           {mostraApoio && <Bloco titulo="Apoio de fábrica"><ApoiosAba acaoId={id} apoios={ficha.apoios} inativos={ficha.inativos} onMudou={carregar} /></Bloco>}
         </div>
       )}
@@ -461,7 +466,7 @@ export default function FichaAcaoPage() {
 
       <Modal titulo="Editar campanha" aberto={editando} onFechar={() => setEditando(false)}>
         <AcaoForm
-          inicial={acao}
+          inicial={{ ...acao, responsaveis: ficha.responsaveis ?? [] } as any}
           salvando={salvando}
           erro={erroForm}
           onSalvar={salvarEdicao}

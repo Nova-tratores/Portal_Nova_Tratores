@@ -225,6 +225,17 @@ export default function MarketingPage() {
         </div>
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(min(330px, 100%), 1fr))' }}>
           {lista.map((a) => {
+            // 25/11/2026 (José): privada sem acesso → mostra que existe uma campanha, mas não qual é.
+            // O servidor já manda só isto (sem nome, sem capa, sem id de verdade).
+            if ((a as any).privada_oculta) {
+              return (
+                <div key={a.id} className="mkt-card" style={{ background: 'var(--portal-bg-card)', border: '1px dashed var(--portal-border)', borderRadius: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 180, color: 'var(--portal-text-muted, #64748b)', textAlign: 'center', padding: 18 }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text)' }}>Campanha privada</div>
+                  <div style={{ fontSize: 12.5 }}>Só os responsáveis dela têm acesso.</div>
+                </div>
+              );
+            }
             const r = resumos[a.id];
             const dias = diasAte(r?.prazoMaisProximo);
             const semDono = !!a.responsavel_id && inativos.has(a.responsavel_id);

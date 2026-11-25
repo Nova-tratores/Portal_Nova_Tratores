@@ -8,6 +8,7 @@ import { TIPOS_ACAO, STATUS_ACAO, EMPRESAS, ehEventoInterno } from '@/lib/market
 import type { Acao } from '@/lib/marketing/tipos';
 import { Campo, estiloInput, BotaoRosa, ROSA, MaisDetalhes } from './ui';
 import EnviarFoto from './redes/EnviarFoto';
+import SeletorPessoas from '@/components/reunioes/SeletorPessoas';
 
 interface Usuario { id: string; nome: string; email: string | null; ativo: boolean | null }
 interface Projeto { codigo: number; nome: string; empresa: string }
@@ -29,7 +30,12 @@ export default function AcaoForm({
     objetivo: '', observacoes: '',
     responsavel_id: '', responsavel_nome: '', responsavel_email: '',
     projeto_codigo: '', projeto_nome: '', projeto_empresa: '',
+    visibilidade: 'publica',
     ...(inicial ?? {}),
+    // 25/11/2026: grupo de responsáveis (ids). Na edição vem da ficha (inicial.responsaveis = [{user_id}])
+    responsaveis: Array.isArray((inicial as any)?.responsaveis)
+      ? (inicial as any).responsaveis.map((r: any) => (typeof r === 'string' ? r : r.user_id)).filter(Boolean)
+      : [],
   });
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
@@ -175,7 +181,25 @@ export default function AcaoForm({
             Essa pessoa não está mais ativa no portal.
           </div>
         )}
+        {/* 25/11/2026 (José): pública ou privada. Privada = só os responsáveis (e dev) veem. */}
+        <Campo label="Quem vê" largura="0 1 220px" ajuda={f.visibilidade === 'privada' ? 'Só os responsáveis abaixo (e dev). Os outros veem só "Campanha privada".' : 'Todo mundo do Marketing.'}>
+          <select style={estiloInput} value={f.visibilidade ?? 'publica'} onChange={(e) => set('visibilidade', e.target.value)}>
+            <option value="publica">Pública</option>
+            <option value="privada">Privada</option>
+          </select>
+        </Campo>
       </div>
+
+      {/* 25/11/2026 (José): "sempre vamos criar responsáveis da campanha, como se fosse uma reunião".
+          Quem está aqui recebe as atribuições e os @ das requisições da campanha. O dono acima sempre entra. */}
+      <Campo label="Responsáveis da campanha" ajuda="Quem cuida junto. Só estas pessoas podem receber tarefas nas requisições da campanha.">
+        <SeletorPessoas
+          valor={f.responsaveis ?? []}
+          onChange={(ids: string[]) => set('responsaveis', ids)}
+          fixos={f.responsavel_id ? [f.responsavel_id] : []}
+          placeholder="Digite o nome de quem cuida junto…"
+        />
+      </Campo>
 
       {/* Evento interno (23/11/2026): sem stand, público de feira nem metas de venda — só convidados.
           Convidados ficam em publico_total_evento (a mesma coluna; o rótulo é que muda). */}
