@@ -5,15 +5,17 @@
 //   3 · Planejadas: o grupo vira um ticket da Central (FormTicket pré-preenchido)
 // Tudo pelas rotas /api/dev/ideias/* (service role); sem Realtime — recarrega
 // no foco da janela e no evento 'central-trabalho-mudou', como as outras páginas.
+// melhorias 5 (25/11/2026): 👍 e Captadas por votos · "levar para reunião" · ao salvar, avisa se
+// parece com um pedido aberto ("vincular?") · "Sugerir grupos" com IA (só com IDEIAS_IA=1).
 export const dynamic = 'force-dynamic'
 
 import { useCallback, useEffect, useMemo, useState, Suspense } from 'react'
-import { Lightbulb, FolderOpen, Rocket, FolderPlus, ArrowRight, RefreshCw, Archive } from 'lucide-react'
+import { Lightbulb, FolderOpen, Rocket, FolderPlus, ArrowRight, RefreshCw, Archive, Sparkles, Link2, X } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { authHeaders } from '@/lib/auth/client'
 import {
-  separarPorEstagio, descricaoDoGrupo, tituloDoGrupo,
+  separarPorEstagio, descricaoDoGrupo, tituloDoGrupo, ordenarPorVotos,
   type Ideia, type GrupoIdeias, type GrupoComIdeias,
 } from '@/lib/dev/ideias'
 import CapturaIdeia from '@/components/ideias/CapturaIdeia'
@@ -54,17 +56,25 @@ function IdeiasInner() {
   const [nomeNovoGrupo, setNomeNovoGrupo] = useState('')
   const [planejando, setPlanejando] = useState<GrupoComIdeias | null>(null)
   const [ticketAberto, setTicketAberto] = useState<string | null>(null)
+  // melhorias 5.2/5.3
+  const [votos, setVotos] = useState<Record<string, string[]> | null>(null)
+  const [ia, setIa] = useState(false)
+  const [parecido, setParecido] = useState<{ ideiaId: string; lista: { id: string; numero: number; titulo: string; comuns: string[] }[] } | null>(null)
+  const [propostas, setPropostas] = useState<{ nome: string; ideias: string[] }[] | null>(null)
+  const [sugerindo, setSugerindo] = useState(false)
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true)
     try {
-      const j = await chamar<{ ideias: Ideia[]; grupos: GrupoIdeias[]; usuarios: Record<string, Usuario>; tickets: Record<string, ResumoTicket>; migracaoFaltando?: boolean; error?: string }>(
+      const j = await chamar<{ ideias: Ideia[]; grupos: GrupoIdeias[]; usuarios: Record<string, Usuario>; tickets: Record<string, ResumoTicket>; votos?: Record<string, string[]> | null; ia?: boolean; migracaoFaltando?: boolean; error?: string }>(
         `/api/dev/ideias${arquivadas ? '?arquivadas=1' : ''}`,
       )
       setIdeias(j.ideias || [])
       setGrupos(j.grupos || [])
       setUsuarios(j.usuarios || {})
       setTickets(j.tickets || {})
+      setVotos(j.votos ?? null)
+      setIa(!!j.ia)
       setMigracaoFaltando(!!j.migracaoFaltando)
       setErro(j.migracaoFaltando ? j.error || '' : '')
     } catch (e) {
@@ -88,7 +98,10 @@ function IdeiasInner() {
     return m
   }, [usuarios])
 
-  const estagios = useMemo(() => separarPorEstagio(ideias, grupos), [ideias, grupos])
+  const estagios = useMemo(() => {
+    const e = separarPorEstagio(ideias, grupos)
+    return { ...e, captadas: ordenarPorVotos(e.captadas, votos || {}) }
+  }, [ideias, grupos, votos])
   const arquivadasLista = useMemo(() => ideias.filter((i) => i.arquivada), [ideias])
 
   // ---- ações (otimistas onde é barato; tudo termina em carregar(true)) ----
@@ -98,6 +111,50 @@ function IdeiasInner() {
     const j = await chamar<{ ideia: Ideia }>('/api/dev/ideias', { method: 'POST', json: { texto } })
     setIdeias((l) => [j.ideia, ...l])
     setErro('')
+    // Parece com um pedido aberto? (melhorias 5.3 — por palavras em comum, sem IA)
+    chamar<{ parecidos: { id: string; numero: number; titulo: string; comuns: string[] }[] }>('/api/dev/ideias/acoes', { method: 'POST', json: { acao: 'parecidos', texto } })
+      .then((p) => setParecido(p.parecidos.length ? { ideiaId: j.ideia.id, lista: p.parecidos } : null)).catch(() => {})
+  }
+
+  const votar = async (id: string) => {
+    const eu = userProfile?.id
+    if (!eu || !votos) return
+    const antes = votos
+    setVotos((v) => { const l = v?.[id] || []; return { ...(v || {}), [id]: l.includes(eu) ? l.filter((x) => x !== eu) : [...l, eu] } })
+    try { const r = await chamar<{ votos: string[] }>('/api/dev/ideias/acoes', { method: 'POST', json: { acao: 'votar', ideia_id: id } }); setVotos((v) => ({ ...(v || {}), [id]: r.votos })) }
+    catch (e) { setVotos(antes); falhou(e) }
+  }
+
+  const levarReuniao = async (id: string, levar: boolean) => {
+    const antes = ideias
+    setIdeias((l) => l.map((i) => (i.id === id ? { ...i, levar_reuniao: levar } : i)))
+    try { await chamar('/api/dev/ideias', { method: 'PATCH', json: { id, levar_reuniao: levar } }) } catch (e) { setIdeias(antes); falhou(e) }
+  }
+
+  // "Vincular" ao pedido parecido: a ideia vira um grupo já ligado ao pedido (planejada).
+  const vincular = async (ideiaId: string, t: { id: string; numero: number; titulo: string }) => {
+    setParecido(null)
+    try {
+      const g = await chamar<{ grupo: GrupoIdeias }>('/api/dev/ideias/grupos', { method: 'POST', json: { nome: `#${t.numero} ${t.titulo}`.slice(0, 120), ideias: [ideiaId] } })
+      await chamar('/api/dev/ideias/grupos', { method: 'PATCH', json: { id: g.grupo.id, ticket_id: t.id } })
+      await carregar(true)
+    } catch (e) { falhou(e) }
+  }
+
+  const sugerirGrupos = async () => {
+    setSugerindo(true); setErro('')
+    try { const r = await chamar<{ grupos: { nome: string; ideias: string[] }[] }>('/api/dev/ideias/acoes', { method: 'POST', json: { acao: 'sugerir_grupos' } }); setPropostas(r.grupos) }
+    catch (e) { falhou(e) } finally { setSugerindo(false) }
+  }
+  const aceitarProposta = async (k: number) => {
+    const p = propostas?.[k]
+    if (!p) return
+    try {
+      const j = await chamar<{ grupo: GrupoIdeias }>('/api/dev/ideias/grupos', { method: 'POST', json: { nome: p.nome.trim() || 'Grupo', ideias: p.ideias } })
+      setGrupos((g) => [j.grupo, ...g])
+      setIdeias((l) => l.map((i) => (p.ideias.includes(i.id) ? { ...i, grupo_id: j.grupo.id } : i)))
+      setPropostas((l) => l && l.filter((_, i) => i !== k))
+    } catch (e) { falhou(e) }
   }
 
   const editarIdeia = async (id: string, texto: string) => {
@@ -201,6 +258,14 @@ function IdeiasInner() {
       </div>
 
       <CapturaIdeia onSalvar={salvarIdeia} focarAoAbrir={!migracaoFaltando} />
+      {parecido && parecido.lista.map((t) => (
+        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 10, padding: '10px 14px', borderRadius: 12, background: 'rgba(37,99,235,.07)', border: '1px solid rgba(37,99,235,.25)', fontSize: 13.5 }}>
+          <Link2 size={15} color="#2563eb" />
+          <span style={{ flex: 1, minWidth: 200 }}>Parece com o <button onClick={() => setTicketAberto(t.id)} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: '#2563eb', font: 'inherit', textDecoration: 'underline' }}>#{t.numero} {t.titulo}</button> <span style={{ color: 'var(--portal-text-muted,#64748b)' }}>({t.comuns.join(', ')})</span>. Vincular?</span>
+          <button onClick={() => vincular(parecido.ideiaId, t)} style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fefefe', fontSize: 12.5, cursor: 'pointer' }}>Vincular</button>
+          <button onClick={() => setParecido(null)} style={{ padding: '6px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', fontSize: 12.5, cursor: 'pointer', color: 'var(--portal-text-muted,#64748b)' }}>Não é isso</button>
+        </div>
+      ))}
 
       {erro && (
         <div style={{ marginTop: 12, padding: '10px 14px', borderRadius: 10, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 600 }}>
@@ -214,7 +279,34 @@ function IdeiasInner() {
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))', gap: 16, marginTop: 18, alignItems: 'start' }}>
           {/* 1 · Captadas */}
           <section>
-            {titulo(<Lightbulb size={14} />, 'Captadas', estagios.captadas.length, '#111')}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ flex: 1 }}>{titulo(<Lightbulb size={14} />, 'Captadas', estagios.captadas.length, '#111')}</span>
+              {ia && estagios.captadas.length >= 3 && (
+                <button onClick={sugerirGrupos} disabled={sugerindo} title="A IA propõe grupos; você aceita ou muda o nome"
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', fontSize: 12, cursor: 'pointer', color: '#7c3aed' }}>
+                  <Sparkles size={13} /> {sugerindo ? 'Pensando…' : 'Sugerir grupos'}
+                </button>
+              )}
+            </div>
+            {propostas && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, marginBottom: 10, borderRadius: 12, border: '1px solid rgba(124,58,237,.3)', background: 'rgba(124,58,237,.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
+                  <Sparkles size={13} color="#7c3aed" /> <span style={{ flex: 1 }}>{propostas.length ? 'Grupos sugeridos — mude o nome se quiser e aceite:' : 'A IA não achou ideias parecidas o bastante para agrupar.'}</span>
+                  <button onClick={() => setPropostas(null)} aria-label="Fechar sugestões" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'inherit', display: 'flex' }}><X size={14} /></button>
+                </div>
+                {propostas.map((p, k) => (
+                  <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: 8, borderRadius: 10, background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#e5e7eb)' }}>
+                    <input value={p.nome} maxLength={120} aria-label="Nome do grupo" onChange={(e) => setPropostas((l) => l && l.map((x, i) => (i === k ? { ...x, nome: e.target.value } : x)))}
+                      style={{ padding: '5px 8px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', fontSize: 13, background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)' }} />
+                    {p.ideias.map((id) => <span key={id} style={{ fontSize: 12, color: 'var(--portal-text-muted,#666)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {ideias.find((i) => i.id === id)?.texto || ''}</span>)}
+                    <span style={{ display: 'flex', gap: 6 }}>
+                      <button onClick={() => aceitarProposta(k)} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', background: '#111', color: '#fff', fontSize: 12, cursor: 'pointer' }}>Aceitar</button>
+                      <button onClick={() => setPropostas((l) => l && l.filter((_, i) => i !== k))} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', fontSize: 12, cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>Descartar</button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             {nSel > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 10px', marginBottom: 8, borderRadius: 10, background: 'rgba(17,17,17,.06)', border: '1px solid var(--portal-border,#e5e7eb)', fontSize: 12.5 }}>
                 <b>{nSel} selecionada{nSel > 1 ? 's' : ''}</b>
@@ -254,7 +346,8 @@ function IdeiasInner() {
                 <CardIdeia key={i.id} ideia={i} autor={nomes[i.autor_id]}
                   selecionada={selecao.has(i.id)}
                   onSelecionar={(id, m) => setSelecao((s) => { const n = new Set(s); if (m) n.add(id); else n.delete(id); return n })}
-                  onEditar={editarIdeia} onArquivar={arquivarIdeia} />
+                  onEditar={editarIdeia} onArquivar={arquivarIdeia}
+                  votos={votos ? votos[i.id] || [] : null} meuId={userProfile?.id} onVotar={votar} onLevarReuniao={levarReuniao} />
               ))}
               {arquivadas && arquivadasLista.length > 0 && (
                 <details style={{ marginTop: 6 }}>

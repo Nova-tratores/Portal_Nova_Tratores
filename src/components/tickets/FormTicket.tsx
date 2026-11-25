@@ -26,6 +26,8 @@ interface Props {
   descricaoInicial?: string
   /** Pedido já para alguém (ex.: botão "Pedir" na carga da Equipe). */
   responsavelInicial?: string
+  /** Prazo já dito (Ctrl+K: "até sexta"). A pessoa pode mudar antes de enviar. */
+  prazoInicial?: string
 }
 
 const br = (iso: string) => iso.slice(8, 10) + "/" + iso.slice(5, 7)
@@ -50,19 +52,19 @@ const rotuloStyle: React.CSSProperties = {
   color: 'var(--portal-text-secondary, #555)', textTransform: 'uppercase', letterSpacing: .4,
 }
 
-export default function FormTicket({ onFechar, onCriado, printInicial, quadro, tituloInicial, descricaoInicial, responsavelInicial }: Props) {
+export default function FormTicket({ onFechar, onCriado, printInicial, quadro, tituloInicial, descricaoInicial, responsavelInicial, prazoInicial }: Props) {
   const [titulo, setTitulo] = useState(tituloInicial || '')
   const [descricao, setDescricao] = useState(descricaoInicial || '')
   const [responsavelId, setResponsavelId] = useState(responsavelInicial || '')
   const [categoria, setCategoria] = useState('')
   // Tempo do trabalho escolhido no bloquinho (vai junto ao criar; o pedido entra no fim da fila).
   const [horasPedido, setHorasPedido] = useState<number | null>(null)
-  const [prazo, setPrazo] = useState('')
+  const [prazo, setPrazo] = useState(prazoInicial || '')
   // Agenda do responsável (Central de Trabalho)
   const [inicio, setInicio] = useState('')
   const [duracao, setDuracao] = useState(1)
   const [tocouInicio, setTocouInicio] = useState(false)
-  const [tocouPrazo, setTocouPrazo] = useState(false)
+  const [tocouPrazo, setTocouPrazo] = useState(!!prazoInicial)
   const [noCronograma, setNoCronograma] = useState(true)
   // Prazo mínimo = amanhã. "Muito urgente" fura a fila e libera hoje.
   const [urgente, setUrgente] = useState(false)

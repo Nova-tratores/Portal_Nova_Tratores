@@ -39,6 +39,34 @@ export async function listarTudo(incluirArquivadas: boolean): Promise<{
   return { ideias: listaIdeias, grupos: listaGrupos, usuarios }
 }
 
+// ------------------------------------------------------- votos (melhorias 5.2, sql/ideias-votos.sql)
+/** Votos de cada ideia (ids de quem votou). Sem a tabela: null (a tela esconde o 👍). */
+export async function votosDasIdeias(): Promise<Record<string, string[]> | null> {
+  const { data, error } = await supabaseAdmin.from('dev_ideias_votos').select('ideia_id, usuario_id').limit(10000)
+  if (error) { if (migrationFaltou(error)) return null; throw Object.assign(new Error(error.message), { code: error.code }) }
+  const out: Record<string, string[]> = {}
+  for (const v of (data || []) as { ideia_id: string; usuario_id: string }[]) (out[v.ideia_id] ||= []).push(v.usuario_id)
+  return out
+}
+
+/** 👍 liga/desliga (um por pessoa). Devolve quem votou depois da troca. */
+export async function alternarVoto(ideiaId: string, userId: string): Promise<string[]> {
+  const { data: ja } = await supabaseAdmin.from('dev_ideias_votos').select('ideia_id').eq('ideia_id', ideiaId).eq('usuario_id', userId).maybeSingle()
+  if (ja) ok(await supabaseAdmin.from('dev_ideias_votos').delete().eq('ideia_id', ideiaId).eq('usuario_id', userId).select('ideia_id'))
+  else ok(await supabaseAdmin.from('dev_ideias_votos').insert({ ideia_id: ideiaId, usuario_id: userId }).select('ideia_id'))
+  const { data } = await supabaseAdmin.from('dev_ideias_votos').select('usuario_id').eq('ideia_id', ideiaId)
+  return ((data || []) as { usuario_id: string }[]).map((x) => x.usuario_id)
+}
+
+/** Pedidos abertos que quem pergunta pode ver (público ou envolvido), para o "parece com o #10". */
+export async function pedidosAbertosVisiveis(userId: string): Promise<{ id: string; numero: number; titulo: string }[]> {
+  const { data } = await supabaseAdmin.from('tickets').select('id, numero, titulo, visibilidade, solicitante_id, responsavel_id')
+    .not('tipo', 'in', '(compras,reuniao)').not('status', 'in', '(resolvido,fechado,cancelado)').limit(2000)
+  return ((data || []) as { id: string; numero: number; titulo: string; visibilidade: string; solicitante_id: string; responsavel_id: string }[])
+    .filter((t) => t.visibilidade === 'publico' || t.solicitante_id === userId || t.responsavel_id === userId)
+    .map(({ id, numero, titulo }) => ({ id, numero, titulo }))
+}
+
 export async function criarIdeia(autorId: string, texto: string, grupoId: string | null): Promise<Ideia> {
   return ok(await supabaseAdmin.from('dev_ideias')
     .insert({ texto, autor_id: autorId, grupo_id: grupoId })
@@ -47,7 +75,7 @@ export async function criarIdeia(autorId: string, texto: string, grupoId: string
 
 export async function editarIdeia(
   id: string,
-  campos: Partial<Pick<Ideia, 'texto' | 'grupo_id' | 'arquivada' | 'posicao'>>,
+  campos: Partial<Pick<Ideia, 'texto' | 'grupo_id' | 'arquivada' | 'posicao' | 'levar_reuniao'>>,
 ): Promise<Ideia | null> {
   const r = await supabaseAdmin.from('dev_ideias')
     .update({ ...campos, updated_at: new Date().toISOString() })

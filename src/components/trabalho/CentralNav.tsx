@@ -18,6 +18,7 @@ import FormTicket from '@/components/tickets/FormTicket'
 import TicketModal from '@/components/tickets/TicketModal'
 import { useBlocoAtual, type BlocoAtual } from '@/lib/trabalho/bloco-atual'
 import { ESTILO_CENTRAL_VN } from './visualCentral'
+import PaletaComandos from './PaletaComandos'
 
 export default function CentralNav() {
   const pathname = usePathname() || ''
@@ -121,7 +122,8 @@ export default function CentralNav() {
 .ct-vista{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:9px;font-size:13px;font-weight:500;color:var(--portal-text-secondary,#475569);text-decoration:none;white-space:nowrap}
 .ct-vista:hover{color:var(--portal-text,#0f172a)}
 .ct-vista.on{background:var(--portal-surface,#fefefe);color:var(--portal-text,#0f172a);box-shadow:0 1px 3px rgba(15,23,42,.12)}
-@media (max-width:900px){.ct-vistas{order:3;margin:6px 0 4px;overflow-x:auto;max-width:100%}}`}</style>
+@media (max-width:900px){.ct-vistas{order:3;margin:6px 0 4px;overflow-x:auto;max-width:100%}}
+@media (max-width:1100px){.ct-k-txt{display:none}}`}</style>
       <style>{`@media (max-width: 900px){.ct-nav{flex-wrap:wrap;padding:0 12px !important}.ct-nav-abas{flex:1 1 100% !important}.ct-nav-acoes{flex:1 1 100%;margin-left:0 !important;padding:8px 0 10px !important;justify-content:flex-end}.ct-nav-acoes button{min-height:36px}.ct-nav-acoes .ct-nav-ajuda{width:36px !important;height:36px !important}}`}</style>
       <nav aria-label="Central de Trabalho" className="ct-nav" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 16px', borderBottom: '1px solid var(--portal-border,#eee)', background: 'var(--portal-surface,#fff)' }}>
         <div className="ct-nav-abas" style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 0, overflowX: 'auto' }}>
@@ -147,6 +149,8 @@ export default function CentralNav() {
           {/* só na aba Quadros (José, 17/11/2026) */}
           {emQuadros && <button onClick={abrirNovoTicket} style={botao('#dc2626')}><TicketIcon size={15} /> Novo pedido</button>}
           {/* Na Minha fila o pedido é o botão "Pedir para alguém" da própria tela. */}
+          {/* Ctrl+K (melhorias 5.4): pedir escrevendo ou ir para uma tela */}
+          <PaletaComandos />
           <button className="ct-nav-ajuda" onClick={() => setAjuda(true)} title="Como funciona" aria-label="Como funciona a Central de Trabalho"
             style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>?</button>
         </span>

@@ -4,7 +4,8 @@
 //     situação de agora. (Os assuntos adiados/fora do tema da anterior já entram sozinhos — puxarSugestoes.)
 //  2. "Travados": pedidos dos participantes — como RESPONSÁVEL (aguardando interno, bola parada ou prazo
 //     impossível, a mesma conta da Minha fila) ou como SOLICITANTE (aguardando interno).
-//  3. "Ideias marcadas": fica para a Fase 5 (as ideias ainda não têm a marca "levar para reunião").
+//  3. "Ideias marcadas" (Fase 5): ideias com "levar para reunião" (sql/ideias-votos.sql). Só para quem é
+//     Dev — as ideias são dos Devs. Sem a coluna, o bloco não aparece.
 // Privacidade: título só do pedido que quem olha pode ver (público, ou é envolvido nele). Os outros
 // viram só um número ("+2 pedidos privados"), sem id — não dá para incluir o que não se vê.
 import { NextRequest, NextResponse } from 'next/server'
@@ -21,6 +22,8 @@ type Tk = { id: string; numero: number; titulo: string; status: string; prazo: s
 export interface Sugestao { id: string; numero: number; titulo: string; status: string; prazo: string | null; responsavel_id: string; motivo: string; incluido: boolean }
 
 const MOTIVO_ORDEM = ['prazo impossível', 'bola parada', 'aguardando interno']
+/** O assunto da pauta que uma ideia vira (a tela usa o mesmo texto para saber se já está na pauta). */
+const perguntaDaIdeia = (texto: string) => `Ideia: ${texto.replace(/\s+/g, ' ').trim()}`.slice(0, 500)
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await autenticar(req)
@@ -82,9 +85,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }))
 
     const usuarios = await usuariosMin([...travados, ...ultima].map((x) => x.responsavel_id))
+    let ideias: { id: string; texto: string; incluido: boolean }[] = []
+    if (auth.isDev) {
+      const { data, error } = await supabaseAdmin.from('dev_ideias').select('id, texto').eq('levar_reuniao', true).eq('arquivada', false).order('created_at', { ascending: false }).limit(20)
+      if (!error) {
+        const perguntas = new Set(r.itens.map((i) => i.pergunta))
+        ideias = ((data || []) as { id: string; texto: string }[]).map((i) => ({ id: i.id, texto: i.texto, incluido: perguntas.has(perguntaDaIdeia(i.texto)) }))
+      }
+    }
     return NextResponse.json({
       anterior: anterior ? { id: anterior.id, numero: anterior.numero, prazo: anterior.prazo } : null,
-      ultima, travados: travados.slice(0, 40), mais: Math.max(0, travados.length - 40), ocultos, usuarios,
+      ultima, travados: travados.slice(0, 40), mais: Math.max(0, travados.length - 40), ocultos, usuarios, ideias,
     })
   } catch (e) {
     if (migrationFaltou(e)) return NextResponse.json({ error: MSG_MIGRATION_REUNIOES }, { status: 503 })
