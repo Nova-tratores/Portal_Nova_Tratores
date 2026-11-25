@@ -265,7 +265,8 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
     // 25/11/2026 (José): grupo de campanha PRIVADA e eu não sou responsável → das requisições dos outros
     // fica só o título (sem valor, fornecedor, nota…; o card não abre). As minhas continuam completas.
     const soTitulo = !!grupoAtivo?.so_titulo;
-    const eu = [userProfile?.email, userProfile?.nome].map((s) => String(s || '').trim().toLowerCase()).filter(Boolean);
+    // UserProfile não declara email (vem do banco em algumas contas): o cast evita quebrar o build (25/11/2026)
+    const eu = [(userProfile as { email?: string } | null)?.email, userProfile?.nome].map((s) => String(s || '').trim().toLowerCase()).filter(Boolean);
     const minha = (r: any) => eu.includes(String(r.solicitante || '').trim().toLowerCase()) || eu.includes(String(nomeSolicitante(r.solicitante) || '').trim().toLowerCase());
     const mascarar = (r: any) => (soTitulo && !minha(r) ? { id: r.id, titulo: r.titulo, status: r.status, data: r.data, _so_titulo: true } : r);
     return requisicoes.filter((r: any) => {
@@ -288,7 +289,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
       ].join(' ');
       return matchData && paraBusca(alvo).includes(q);
     }).map(mascarar);
-  }, [requisicoes, filtroBusca, filtroData, nomeSolicitante, grupoAtivo, filtros, valorCampo, idsEspecial, userProfile?.email, userProfile?.nome]);
+  }, [requisicoes, filtroBusca, filtroData, nomeSolicitante, grupoAtivo, filtros, valorCampo, idsEspecial, userProfile]);
 
   const temFiltroAtivo = filtroBusca || filtroData || filtros.length > 0;
   const limparFiltros = () => { setFiltroBusca(''); setFiltroData(''); setFiltros([]); };
