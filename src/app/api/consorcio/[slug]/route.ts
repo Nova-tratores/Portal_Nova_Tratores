@@ -84,6 +84,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
       return NextResponse.json({ error: 'Para participar, marque que aceita o contato da Nova Tratores.' }, { status: 400 });
     }
     const credito = Number(b.credito);
+    // de onde veio (plano 1.4): só letras/números/traço, curto; utm só as 5 chaves padrão
+    const origem = txt(b.origem, 30).toLowerCase().replace(/[^a-z0-9_-]/g, '') || null;
+    const utm: Record<string, string> = {};
+    for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term']) {
+      const v = txt(b.utm?.[k], 80);
+      if (v) utm[k] = v;
+    }
+
+    // ficha do vendedor (plano 1.6): só valores conhecidos; data no formato AAAA-MM-DD
+    const temp = ['quente', 'morno', 'frio'].includes(b.temperatura) ? b.temperatura : null;
+    const dataPasso = /^\d{4}-\d{2}-\d{2}$/.test(String(b.proximo_passo_data || '')) ? b.proximo_passo_data : null;
+    const extra = {
+      temperatura: temp,
+      usado_para_lance: typeof b.usado_para_lance === 'boolean' ? b.usado_para_lance : null,
+      usado_descricao: txt(b.usado_descricao, 120) || null,
+      proximo_passo: txt(b.proximo_passo, 80) || null,
+      proximo_passo_data: dataPasso,
+      observacao: txt(b.observacao, 500) || null,
+    };
 
     const ev = await evento(slug);
     if (!ev) return NextResponse.json({ error: 'Evento não encontrado.' }, { status: 404 });
@@ -99,6 +118,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
       p_tem_trator: typeof b.tem_trator === 'boolean' ? b.tem_trator : null,
       p_aceite: true,
       p_vendedor: txt(b.vendedor, 60),
+      p_origem: origem,
+      p_utm: Object.keys(utm).length ? utm : null,
+      p_extra: extra,
     });
     if (error) throw error;
     const linha = Array.isArray(data) ? data[0] : data;

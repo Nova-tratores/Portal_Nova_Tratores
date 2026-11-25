@@ -38,7 +38,15 @@ export async function GET(req: Request) {
     ]);
     if (ins.error) throw ins.error;
     if (sor.error) throw sor.error;
-    return NextResponse.json({ eventos, evento, inscricoes: ins.data || [], sorteios: sor.data || [], acoes: acs.data || [] });
+    // cliques nos botões de WhatsApp da página (sem a tabela ainda, só não mostra)
+    const cli = await db.from('consorcio_cliques').select('modelo, lugar, origem, vendedor').eq('evento_id', evento.id).limit(20000);
+    const soma = (campo: string) => {
+      const m: Record<string, number> = {};
+      for (const c of (cli.data || []) as any[]) { const k = c[campo] || '(sem)'; m[k] = (m[k] || 0) + 1; }
+      return Object.entries(m).sort((a, b) => b[1] - a[1]);
+    };
+    const cliques = cli.error ? null : { total: cli.data?.length || 0, porModelo: soma('modelo'), porLugar: soma('lugar'), porOrigem: soma('origem') };
+    return NextResponse.json({ eventos, evento, inscricoes: ins.data || [], sorteios: sor.data || [], acoes: acs.data || [], cliques });
   } catch (e) {
     return erro(e, 'GET');
   }
