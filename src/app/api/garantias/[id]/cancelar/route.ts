@@ -4,6 +4,7 @@ import { TBL_GARANTIAS, TBL_GAR_EVENTOS } from '@/lib/garantias/constants';
 import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 import { detalheCancelamento, statusAoDesfazer, ultimoCancelamento, validarCancelamento } from '@/lib/garantias/cancelamento';
+import { refOS } from '@/lib/garantias/so-pecas';
 
 // POST /api/garantias/[id]/cancelar
 //   { motivo: 'teste'|'engano'|'outro', obs }  → cancela (qualquer status, até aprovada)
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   await registrarEvento(id, { tipo: 'cancelada', statusAnterior: g.status, statusNovo: 'cancelada', ator, detalhe });
   await notificarGarantistas({
     titulo: `Garantia ${g.numero} cancelada`,
-    descricao: `${detalhe} (OS ${g.id_ordem}) — por ${ator}.`,
+    descricao: `${detalhe} (${refOS(g)}) — por ${ator}.`,
     link: `/garantias?id=${id}`,
   });
   return NextResponse.json({ ok: true });
