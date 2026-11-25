@@ -115,8 +115,14 @@ export async function acharInstagram(token: string): Promise<ContaIG> {
   const falhas: string[] = []
   const tentar = async (nome: string, fn: () => Promise<void>) => { try { await fn() } catch (e) { falhas.push(`${nome}: ${(e as Error).message}`) } }
 
+  // 0. Login unificado (token de USUÁRIO DO SISTEMA): o Instagram escolhido na tela da Meta vem aqui.
+  //    Testado em 25/11/2026: devolveu @novatratores (17841425715542803).
+  await tentar('assigned_instagram_accounts', async () => {
+    const j = await graph(token, 'me/assigned_instagram_accounts', { fields: 'id,username' })
+    for (const a of (j.data as { id: string }[]) || []) ids.add(a.id)
+  })
   // 1. debug_token: ids autorizados por permissão (Instagram direto, ou Páginas que levam ao Instagram)
-  await tentar('debug_token', async () => {
+  if (!ids.size) await tentar('debug_token', async () => {
     const app = `${process.env.META_APP_ID}|${process.env.META_APP_SECRET}`
     const url = new URL(`https://graph.facebook.com/${VERSAO}/debug_token`)
     url.searchParams.set('input_token', token)
