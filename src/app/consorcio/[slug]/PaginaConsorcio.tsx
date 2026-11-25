@@ -75,8 +75,6 @@ function Conteudo({ dados, estande, slug, rastreio }: { dados: any; estande: boo
 
   // o trator escolhido vai para a ficha (e para a simulação no WhatsApp); começa na carta destaque
   const [interesse, setInteresse] = useState<string>(destaque?.nome ?? '');
-  const irParaFicha = () => fichaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  const escolher = (nome: string) => { setInteresse(nome); irParaFicha(); };
 
   // urgência real com o calendário do grupo (plano 1.1): "feche até o vencimento e já concorre na assembleia"
   const urg = grupoDaUrgencia(cfg);
@@ -106,53 +104,14 @@ function Conteudo({ dados, estande, slug, rastreio }: { dados: any; estande: boo
   if (estande) {
     return (
       <>
-        {/* 25/11 (José): "visual igual ao do cliente" — topo escuro com a foto, ficha em cartão, cartas como as "Outras cartas" */}
-        <header className="cs-topo cs-topo-classico cs-vend-topo">
-          <div className="cs-barra">
-            <img src="/Logo_Nova.png" alt="Nova Tratores" className="cs-logo" />
-            <div className="cs-conc"><small>Concessionária autorizada</small><b>MAHINDRA</b></div>
-          </div>
-          <div className="cs-topo-in">
-            <p className="cs-kicker">{ev.nome}{ev.cidade ? ` · ${ev.cidade}` : ''} · página do vendedor</p>
-            <h1 className="cs-h1">Consórcio</h1>
-            <span className="cs-etiqueta">Vendedor</span>
-          </div>
+        {/* 25/11 (José: "fácil de preencher"): cabeçalho fino e só a ficha; os tratores ficam dentro dela, por foto */}
+        <header className="cs-vend-barra">
+          <img src="/Logo_Nova.png" alt="Nova Tratores" className="cs-logo" />
+          <div><b>Ficha do cliente</b><small>{ev.nome} · vendedor</small></div>
         </header>
-        <section className="cs-secao cs-escuro cs-vend-ficha" ref={fichaRef} style={{ scrollMarginTop: 0 }}>
-          <div className="cs-in cs-estreito">
-            <Ficha slug={slug} ev={ev} cfg={cfg} modelos={modelos} rastreio={rastreio} assembleia={urg}
-              interesse={interesse} setInteresse={setInteresse} interessePadrao={destaque?.nome ?? ''} />
-          </div>
-        </section>
-        <section className="cs-secao cs-claro cs-largo cs-vend-cartas">
-          <div className="cs-in">
-            <h2 className="cs-h2">Cartas da feira</h2>
-            <p className="cs-lead">Toque em &quot;Usar na ficha&quot; para preencher o trator do cliente.</p>
-            <div className="cs-mais">
-              {modelos.map((m) => {
-                const { modelo, resto } = partesDoNome(m.nome);
-                const lb = lanceDoBolso(m.credito, cfg);
-                const escolhido = m.nome === interesse;
-                return (
-                  <article key={`${m.codigo}-${m.credito}`} className={escolhido ? 'cs-mais-card cs-mais-escolhido' : 'cs-mais-card'}>
-                    <div className="cs-mais-foto">{m.foto ? <img src={m.foto} alt={m.nome} loading="lazy" /> : <span>{modelo}</span>}</div>
-                    <div className="cs-mais-in">
-                      <h3><small>Mahindra · grupo {m.grupos.join(' e ')}</small><b>{modelo}</b> <span>{resto}</span></h3>
-                      <div className="cs-mais-parcela"><Preco v={parcela(m.credito, cfg)} /><small>/mês</small></div>
-                      <dl>
-                        <div><dt>Crédito</dt><dd>{reais(m.credito, 0)}</dd></div>
-                        <div><dt>Por dia</dt><dd>{reais(porDia(m.credito, cfg))}</dd></div>
-                        {lb && <div><dt>Do bolso (lance {lb.fixoPct}%)</dt><dd>{reais(lb.valor, 0)}</dd></div>}
-                      </dl>
-                      <button type="button" className="cs-usar" onClick={() => escolher(m.nome)}>
-                        {escolhido ? '✓ Na ficha' : 'Usar na ficha'}
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
+        <section className="cs-vend-fundo2" ref={fichaRef}>
+          <Ficha slug={slug} ev={ev} cfg={cfg} modelos={modelos} rastreio={rastreio} assembleia={urg}
+            interesse={interesse} setInteresse={setInteresse} interessePadrao={destaque?.nome ?? ''} />
         </section>
       </>
     );
@@ -526,7 +485,7 @@ function Opcoes<T>({ valor, set, itens }: { valor: T; set: (v: T) => void; itens
 const PASSOS = ['Ligar para o cliente', 'Visitar na propriedade', 'Mandar a proposta', 'Cliente volta ao estande', 'Fechou na feira'];
 
 function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInteresse, interessePadrao }: {
-  slug: string; ev: any; cfg: ConfigConsorcio; modelos: { nome: string; credito: number; grupos: string[] }[];
+  slug: string; ev: any; cfg: ConfigConsorcio; modelos: { nome: string; credito: number; grupos: string[]; foto?: string }[];
   rastreio: Rastreio; assembleia: { grupo: string; vencimento?: string | null; proxima_assembleia?: string | null } | null;
   interesse: string; setInteresse: (v: string) => void; interessePadrao: string;
 }) {
@@ -543,6 +502,7 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
   const [passoData, setPassoData] = useState('');
   const [obs, setObs] = useState('');
   const [aceite, setAceite] = useState(false);
+  const [editandoVendedor, setEditandoVendedor] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{ numero: number; ja: boolean } | null>(null);
@@ -554,9 +514,9 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
-    if (!vendedor.trim()) { setErro('Escreva o seu nome (vendedor) no topo da ficha.'); return; }
-    if (!temperatura) { setErro('Marque a temperatura do cliente: quente, morno ou frio.'); return; }
-    if (!aceite) { setErro('Confirme que o cliente autorizou o contato (LGPD).'); return; }
+    if (!vendedor.trim()) { setErro('Escreva o seu nome (vendedor) no topo.'); setEditandoVendedor(true); return; }
+    if (!temperatura) { setErro('Toque em Quente, Morno ou Frio (passo 3).'); return; }
+    if (!aceite) { setErro('Marque que o cliente autorizou o contato (LGPD).'); return; }
     setEnviando(true);
     try {
       try { localStorage.setItem('cs-vendedor', vendedor.trim()); } catch { /* ok */ }
@@ -618,77 +578,118 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
       <div ref={topo} className="cs-sorte">
         <p>{resultado.ja ? `${primeiroNome} já estava cadastrado (ficha atualizada). O número da sorte é` : `Salvo! O número da sorte de ${primeiroNome} é`}</p>
         <div className="cs-sorte-num">{num}</div>
-        <pre className="cs-resumo">{texto}</pre>
         <div className="cs-sorte-acoes">
-          <a className="cs-btn cs-btn-zap" href={linkCliente} target="_blank" rel="noopener noreferrer">Enviar o resumo no WhatsApp do cliente</a>
-          <button className="cs-btn cs-btn-claro" onClick={proximo}>Cadastrar o próximo cliente</button>
+          <a className="cs-btn cs-btn-zap" href={linkCliente} target="_blank" rel="noopener noreferrer">Mandar resumo no WhatsApp</a>
+          <button className="cs-btn cs-btn-claro" onClick={proximo}>+ Próximo cliente</button>
         </div>
+        <details className="cs-f-resumo"><summary>Ver o resumo que vai para o cliente</summary><pre className="cs-resumo">{texto}</pre></details>
       </div>
     );
   }
 
+  // 25/11 (José: "a ideia é que fique fácil de preencher"): o vendedor de pé no estande, com o celular numa mão.
+  // Nome do vendedor uma vez só (fica no aparelho); cliente em 3 campos grandes; trator por foto (um toque);
+  // temperatura em 3 botões grandes; o resto em "Mais detalhes (opcional)"; botão de salvar sempre à vista.
   return (
-    <div ref={topo} className="cs-ficha">
-      <h2 className="cs-h2">Ficha do cliente</h2>
-      <p className="cs-lead">Preenchida pelo vendedor. Ao salvar, o cliente ganha o número da sorte e você manda o resumo no WhatsApp dele.</p>
+    <div ref={topo} className="cs-ficha cs-ficha-rapida">
       {!ev.ativo ? (
         <div className="cs-vazio">As inscrições deste evento estão encerradas.</div>
       ) : (
         <form onSubmit={enviar} className="cs-form">
-          <label>Vendedor
-            <input value={vendedor} onChange={(e) => setVendedor(e.target.value)} placeholder="Seu nome" />
-          </label>
-          <label>Nome do cliente
-            <input value={nome} onChange={(e) => setNome(e.target.value)} required autoComplete="off" />
-          </label>
-          <label>WhatsApp do cliente, com DDD
-            <input value={tel} onChange={(e) => setTel(mascaraTel(e.target.value))} required inputMode="tel" autoComplete="off" placeholder="(43) 99999-9999" />
-          </label>
-          <label>Cidade
-            <input value={cidade} onChange={(e) => setCidade(e.target.value)} autoComplete="off" />
-          </label>
-          <label>Trator de interesse
-            <select value={interesse} onChange={(e) => setInteresse(e.target.value)}>
-              {modelos.map((m) => <option key={m.nome} value={m.nome}>{m.nome} · {reais(m.credito, 0)}</option>)}
-              <option value="Outro modelo">Outro modelo</option>
-              <option value="">Ainda não sabe</option>
-            </select>
-          </label>
-          {credito && <p className="cs-obs-claro">Parcela {reais(parcela(credito, cfg))}/mês · {reais(porDia(credito, cfg))}/dia{lanceDoBolso(credito, cfg) ? ` · lance fixo: ${reais(lanceDoBolso(credito, cfg)!.valor, 0)} do bolso` : ''}</p>}
-          <fieldset className="cs-pergunta"><legend>Temperatura</legend>
-            <Opcoes valor={temperatura} set={setTemperatura} itens={[['quente', 'Quente'], ['morno', 'Morno'], ['frio', 'Frio']]} />
-          </fieldset>
-          <fieldset className="cs-pergunta"><legend>Já tem trator?</legend>
-            <Opcoes valor={temTrator} set={setTemTrator} itens={[[true, 'Sim'], [false, 'Não']]} />
-          </fieldset>
-          <fieldset className="cs-pergunta"><legend>Tem usado que pode virar lance?</legend>
-            <Opcoes valor={usado} set={setUsado} itens={[[true, 'Sim'], [false, 'Não']]} />
-          </fieldset>
-          {usado && (
-            <label>Qual usado?
-              <input value={usadoDesc} onChange={(e) => setUsadoDesc(e.target.value)} placeholder="Ex.: Massey 265, 2008" />
+          {editandoVendedor || !vendedor.trim() ? (
+            <label className="cs-f-vendedor">Seu nome (vendedor)
+              <input value={vendedor} onChange={(e) => setVendedor(e.target.value)} placeholder="Ex.: João"
+                onBlur={() => { if (vendedor.trim()) { setEditandoVendedor(false); try { localStorage.setItem('cs-vendedor', vendedor.trim()); } catch { /* ok */ } } }} />
             </label>
+          ) : (
+            <div className="cs-f-vend-chip">Vendedor: <b>{vendedor}</b>
+              <button type="button" onClick={() => setEditandoVendedor(true)}>trocar</button>
+            </div>
           )}
-          <div className="cs-dupla">
-            <label>Próximo passo
-              <select value={passo} onChange={(e) => setPasso(e.target.value)}>
-                <option value="">Escolher</option>
-                {PASSOS.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </label>
-            <label>Quando
-              <input type="date" value={passoData} onChange={(e) => setPassoData(e.target.value)} />
-            </label>
+
+          <div className="cs-f-bloco">
+            <span className="cs-f-titulo"><i>1</i>Cliente</span>
+            <input className="cs-f-grande" value={nome} onChange={(e) => setNome(e.target.value)} required autoComplete="off"
+              placeholder="Nome do cliente" aria-label="Nome do cliente" autoCapitalize="words" />
+            <input className="cs-f-grande" value={tel} onChange={(e) => setTel(mascaraTel(e.target.value))} required inputMode="tel" autoComplete="off"
+              placeholder="WhatsApp com DDD" aria-label="WhatsApp do cliente, com DDD" />
+            <input className="cs-f-grande" value={cidade} onChange={(e) => setCidade(e.target.value)} autoComplete="off"
+              placeholder="Cidade (opcional)" aria-label="Cidade" autoCapitalize="words" />
           </div>
-          <label>Observação
-            <textarea value={obs} onChange={(e) => setObs(e.target.value)} rows={3} placeholder="O que o cliente falou, o que pesa na decisão…" />
-          </label>
-          <label className="cs-aceite">
+
+          <div className="cs-f-bloco">
+            <span className="cs-f-titulo"><i>2</i>Trator de interesse</span>
+            <div className="cs-f-tratores">
+              {modelos.map((m) => {
+                const { modelo } = partesDoNome(m.nome);
+                return (
+                  <button key={m.nome} type="button" className="cs-f-trator" aria-pressed={interesse === m.nome} onClick={() => setInteresse(m.nome)}>
+                    {m.foto ? <img src={m.foto} alt="" loading="lazy" /> : <span className="cs-f-sem" />}
+                    <b>{modelo}</b>
+                    <small>{reais(parcela(m.credito, cfg))}/mês</small>
+                  </button>
+                );
+              })}
+              <button type="button" className="cs-f-trator cs-f-trator-txt" aria-pressed={interesse === ''} onClick={() => setInteresse('')}>
+                <b>Ainda não sabe</b>
+              </button>
+            </div>
+            {credito && (
+              <p className="cs-f-info">
+                Crédito <b>{reais(credito, 0)}</b> · <b>{reais(parcela(credito, cfg))}</b>/mês
+                {lanceDoBolso(credito, cfg) ? <> · lance: <b>{reais(lanceDoBolso(credito, cfg)!.valor, 0)}</b> do bolso</> : null}
+              </p>
+            )}
+          </div>
+
+          <div className="cs-f-bloco">
+            <span className="cs-f-titulo"><i>3</i>Como o cliente está?</span>
+            <div className="cs-f-temp">
+              {([['quente', '🔥', 'Quente', 'quer fechar'], ['morno', '🙂', 'Morno', 'interessado'], ['frio', '❄️', 'Frio', 'só olhando']] as const).map(([v, ic, rot, dica]) => (
+                <button key={v} type="button" className={`cs-f-t cs-f-t-${v}`} aria-pressed={temperatura === v} onClick={() => setTemperatura(v)}>
+                  <span aria-hidden="true">{ic}</span><b>{rot}</b><small>{dica}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <details className="cs-f-mais">
+            <summary>Mais detalhes <span>(opcional)</span></summary>
+            <fieldset className="cs-pergunta"><legend>Já tem trator?</legend>
+              <Opcoes valor={temTrator} set={setTemTrator} itens={[[true, 'Sim'], [false, 'Não']]} />
+            </fieldset>
+            <fieldset className="cs-pergunta"><legend>Tem usado para dar de lance?</legend>
+              <Opcoes valor={usado} set={setUsado} itens={[[true, 'Sim'], [false, 'Não']]} />
+            </fieldset>
+            {usado && (
+              <label>Qual usado?
+                <input value={usadoDesc} onChange={(e) => setUsadoDesc(e.target.value)} placeholder="Ex.: Massey 265, 2008" />
+              </label>
+            )}
+            <span className="cs-f-sub">Próximo passo</span>
+            <div className="cs-f-passos">
+              {PASSOS.map((p) => (
+                <button key={p} type="button" aria-pressed={passo === p} onClick={() => setPasso(passo === p ? '' : p)}>{p}</button>
+              ))}
+            </div>
+            {passo && (
+              <label>Quando?
+                <input type="date" value={passoData} onChange={(e) => setPassoData(e.target.value)} />
+              </label>
+            )}
+            <label>Observação
+              <textarea value={obs} onChange={(e) => setObs(e.target.value)} rows={3} placeholder="O que o cliente falou, o que pesa na decisão…" />
+            </label>
+          </details>
+
+          <label className="cs-aceite cs-f-aceite">
             <input type="checkbox" checked={aceite} onChange={(e) => setAceite(e.target.checked)} />
-            <span>O cliente autorizou a Nova Tratores a guardar os dados e chamar no WhatsApp sobre o consórcio e o sorteio (LGPD).</span>
+            <span>Cliente autorizou contato no WhatsApp (LGPD)</span>
           </label>
           {erro && <div className="cs-erro" role="alert">{erro}</div>}
-          <button className="cs-btn" type="submit" disabled={enviando}>{enviando ? 'Salvando…' : 'Salvar e gerar o número da sorte'}</button>
+          <div className="cs-f-salvar">
+            <button className="cs-btn" type="submit" disabled={enviando}>{enviando ? 'Salvando…' : 'Salvar e gerar número da sorte'}</button>
+          </div>
         </form>
       )}
     </div>
@@ -1436,4 +1437,72 @@ a.cs-btn-contorno{display:flex;align-items:center;justify-content:center;text-de
   .cs .cs-numeros div{display:grid;grid-template-columns:8.4rem minmax(0,1fr);gap:12px}
   .cs .cs-numeros b{min-width:0;font-size:clamp(1.6rem,7.6vw,2rem)}
 }
+/* ═══ ficha do vendedor, fácil de preencher (25/11, José) ═══
+   celular primeiro: campos altos (≥52px) com letra 17px (abaixo de 16px o iPhone dá zoom), um toque por escolha,
+   blocos numerados 1-2-3, opcionais recolhidos e o botão de salvar sempre à vista no pé da tela */
+.cs-vend-barra{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:12px;background:var(--preto);color:#fff;padding:10px 16px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.cs-vend-barra .cs-logo{height:26px}
+.cs-vend-barra div{display:flex;flex-direction:column;line-height:1.15;margin-left:auto;text-align:right}
+.cs-vend-barra b{font-family:var(--titulo);text-transform:uppercase;font-size:.8rem;color:var(--dourado);white-space:nowrap}
+.cs-vend-barra small{font-size:.72rem;color:var(--claro)}
+.cs-vend-fundo2{background:#F2F2F3;min-height:100vh;padding:16px 12px 32px}
+.cs .cs-ficha-rapida{max-width:560px;margin:0 auto;background:none;padding:0;box-shadow:none;border-radius:0}
+.cs-ficha-rapida .cs-form{display:flex;flex-direction:column;gap:14px}
+.cs-f-bloco{background:#fff;border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;box-shadow:0 1px 3px rgba(35,31,32,.08)}
+.cs-f-titulo{display:flex;align-items:center;gap:10px;font-weight:800;color:var(--preto);font-size:1rem}
+.cs-f-titulo i{font-style:normal;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:var(--vermelho);color:#fff;font-size:.85rem}
+.cs .cs-ficha-rapida input,.cs .cs-ficha-rapida select,.cs .cs-ficha-rapida textarea{font-size:17px}
+.cs .cs-f-grande{width:100%;min-height:54px;border:1.5px solid var(--borda);border-radius:12px;padding:0 14px;font-family:var(--fonte);color:var(--preto);background:#fff}
+.cs .cs-f-grande:focus{outline:none;border-color:var(--vermelho);box-shadow:0 0 0 3px rgba(227,24,55,.15)}
+/* vendedor */
+.cs-f-vendedor{display:flex;flex-direction:column;gap:6px;background:#fff;border-radius:16px;padding:14px 16px;font-weight:700;color:var(--preto)}
+.cs .cs-f-vendedor input{min-height:50px;border:1.5px solid var(--borda);border-radius:12px;padding:0 14px}
+.cs-f-vend-chip{display:flex;align-items:center;gap:6px;font-size:.92rem;color:var(--aco);padding:0 4px}
+.cs-f-vend-chip b{color:var(--preto)}
+.cs-f-vend-chip button{margin-left:auto;appearance:none;border:0;background:none;color:var(--vermelho-esc);font-weight:700;font-size:.9rem;text-decoration:underline;cursor:pointer;padding:6px}
+/* tratores por foto */
+.cs-f-tratores{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.cs-f-trator{appearance:none;display:flex;flex-direction:column;align-items:center;gap:2px;background:#fff;border:2px solid var(--claro);border-radius:12px;padding:8px 6px 10px;cursor:pointer;font-family:var(--fonte);color:var(--preto);min-height:64px;justify-content:center}
+.cs-f-trator img,.cs-f-sem{width:100%;height:62px;object-fit:contain}
+.cs-f-trator b{font-family:var(--titulo);font-size:1rem}
+.cs-f-trator small{font-size:.75rem;color:var(--aco)}
+.cs-f-trator[aria-pressed="true"]{border-color:var(--vermelho);background:var(--marcada);box-shadow:0 0 0 2px var(--vermelho) inset}
+.cs-f-trator-txt b{font-family:var(--fonte);font-size:.9rem}
+.cs-f-info{margin:0;font-size:.85rem;color:var(--aco);background:#F7F7F8;border-radius:10px;padding:8px 10px}
+.cs-f-info b{color:var(--preto)}
+/* temperatura */
+.cs-f-temp{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cs-f-t{appearance:none;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:78px;justify-content:center;border-radius:12px;border:2px solid var(--claro);background:#fff;cursor:pointer;font-family:var(--fonte);color:var(--preto)}
+.cs-f-t span{font-size:1.4rem;line-height:1}
+.cs-f-t b{font-size:1rem}
+.cs-f-t small{font-size:.72rem;color:var(--aco)}
+.cs-f-t-quente[aria-pressed="true"]{border-color:#E31837;background:#FDECEF}
+.cs-f-t-morno[aria-pressed="true"]{border-color:#E5A11E;background:#FFF6E3}
+.cs-f-t-frio[aria-pressed="true"]{border-color:#2F7FD1;background:#EAF3FC}
+/* mais detalhes */
+.cs-f-mais{background:#fff;border-radius:16px;padding:4px 16px;box-shadow:0 1px 3px rgba(35,31,32,.08)}
+.cs-f-mais summary{cursor:pointer;font-weight:800;color:var(--preto);padding:14px 0;list-style:none}
+.cs-f-mais summary::-webkit-details-marker{display:none}
+.cs-f-mais summary::before{content:'+ ';color:var(--vermelho)}
+.cs-f-mais[open] summary::before{content:'– '}
+.cs-f-mais summary span{font-weight:500;color:var(--aco)}
+.cs-f-mais[open]{padding-bottom:16px}
+.cs-f-mais > *:not(summary){margin-top:12px}
+.cs-f-sub{display:block;font-weight:700;color:var(--preto);font-size:.95rem}
+.cs-f-passos{display:flex;flex-wrap:wrap;gap:6px}
+.cs-f-passos button{appearance:none;border:1.5px solid var(--borda);background:#fff;border-radius:999px;padding:9px 13px;font-family:var(--fonte);font-size:.88rem;color:var(--preto);cursor:pointer}
+.cs-f-passos button[aria-pressed="true"]{border-color:var(--vermelho);background:var(--marcada);color:var(--vermelho-esc);font-weight:700}
+.cs .cs-f-mais label{display:flex;flex-direction:column;gap:6px;font-weight:700;color:var(--preto)}
+.cs .cs-f-mais input,.cs .cs-f-mais textarea{border:1.5px solid var(--borda);border-radius:12px;padding:12px 14px;font-family:var(--fonte)}
+/* aceite + salvar */
+.cs .cs-f-aceite{display:flex;align-items:center;gap:12px;background:#fff;border-radius:16px;padding:14px 16px;font-size:.95rem;color:var(--preto)}
+.cs .cs-f-aceite input{width:26px;height:26px;flex:0 0 26px;accent-color:var(--vermelho)}
+.cs-f-salvar{position:sticky;bottom:0;z-index:10;margin:0 -12px -32px;padding:12px 12px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(to top,#F2F2F3 75%,rgba(242,242,243,0))}
+.cs-f-salvar .cs-btn{width:100%;min-height:58px;font-size:1.05rem;border-radius:14px}
+/* resultado */
+.cs-vend-fundo2 .cs-sorte{max-width:560px;margin:0 auto;background:#fff;border-radius:16px;padding:24px 18px}
+.cs-vend-fundo2 .cs-sorte-acoes{display:flex;flex-direction:column;gap:10px}
+.cs-vend-fundo2 .cs-sorte-acoes .cs-btn{width:100%;min-height:56px;font-size:1.05rem}
+.cs-f-resumo{margin-top:14px}
+.cs-f-resumo summary{cursor:pointer;color:var(--aco);font-size:.9rem;font-weight:700}
 `;
