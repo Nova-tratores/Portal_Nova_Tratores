@@ -14,15 +14,16 @@ import { T1, T2, T3, bt, cartaoNP, grade, ic } from '@/components/marketing/rede
 type Conta = { rede: RedeId; nome: string | null; ligado_por: string | null; atualizado_em: string; expira_em: string | null };
 
 const PASSOS: Record<Exclude<RedeId, 'site'>, { etapa: string; hoje: string; falta: string[] }> = {
+  // 25/11/2026: app da Meta criado ("Portal Nova Tratores", login unificado, compatível com o Login do Instagram).
   instagram: {
-    etapa: 'Etapa 2: posta sozinho',
+    etapa: 'Etapa 2: números e post automático',
     hoje: 'Hoje: pelo celular, em 1 toque, no calendário.',
-    falta: ['T.I. cria o app da Meta (developers.facebook.com) com a conta da empresa', 'Põe META_APP_ID e META_APP_SECRET no Railway', 'Você toca em “Ligar” e entra com o Facebook dono da página'],
+    falta: ['META_APP_ID, META_APP_SECRET e META_CONFIG_ID no Railway', 'Toque em “Ligar” e entre com o Instagram da Nova Tratores', 'Marque o Instagram na tela da Meta e confirme'],
   },
   facebook: {
-    etapa: 'Etapa 2: posta sozinho',
+    etapa: 'Etapa 2: depende de quem administra a Página',
     hoje: 'Hoje: pelo celular, em 1 toque, no calendário.',
-    falta: ['Mesmo app da Meta do Instagram (liga os dois juntos)'],
+    falta: ['Quem administra a Página da Nova Tratores no Facebook entra em Funções do app (app da Meta)', 'Depois liga por aqui, como o Instagram'],
   },
   tiktok: {
     etapa: 'Etapa 3: depois da aprovação do TikTok',
@@ -40,24 +41,49 @@ export default function ContasRedes() {
   const [contas, setContas] = useState<Conta[] | null>(null);
   const [meta, setMeta] = useState(false);
   const [erro, setErro] = useState('');
+  const [ok, setOk] = useState('');
+  const [indo, setIndo] = useState(false);
+  const carregar = () => fetchAuth('/api/marketing/posts?de=2000-01-01&ate=2000-01-01').then(async (r) => {
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) { setErro(j.erro || 'Não consegui ler as contas.'); setContas([]); return; }
+    setContas(j.contas || []); setMeta(!!j.metaConfigurada);
+  });
   useEffect(() => {
-    fetchAuth('/api/marketing/posts?de=2000-01-01&ate=2000-01-01').then(async (r) => {
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || !j.ok) { setErro(j.erro || 'Não consegui ler as contas.'); setContas([]); return; }
-      setContas(j.contas || []); setMeta(!!j.metaConfigurada);
-    });
+    // Volta do login da Meta: ?ligado=instagram&nome=@x ou ?erro=…
+    const q = new URLSearchParams(location.search);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (q.get('erro')) setErro(`Não ligou: ${q.get('erro')}`);
+    if (q.get('ligado')) setOk(`Instagram ligado${q.get('nome') ? `: ${q.get('nome')}` : ''}. Os números dos últimos 30 dias chegam em alguns minutos na aba Acessos.`);
+    if (q.toString()) history.replaceState(null, '', location.pathname);
+    carregar();
   }, []);
+
+  async function ligar() {
+    setIndo(true); setErro('');
+    const r = await fetchAuth('/api/marketing/redes/meta/ligar');
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.url) { setErro(j.erro || 'Não consegui abrir o login da Meta.'); setIndo(false); return; }
+    location.href = j.url;   // a página inteira vai para a Meta e volta sozinha
+  }
+  async function desligar() {
+    if (!confirm('Desligar o Instagram? O portal para de buscar os números até ligar de novo.')) return;
+    const r = await fetchAuth('/api/marketing/redes/meta/ligar', { method: 'DELETE' });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) { setErro(j.erro || 'Não consegui desligar.'); return; }
+    setOk(''); carregar();
+  }
 
   return (
     <div style={{ ...tela, color: T1 }}>
       <SubAbas abas={ABAS_CONTEUDO} />
       {erro && <Aviso>{erro}</Aviso>}
+      {ok && <Aviso tom="info">{ok}</Aviso>}
       <div style={grade(280)}>
         {(['instagram', 'facebook', 'tiktok', 'youtube'] as const).map((id) => {
           const c = (contas || []).find((x) => x.rede === id);
           const p = PASSOS[id];
           const r = REDE[id];
-          const podeLigar = (id === 'instagram' || id === 'facebook') && meta;
+          const podeLigar = id === 'instagram' && meta && !indo;
           return (
             <section key={id} style={{ ...cartaoNP, display: 'grid', gap: 12, alignContent: 'start' }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -74,10 +100,16 @@ export default function ContasRedes() {
                   {p.falta.map((f, i) => <span key={i} style={{ fontSize: 12.5, color: T3, display: 'flex', gap: 8 }}><span>{i + 1}.</span><span>{f}</span></span>)}
                 </div>
               )}
-              <button type="button" style={{ ...bt(r.cor, podeLigar), width: 'fit-content' }} disabled={!podeLigar || !!c}
-                title={podeLigar ? 'Entra com o Facebook dono da página' : 'Falta o passo do T.I. acima'}>
-                {ic(c ? 'fa-circle-check' : 'fa-link')}{c ? 'Ligada' : podeLigar ? 'Ligar' : 'Ligar (falta o T.I.)'}
-              </button>
+              {c && id === 'instagram' ? (
+                <button type="button" style={{ ...bt('#64748b', false), width: 'fit-content' }} onClick={desligar}>
+                  {ic('fa-link-slash')}Desligar
+                </button>
+              ) : (
+                <button type="button" style={{ ...bt(r.cor, podeLigar), width: 'fit-content' }} disabled={!podeLigar || !!c} onClick={ligar}
+                  title={podeLigar ? 'Entra com o Instagram da Nova Tratores' : 'Falta o passo acima'}>
+                  {ic(c ? 'fa-circle-check' : 'fa-link')}{c ? 'Ligada' : indo && id === 'instagram' ? 'Abrindo a Meta…' : podeLigar ? 'Ligar' : 'Ligar (falta o passo acima)'}
+                </button>
+              )}
             </section>
           );
         })}

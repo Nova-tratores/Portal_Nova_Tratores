@@ -166,6 +166,15 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: r.erros.length ? `${resumo} · ${r.erros.join(' | ')}` : resumo };
   },
 
+  // Marketing (25/11/2026): números do Instagram (alcance, visualizações, interações, toques no link, seguidores)
+  // dos últimos 3 dias, pela conta ligada em Conteúdo e publicar → Contas (lib/marketing/redes/meta.ts).
+  'marketing-redes-numeros': async () => {
+    if (desligada('MARKETING_REDES_NUMEROS')) return { pular: 'desligado (MARKETING_REDES_NUMEROS=off)' };
+    const { coletarInstagram } = await import('@/lib/marketing/redes/meta');
+    const r = await coletarInstagram(3);
+    return r.pulado ? { pular: r.pulado } : { resumo: r.resumo };
+  },
+
   // Marketing (Fase 4.3, 23/11/2026): conversa que começou com o código de um post conta como contato dele.
   'marketing-contatos-posts': async () => {
     if (desligada('MARKETING_CONTATOS_POSTS')) return { pular: 'desligado (MARKETING_CONTATOS_POSTS=off)' };

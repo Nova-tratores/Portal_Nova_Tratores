@@ -33,6 +33,7 @@ export const PUBLICAS: Record<string, string> = {
   'src/app/api/chatwoot/vincular/': 'app do Chatwoot em iframe: secret no corpo = CHATWOOT_APP_SECRET; fecha se a variável faltar',
   'src/app/api/versao/': 'só devolve o BUILD_ID (AutoAtualiza)',
   'src/app/api/agendador/saude/': 'vigia externo do agendador: só diz se o laço bateu nos últimos 10 min, sem dados',
+  'src/app/api/marketing/redes/meta/retorno/': 'volta do login da Meta (quem redireciona é a Meta): exige o state assinado com META_APP_SECRET, gerado pelo botão Ligar logado, válido 15 min',
   'src/app/api/ocorrencias/catalogo/': 'catálogo estático (rótulos e cores) lido pelo app NT_Mecanicos sem login; sem dado sensível',
 }
 
