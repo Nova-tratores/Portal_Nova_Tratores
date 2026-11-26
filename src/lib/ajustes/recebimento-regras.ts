@@ -24,7 +24,7 @@ const RECEB_KW_ALMOX = ['almoxarif', 'lubrific', 'oleo', 'óleo', 'graxa', 'uso 
 // Maquina = item caro (ignora o total da nota; pedidao de pecas baratas nao conta).
 export const LIMIAR_ITEM_MAQUINA = 10000;
 
-export const TIPOS_RECEB = ['pecas', 'pecas_garantia', 'almoxarifado', 'combustivel', 'maquinas'] as const;
+export const TIPOS_RECEB = ['pecas', 'pecas_garantia', 'almoxarifado', 'combustivel', 'maquinas', 'frete'] as const;
 export type TipoReceb = (typeof TIPOS_RECEB)[number];
 
 function num(v: unknown): number { return Number(v == null ? 0 : v) || 0; }
@@ -93,7 +93,8 @@ export function sinalGarantia(rec: Pick<RecebNorm, 'naturezaOperacao' | 'itens'>
 /** Acrescenta sinal/tipo (o tipo manual, quando houver, vence). */
 export function prepararRecebimento<T extends RecebNorm>(rec: T, cfg?: AjustesConfig, tipoManual?: string | null) {
   const sinal = sinalGarantia(rec, cfg);
-  const tipoAuto = classificarTipoReceb(rec, !!sinal);
+  // CT-e (modelo 57) não tem itens: é frete, sempre.
+  const tipoAuto: TipoReceb = ehCte(rec.chaveNFe) ? 'frete' : classificarTipoReceb(rec, !!sinal);
   const tipo = tipoManual && (TIPOS_RECEB as readonly string[]).includes(tipoManual) ? (tipoManual as TipoReceb) : tipoAuto;
   return { ...rec, sinal, temSinalGarantia: !!sinal, tipo, tipoAuto, tipoManual: tipo !== tipoAuto };
 }

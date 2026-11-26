@@ -223,7 +223,8 @@ export async function enriquecerResponsaveis(conta: Conta, recebimentos: any[]):
       r.responsavelNome = m.nome;
       r.responsavelAutomatico = false;
     } else {
-      const padrao = (r.tipo && mapaTipo[r.tipo]) || null;
+      // Frete sem responsável próprio cadastrado continua com quem recebe Peças (como antes do tipo existir)
+      const padrao = (r.tipo && mapaTipo[r.tipo]) || (r.tipo === 'frete' ? mapaTipo.pecas : null) || null;
       r.responsavelUserId = padrao ? padrao.userId : null;
       r.responsavelNome = padrao ? padrao.nome : null;
       r.responsavelAutomatico = !!(padrao && padrao.userId);

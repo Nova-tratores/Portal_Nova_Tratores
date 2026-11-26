@@ -26,7 +26,7 @@ import { sleep } from './utils';
 import { separarMaquinas, juntarItens } from './recebimento-maquina';
 
 export const URL_RECEBIMENTO = 'https://app.omie.com.br/api/v1/produtos/recebimentonfe/';
-export const RECEB_TIPOS = ['almoxarifado', 'combustivel', 'maquinas', 'pecas', 'pecas_garantia'] as const;
+export const RECEB_TIPOS = ['almoxarifado', 'combustivel', 'maquinas', 'pecas', 'pecas_garantia', 'frete'] as const;
 export type RecebTipo = (typeof RECEB_TIPOS)[number];
 
 // conta_omie em recebimentos_nfe é MINÚSCULO; Conta do Portal é MAIÚSCULO.
@@ -96,6 +96,8 @@ export function itensReceb(row: RecebRow): Json[] {
 
 // Classifica um recebimento em 1 dos 4 tipos. Heurística defensiva: na dúvida 'pecas'.
 export function classificarReceb(row: RecebRow): RecebTipo {
+  // CT-e (chave modelo 57) = frete
+  if (soDigitos((row as Json).chave_nfe).slice(20, 22) === '57') return 'frete';
   if ((row.qtd_maquinas || 0) > 0 || (Array.isArray(row.maquinas) && (row.maquinas as unknown[]).length > 0)) return 'maquinas';
   const itens = Array.isArray(row.produtos) ? (row.produtos as Json[]) : [];
   let garantia = false;
@@ -332,6 +334,7 @@ export async function setTipo(conta: ContaFiltro, idReceb: number, tipo: string)
   const { error } = await supabase
     .from('recebimento_meta')
     .upsert({ conta_omie: low, id_receb: idReceb, tipo, tipo_manual: true }, { onConflict: 'conta_omie,id_receb' });
+  if (error && tipo === 'frete' && /check/i.test(error.message)) throw new Error('O tipo Frete ainda não foi liberado no banco: falta aplicar sql/recebimentos-tipo-frete.sql.');
   if (error) throw new Error(error.message);
 }
 
