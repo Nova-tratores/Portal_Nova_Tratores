@@ -5,7 +5,7 @@
 // próprio corpo do método OU uma função local que ele chama (ex.: GET → handler(req)).
 
 // guardar…( = guardas como guardarDre/guardarAgro; os guardar… que GRAVAM arquivo não contam.
-export const GUARDA = /protegerRota|autenticar\(|exigirAdmin|exigirPermissao|exigirAcessoModulo|guardar(?!Nota|PdfNfse|Lote|ImagemAssinatura|EscolhaOmie|ArquivoAssinatura)\w*\(|negarSem\w*|acessoDashboard\(|Bearer \$\{CRON_SECRET\}|ehChamadaInterna\(|cron-secret|temModulo\w*\(|podePPV|exigirSessao\(|protegerRotaOuInterna|validarToken\w*\(|tokenValido\w*\(/
+export const GUARDA = /protegerRota|autenticar\(|exigirAdmin|exigirPermissao|exigirAcessoModulo|guardar(?!Nota|PdfNfse|Lote|ImagemAssinatura|EscolhaOmie|ArquivoAssinatura)\w*\(|negarSem\w*|acessoDashboard\(|Bearer \$\{CRON_SECRET\}|ehChamadaInterna\(|cron-secret|temModulo\w*\(|podePPV|exigirSessao\(|protegerRotaOuInterna|validarToken\w*\(|tokenValido\w*\(|quemChamaVendas\(/
 
 const METODOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 

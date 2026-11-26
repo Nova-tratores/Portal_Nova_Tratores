@@ -648,6 +648,15 @@ export const TAREFAS: Record<string, Tarefa> = {
   },
 
   // Requisição parada: vai sozinha ao financeiro com comprovante; lembretes 3/7/15 dias (Henri, 10/11/2026)
+  // App de vendas (26/11/2026): aviso no celular do vendedor com o app fechado.
+  // parametros.momento = 'manha' (retornos do dia) | 'tarde' (visitas de hoje sem próximo contato).
+  'vendas-push-avisos': async (parametros) => {
+    if (desligada('VENDAS_PUSH')) return { pular: 'desligado (VENDAS_PUSH=off)' };
+    const momento = parametros?.momento === 'tarde' ? 'tarde' : 'manha';
+    const { rodarAvisosVendas } = await import('@/lib/vendas-app/push-server');
+    return rodarAvisosVendas(momento);
+  },
+
   'requisicoes-lembretes': async () => {
     if (desligada('REQ_LEMBRETES')) return { pular: 'desligado (REQ_LEMBRETES=off)' };
     const { vigiarRequisicoes } = await import('@/lib/requisicoes/lembretes-server');
