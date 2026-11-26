@@ -152,6 +152,39 @@ export function recebimentoDoEspelho(row: Record<string, unknown>): RecebNorm {
   };
 }
 
+/** A chave de 44 dígitos é de um CT-e (modelo 57 = conhecimento de frete)? */
+export function ehCte(chave: unknown): boolean {
+  const d = String(chave || '').replace(/\D/g, '');
+  return d.length === 44 && d.slice(20, 22) === '57';
+}
+
+/** CNPJ do EMITENTE gravado na chave (posições 7–20), formatado "00.000.000/0000-00". */
+export function cnpjEmitenteDaChave(chave: unknown): string | null {
+  const d = String(chave || '').replace(/\D/g, '');
+  if (d.length !== 44) return null;
+  const c = d.slice(6, 20);
+  return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
+}
+
+/**
+ * CT-e (frete): no ListarRecebimentos a Omie manda como "fornecedor" o REMETENTE da carga
+ * (ex.: CT-e da Expresso São Miguel aparece como "CES - Comercio de Peças"). Troca pelo
+ * emitente da chave (a transportadora) e guarda o remetente em `remetente`.
+ * `nomePorCnpj` = razão social do cadastro Omie pelo CNPJ formatado.
+ */
+export function aplicarTransportadora<T extends RecebNorm>(rec: T, nomePorCnpj: Map<string, string>): T & { cte: boolean; remetente: string | null } {
+  if (!ehCte(rec.chaveNFe)) return { ...rec, cte: false, remetente: null };
+  const cnpj = cnpjEmitenteDaChave(rec.chaveNFe);
+  const nome = (cnpj && nomePorCnpj.get(cnpj)) || null;
+  return {
+    ...rec,
+    cte: true,
+    remetente: rec.fornecedorNome,
+    fornecedorNome: nome || (cnpj ? `Transportadora ${cnpj}` : rec.fornecedorNome),
+    fornecedorCnpjCpf: cnpj || rec.fornecedorCnpjCpf,
+  };
+}
+
 /** Tira zeros à esquerda ("000016751" -> "16751"; "0" continua "0"). */
 export function semZerosEsq(s: string): string {
   return s.replace(/^0+(?=\d)/, '');
@@ -177,7 +210,7 @@ export function casaBusca(rec: RecebNorm, termo: string): boolean {
   // valor: "379,45" / "R$ 1.234,56"
   const valor = /^r?\$?\s*[\d.]+,\d{1,2}$/.test(t) ? Number(t.replace(/[^\d,]/g, '').replace(',', '.')) : null;
   if (valor != null && Math.abs((rec.valorNFe || 0) - valor) < 0.005) return true;
-  const alvo = [rec.fornecedorNome, rec.naturezaOperacao, ...(rec.itens || []).map((i) => `${i.descricaoProduto || ''} ${i.codigoProdutoInt || ''}`)]
+  const alvo = [rec.fornecedorNome, rec.remetente as string | undefined, rec.cte ? 'cte ct-e frete' : '', rec.naturezaOperacao, ...(rec.itens || []).map((i) => `${i.descricaoProduto || ''} ${i.codigoProdutoInt || ''}`)]
     .join(' ')
     .toLowerCase();
   return alvo.includes(t);

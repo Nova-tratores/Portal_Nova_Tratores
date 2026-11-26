@@ -112,3 +112,38 @@ describe("agruparCorrecoes", () => {
     expect(g.length).toBe(3);
   });
 });
+
+describe('CT-e (frete) mostra a transportadora', async () => {
+  const { aplicarTransportadora, ehCte, cnpjEmitenteDaChave } = await import('../recebimento-regras');
+  // CT-e 474988 (NOVA, 24/11/2026): a Omie manda o remetente "CES" como fornecedor
+  const LINHA_CTE = {
+    id_receb: 1, chave_nfe: '43261100428307000511570400004749881004749885', numero_nfe: '000474988',
+    emissao_nfe: '2026-11-24', status: 'Recebida', fornecedor: 'CES - COMERCIO DE PECAS PARA REPOSICAO LTDA',
+    fornecedor_cnpj: '45.400.527/0001-41', total_nfe: 129.03, produtos: [], maquinas: [],
+  };
+  const nomes = new Map([['00.428.307/0005-11', 'EXPRESSO SAO MIGUEL S/A']]);
+
+  it('reconhece o modelo 57 e lê o CNPJ do emitente', () => {
+    expect(ehCte(LINHA_CTE.chave_nfe)).toBe(true);
+    expect(ehCte(LINHA_POSTO.chave_nfe)).toBe(false);
+    expect(cnpjEmitenteDaChave(LINHA_CTE.chave_nfe)).toBe('00.428.307/0005-11');
+  });
+
+  it('troca o fornecedor pela transportadora e a busca acha pelos dois nomes', () => {
+    const r = aplicarTransportadora(recebimentoDoEspelho(LINHA_CTE), nomes);
+    expect(r.cte).toBe(true);
+    expect(r.fornecedorNome).toBe('EXPRESSO SAO MIGUEL S/A');
+    expect(r.remetente).toBe('CES - COMERCIO DE PECAS PARA REPOSICAO LTDA');
+    expect(casaBusca(r, 'sao migue')).toBe(true);
+    expect(casaBusca(r, 'ces - comercio')).toBe(true);
+    expect(casaBusca(r, 'frete')).toBe(true);
+    expect(casaBusca(r, '00428307')).toBe(true);
+  });
+
+  it('sem cadastro mostra o CNPJ; NF-e comum não muda', () => {
+    expect(aplicarTransportadora(recebimentoDoEspelho(LINHA_CTE), new Map()).fornecedorNome).toBe('Transportadora 00.428.307/0005-11');
+    const nf = aplicarTransportadora(recebimentoDoEspelho(LINHA_POSTO), nomes);
+    expect(nf.cte).toBe(false);
+    expect(nf.fornecedorNome).toBe('AUTO POSTO 2001 IRELII');
+  });
+});

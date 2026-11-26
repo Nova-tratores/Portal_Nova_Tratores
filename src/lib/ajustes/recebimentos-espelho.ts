@@ -9,7 +9,7 @@ import type { Conta } from './conta';
 import { supabase } from './supabase';
 import { getConfig } from './config';
 import { enriquecerResponsaveis } from './recebimentos';
-import { prepararRecebimento, recebimentoDoEspelho, semZerosEsq } from './recebimento-regras';
+import { prepararRecebimento, recebimentoDoEspelho, semZerosEsq, aplicarTransportadora, ehCte, cnpjEmitenteDaChave } from './recebimento-regras';
 import { paginar, emLotes } from '@/lib/db/paginar';
 import { sincronizarRecebimentosRecentes } from '@/lib/estoque/recebimentos';
 
@@ -42,12 +42,27 @@ async function montar(conta: Conta, linhas: any[]): Promise<any[]> {
   const tipoManual = new Map<number, string>();
   for (const m of (metas || []) as any[]) if (m.tipo_manual && m.tipo) tipoManual.set(Number(m.id_receb), m.tipo);
   const cfg = getConfig();
+  const transportadoras = await nomesTransportadoras(linhas.map((l) => l.chave_nfe));
   const recs = linhas.map((l) => ({
-    ...prepararRecebimento(recebimentoDoEspelho(l), cfg, tipoManual.get(Number(l.id_receb)) || null),
+    ...prepararRecebimento(aplicarTransportadora(recebimentoDoEspelho(l), transportadoras), cfg, tipoManual.get(Number(l.id_receb)) || null),
     recebidoEm: l.recebido_em || null,
   }));
   await enriquecerResponsaveis(conta, recs);
   return recs;
+}
+
+/** CT-e: razão social da transportadora (emitente da chave) pelo cadastro Omie. Erro = mapa vazio. */
+export async function nomesTransportadoras(chaves: unknown[]): Promise<Map<string, string>> {
+  const nomes = new Map<string, string>();
+  const cnpjs = [...new Set(chaves.filter(ehCte).map(cnpjEmitenteDaChave).filter(Boolean) as string[])];
+  if (!cnpjs.length) return nomes;
+  try {
+    const { data } = await emLotes(cnpjs, (pedaco) =>
+      supabase.from('portal_nt_clientes_cadastro_omie').select('cnpj_cpf,razao_social,nome_fantasia').in('cnpj_cpf', pedaco),
+    );
+    for (const c of (data || []) as any[]) if (!nomes.has(c.cnpj_cpf)) nomes.set(c.cnpj_cpf, c.razao_social || c.nome_fantasia);
+  } catch { /* sem nome: a tela mostra "Transportadora <CNPJ>" */ }
+  return nomes;
 }
 
 export async function listarRecebimentosEspelho(conta: Conta, status: StatusLista): Promise<{ recebimentos: any[]; atualizadoEm: string | null }> {
