@@ -36,10 +36,10 @@ async function guardarAlvo(req: NextRequest, questId: number, negocioId: number)
     if (!ehDono(n.vendedor_id)) return { resposta: json(req, { error: 'Este negócio é de outro vendedor.' }, 403) };
     return { quem, contato: () => contatoDoNegocio(n), alvo: (c) => alvoDoNegocio(n, c) };
   }
-  if (!Number.isFinite(questId) || questId <= 0) return { resposta: json(req, { error: 'Quest inválida.' }, 400) };
+  if (!Number.isFinite(questId) || questId <= 0) return { resposta: json(req, { error: 'Missão inválida.' }, 400) };
   const q = await carregarQuest(questId);
-  if (!q) return { resposta: json(req, { error: 'Quest não encontrada.' }, 404) };
-  if (!ehDono(q.vendedor_id)) return { resposta: json(req, { error: 'Esta quest é de outro vendedor.' }, 403) };
+  if (!q) return { resposta: json(req, { error: 'Missão não encontrada.' }, 404) };
+  if (!ehDono(q.vendedor_id)) return { resposta: json(req, { error: 'Esta missão é de outro vendedor.' }, 403) };
   return { quem, contato: () => contatoDaQuest(q), alvo: (c) => alvoDaQuest(q, c) };
 }
 
