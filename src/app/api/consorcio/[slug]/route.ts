@@ -24,7 +24,7 @@ const faltaTabela = (e: any) => /consorcio_|does not exist|schema cache|PGRST20[
 
 const ultimoEnvio = new Map<string, number>();   // IP -> hora do último cadastro (memória do servidor)
 // PDF da proposta no WhatsApp (26/11): a rota é pública, então tem trava — o mesmo número não recebe de novo em
-// 5 min, e no máximo 300 PDFs por dia por servidor (o estande não passa disso; robô sim).
+// 1 min (dá para "Editar cliente" e reenviar), e no máximo 300 PDFs por dia por servidor (o estande não passa disso; robô sim).
 const ultimoPdf = new Map<string, number>();
 let pdfsHoje = { dia: '', n: 0 };
 
@@ -170,7 +170,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
         pdf = { enviado: false, base64: Buffer.from(bytes).toString('base64') };
         const hoje = new Date().toISOString().slice(0, 10);
         if (pdfsHoje.dia !== hoje) pdfsHoje = { dia: hoje, n: 0 };
-        if (agora - (ultimoPdf.get(digitos) || 0) < 5 * 60_000) pdf.motivo = 'já foi enviado para este número agora há pouco';
+        if (agora - (ultimoPdf.get(digitos) || 0) < 60_000) pdf.motivo = 'já foi enviado para este número há menos de 1 minuto';
         else if (pdfsHoje.n >= 300) pdf.motivo = 'limite do dia atingido';
         else {
           const primeiro = nome.split(/s+/)[0];
