@@ -54,7 +54,8 @@ export default function ConferenciaCustosPage() {
   const [salvandoKey, setSalvandoKey] = useState<string | null>(null)
   const [salvoKey, setSalvoKey] = useState<string | null>(null)
 
-  const keyOf = (m: Maquina) => `${m.codigo_produto}|${m.conta_omie}`
+  // a mesma máquina pode estar no pátio E em demonstração (duas linhas) — a origem entra na chave
+  const keyOf = (m: Maquina) => `${m.codigo_produto}|${m.conta_omie}|${m.origem}`
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -221,10 +222,7 @@ export default function ConferenciaCustosPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: 'var(--portal-bg,#fafafa)', textAlign: 'left' }}>
-                <Th>Código</Th>
-                <Th>Descrição</Th>
-                <Th>Família</Th>
-                <Th>Origem</Th>
+                <Th>Máquina</Th>
                 <Th right>Dias estq.</Th>
                 <Th right>Custo portal</Th>
                 <Th>Fornecedor</Th>
@@ -240,21 +238,22 @@ export default function ConferenciaCustosPage() {
                 const key = keyOf(m)
                 return (
                   <tr key={key} style={{ borderTop: '1px solid var(--portal-border,#f0f0f0)', background: m.contatado ? 'rgba(34,197,94,0.05)' : 'transparent' }}>
-                    <Td mono>{m.codigo}</Td>
                     <Td>
-                      <span style={{ display: 'block', maxWidth: isMobile ? 170 : 260, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={m.descricao}>{m.descricao}</span>
-                      {m.estoque > 1 && <span style={{ fontSize: 11, color: '#dc2626' }}>{m.estoque} un.</span>}
-                    </Td>
-                    <Td>{m.familia_nome}</Td>
-                    <Td>
-                      {m.origem === 'demonstracao' ? (
-                        <span title={`Em demonstração${m.destinatario ? ' para ' + m.destinatario : ''}${m.numero_remessa ? ' · remessa ' + m.numero_remessa : ''}`}>
-                          <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 5, background: 'rgba(220,38,38,0.1)', color: '#dc2626', fontWeight: 700, fontSize: 11 }}>Demonstração</span>
-                          {m.destinatario && <span style={{ display: 'block', fontSize: 11, color: '#999', maxWidth: 150, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.destinatario}</span>}
-                        </span>
-                      ) : (
-                        <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 5, background: 'rgba(107,114,128,0.12)', color: '#6b7280', fontWeight: 600, fontSize: 11 }}>No pátio</span>
-                      )}
+                      <span style={{ display: 'block', maxWidth: isMobile ? 170 : 300, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: 600 }} title={m.descricao}>{m.descricao}</span>
+                      {/* código · família · origem numa linha só, pra tabela caber na tela sem scroll lateral */}
+                      <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 11, color: 'var(--portal-text-secondary,#737373)', marginTop: 2 }}>
+                        <span style={{ fontFamily: 'ui-monospace,monospace' }}>{m.codigo}</span>
+                        <span>· {m.familia_nome}</span>
+                        {m.origem === 'demonstracao' ? (
+                          <span title={`Em demonstração${m.destinatario ? ' para ' + m.destinatario : ''}${m.numero_remessa ? ' · remessa ' + m.numero_remessa : ''}`}
+                            style={{ display: 'inline-block', padding: '0 6px', borderRadius: 5, background: 'rgba(220,38,38,0.1)', color: '#dc2626', fontWeight: 700 }}>
+                            Demonstração{m.destinatario ? ` · ${m.destinatario}` : ''}
+                          </span>
+                        ) : (
+                          <span style={{ display: 'inline-block', padding: '0 6px', borderRadius: 5, background: 'rgba(107,114,128,0.12)', color: '#6b7280', fontWeight: 600 }}>No pátio</span>
+                        )}
+                        {m.estoque > 1 && <span style={{ color: '#dc2626', fontWeight: 700 }}>{m.estoque} un.</span>}
+                      </span>
                     </Td>
                     <Td right>{m.dias_em_estoque}</Td>
                     <Td right mono>{fmt(m.cmc_portal)}</Td>
@@ -272,7 +271,7 @@ export default function ConferenciaCustosPage() {
                     <Td>
                       <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                         <input value={m.observacao} onChange={e => editar(key, 'observacao', e.target.value)} onBlur={() => salvar(m)}
-                          style={{ ...inpText, width: 140 }} placeholder="—" />
+                          style={{ ...inpText, width: 120 }} placeholder="—" />
                         {salvandoKey === key && <Loader2 size={13} className="animate-spin" style={{ color: '#999' }} />}
                         {salvoKey === key && <CheckCircle2 size={14} style={{ color: '#22c55e' }} />}
                       </div>
@@ -281,7 +280,7 @@ export default function ConferenciaCustosPage() {
                 )
               })}
               {filtradas.length === 0 && (
-                <tr><td colSpan={12} style={{ padding: 30, textAlign: 'center', color: '#999' }}>Nenhuma máquina encontrada.</td></tr>
+                <tr><td colSpan={9} style={{ padding: 30, textAlign: 'center', color: '#999' }}>Nenhuma máquina encontrada.</td></tr>
               )}
             </tbody>
           </table>
@@ -292,14 +291,14 @@ export default function ConferenciaCustosPage() {
 }
 
 const inpText: React.CSSProperties = {
-  width: 110, padding: '5px 7px', fontSize: 12.5, borderRadius: 6,
+  width: 100, padding: '5px 7px', fontSize: 12.5, borderRadius: 6,
   border: '1px solid var(--portal-border,#e5e5e5)', background: 'transparent',
 }
 
 function NumInput({ value, onChange, onBlur }: { value: number | null; onChange: (v: number | null) => void; onBlur: () => void }) {
   return (
     <input type="number" step="0.01" value={value ?? ''} onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))} onBlur={onBlur}
-      style={{ ...inpText, width: 100, textAlign: 'right' }} placeholder="—" />
+      style={{ ...inpText, width: 92, textAlign: 'right' }} placeholder="—" />
   )
 }
 
