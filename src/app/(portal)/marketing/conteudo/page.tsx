@@ -14,6 +14,25 @@ import { REDE, STATUS_POST, faltas, type Arte, type Midia, type RedeId, type Sta
 import { COR_PRIOR, NOME_PRIOR, DATAS_AGRO, datasDoDia, guiaDe, temporadasDoMes, type DataAgro } from '@/lib/marketing/redes/datasAgro';
 import { AZUL, Campo, Secao, T1, T2, T3, Voltar, bt, campoNP, cartaoNP, grade, ic } from '@/components/marketing/redes/np';
 import { TIPOS_POST, FORMATOS_POST, GANCHOS, linkWhatsDoPost, linkSiteDoPost } from '@/lib/marketing/redes/etiquetas';
+import { LogoRede } from '@/components/marketing/redes/LogoRede';
+
+// 25/11/2026 (José: "quero que fique tudo o mais dinâmico, moderno, prático, fácil de entender"):
+// dia vazio mostra "+ criar post" no mouse, o dia que recebe o post arrastado acende, "hoje" pulsa.
+const ESTILO_CAL = `
+.cal-dia { transition: background .15s ease, box-shadow .15s ease; }
+.cal-dia.cal-pode:hover { background: color-mix(in srgb, #d97706 6%, var(--portal-bg-secondary, #ffffff)) !important; }
+.cal-dia .cal-mais { opacity: 0; transition: opacity .15s ease; }
+.cal-dia:hover .cal-mais { opacity: 1; }
+@media (hover: none) { .cal-dia .cal-mais { opacity: .8; } }
+.cal-alvo { background: color-mix(in srgb, #16a34a 12%, var(--portal-bg-secondary, #ffffff)) !important; box-shadow: inset 0 0 0 2px #16a34a !important; }
+@keyframes calPulsa { 0%, 100% { box-shadow: 0 0 0 0 rgba(217,119,6,.45); } 50% { box-shadow: 0 0 0 6px rgba(217,119,6,0); } }
+.cal-hoje { animation: calPulsa 2s ease-in-out infinite; }
+.cal-chip[draggable="true"] { cursor: grab; }
+.cal-chip[draggable="true"]:active { cursor: grabbing; }
+@media (prefers-reduced-motion: reduce) { .cal-hoje { animation: none; } }
+`;
+const ehVideo = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
+const NOME_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 type Resultado = Partial<Record<RedeId, { ok: boolean; link?: string | null; em?: string; manual?: boolean; erro?: string | null }>>;
 type Post = {
@@ -140,6 +159,37 @@ export default function CalendarioRedes() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { carregar(); }, [carregar]);
 
+  // Melhor dia da semana para postar: média de pessoas alcançadas por dia da semana (todas as redes, robô da Meta).
+  // Quem não tem acesso à aba Acessos simplesmente não vê esse cartão.
+  const [melhorDia, setMelhorDia] = useState<{ nome: string; media: number } | null>(null);
+  useEffect(() => {
+    fetchAuth('/api/marketing/redes?rede=todas').then(async (res) => {
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) return;
+      const porDia = new Map<string, number>();
+      for (const m of (j.metricas || []) as { dia: string; alcance: number | null }[]) porDia.set(m.dia, (porDia.get(m.dia) || 0) + (Number(m.alcance) || 0));
+      const s = Array.from({ length: 7 }, () => ({ soma: 0, n: 0 }));
+      for (const [d, v] of porDia) { const w = new Date(`${d}T12:00:00Z`).getUTCDay(); s[w].soma += v; s[w].n++; }
+      const medias = s.map((x, w) => ({ w, media: x.n ? x.soma / x.n : 0 }));
+      const top = medias.reduce((a, b) => (b.media > a.media ? b : a), medias[0]);
+      if (top.media > 0) setMelhorDia({ nome: NOME_SEMANA[top.w], media: Math.round(top.media) });
+    }).catch(() => {});
+  }, []);
+
+  // Arrastar um post para outro dia (mantém a hora). Post que já saiu não se arrasta.
+  const [arrastando, setArrastando] = useState<string | null>(null);
+  const [alvo, setAlvo] = useState<string | null>(null);
+  async function mover(id: string, dia: string) {
+    const p = (posts || []).find((x) => x.id === id);
+    if (!p?.quando || diaDe(p.quando) === dia || dia < hoje()) return;
+    const quando = `${dia}T${horaDe(p.quando)}:00-03:00`;
+    setPosts((l) => (l || []).map((x) => (x.id === id ? { ...x, quando: new Date(quando).toISOString() } : x)));   // já mostra no dia novo
+    const res = await fetchAuth('/api/marketing/posts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, quando }) });
+    const j = await res.json().catch(() => ({}));
+    await carregar();   // volta o post para onde ele está de verdade (o carregar limpa o aviso; por isso o aviso vem depois)
+    if (!res.ok || !j.ok) setErro(`Não consegui mudar o dia de "${p.titulo}": ${j.erro || 'erro ao gravar'}. Abra o post e mude a data por lá.`);
+  }
+
   // ---- editor segue o endereço
   const chave = rota.post || (rota.novo ? `novo:${rota.novo}` : rota.promo ? `promo:${rota.promo}` : null);
   useEffect(() => {
@@ -257,8 +307,7 @@ export default function CalendarioRedes() {
   const prox30 = useMemo(() => Array.from({ length: 30 }, (_, i) => somaDias(hoje(), i)), []);
   const vazios = prox30.filter((d) => !porDia.get(d)?.length);
 
-  // datas do agro: as importantes (obrigatória e boa) dos próximos 30 dias que ainda estão sem post no dia
-  const agroSemPost = DATAS_AGRO.filter((x) => x.prior >= 2 && x.d >= hoje() && x.d <= prox30[29] && !porDia.get(x.d)?.length);
+  // datas do agro importantes (obrigatória e boa) dos próximos 60 dias (as sem post viram o cartão "Próxima data do agro")
   const proximasAgro = DATAS_AGRO.filter((x) => x.prior >= 2 && (x.ate || x.d) >= hoje() && x.d <= somaDias(hoje(), 60));
 
   // ---------------------------------------------------------------- peças
@@ -295,19 +344,35 @@ export default function CalendarioRedes() {
       </button>
     );
   };
+  // 25/11/2026: o post mostra a miniatura da arte e as logos das redes; dá para arrastar para outro dia
   const chipPost = (p: Post, compacto: boolean) => {
     const s = STATUS_POST[p.status] || STATUS_POST.ideia;
     const falta = faltas(p.redes, p.midia).length > 0;
+    const arte = [p.midia?.feed, p.midia?.vertical, p.midia?.site, p.midia?.video].find(Boolean) || null;
+    const arrasta = podeEditar && !!p.quando && !['publicado', 'parcial'].includes(p.status);
+    const lado = compacto ? 38 : 52;
     return (
-      <button key={p.id} type="button" onClick={(e) => { e.stopPropagation(); abrirPost(p); }} title={`${p.titulo} · ${s.nome}`}
-        style={{ display: 'grid', gap: 2, width: '100%', textAlign: 'left', font: 'inherit', cursor: 'pointer', padding: compacto ? '4px 6px' : '8px 10px', borderRadius: 8,
-          border: `1px solid color-mix(in srgb, ${s.cor} 35%, transparent)`, background: `color-mix(in srgb, ${s.cor} 9%, var(--surface))`, color: T1, minWidth: 0 }}>
-        <span style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: compacto ? 11 : 12, color: s.cor }}>
-          {ic(s.icone)}{p.quando ? horaDe(p.quando) : 'sem data'}
-          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 3 }}>{p.redes.map((id) => <IconeRede key={id} id={id} tam={compacto ? 10 : 12} />)}</span>
+      <button key={p.id} type="button" className="cal-chip np-sobe" draggable={arrasta}
+        onDragStart={(e) => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; setArrastando(p.id); }}
+        onDragEnd={() => { setArrastando(null); setAlvo(null); }}
+        onClick={(e) => { e.stopPropagation(); abrirPost(p); }} title={`${p.titulo} · ${s.nome}${arrasta ? ' · arraste para mudar o dia' : ''}`}
+        style={{ display: 'grid', gridTemplateColumns: `${lado}px minmax(0, 1fr)`, gap: 8, alignItems: 'center', width: '100%', textAlign: 'left', font: 'inherit', cursor: 'pointer',
+          padding: 4, paddingRight: 8, borderRadius: 10, minWidth: 0, color: T1, opacity: arrastando === p.id ? 0.4 : 1,
+          border: `1px solid color-mix(in srgb, ${s.cor} 35%, transparent)`, borderLeft: `3px solid ${s.cor}`, background: `color-mix(in srgb, ${s.cor} 7%, var(--surface))` }}>
+        <span style={{ width: lado, height: lado, borderRadius: 7, overflow: 'hidden', display: 'grid', placeItems: 'center', background: `color-mix(in srgb, ${s.cor} 14%, transparent)`, color: s.cor }}>
+          {arte && !ehVideo(arte)
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={arte} alt="" loading="lazy" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            : ic(arte ? 'fa-film' : 'fa-image')}
         </span>
-        <span style={{ fontSize: compacto ? 12 : 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: compacto ? 'nowrap' : 'normal' }}>{p.titulo}</span>
-        {falta && <span style={{ fontSize: 11, color: '#b45309' }}>{ic('fa-triangle-exclamation')} falta arte</span>}
+        <span style={{ display: 'grid', gap: 3, minWidth: 0 }}>
+          <span style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 11.5, color: s.cor, minWidth: 0 }}>
+            {ic(s.icone)}<span style={{ color: T2 }}>{p.quando ? horaDe(p.quando) : 'sem data'}</span>
+            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 2 }}>{p.redes.map((id) => <LogoRede key={id} id={id} tam={compacto ? 14 : 16} />)}</span>
+          </span>
+          <span style={{ fontSize: compacto ? 12.5 : 14, lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.titulo}</span>
+          {falta && <span style={{ fontSize: 11, color: '#b45309' }}>{ic('fa-triangle-exclamation')} falta arte</span>}
+        </span>
       </button>
     );
   };
@@ -333,18 +398,32 @@ export default function CalendarioRedes() {
           const passado = d < h;
           const vazioFuturo = !lista.length && !passado && d <= prox30[29];
           const fimDeSemana = [5, 6].includes(visiveis.indexOf(d) % 7);
+          const pode = podeEditar && !passado;
           return (
-            <div key={d} onClick={() => podeEditar && !passado && novoPost(d)}
-              style={{ minHeight: seg ? 260 : 118, padding: '8px 10px', display: 'grid', alignContent: 'start', gap: 6, cursor: podeEditar && !passado ? 'pointer' : 'default', minWidth: 0,
+            <div key={d} onClick={() => pode && novoPost(d)}
+              className={`cal-dia${pode ? ' cal-pode' : ''}${alvo === d ? ' cal-alvo' : ''}`}
+              onDragOver={(e) => { if (!pode || !arrastando) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (alvo !== d) setAlvo(d); }}
+              onDragLeave={() => { if (alvo === d) setAlvo(null); }}
+              onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); setAlvo(null); setArrastando(null); if (pode && id) mover(id, d); }}
+              style={{ minHeight: seg ? 260 : 118, padding: '8px 10px', display: 'grid', alignContent: 'start', gap: 6, cursor: pode ? 'pointer' : 'default', minWidth: 0,
                 boxShadow: d === h ? 'inset 0 0 0 2px #d97706' : 'none',
                 background: passado ? 'color-mix(in srgb, var(--portal-text, #0f172a) 3%, var(--portal-bg, #f8fafc))' : fimDeSemana ? 'color-mix(in srgb, var(--portal-text, #0f172a) 1.5%, ' + FUNDO + ')' : FUNDO }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 15, color: d === h ? '#d97706' : passado ? T3 : T1 }}>{Number(d.slice(8))}{seg && d.slice(8) === '01' ? ` ${nomeDia(d, { month: 'short' })}` : ''}</span>
-                {d === h && <span style={{ fontSize: 12, color: '#d97706' }}>hoje</span>}
-                {vazioFuturo && <span style={{ marginLeft: 'auto', fontSize: 11, color: T3 }}>sem post</span>}
+                {d === h
+                  ? <span className="cal-hoje" style={{ minWidth: 28, height: 28, padding: '0 6px', borderRadius: 999, display: 'grid', placeItems: 'center', background: '#d97706', color: '#fefefe', fontSize: 14, fontWeight: 500 }}>{Number(d.slice(8))}</span>
+                  : <span style={{ fontSize: 15, fontWeight: 500, color: passado ? T3 : T1 }}>{Number(d.slice(8))}{seg && d.slice(8) === '01' ? ` ${nomeDia(d, { month: 'short' })}` : ''}</span>}
+                {d === h && <span style={{ fontSize: 12.5, color: '#d97706', fontWeight: 500 }}>hoje</span>}
+                {vazioFuturo && <span style={{ marginLeft: 'auto', width: 7, height: 7, borderRadius: 99, background: 'color-mix(in srgb, #d97706 55%, transparent)' }} title="Dia sem post" />}
               </span>
-              {datasDoDia(d).map((x) => chipAgro(x, d, true))}
-              {lista.map((p) => chipPost(p, true))}
+              <div style={{ display: 'grid', gap: 6, opacity: passado ? 0.75 : 1 }}>
+                {datasDoDia(d).map((x) => chipAgro(x, d, true))}
+                {lista.map((p) => chipPost(p, true))}
+              </div>
+              {pode && (
+                <span className="cal-mais" style={{ fontSize: 12.5, color: '#d97706', display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', padding: '6px 0', borderRadius: 8, border: '1px dashed color-mix(in srgb, #d97706 50%, transparent)' }}>
+                  {ic('fa-plus')}criar post
+                </span>
+              )}
             </div>
           );
         })}
@@ -646,12 +725,59 @@ export default function CalendarioRedes() {
   const mesAnt = () => { const d = new Date(`${rota.mes}-15T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() - 1); ir({ mes: d.toISOString().slice(0, 7) }); };
   const mesProx = () => { const d = new Date(`${rota.mes}-15T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1); ir({ mes: d.toISOString().slice(0, 7) }); };
 
+  // ---- resumo do topo (semana da tela)
+  const diasSemana = Array.from({ length: 7 }, (_, i) => somaDias(semana, i));
+  const postsSemana = diasSemana.flatMap((d) => porDia.get(d) || []);
+  const prontosSemana = postsSemana.filter((p) => p.status !== 'ideia').length;
+  const vaziosSemana = diasSemana.filter((d) => d >= hoje() && !porDia.get(d)?.length);
+  const faltamDias = (d: string) => Math.round((new Date(`${d}T12:00:00Z`).getTime() - new Date(`${hoje()}T12:00:00Z`).getTime()) / 864e5);
+  const quandoFalta = (d: string) => { const f = faltamDias(d); return f <= 0 ? 'é hoje' : f === 1 ? 'amanhã' : `em ${f} dias`; };
+  const proxAgro = proximasAgro.find((x) => !porDia.get(x.d)?.length) || null;
+  const resumoCartao = (i: number, icone: string, cor: string, rotulo: string, valor: React.ReactNode, sub: React.ReactNode, acao?: () => void, dica?: string) => {
+    const Tag = acao ? 'button' : 'div';
+    return (
+      <Tag type={acao ? 'button' : undefined} onClick={acao} title={dica} className={`np-entra${acao ? ' np-sobe' : ''}`}
+        style={{ ...cartaoNP, display: 'grid', gap: 6, alignContent: 'start', textAlign: 'left', font: 'inherit', color: T1, cursor: acao ? 'pointer' : 'default', animationDelay: `${i * 80}ms`,
+          background: `linear-gradient(135deg, color-mix(in srgb, ${cor} 9%, var(--surface)), var(--surface) 65%)` }}>
+        <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: T2 }}>
+          <span style={{ width: 30, height: 30, borderRadius: 9, display: 'grid', placeItems: 'center', color: cor, background: `color-mix(in srgb, ${cor} 15%, transparent)` }}>{ic(icone)}</span>
+          {rotulo}
+          {acao && <span style={{ marginLeft: 'auto', color: cor, fontSize: 12 }}>{ic('fa-arrow-right')}</span>}
+        </span>
+        <span style={{ fontSize: 24, fontWeight: 500, lineHeight: 1.15 }}>{valor}</span>
+        <span style={{ fontSize: 13, color: T2, lineHeight: 1.35 }}>{sub}</span>
+      </Tag>
+    );
+  };
+
   return (
     <div style={{ ...tela, color: T1 }}>
+      <style>{ESTILO_CAL}</style>
       <SubAbas abas={ABAS_CONTEUDO} />
       {erro && <Aviso>{erro}</Aviso>}
       {r ? editor() : (
         <>
+          {/* resumo da semana em cartões (25/11/2026) */}
+          {!rota.ano && posts && (
+            <div style={grade(220)}>
+              {resumoCartao(0, 'fa-calendar-week', '#d97706', largo ? 'Esta semana' : 'Semana de hoje',
+                <>{postsSemana.length} post{postsSemana.length === 1 ? '' : 's'}</>,
+                postsSemana.length ? `${prontosSemana} pronto${prontosSemana === 1 ? '' : 's'} · ${postsSemana.length - prontosSemana} ainda em ideia` : 'Nenhum post marcado nesta semana')}
+              {resumoCartao(1, 'fa-calendar-xmark', vaziosSemana.length ? '#dc2626' : '#16a34a', 'Dias sem post',
+                vaziosSemana.length ? <>{vaziosSemana.length} dia{vaziosSemana.length === 1 ? '' : 's'}</> : <>Nenhum {ic('fa-circle-check')}</>,
+                vaziosSemana.length ? `Próximo vazio: ${nomeDia(vaziosSemana[0], { weekday: 'long', day: '2-digit', month: '2-digit' })}` : 'Semana toda coberta',
+                podeEditar && vaziosSemana.length ? () => novoPost(vaziosSemana[0]) : undefined, 'Criar um post no próximo dia vazio')}
+              {proxAgro && resumoCartao(2, 'fa-wheat-awn', COR_PRIOR[proxAgro.prior], 'Próxima data do agro',
+                <>{proxAgro.nome}</>,
+                <><b style={{ fontWeight: 500, color: COR_PRIOR[proxAgro.prior] }}>{quandoFalta(proxAgro.d)}</b> ({nomeDia(proxAgro.d, { day: '2-digit', month: '2-digit' })}) · ainda sem post</>,
+                podeEditar ? () => novoPost(proxAgro.d, proxAgro) : undefined, 'Criar o post já com a ideia da data')}
+              {melhorDia && resumoCartao(3, 'fa-chart-line', '#7c3aed', 'Melhor dia para postar',
+                <>{melhorDia.nome}</>,
+                <>Em média {melhorDia.media.toLocaleString('pt-BR')} pessoas alcançadas nesse dia (números reais das redes)</>,
+                () => { window.location.href = '/marketing/acessos/todas'; }, 'Ver os números em Acessos')}
+            </div>
+          )}
+
           <section style={{ ...cartaoNP, display: 'grid', gap: 12 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ display: 'inline-flex', padding: 3, borderRadius: 10, border: '1px solid var(--border)', gap: 2 }}>
@@ -684,9 +810,6 @@ export default function CalendarioRedes() {
               </span>
               {podeEditar && <button style={bt('#d97706', true)} onClick={() => novoPost(vazios[0] || '')}>{ic('fa-plus')}Novo post</button>}
             </div>
-            {agroSemPost.length > 0 && (
-              <span style={{ fontSize: 13, color: '#dc2626' }}>{ic('fa-wheat-awn')} Sem post ainda: {agroSemPost.map((x) => `${x.nome} (${nomeDia(x.d, { day: '2-digit', month: '2-digit' })})`).join(', ')}</span>
-            )}
             {!rota.ano && temporadasDoMes(rota.mes).length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {temporadasDoMes(rota.mes).map((t) => (
@@ -698,7 +821,13 @@ export default function CalendarioRedes() {
             )}
             {posts === null ? <p>Carregando…</p> : rota.ano ? anoTodo() : largo ? grade7(semana) : agenda()}
             {rota.ano && <span style={{ fontSize: 12, color: T3 }}><span style={{ color: '#16a34a' }}>●</span> dia com post · <span style={{ color: '#dc2626' }}>○</span> data obrigatória · <span style={{ color: '#2563eb' }}>○</span> data boa. Toque num mês para abrir.</span>}
-            {!rota.ano && largo && podeEditar && <span style={{ fontSize: 12, color: T3 }}>Toque num dia para criar um post nele. {ic('fa-wheat-awn')} = data do agro: tocar cria o post já com a ideia.</span>}
+            {!rota.ano && largo && podeEditar && (
+              <span style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: T2 }}>
+                <span>{ic('fa-hand-pointer')} Toque num dia para criar um post</span>
+                <span>{ic('fa-up-down-left-right')} Arraste um post para mudar o dia</span>
+                <span style={{ color: '#dc2626' }}>{ic('fa-wheat-awn')} Data do agro: tocar cria o post já com a ideia</span>
+              </span>
+            )}
           </section>
 
           {/* O mês inteiro, num modal por cima da semana */}
@@ -720,28 +849,43 @@ export default function CalendarioRedes() {
 
           <Secao icone="fa-wheat-awn" cor="#dc2626" titulo={proximasAgro.length ? `${proximasAgro.filter((x) => !porDia.get(x.d)?.length).length} das ${proximasAgro.length} datas do agro dos próximos 60 dias ainda sem post` : 'Nenhuma data importante nos próximos 60 dias'}
             sub="Obrigatórias: planejar 2 a 3 semanas antes, de preferência com vídeo ou foto própria">
-            <div style={{ display: 'grid', gap: 8 }}>
-              {proximasAgro.map((x) => {
+            {/* 25/11/2026: cada data vira um cartão com contagem regressiva, lado a lado */}
+            <div style={grade(260)}>
+              {proximasAgro.map((x, i) => {
                 const tem = porDia.get(x.d) || [];
-                const faltam = Math.round((new Date(`${x.d}T12:00:00Z`).getTime() - new Date(`${hoje()}T12:00:00Z`).getTime()) / 864e5);
+                const faltam = faltamDias(x.d);
+                const cor = COR_PRIOR[x.prior];
                 return (
-                  <div key={x.d + x.nome} style={{ display: 'grid', gridTemplateColumns: '54px 1fr', gap: 10, alignItems: 'start' }}>
-                    <span style={{ display: 'grid', justifyItems: 'center', padding: '6px 0', borderRadius: 10, border: `1px solid color-mix(in srgb, ${COR_PRIOR[x.prior]} 35%, transparent)`, color: COR_PRIOR[x.prior] }}>
-                      <span style={{ fontSize: 16 }}>{nomeDia(x.d, { day: '2-digit', month: '2-digit' })}</span>
-                      <span style={{ fontSize: 11, color: T3 }}>{faltam <= 0 ? 'agora' : `${faltam} dia${faltam > 1 ? 's' : ''}`}</span>
-                    </span>
-                    <span style={{ display: 'grid', gap: 4 }}>
-                      <span style={{ fontSize: 14 }}>{x.nome}{x.ate ? ` (até ${nomeDia(x.ate, { day: '2-digit', month: '2-digit' })})` : ''} <span style={{ fontSize: 12, color: COR_PRIOR[x.prior] }}>{NOME_PRIOR[x.prior]}{x.confirmar ? ' · confirmar a data' : ''}</span></span>
-                      <span style={{ fontSize: 13, color: T2 }}>{x.ideia}</span>
-                      {guiaDe(x) && (
-                        <details>
-                          <summary style={{ fontSize: 13, color: AZUL, cursor: 'pointer', width: 'fit-content' }}>Ver ideias de post e o que preparar</summary>
-                          <div style={{ paddingTop: 6 }}>{guia(x)}</div>
-                        </details>
-                      )}
-                      {tem.length ? tem.map((p) => chipPost(p, false))
-                        : podeEditar && <button type="button" style={{ ...bt(COR_PRIOR[x.prior]), width: 'fit-content' }} onClick={() => novoPost(x.d, x)}>{ic('fa-plus')}Criar o post</button>}
-                    </span>
+                  <div key={x.d + x.nome} className="np-entra np-sobe"
+                    style={{ ...cartaoNP, display: 'grid', gap: 10, alignContent: 'start', animationDelay: `${Math.min(i, 8) * 60}ms`,
+                      borderColor: `color-mix(in srgb, ${cor} ${tem.length ? 20 : 40}%, transparent)`, borderTop: `4px solid ${tem.length ? '#16a34a' : cor}` }}>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <span style={{ width: 62, height: 62, flex: 'none', borderRadius: 16, display: 'grid', placeItems: 'center', alignContent: 'center', color: '#fefefe',
+                        background: tem.length ? '#16a34a' : `linear-gradient(145deg, ${cor}, color-mix(in srgb, ${cor} 70%, #000))` }}>
+                        <span style={{ fontSize: faltam > 0 ? 22 : 15, fontWeight: 600, lineHeight: 1 }}>{faltam > 0 ? faltam : 'hoje'}</span>
+                        {faltam > 0 && <span style={{ fontSize: 10.5, opacity: 0.9 }}>{faltam === 1 ? 'dia' : 'dias'}</span>}
+                      </span>
+                      <span style={{ display: 'grid', gap: 3, minWidth: 0 }}>
+                        <span style={{ fontSize: 15.5, fontWeight: 500, lineHeight: 1.25 }}>{x.nome}</span>
+                        <span style={{ fontSize: 12.5, color: T2 }}>
+                          {nomeDia(x.d, { weekday: 'short', day: '2-digit', month: '2-digit' })}{x.ate ? ` até ${nomeDia(x.ate, { day: '2-digit', month: '2-digit' })}` : ''}
+                        </span>
+                        <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 999, color: cor, background: `color-mix(in srgb, ${cor} 12%, transparent)` }}>{NOME_PRIOR[x.prior]}</span>
+                          {x.confirmar && <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 999, color: '#b45309', background: 'color-mix(in srgb, #b45309 12%, transparent)' }}>confirmar a data</span>}
+                          {tem.length > 0 && <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 999, color: '#16a34a', background: 'color-mix(in srgb, #16a34a 12%, transparent)' }}>{ic('fa-check')} tem post</span>}
+                        </span>
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 13.5, color: T1, lineHeight: 1.45 }}>{x.ideia}</span>
+                    {guiaDe(x) && (
+                      <details>
+                        <summary style={{ fontSize: 13, color: AZUL, cursor: 'pointer', width: 'fit-content' }}>{ic('fa-lightbulb')} Ideias de post e o que preparar</summary>
+                        <div style={{ paddingTop: 6 }}>{guia(x)}</div>
+                      </details>
+                    )}
+                    {tem.length ? tem.map((p) => chipPost(p, false))
+                      : podeEditar && <button type="button" style={{ ...bt(cor, true), justifyContent: 'center' }} onClick={() => novoPost(x.d, x)}>{ic('fa-plus')}Criar o post</button>}
                   </div>
                 );
               })}
