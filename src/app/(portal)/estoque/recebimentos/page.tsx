@@ -21,8 +21,8 @@ import { fatorDoTipo, sugerirPreco } from '@/lib/estoque/preco-venda-entrada';
 interface ReversaoPendente { id: string; idReceb: number; numeroNfe: string | null; fornecedor: string | null; status: string; criadoEm: string; quem: string | null; aRelancar: number; valorARelancar: number }
 
 interface Usuario { id: string; nome: string; funcao?: string | null }
-const TIPO_LABEL: Record<string, string> = { pecas: 'Peças', pecas_garantia: 'Peças (garantia)', almoxarifado: 'Almoxarifado', combustivel: 'Combustível', maquinas: 'Máquinas' };
-const TIPO_COR: Record<string, string> = { pecas: '#475569', pecas_garantia: '#b45309', almoxarifado: '#0e7490', combustivel: '#ca8a04', maquinas: '#7c3aed' };
+const TIPO_LABEL: Record<string, string> = { pecas: 'Peças', pecas_garantia: 'Peças (garantia)', almoxarifado: 'Almoxarifado', combustivel: 'Combustível', maquinas: 'Máquinas', frete: 'Frete (CT-e)' };
+const TIPO_COR: Record<string, string> = { pecas: '#475569', pecas_garantia: '#b45309', almoxarifado: '#0e7490', combustivel: '#ca8a04', maquinas: '#7c3aed', frete: '#1d4ed8' };
 
 // ---------- tipos do payload ----------
 interface ItemReceb {
@@ -140,6 +140,7 @@ const TIPOS_CHIP: Array<{ v: string; label: string }> = [
   { v: 'almoxarifado', label: 'Almoxarifado' },
   { v: 'combustivel', label: 'Combustível' },
   { v: 'maquinas', label: 'Máquinas' },
+  { v: 'frete', label: 'Frete (CT-e)' },
 ];
 // segmentado (Todas/Minhas/Sem responsável)
 function Toggle({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: Array<{ v: string; l: string }> }) {

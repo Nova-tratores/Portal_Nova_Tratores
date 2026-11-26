@@ -140,6 +140,12 @@ describe('CT-e (frete) mostra a transportadora', async () => {
     expect(casaBusca(r, '00428307')).toBe(true);
   });
 
+  it('CT-e entra com o tipo Frete; a escolha manual continua valendo', () => {
+    expect(prepararRecebimento(recebimentoDoEspelho(LINHA_CTE), cfg).tipo).toBe('frete');
+    expect(prepararRecebimento(recebimentoDoEspelho(LINHA_CTE), cfg, 'pecas').tipo).toBe('pecas');
+    expect(prepararRecebimento(recebimentoDoEspelho(LINHA_POSTO), cfg).tipo).not.toBe('frete');
+  });
+
   it('sem cadastro mostra o CNPJ; NF-e comum não muda', () => {
     expect(aplicarTransportadora(recebimentoDoEspelho(LINHA_CTE), new Map()).fornecedorNome).toBe('Transportadora 00.428.307/0005-11');
     const nf = aplicarTransportadora(recebimentoDoEspelho(LINHA_POSTO), nomes);
