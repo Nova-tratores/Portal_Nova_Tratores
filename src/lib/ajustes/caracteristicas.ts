@@ -11,7 +11,7 @@
 import type { Conta } from './conta';
 import { getContasOmie } from './conta';
 import { supabase } from './supabase';
-import { listarProdutos, gravarCaractProduto, listarCaracteristicas, sleep } from './omie';
+import { listarProdutos, gravarCaractProduto, listarCaracteristicas, sleep, omieRequest } from './omie';
 import { decodeOmieTexto } from '@/lib/omie/texto';
 import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando } from './jobs';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
@@ -345,7 +345,14 @@ export async function editarCaractProduto(empresa: string, codigoProduto: number
   const empresaLabel = String(empresa).toUpperCase();
   const cp = Number(codigoProduto) || codigoProduto;
   const novo = conteudo == null ? '' : String(conteudo);
-  await gravarCaractProduto(contaId, { codigoProduto, nomeCaract: nome, conteudo, preferirIncluir: opts.preferirIncluir });
+  try {
+    await gravarCaractProduto(contaId, { codigoProduto, nomeCaract: nome, conteudo, preferirIncluir: opts.preferirIncluir });
+  } catch (e) {
+    if (/produto n[ãa]o cadastrado/i.test(String((e as Error)?.message || ''))) {
+      throw new Error(await tratarProdutoSumido(contaId, empresaLabel, cp));
+    }
+    throw e;
+  }
   const { valorAntigo, codigo, descricao } = await atualizarCaractSupabase(empresaLabel, cp, nome, conteudo);
   if (autor) {
     await registrarAuditLog({
@@ -363,6 +370,36 @@ export async function editarCaractProduto(empresa: string, codigoProduto: number
   // fecha a demanda de alocação dela (peça recebida sem endereço). Nunca lança.
   if (CHAVES_LOCACAO.has(normCaract(nome)) && novo.trim() !== '') await fecharSeAlocada(empresaLabel, cp, autor);
   return { ok: true, nome, conteudo: novo };
+}
+
+/** A Omie respondeu "Produto não cadastrado" para um id que o espelho tem. Caso real
+ *  (26/11/2026, RP-006511460U91): a peça foi apagada e recriada na Omie com outro id,
+ *  e o espelho (só upsert) ficou com as duas linhas. Procura o mesmo SKU na Omie; se
+ *  existir com outro id, tira a linha velha do espelho (características + produtos) e
+ *  devolve a mensagem para a pessoa recarregar. Nunca lança: devolve o texto do erro. */
+async function tratarProdutoSumido(conta: Conta, label: string, cp: number | string): Promise<string> {
+  try {
+    const { data } = await supabase.from('produtos_caracteristicas').select('codigo')
+      .eq('conta_omie', label).eq('codigo_produto', cp).maybeSingle();
+    const sku = (data as any)?.codigo ? String((data as any).codigo) : '';
+    if (!sku) return `Esta peça não existe mais na Omie (${label}, id ${cp}). Nada foi gravado.`;
+    let novoId: number | null = null;
+    try {
+      const p = await omieRequest('/geral/produtos/', 'ConsultarProduto', { codigo: sku }, conta);
+      novoId = Number(p?.codigo_produto) || null;
+    } catch { /* SKU também não existe */ }
+    if (!novoId || String(novoId) === String(cp)) {
+      return `A peça ${sku} não existe mais na Omie (${label}). Nada foi gravado.`;
+    }
+    await supabase.from('produtos_caracteristicas').delete().eq('conta_omie', label).eq('codigo_produto', cp);
+    await supabase.from('produtos').delete().eq('conta_omie', label.toLowerCase()).eq('codigo_produto', cp);
+    await supabase.from('pecas_alocacao_pendencias')
+      .update({ status: 'dispensada', resolucao: `Peça recriada na Omie com outro id (${novoId})`, resolvida_em: new Date().toISOString() })
+      .eq('conta_omie', label).eq('codigo_produto', cp).eq('status', 'aberta');
+    return `A peça ${sku} foi recriada na Omie com outro código interno; a cópia antiga saiu do portal. Recarregue a tela e escolha a peça de novo. Nada foi gravado.`;
+  } catch (e) {
+    return `A Omie não achou esta peça (${label}, id ${cp}): ${(e as Error).message}`;
+  }
 }
 
 const CHAVES_LOCACAO = new Set(['#prateleira', '#andar', '#caixa', '#andar2', '#caixa2']);
