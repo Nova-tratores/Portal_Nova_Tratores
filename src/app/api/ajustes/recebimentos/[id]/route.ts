@@ -3,7 +3,8 @@ import { parseConta } from '@/lib/ajustes/conta';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { analisarUmRecebimento } from '@/lib/ajustes/analise';
 import { enriquecerResponsaveis } from '@/lib/ajustes/recebimentos';
-import { ACESSO_RECEBIMENTOS } from '@/lib/ajustes/recebimentos-espelho';
+import { ACESSO_RECEBIMENTOS, nomesTransportadoras } from '@/lib/ajustes/recebimentos-espelho';
+import { aplicarTransportadora } from '@/lib/ajustes/recebimento-regras';
 import { supabase } from '@/lib/ajustes/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +26,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const { data: meta } = await supabase
       .from('recebimento_meta').select('tipo,tipo_manual').eq('conta_omie', low).eq('id_receb', idReceb).maybeSingle();
     const tipoManual = meta && (meta as { tipo_manual?: boolean }).tipo_manual ? (meta as { tipo?: string }).tipo || null : null;
-    const r = await analisarUmRecebimento(conta, idReceb, tipoManual);
+    // CT-e: a Omie manda o remetente como fornecedor — mostra a transportadora (como na lista)
+    const bruto = await analisarUmRecebimento(conta, idReceb, tipoManual);
+    const r = aplicarTransportadora(bruto, await nomesTransportadoras([bruto.chaveNFe]));
     await enriquecerResponsaveis(conta, [r]);
     if (r.recebido || r.cancelada) {
       await supabase.from('recebimentos_nfe')

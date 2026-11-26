@@ -60,6 +60,8 @@ interface Recebimento {
   etapa?: string | null;
   naturezaOperacao?: string | null;
   fornecedorNome?: string | null;
+  cte?: boolean;
+  remetente?: string | null;
   dataEmissao?: string | null;
   valorNFe?: number;
   itens?: ItemReceb[];
@@ -950,7 +952,13 @@ function CardReceb({ r, conta, modo, resultado, abrindo, usuarios, mostrarProdut
         {/* linha ALINHADA com o cabeçalho (mesmo grid) */}
         <div className="rec-grid" style={{ display: 'grid', gridTemplateColumns: GRID_RECEB, alignItems: 'center', padding: `8px ${ROW_PAD_X}px`, gap: '2px 0' }}>
           <div style={cell}><span style={{ fontWeight: 600, color: '#1e293b', fontSize: '.8rem' }}>NF {r.numeroNFe || '?'}{r.serieNFe ? `/${r.serieNFe}` : ''}</span></div>
-          <div className="rec-wide" style={cell} title={r.fornecedorNome || ''}><span style={{ ...ellip, fontSize: '.8rem', color: '#475569' }}>{r.fornecedorNome || ''}</span></div>
+          <div className="rec-wide" style={cell} title={r.cte ? `CT-e (frete) da ${r.fornecedorNome || ''}${r.remetente ? ` — carga de ${r.remetente}` : ''}` : (r.fornecedorNome || '')}>
+            <span style={{ ...ellip, fontSize: '.8rem', color: '#475569' }}>
+              {r.cte && <span style={{ fontSize: '.62rem', fontWeight: 700, padding: '1px 6px', borderRadius: 5, background: '#dbeafe', color: '#1d4ed8', marginRight: 5 }}>CT-e · frete</span>}
+              {r.fornecedorNome || ''}
+            </span>
+            {r.cte && r.remetente && <span style={{ ...ellip, fontSize: '.68rem', color: '#94a3b8' }}>carga de {r.remetente}</span>}
+          </div>
           <div className="rec-wide" data-l="Natureza" style={cell} title={r.naturezaOperacao || ''}>
             {r.naturezaOperacao ? <span style={{ ...ellip, fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#e2e8f0', color: '#475569' }}>{r.naturezaOperacao}</span> : <span style={{ color: '#cbd5e1' }}>—</span>}
           </div>
@@ -1634,7 +1642,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
     <div className="est-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 920, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
         <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Dar entrada na NF {r.numeroNFe || '?'}{r.serieNFe ? `/${r.serieNFe}` : ''} - {r.fornecedorNome || ''}</h2>
+          <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Dar entrada {r.cte ? 'no CT-e' : 'na NF'} {r.numeroNFe || '?'}{r.serieNFe ? `/${r.serieNFe}` : ''} - {r.fornecedorNome || ''}{r.cte && r.remetente ? <span style={{ fontWeight: 400, color: '#64748b', fontSize: '.8rem' }}> · frete da carga de {r.remetente}</span> : null}</h2>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
             <NotaFiscalAcoes chave={r.chaveNFe} idReceb={r.idReceb} conta={conta} />
             <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
