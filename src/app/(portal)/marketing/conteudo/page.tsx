@@ -15,6 +15,8 @@ import { COR_PRIOR, NOME_PRIOR, DATAS_AGRO, datasDoDia, guiaDe, temporadasDoMes,
 import { AZUL, Campo, Secao, T1, T2, T3, Voltar, bt, campoNP, cartaoNP, grade, ic } from '@/components/marketing/redes/np';
 import { TIPOS_POST, FORMATOS_POST, GANCHOS, linkWhatsDoPost, linkSiteDoPost } from '@/lib/marketing/redes/etiquetas';
 import { LogoRede } from '@/components/marketing/redes/LogoRede';
+import EditarArte from '@/components/marketing/redes/EditarArte';
+import type { Camadas } from '@/lib/marketing/robo/paletas';
 
 // 25/11/2026 (José: "quero que fique tudo o mais dinâmico, moderno, prático, fácil de entender"):
 // dia vazio mostra "+ criar post" no mouse, o dia que recebe o post arrastado acende, "hoje" pulsa.
@@ -44,8 +46,8 @@ type Etq = { etiqueta_tipo?: string | null; gente_real?: boolean | null; maquina
   /** Fase 3.2: texto por rede (vazio = o texto único), primeiro comentário, hashtags, título do YouTube */
   textos?: Partial<Record<RedeId, string>>; primeiro_comentario?: string | null; hashtags?: string | null; titulo_youtube?: string | null;
   /** Fase 3.5: aprovação de post de preço */
-  aprovado_por?: string | null; aprovado_em?: string | null };
-type Rascunho = { id?: string; titulo: string; legenda: string; redes: RedeId[]; formato: string; midia: Midia; data: string; hora: string; notas: string; promocao_id: string | null; status: StatusPost; resultado: Resultado; chave: string } & Etq & { codigo?: string | null; contatos?: number };
+  aprovado_por?: string | null; aprovado_em?: string | null; arte?: Camadas | null };
+type Rascunho = { id?: string; titulo: string; legenda: string; redes: RedeId[]; formato: string; midia: Midia; data: string; hora: string; notas: string; promocao_id: string | null; status: StatusPost; resultado: Resultado; chave: string } & Etq & { codigo?: string | null; contatos?: number; arte?: Camadas | null };
 type Conta = { rede: RedeId; nome: string | null };
 
 const SOCIAIS: RedeId[] = ['instagram', 'facebook', 'tiktok', 'youtube'];
@@ -232,7 +234,7 @@ export default function CalendarioRedes() {
       hora: p.quando ? horaDe(p.quando) : '09:00', notas: p.notas || '', promocao_id: p.promocao_id, status: p.status, resultado: p.resultado || {},
       etiqueta_tipo: p.etiqueta_tipo ?? null, gente_real: p.gente_real ?? null, maquina: p.maquina ?? null, gancho: p.gancho ?? null, codigo: p.codigo ?? null, contatos: p.contatos,
       textos: p.textos || {}, primeiro_comentario: p.primeiro_comentario ?? null, hashtags: p.hashtags ?? null, titulo_youtube: p.titulo_youtube ?? null,
-      aprovado_por: p.aprovado_por ?? null, aprovado_em: p.aprovado_em ?? null };
+      aprovado_por: p.aprovado_por ?? null, aprovado_em: p.aprovado_em ?? null, arte: p.arte ?? null };
   }
 
   async function chamar(metodo: string, corpo?: unknown, q = '') {
@@ -528,6 +530,14 @@ export default function CalendarioRedes() {
         <Secao icone="fa-share-nodes" cor="#c13584" titulo="Onde vai sair" sub="Toque para ligar ou desligar cada rede. Pode ser uma só ou todas">
           <EscolherRedes so={SOCIAIS} valor={r.redes} onChange={(v) => setR({ ...r, redes: v })} />
         </Secao>
+
+        {/* 26/11/2026: post do robô vem em camadas (cena + texto + cor) e dá para editar aqui */}
+        {r.id && r.arte?.cena && (
+          <Secao icone="fa-layer-group" cor="#d0102b" titulo="Editar arte" sub="Mude o texto, as cores ou a posição. A prévia aparece em 1 segundo, sem custo">
+            <EditarArte key={r.id} postId={r.id} arte={r.arte} atual={r.midia.feed || undefined} podeEditar={podeEditar}
+              onSalvo={(url, arte) => { setR((x) => (x ? { ...x, midia: { ...x.midia, feed: url }, arte } : x)); carregar(); }} />
+          </Secao>
+        )}
 
         <Secao icone="fa-images" cor="#7c3aed" titulo="Artes" sub="Cada rede usa um tamanho. Os ícones mostram quem usa cada arte">
           <ArtesDasRedes semSite redes={r.redes} midia={r.midia} pasta="posts" onTroca={(a: Arte, u) => setR({ ...r, midia: { ...r.midia, [a]: u } })} />
