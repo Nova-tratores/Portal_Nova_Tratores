@@ -18,6 +18,7 @@ import EmailsPecasOS from "./EmailsPecasOS";
 import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 import ItemOrcamentoModal from "@/components/ppv/ItemOrcamentoModal";
+import TrocarEmpresaItem from "@/components/ppv/TrocarEmpresaItem";
 import ModalEditarItemOS from "./ModalEditarItemOS";
 import { ModalSemCobranca, AvisoFaturarSemCobranca, acaoSemCobranca } from "@/components/ppv/SemCobranca";
 import { PPVMiniProvider } from "@/lib/ppv/PPVContext";
@@ -2722,6 +2723,16 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                                     {p.codigo}<i className="fas fa-circle-info" />
                                   </button>
                                 ) : <span className="pc-sem">—</span>}
+                                {p.codigo && p.ppvId && p.empresa && (
+                                  <span style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 3 }}>
+                                    <TrocarEmpresaItem ppvId={p.ppvId} codigo={p.codigo} descricao={p.descricao} empresa={p.empresa}
+                                      empresaFixa={p.empresaFixa} semCadastroEm={p.semCadastroEm}
+                                      desabilitado={!podeEditar || !!p.faturado || !!p.pedidoOmie}
+                                      motivoDesabilitado={!podeEditar ? MSG_SEM_PERMISSAO : p.faturado ? "Pedido já faturado" : "Já enviado ao Omie: a empresa ficou definida lá"}
+                                      onTrocado={async (_d, msg) => { await loadPPV(ppv); setLogRefreshKey((k) => k + 1); if (!/não está/.test(msg)) onSaved?.(); }}
+                                      onErro={(m) => alert(m)} />
+                                  </span>
+                                )}
                               </span>
                               <span className="pc-desc">
                                 {p.descricao}

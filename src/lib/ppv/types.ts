@@ -72,6 +72,10 @@ export interface ProdutoDetalhe {
   quantidade: number;
   preco: number;
   empresa?: string;
+  /** Empresa escolhida à mão (botão "mudar de empresa") — não veio do cadastro. */
+  empresaFixa?: boolean;
+  /** Tentaram mudar para esta empresa e a peça não está cadastrada lá (marca na tela). */
+  semCadastroEm?: string | null;
   /** Marcada "não gerar cobrança": preco já vem 0; aqui o motivo e o preço de antes. */
   semCobranca?: { motivo: string; precoOriginal: number; por?: string; em?: string } | null;
 }

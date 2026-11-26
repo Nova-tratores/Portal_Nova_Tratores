@@ -105,6 +105,14 @@ export const api = {
   editarPrecoItem: (id: string, codigo: string, preco: number, userName?: string) =>
     patch<PPVDetalhes>("/api/ppv/movimentacoes", { id, codigo, preco, userName }),
 
+  // "Mudar de empresa" de uma peça (Nova ⇄ Castro) — ver api/ppv/trocar-empresa
+  trocarEmpresaItem: (id: string, codigo: string, confirmar = false) =>
+    postAuth<{
+      ok?: boolean; naoCadastrado?: boolean; precisaConfirmar?: boolean; mudouPreco?: boolean;
+      atual?: string; destino: string; precoAtual?: number; precoDestino?: number;
+      detalhes?: PPVDetalhes;
+    }>("/api/ppv/trocar-empresa", { id, codigo, confirmar }),
+
   // Importa um kit inteiro numa só chamada (marca os itens com o rótulo do kit)
   importarKitLote: (dados: {
     id: string; kit: string; tecnico: string; userName?: string;

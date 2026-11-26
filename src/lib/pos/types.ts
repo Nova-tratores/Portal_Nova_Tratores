@@ -111,6 +111,10 @@ export interface Produto {
   pedidoOmie?: string;
   codigo?: string;
   conta?: "NOVA" | "CASTRO";
+  /** nome da empresa da peça + escolha à mão / marca "não tem na X" (mudar de empresa) */
+  empresa?: string;
+  empresaFixa?: boolean;
+  semCadastroEm?: string | null;
   /** peça marcada "não gerar cobrança" (valor já vem 0) */
   semCobranca?: { motivo: string; precoOriginal: number } | null;
   tipoPedido?: string;

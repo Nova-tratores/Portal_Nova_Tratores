@@ -36,6 +36,7 @@ import PPVUnidadesInfo from "./PPVUnidadesInfo";
 import QRScanner, { type ScanResultado } from "@/components/pecas/QRScanner";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import { ModalSemCobranca, AvisoFaturarSemCobranca, acaoSemCobranca } from "./SemCobranca";
+import TrocarEmpresaItem from "./TrocarEmpresaItem";
 
 // Previsão de faturamento vazia = hoje (José, 13/10/2026), no fuso de São Paulo, "aaaa-mm-dd".
 const hojeSP = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
@@ -558,7 +559,7 @@ export default function PPVDrawer({
       const itens = (details.produtos || [])
         .map((p) => ({
           codigo: p.codigo,
-          conta: (p.empresa || "").toLowerCase().includes("primari") ? "CASTRO" : "NOVA",
+          conta: /primari|castro/i.test(p.empresa || "") ? "CASTRO" : "NOVA",
           qtd: p.quantidade - devs.filter((x) => x.codigo === p.codigo).reduce((a, c) => a + c.quantidade, 0),
         }))
         .filter((p) => p.qtd > 0);
@@ -981,7 +982,7 @@ export default function PPVDrawer({
   function verDescricaoProduto() {
     if (!itemSelecionado) { showToast("error", "Selecione um produto (clique na descrição)."); return; }
     const p = produtosComSaldo.find((x) => x.codigo === itemSelecionado);
-    if (p) setDetalheProd({ codigo: p.codigo, descricao: p.descricao, conta: (p.empresa || "").toLowerCase().includes("primari") ? "CASTRO" : "NOVA", quantidade: p.saldo, preco: p.preco });
+    if (p) setDetalheProd({ codigo: p.codigo, descricao: p.descricao, conta: /primari|castro/i.test(p.empresa || "") ? "CASTRO" : "NOVA", quantidade: p.saldo, preco: p.preco });
   }
   // Excluir o produto selecionado — abre a devolução (pergunta a quantidade).
   function excluirItemSelecionado() {
@@ -1584,7 +1585,7 @@ export default function PPVDrawer({
                           const isDevolvido = p.saldo === 0;
                           const isParcial = p.saldo > 0 && p.qtdDev > 0;
                           const editando = editandoPrecoCod === p.codigo;
-                          const isPrimario = (p.empresa || "").toLowerCase().includes("primari");
+                          const isPrimario = /primari|castro/i.test(p.empresa || "");
                           return (
                             <div key={p.codigo} className="ppv-item-linha" style={{ display: "grid", gridTemplateColumns: "150px 60px minmax(140px,1fr) 130px 116px 116px 210px 44px", gap: 10, alignItems: "center", padding: "12px 16px", borderBottom: i < produtosComSaldo.length - 1 ? "1px solid #E2E8F0" : "none", background: itemSelecionado === p.codigo ? "#fff2df" : isDevolvido ? "#FAFAFA" : "#fff", opacity: isDevolvido ? 0.7 : 1, fontSize: 14 }}>
                               {/* Produto */}
@@ -1601,7 +1602,14 @@ export default function PPVDrawer({
                                   style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 6, border: `1px solid ${codCopiado === p.codigo ? "#6EE7B7" : "#E2E8F0"}`, background: codCopiado === p.codigo ? "#ECFDF5" : "#fff", color: codCopiado === p.codigo ? "#059669" : "#64748B", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
                                   <i className={`fas ${codCopiado === p.codigo ? "fa-check" : "fa-copy"}`} style={{ fontSize: 10 }} /> {codCopiado === p.codigo ? "Copiado" : "Copiar"}
                                 </button>
-                                {p.empresa && <span style={{ fontSize: 11, fontWeight: 500, padding: "1px 7px", borderRadius: 6, background: isPrimario ? "#DBEAFE" : "#fff3e6", color: isPrimario ? "#2563EB" : "#c2570a" }}>{isPrimario ? "CASTRO" : "NOVA"}</span>}
+                                {p.empresa && ppvId && (
+                                  <TrocarEmpresaItem ppvId={ppvId} codigo={p.codigo} descricao={p.descricao} empresa={p.empresa}
+                                    empresaFixa={p.empresaFixa} semCadastroEm={p.semCadastroEm}
+                                    desabilitado={!podeItem || isDevolvido || !!faturadoEm || !!pedidoOmie}
+                                    motivoDesabilitado={!podeItem ? MSG_SEM_PERMISSAO : pedidoOmie ? "Já enviado ao Omie: a empresa ficou definida lá" : faturadoEm ? "Pedido já faturado" : "Peça devolvida"}
+                                    onTrocado={(d, msg) => { if (d) setDetails(d); showToast(/não está/.test(msg) ? "error" : "success", msg); onDirty?.(); }}
+                                    onErro={(m) => showToast("error", m)} />
+                                )}
                               </div>
                               {/* Qtd / saldo + status */}
                               <div style={{ textAlign: "center", lineHeight: 1.3 }}>
@@ -2024,7 +2032,7 @@ export default function PPVDrawer({
         userName={userProfile?.nome || ""}
         onClose={() => setDetalheProd(null)}
         showToast={showToast}
-        itens={produtosComSaldo.map((p) => ({ codigo: p.codigo, descricao: p.descricao, conta: (p.empresa || "").toLowerCase().includes("primari") ? "CASTRO" : "NOVA", quantidade: p.saldo, preco: p.preco }))}
+        itens={produtosComSaldo.map((p) => ({ codigo: p.codigo, descricao: p.descricao, conta: /primari|castro/i.test(p.empresa || "") ? "CASTRO" : "NOVA", quantidade: p.saldo, preco: p.preco }))}
         onIrPara={(item) => setDetalheProd(item)}
       />
       <ModalImportarKit open={kitModalOpen} onClose={() => setKitModalOpen(false)} onImportar={(produtos) => importarKitItens(produtos)} />

@@ -64,6 +64,8 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
 
   if (resItens) {
     const itensMap: Record<string, { codigo: string; descricao: string; quantidade: number; preco: number }> = {};
+    const empresaFixaMap: Record<string, string> = {};
+    const semCadastroMap: Record<string, string> = {};
     // Kits importados: por rótulo§batchId, o saldo (saída - devolução) de cada código.
     const kitMap: Record<string, { tag: string; rotulo: string; itens: Record<string, { codigo: string; descricao: string; quantidade: number; preco: number }> }> = {};
     resItens.forEach((r) => {
@@ -73,6 +75,11 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
       const precoVal = parseFloat(String(getValorInsensivel(r, "Preco") || 0));
       const desc = String(getValorInsensivel(r, "Descricao") || "");
       const kitTag = String(getValorInsensivel(r, "Kit") || "").trim();
+      // empresa escolhida à mão / tentativa sem cadastro (botão "mudar de empresa")
+      const empFixa = String(getValorInsensivel(r, "Empresa") || "").trim();
+      const semCad = String(getValorInsensivel(r, "Sem_Cadastro_Em") || "").trim();
+      if (codigo && empFixa) empresaFixaMap[codigo] = empFixa;
+      if (codigo && semCad) semCadastroMap[codigo] = semCad;
 
       if (tipo.includes("saida") || tipo.includes("saída")) {
         if (itensMap[codigo]) itensMap[codigo].quantidade += qtdVal;
@@ -118,11 +125,13 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
       } catch { /* empresa é informativo, não crítico */ }
     }
 
-    // Se um produto existe em múltiplas empresas, atribui a empresa da maioria
-    // Primeiro conta qual empresa tem mais produtos exclusivos
+    // Se um produto existe em múltiplas empresas, atribui a empresa da maioria.
+    // Conta as escolhidas à mão + as exclusivas (só existem numa empresa).
     const contEmpresa: Record<string, number> = {};
-    Object.values(empresaMap).forEach((emps) => {
-      if (emps.length === 1) contEmpresa[emps[0]] = (contEmpresa[emps[0]] || 0) + 1;
+    codigos.forEach((cod) => {
+      const emps = empresaMap[cod];
+      const e = empresaFixaMap[cod] || (emps && emps.length === 1 ? emps[0] : "");
+      if (e) contEmpresa[e] = (contEmpresa[e] || 0) + 1;
     });
     const empresaMajoritaria = Object.entries(contEmpresa).sort((a, b) => b[1] - a[1])[0]?.[0] || "Nova Tratores";
 
@@ -137,12 +146,17 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
     detalhes.produtos = Object.values(itensMap).map((p) => {
       const emps = empresaMap[p.codigo];
       let empresa: string | undefined;
-      if (emps && emps.length === 1) {
+      const fixa = empresaFixaMap[p.codigo];
+      // marca "não tem na X" só enquanto a peça continuar sem cadastro lá
+      const semCadastroEm = semCadastroMap[p.codigo] && !(emps || []).includes(semCadastroMap[p.codigo]) ? semCadastroMap[p.codigo] : null;
+      if (fixa) {
+        empresa = fixa; // escolhida à mão (botão "mudar de empresa")
+      } else if (emps && emps.length === 1) {
         empresa = emps[0]; // só existe em uma empresa
       } else if (emps && emps.length > 1) {
         empresa = empresaMajoritaria; // existe em ambas, usa a majoritária
       }
-      return { ...p, empresa, semCobranca: semCob[p.codigo] || null };
+      return { ...p, empresa, empresaFixa: !!fixa, semCadastroEm, semCobranca: semCob[p.codigo] || null };
     });
   }
 
