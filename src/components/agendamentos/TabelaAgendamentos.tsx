@@ -155,7 +155,7 @@ const campo: React.CSSProperties = { width: '100%', padding: '7px 9px', borderRa
 const rotulo: React.CSSProperties = { display: 'block', fontSize: '.72rem', fontWeight: 700, color: '#374151', margin: '10px 0 4px' }
 const confirmarBtn: React.CSSProperties = { marginTop: 14, width: '100%', padding: '9px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fefefe', fontWeight: 800, cursor: 'pointer' }
 
-function ModalPausar({ ag, fechar, confirmar }: { ag: AgendamentoPainel; fechar: () => void; confirmar: (motivo: string) => void }) {
+export function ModalPausar({ ag, fechar, confirmar }: { ag: AgendamentoPainel; fechar: () => void; confirmar: (motivo: string) => void }) {
   const [motivo, setMotivo] = useState('')
   return (
     <Janela titulo={`Pausar: ${ag.nome}`} fechar={fechar}>
@@ -169,7 +169,7 @@ function ModalPausar({ ag, fechar, confirmar }: { ag: AgendamentoPainel; fechar:
 
 const DIAS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 
-function ModalHorario({ ag, fechar, confirmar }: { ag: AgendamentoPainel; fechar: () => void; confirmar: (c: Record<string, unknown>) => void }) {
+export function ModalHorario({ ag, fechar, confirmar }: { ag: AgendamentoPainel; fechar: () => void; confirmar: (c: Record<string, unknown>) => void }) {
   const [tipo, setTipo] = useState<TipoAgendamento>(ag.tipo)
   const [hora, setHora] = useState(ag.hora || '20:00')
   const [intervalo, setIntervalo] = useState(String(ag.intervalo_min || 15))
@@ -245,7 +245,7 @@ function ModalHorario({ ag, fechar, confirmar }: { ag: AgendamentoPainel; fechar
   )
 }
 
-function ModalMarcar({ ag, fechar, confirmar }: { ag: AgendamentoPainel; fechar: () => void; confirmar: (iso: string) => void }) {
+export function ModalMarcar({ ag, fechar, confirmar }: { ag: AgendamentoPainel; fechar: () => void; confirmar: (iso: string) => void }) {
   const [quando, setQuando] = useState('')
   return (
     <Janela titulo={`Rodar uma vez: ${ag.nome}`} fechar={fechar}>

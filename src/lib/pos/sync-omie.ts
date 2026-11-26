@@ -230,6 +230,8 @@ export async function syncProdutos(): Promise<{ total: number; novos: number; at
         Preco_Venda: p.preco_venda ?? p.valor_unitario ?? 0,
         CMC: p.cmc ?? null,
         Empresa: acc.name,
+        // sem isto a coluna ficava no padrão NOVA até para peça da Castro (26/11/2026)
+        conta_omie: /castro/i.test(acc.name) ? "CASTRO" : "NOVA",
       }));
 
       if (registros.length > 0) {

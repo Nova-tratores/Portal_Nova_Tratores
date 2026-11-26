@@ -6,7 +6,7 @@
 // dígitos (pega com e sem o 9) → se não existe, cria na caixa de WhatsApp → conversa → mensagem.
 // Caixa usada para criar contato: CHATWOOT_INBOX_AVISOS (id) ou, sem ela, a primeira caixa de WhatsApp/API.
 import { chatwootConfigurado, baseApiConta, CHATWOOT_API_TOKEN } from './config'
-import { buscarContatosPorTexto, chatwootGet, garantirConversaContato, enviarTextoConversa } from './cliente'
+import { buscarContatosPorTexto, chatwootGet, garantirConversaContato, enviarTextoConversa, enviarPdfConversa } from './cliente'
 import { normalizarCelular } from '@/lib/reunioes/convite'
 
 export type ResultadoAviso =
@@ -57,6 +57,27 @@ export async function avisarPeloChatwoot(celularBruto: unknown, nome: string, te
   } catch (e) {
     const erro = e instanceof Error ? e.message : String(e)
     console.error('[chatwoot] aviso para', nome, erro)
+    return { ok: false, motivo: 'erro', erro }
+  }
+}
+
+/**
+ * Manda um PDF (com um texto antes) no WhatsApp de um CLIENTE, pelo NovaZap — 26/11/2026, proposta do consórcio.
+ * Mesmo caminho do aviso: acha o contato pelo celular (ou cria) → conversa → texto → PDF.
+ */
+export async function enviarPdfPeloChatwoot(celularBruto: unknown, nome: string, texto: string, nomeArquivo: string, pdf: ArrayBuffer): Promise<ResultadoAviso> {
+  const celular = normalizarCelular(celularBruto)
+  if (!celular) return { ok: false, motivo: 'sem_celular' }
+  if (!chatwootConfigurado()) return { ok: false, motivo: 'sem_chatwoot' }
+  try {
+    const contato = await acharOuCriarContato(celular, nome)
+    const conversa = await garantirConversaContato(contato)
+    if (texto) await enviarTextoConversa(conversa, texto)
+    await enviarPdfConversa(conversa, nomeArquivo, pdf)
+    return { ok: true }
+  } catch (e) {
+    const erro = e instanceof Error ? e.message : String(e)
+    console.error('[chatwoot] PDF para', nome, erro)
     return { ok: false, motivo: 'erro', erro }
   }
 }

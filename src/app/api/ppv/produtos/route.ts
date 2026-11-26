@@ -22,7 +22,9 @@ export async function GET(req: NextRequest) {
   // Filtro de empresa (nova | castro); sem ele = todas. Produto manual não tem empresa → só em "todas".
   const empresaParam = (req.nextUrl.searchParams.get("empresa") || "").toLowerCase();
   const empresa = empresaParam === "nova" || empresaParam === "castro" ? empresaParam : null;
-  const filtroEmpresa = empresa ? `&conta_omie=eq.${empresa.toUpperCase()}` : "";
+  // Pela coluna Empresa ("Nova Tratores" / "Castro Peças"): a conta_omie já veio errada
+  // (o sync completo antigo não gravava e o padrão da coluna é NOVA) — 26/11/2026.
+  const filtroEmpresa = empresa === "castro" ? "&Empresa=ilike.*castro*" : empresa === "nova" ? "&Empresa=not.ilike.*castro*" : "";
   const resultados: ProdutoBusca[] = [];
   // Códigos que já vieram do Omie (Produtos_Completos) — o Omie tem prioridade:
   // se o mesmo código existir também em Produtos_Manuais, o manual é descartado.

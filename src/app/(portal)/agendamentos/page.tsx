@@ -14,24 +14,27 @@ import LinhaDoTempo from '@/components/agendamentos/LinhaDoTempo'
 import TabelaAgendamentos from '@/components/agendamentos/TabelaAgendamentos'
 import HistoricoExecucoes from '@/components/agendamentos/HistoricoExecucoes'
 import CatalogoGithub from '@/components/agendamentos/CatalogoGithub'
+import CasaDeMaquinas from '@/components/agendamentos/CasaDeMaquinas'
 import type { Painel } from '@/components/agendamentos/tipos'
 import { tempoRelativo } from '@/components/agendamentos/tipos'
 
-type Aba = 'hoje' | 'agendamentos' | 'historico' | 'github'
+// 26/11/2026 (José): a Casa de Máquinas substitui a tela como entrada; as outras abas ficam de apoio.
+type Aba = 'casa' | 'hoje' | 'agendamentos' | 'historico' | 'github'
 const ABAS: { id: Aba; rotulo: string }[] = [
-  { id: 'hoje', rotulo: 'Hoje' },
-  { id: 'agendamentos', rotulo: 'Agendamentos' },
-  { id: 'historico', rotulo: 'Histórico' },
+  { id: 'casa', rotulo: 'Casa de Máquinas' },
+  { id: 'hoje', rotulo: 'Linha do dia' },
+  { id: 'agendamentos', rotulo: 'Tabela' },
+  { id: 'historico', rotulo: 'Histórico completo' },
   { id: 'github', rotulo: 'Ainda no GitHub' },
 ]
-const CHAVE_ABA = 'agendamentos-aba'
+const CHAVE_ABA = 'agendamentos-aba-v2' // v2: todo mundo abre uma vez na Casa de Máquinas
 
 function abaSalva(): Aba {
   try {
     const v = localStorage.getItem(CHAVE_ABA)
     if (v && ABAS.some((a) => a.id === v)) return v as Aba
   } catch { /* sem localStorage */ }
-  return 'hoje'
+  return 'casa'
 }
 
 export default function AgendamentosPage() {
@@ -81,7 +84,7 @@ export default function AgendamentosPage() {
         <div>
           <h2 style={{ fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: 800, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Clock size={26} style={{ color: '#dc2626' }} />
-            Sincronizações &amp; Agendamentos
+            Casa de Máquinas
           </h2>
           {painel && !painel.migracaoFaltando && (
             <p style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, color: agendadorVivo ? 'var(--agd-ok, #047857)' : 'var(--agd-err, #b91c1c)', fontWeight: 600 }}>
@@ -129,6 +132,7 @@ export default function AgendamentosPage() {
         ))}
       </div>
 
+      {aba === 'casa' && painel && !painel.migracaoFaltando && <CasaDeMaquinas painel={painel} aoMudar={carregar} />}
       {aba === 'hoje' && painel && <LinhaDoTempo hoje={painel.hoje} agendamentos={painel.agendamentos} />}
       {aba === 'agendamentos' && painel && <TabelaAgendamentos agendamentos={painel.agendamentos} podeAlterar={painel.podeAlterar} aoMudar={carregar} />}
       {aba === 'historico' && painel && <HistoricoExecucoes agendamentos={painel.agendamentos} />}
