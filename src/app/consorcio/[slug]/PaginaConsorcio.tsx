@@ -53,10 +53,23 @@ export default function PaginaConsorcio({ slug, estande, rastreio = { origem: ''
   const [erroCarga, setErroCarga] = useState<string | null>(null);
 
   useEffect(() => {
+    const COPIA = `cs-evento-${slug}`;
     fetch(`/api/consorcio/${encodeURIComponent(slug)}`, { cache: 'no-store' })
-      .then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Erro'); setDados(j); })
-      .catch((e) => setErroCarga(e.message || 'Não foi possível abrir a página.'));
-  }, [slug]);
+      .then(async (r) => {
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'Erro');
+        setDados(j);
+        try { localStorage.setItem(COPIA, JSON.stringify(j)); } catch { /* sem armazenamento */ }
+      })
+      .catch((e) => {
+        // sem internet no estande: abre com a última cópia guardada neste aparelho
+        let copia: any = null;
+        try { copia = JSON.parse(localStorage.getItem(COPIA) || 'null'); } catch { /* ok */ }
+        if (copia) setDados(copia); else setErroCarga(e.message || 'Não foi possível abrir a página.');
+      });
+    // 26/11 (José: "a ficha do vendedor tem que funcionar offline"): guarda a página para abrir sem internet
+    if (estande && 'serviceWorker' in navigator) navigator.serviceWorker.register('/consorcio-sw.js', { scope: '/consorcio/' }).catch(() => { /* sem sw */ });
+  }, [slug, estande]);
 
   if (erroCarga) return <Casca><div className="cs-vazio">{erroCarga}</div></Casca>;
   if (!dados) return <Casca><div className="cs-vazio">Carregando…</div></Casca>;
@@ -482,6 +495,15 @@ function Opcoes<T>({ valor, set, itens }: { valor: T; set: (v: T) => void; itens
   );
 }
 
+const VINDA_DE = ['Passou no estande', 'Indicação', 'Redes sociais', 'Já é cliente', 'Outro'];
+/** número escrito do jeito brasileiro ("146.685,50") → 146685.5; vazio/inválido → null */
+const numBR = (v: string): number | null => {
+  const s = v.trim().replace(/[^\d.,]/g, '');
+  if (!s) return null;
+  const n = Number(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : /^\d{1,3}(\.\d{3})+$/.test(s) ? s.replace(/\./g, '') : s);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 const PASSOS = ['Ligar para o cliente', 'Visitar na propriedade', 'Mandar a proposta', 'Cliente volta ao estande', 'Fechou na feira'];
 
 function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInteresse, interessePadrao }: {
@@ -502,14 +524,88 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
   const [passoData, setPassoData] = useState('');
   const [obs, setObs] = useState('');
   const [aceite, setAceite] = useState(false);
+  // planilha "Acompanhamento de Visita" (26/11): endereço, como chegou, fechamento e a proposta
+  const [endereco, setEndereco] = useState('');
+  const [vindaDe, setVindaDe] = useState('');
+  const [fechamento, setFechamento] = useState('');
+  const [pCredito, setPCredito] = useState('');
+  const [pParcela, setPParcela] = useState('');
+  const [pPrazo, setPPrazo] = useState('');
+  const [pEmbutido, setPEmbutido] = useState('');
+  const [pLance, setPLance] = useState('');
+  const [pContemp, setPContemp] = useState('');
+  const [pObs, setPObs] = useState('');
   const [editandoVendedor, setEditandoVendedor] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [resultado, setResultado] = useState<{ numero: number; ja: boolean } | null>(null);
+  const [resultado, setResultado] = useState<{ numero: number | null; ja: boolean; offline?: boolean } | null>(null);
   const topo = useRef<HTMLDivElement>(null);
 
   // o aparelho do vendedor lembra o nome dele (conveniência do aparelho, não dado do negócio)
   useEffect(() => { try { const v = localStorage.getItem('cs-vendedor'); if (v) setVendedor(v); } catch { /* sem armazenamento */ } }, []);
+
+  // 26/11 (José: "a ficha do vendedor tem que funcionar offline"): sem internet, a ficha fica na FILA DO APARELHO
+  // e vai sozinha quando a internet voltar — uma por vez, porque o servidor aceita 1 cadastro a cada 2 s por aparelho.
+  // Ficha que o servidor recusar (dado inválido, evento fechado) não some: vai para uma lista à parte.
+  const FILA = `cs-fila-${slug}`, RECUSADAS = `cs-fila-recusadas-${slug}`;
+  const [pendentes, setPendentes] = useState(0);
+  const [recusadas, setRecusadas] = useState(0);
+  const [enviadas, setEnviadas] = useState<{ nome: string; numero: number }[]>([]);
+  const sincronizando = useRef(false);
+  const lerLista = (k: string): { id: number; corpo: any }[] => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
+  const gravarLista = (k: string, l: { id: number; corpo: any }[]) => { try { localStorage.setItem(k, JSON.stringify(l)); } catch { /* sem armazenamento */ } };
+  async function sincronizar() {
+    let fila = lerLista(FILA);
+    setPendentes(fila.length); setRecusadas(lerLista(RECUSADAS).length);
+    if (sincronizando.current || !fila.length || !navigator.onLine) return;
+    sincronizando.current = true;
+    try {
+      while (fila.length) {
+        const item = fila[0];
+        let r: Response;
+        try {
+          r = await fetch(`/api/consorcio/${encodeURIComponent(slug)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item.corpo) });
+        } catch { break; }                                    // caiu a internet de novo: tenta depois
+        if (r.status === 429 || r.status >= 500) break;       // servidor ocupado: tenta depois
+        const j = await r.json().catch(() => ({}));
+        if (r.ok) setEnviadas((v) => [...v, { nome: String(item.corpo.nome || ''), numero: j.numero }]);
+        else { gravarLista(RECUSADAS, [...lerLista(RECUSADAS), { ...item, corpo: { ...item.corpo, _erro: j.error || r.status } }]); setRecusadas((n) => n + 1); }
+        fila = lerLista(FILA).filter((x) => x.id !== item.id);
+        gravarLista(FILA, fila); setPendentes(fila.length);
+        if (fila.length) await new Promise((ok) => setTimeout(ok, 2300));
+      }
+    } finally { sincronizando.current = false; }
+  }
+  useEffect(() => {
+    sincronizar();
+    const aoVoltar = () => { sincronizar(); };
+    window.addEventListener('online', aoVoltar);
+    const t = setInterval(sincronizar, 20000);
+    return () => { window.removeEventListener('online', aoVoltar); clearInterval(t); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const avisoFila = (pendentes > 0 || recusadas > 0 || enviadas.length > 0) && (
+    <div className="cs-f-fila" role="status">
+      {pendentes > 0 && <p><b>{pendentes} ficha(s) salva(s) neste aparelho</b>, esperando internet. Vão sozinhas quando ela voltar; não feche o navegador.</p>}
+      {enviadas.length > 0 && (
+        <p className="cs-f-fila-ok">Enviadas: {enviadas.map((e) => `${e.nome.split(/\s+/)[0]} nº ${numeroSorte(e.numero)}`).join(' · ')}
+          <button type="button" onClick={() => setEnviadas([])}>ok</button></p>
+      )}
+      {recusadas > 0 && <p className="cs-f-fila-erro">{recusadas} ficha(s) não foram aceitas pelo sistema (dado faltando ou evento fechado). Ficaram guardadas neste aparelho: chame o Marketing.</p>}
+    </div>
+  );
+
+  // proposta: o que o vendedor digitou; vazio = a conta padrão do trator escolhido
+  const creditoProp = numBR(pCredito) ?? credito;
+  const padrao = {
+    parcela: creditoProp ? parcela(creditoProp, cfg) : null,
+    prazo: cfg.prazo_meses || null,
+    embutido: cfg.lance_embutido_pct || null,
+    lance: creditoProp ? lanceDoBolso(creditoProp, cfg)?.valor ?? null : null,
+  };
+  const sugestoesContemp = [
+    assembleia?.proxima_assembleia ? `Assembleia de ${dataCurta(assembleia.proxima_assembleia)}` : null,
+    cfg.super_assembleia?.quando ? `Super Assembleia de ${cfg.super_assembleia.quando}` : null,
+  ].filter(Boolean) as string[];
 
   async function enviar(e: React.FormEvent) {
     e.preventDefault();
@@ -517,18 +613,39 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
     if (!vendedor.trim()) { setErro('Escreva o seu nome (vendedor) no topo.'); setEditandoVendedor(true); return; }
     if (!temperatura) { setErro('Toque em Quente, Morno ou Frio (passo 3).'); return; }
     if (!aceite) { setErro('Marque que o cliente autorizou o contato (LGPD).'); return; }
+    // conferido aqui também: sem internet, o servidor só vê a ficha depois (e aí não dá para corrigir com o cliente)
+    if (nome.trim().length < 3) { setErro('Escreva o nome completo do cliente.'); return; }
+    const dig = tel.replace(/\D/g, '');
+    if (dig.length < 10 || dig.length > 11) { setErro('WhatsApp com DDD, por exemplo (43) 99999-9999.'); return; }
     setEnviando(true);
     try {
       try { localStorage.setItem('cs-vendedor', vendedor.trim()); } catch { /* ok */ }
-      const r = await fetch(`/api/consorcio/${encodeURIComponent(slug)}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const corpo = {
           nome, telefone: tel, cidade, interesse, credito, tem_trator: temTrator, aceite, vendedor,
           origem: rastreio.origem || 'estande', utm: rastreio.utm,
           temperatura, usado_para_lance: usado, usado_descricao: usado ? usadoDesc : '',
           proximo_passo: passo, proximo_passo_data: passoData, observacao: obs,
-        }),
-      });
+          endereco, vinda_de: vindaDe,
+          fechamento_data: fechamento || (passo === 'Fechou na feira' ? hojeISO() : ''),
+          ...(creditoProp ? {
+            credito: creditoProp,
+            parcela: numBR(pParcela) ?? padrao.parcela, prazo_meses: numBR(pPrazo) ?? padrao.prazo,
+            embutido_pct: numBR(pEmbutido) ?? padrao.embutido, lance_proprio: numBR(pLance) ?? padrao.lance,
+          } : {}),
+          prazo_contemplacao: pContemp, proposta_obs: pObs,
+      };
+      let r: Response | null = null;
+      if (navigator.onLine !== false) {
+        try { r = await fetch(`/api/consorcio/${encodeURIComponent(slug)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) }); } catch { r = null; }
+      }
+      if (!r) {
+        // sem internet: guarda no aparelho e segue atendendo
+        const fila = [...lerLista(FILA), { id: Date.now(), corpo }];
+        gravarLista(FILA, fila); setPendentes(fila.length);
+        setResultado({ numero: null, ja: false, offline: true });
+        requestAnimationFrame(() => topo.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+        return;
+      }
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'Não deu para salvar. Tente de novo.');
       setResultado({ numero: j.numero, ja: j.ja_inscrito });
@@ -543,11 +660,12 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
   function proximo() {
     setNome(''); setTel(''); setCidade(''); setInteresse(interessePadrao); setTemperatura(''); setTemTrator(null);
     setUsado(null); setUsadoDesc(''); setPasso(''); setPassoData(''); setObs(''); setAceite(false); setResultado(null); setErro(null);
+    setEndereco(''); setVindaDe(''); setFechamento(''); setPCredito(''); setPParcela(''); setPPrazo(''); setPEmbutido(''); setPLance(''); setPContemp(''); setPObs('');
     requestAnimationFrame(() => topo.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   }
 
   if (resultado) {
-    const num = numeroSorte(resultado.numero);
+    const num = resultado.numero != null ? numeroSorte(resultado.numero) : null;
     const modelo = modelos.find((m) => m.nome === interesse);
     const lb = credito ? lanceDoBolso(credito, cfg) : null;
     const sa = cfg.super_assembleia;
@@ -567,7 +685,7 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
       ] : []),
       assembleia?.proxima_assembleia ? `🗓 Grupo ${assembleia.grupo}: vencimento ${dataCurta(assembleia.vencimento)}, assembleia ${dataCurta(assembleia.proxima_assembleia)}` : null,
       sa && modelo?.grupos.includes(sa.grupo || '') ? `🏆 Super Assembleia de ${sa.quando}: ${sa.cartas} contemplações` : null,
-      `🍀 Seu número da sorte: ${num}${ev.sorteio_em ? ` (sorteio ${dataHora(ev.sorteio_em)})` : ''}`,
+      num ? `🍀 Seu número da sorte: ${num}${ev.sorteio_em ? ` (sorteio ${dataHora(ev.sorteio_em)})` : ''}` : null,
       passo ? `\nPróximo passo: ${passo}${passoData ? ` em ${dataCurta(passoData)}` : ''}.` : null,
       '',
       `Qualquer dúvida, é só responder aqui. ${vendedor.trim()} · Nova Tratores`,
@@ -576,8 +694,13 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
 
     return (
       <div ref={topo} className="cs-sorte">
-        <p>{resultado.ja ? `${primeiroNome} já estava cadastrado (ficha atualizada). O número da sorte é` : `Salvo! O número da sorte de ${primeiroNome} é`}</p>
-        <div className="cs-sorte-num">{num}</div>
+        {avisoFila}
+        {resultado.offline ? (
+          <p><b>Sem internet: a ficha de {primeiroNome} ficou salva neste aparelho.</b> Ela vai sozinha quando a internet voltar, e o número da sorte aparece no topo da ficha.</p>
+        ) : (<>
+          <p>{resultado.ja ? `${primeiroNome} já estava cadastrado (ficha atualizada). O número da sorte é` : `Salvo! O número da sorte de ${primeiroNome} é`}</p>
+          <div className="cs-sorte-num">{num}</div>
+        </>)}
         <div className="cs-sorte-acoes">
           <a className="cs-btn cs-btn-zap" href={linkCliente} target="_blank" rel="noopener noreferrer">Mandar resumo no WhatsApp</a>
           <button className="cs-btn cs-btn-claro" onClick={proximo}>+ Próximo cliente</button>
@@ -596,6 +719,7 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
         <div className="cs-vazio">As inscrições deste evento estão encerradas.</div>
       ) : (
         <form onSubmit={enviar} className="cs-form">
+          {avisoFila}
           {editandoVendedor || !vendedor.trim() ? (
             <label className="cs-f-vendedor">Seu nome (vendedor)
               <input value={vendedor} onChange={(e) => setVendedor(e.target.value)} placeholder="Ex.: João"
@@ -615,6 +739,14 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
               placeholder="WhatsApp com DDD" aria-label="WhatsApp do cliente, com DDD" />
             <input className="cs-f-grande" value={cidade} onChange={(e) => setCidade(e.target.value)} autoComplete="off"
               placeholder="Cidade (opcional)" aria-label="Cidade" autoCapitalize="words" />
+            <input className="cs-f-grande" value={endereco} onChange={(e) => setEndereco(e.target.value)} autoComplete="off"
+              placeholder="Endereço / propriedade (opcional)" aria-label="Endereço" />
+            <span className="cs-f-sub">Como chegou?</span>
+            <div className="cs-f-passos">
+              {VINDA_DE.map((v) => (
+                <button key={v} type="button" aria-pressed={vindaDe === v} onClick={() => setVindaDe(vindaDe === v ? '' : v)}>{v}</button>
+              ))}
+            </div>
           </div>
 
           <div className="cs-f-bloco">
@@ -654,6 +786,23 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
           </div>
 
           <details className="cs-f-mais">
+            <summary>Proposta <span>{creditoProp ? `(${reais(creditoProp, 0)})` : '(opcional)'}</span></summary>
+            <p className="cs-f-dica">Já vem com a conta do trator escolhido. Só mude o que negociar diferente.</p>
+            <div className="cs-f-grid">
+              <label>Crédito (R$)<input inputMode="decimal" value={pCredito} onChange={(e) => setPCredito(e.target.value)} placeholder={credito ? reais(credito, 0).replace('R$', '').trim() : 'Ex.: 146.685'} /></label>
+              <label>Parcela (R$)<input inputMode="decimal" value={pParcela} onChange={(e) => setPParcela(e.target.value)} placeholder={padrao.parcela ? reais(padrao.parcela).replace('R$', '').trim() : ''} /></label>
+              <label>Prazo (meses)<input inputMode="numeric" value={pPrazo} onChange={(e) => setPPrazo(e.target.value)} placeholder={padrao.prazo ? String(padrao.prazo) : ''} /></label>
+              <label>Embutido (%)<input inputMode="decimal" value={pEmbutido} onChange={(e) => setPEmbutido(e.target.value)} placeholder={padrao.embutido ? String(padrao.embutido) : ''} /></label>
+              <label>Lance próprio (R$)<input inputMode="decimal" value={pLance} onChange={(e) => setPLance(e.target.value)} placeholder={padrao.lance ? reais(padrao.lance, 0).replace('R$', '').trim() : ''} /></label>
+              <label>Prazo de contemplação<input list="cs-contemp" value={pContemp} onChange={(e) => setPContemp(e.target.value)} placeholder={sugestoesContemp[0] || 'Ex.: assembleia de dez/26'} /></label>
+            </div>
+            <datalist id="cs-contemp">{sugestoesContemp.map((x) => <option key={x} value={x} />)}</datalist>
+            <label>Observações da proposta
+              <textarea value={pObs} onChange={(e) => setPObs(e.target.value)} rows={2} placeholder="Condição combinada, lance que vai ofertar…" />
+            </label>
+          </details>
+
+          <details className="cs-f-mais">
             <summary>Mais detalhes <span>(opcional)</span></summary>
             <fieldset className="cs-pergunta"><legend>Já tem trator?</legend>
               <Opcoes valor={temTrator} set={setTemTrator} itens={[[true, 'Sim'], [false, 'Não']]} />
@@ -677,6 +826,9 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
                 <input type="date" value={passoData} onChange={(e) => setPassoData(e.target.value)} />
               </label>
             )}
+            <label>Fechou em (data)
+              <input type="date" value={fechamento} onChange={(e) => setFechamento(e.target.value)} />
+            </label>
             <label>Observação
               <textarea value={obs} onChange={(e) => setObs(e.target.value)} rows={3} placeholder="O que o cliente falou, o que pesa na decisão…" />
             </label>
@@ -1486,6 +1638,15 @@ a.cs-btn-contorno{display:flex;align-items:center;justify-content:center;text-de
 .cs-f-mais summary::before{content:'+ ';color:var(--vermelho)}
 .cs-f-mais[open] summary::before{content:'– '}
 .cs-f-mais summary span{font-weight:500;color:var(--aco)}
+.cs-f-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+.cs-f-grid label{min-width:0}
+.cs-f-grid input{width:100%}
+.cs-f-fila{background:#FFF7E0;border:1.5px solid var(--dourado);border-radius:14px;padding:10px 14px;font-size:14px;line-height:1.4;text-align:left}
+.cs-f-fila p{margin:4px 0}
+.cs-f-fila button{margin-left:8px;border:0;background:var(--grafite);color:#fff;border-radius:8px;padding:2px 10px;font-weight:700;cursor:pointer}
+.cs-f-fila-ok{color:#1d6b35}
+.cs-f-fila-erro{color:var(--vermelho-esc)}
+.cs-f-dica{margin:0 0 10px;font-size:13px;color:var(--aco)}
 .cs-f-mais[open]{padding-bottom:16px}
 .cs-f-mais > *:not(summary){margin-top:12px}
 .cs-f-sub{display:block;font-weight:700;color:var(--preto);font-size:.95rem}

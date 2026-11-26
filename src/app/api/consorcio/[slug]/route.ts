@@ -56,6 +56,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
 }
 
 const txt = (v: any, max: number) => String(v ?? '').trim().slice(0, max);
+/** número positivo com teto (centavos; ou inteiro), ou null */
+const valor = (v: any, max: number, inteiro = false) => {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0 || n > max) return null;
+  return inteiro ? Math.round(n) : Math.round(n * 100) / 100;
+};
 
 export async function POST(req: Request, { params }: { params: Promise<{ slug: string }> }) {
   try {
@@ -102,6 +108,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
       proximo_passo: txt(b.proximo_passo, 80) || null,
       proximo_passo_data: dataPasso,
       observacao: txt(b.observacao, 500) || null,
+      // planilha "Acompanhamento de Visita" (26/11): endereço, como chegou, fechamento e a proposta
+      endereco: txt(b.endereco, 160) || null,
+      vinda_de: txt(b.vinda_de, 40) || null,
+      fechamento_data: /^\d{4}-\d{2}-\d{2}$/.test(String(b.fechamento_data || '')) ? b.fechamento_data : null,
+      parcela: valor(b.parcela, 1_000_000),
+      prazo_meses: valor(b.prazo_meses, 400, true),
+      embutido_pct: valor(b.embutido_pct, 100),
+      lance_proprio: valor(b.lance_proprio, 5_000_000),
+      prazo_contemplacao: txt(b.prazo_contemplacao, 80) || null,
+      proposta_obs: txt(b.proposta_obs, 500) || null,
     };
 
     const ev = await evento(slug);

@@ -71,6 +71,7 @@ function PaginasConectadas({ acaoId, roleta, grupo }: { acaoId: string; roleta: 
       links: [
         { texto: 'Abrir a página (QR code)', href: `/consorcio/${c.slug}`, fora: true },
         { texto: 'Modo estande', href: `/consorcio/${c.slug}?estande=1`, fora: true },
+        { texto: 'Ficha do vendedor', href: `/consorcio/${c.slug}/vendedor`, fora: true },
         { texto: 'Inscritos e sorteio', href: `/marketing/consorcio?evento=${c.id}` },
       ],
     });
