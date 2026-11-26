@@ -36,7 +36,8 @@ export async function GET(req: NextRequest) {
 
 // POST {acao:'emitir', conta, idReceb, escolha:[{seq,qtd}], texto, frete, categoria, garantiaId}
 //   → cria a remessa na Omie e fatura (emite a NF-e). ESCREVE NA OMIE.
-// POST {acao:'faturar', fichaId} → tenta faturar de novo uma remessa já criada.
+// POST {acao:'faturar', fichaId, ajustes?} → fatura de novo / corrige e reenvia (NF-e rejeitada) uma remessa já criada.
+// ajustes = { [seq]: {icmsCst, icmsOrigem, cBenef, semBenef, ipiCst, ipiTpCalc, ipiAliq} } (campos fiscais da prévia).
 export async function POST(req: NextRequest) {
   const g = await protegerRota(req, ACESSO);
   if (g.resposta) return g.resposta;
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
     let r: Record<string, unknown>;
     if (b.acao === 'faturar') {
       if (!b.fichaId) return NextResponse.json({ erro: 'Informe a devolução.' }, { status: 400 });
-      r = await faturarRetorno(String(b.fichaId), quem);
+      r = await faturarRetorno(String(b.fichaId), quem, b.ajustes && typeof b.ajustes === 'object' ? b.ajustes : null);
     } else if (b.acao === 'emitir') {
       const conta = contaDe(b.conta);
       const idReceb = Number(b.idReceb);
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
       r = await emitirRetorno({
         conta, idReceb, escolha, texto: String(b.texto || ''), frete: b.frete || undefined,
         categoria: b.categoria ? String(b.categoria) : null, garantiaId: b.garantiaId ? String(b.garantiaId) : null,
-        userId: g.user.id, userNome: quem,
+        userId: g.user.id, userNome: quem, ajustes: b.ajustes && typeof b.ajustes === 'object' ? b.ajustes : null,
       });
     } else {
       return NextResponse.json({ erro: 'Ação desconhecida.' }, { status: 400 });
@@ -65,7 +66,7 @@ export async function POST(req: NextRequest) {
       acao: r.ok ? 'devolucao_garantia_emitida' : 'devolucao_garantia_falhou',
       entidade: 'recebimento_nfe', entidadeId: String(b.idReceb || b.fichaId || ''),
       entidadeLabel: `Devolução em garantia${r.nf ? ` — NF ${r.nf}` : ''}`,
-      detalhes: { acao: b.acao, conta: b.conta, escolha: b.escolha, garantiaId: b.garantiaId || null, resultado: r },
+      detalhes: { acao: b.acao, conta: b.conta, escolha: b.escolha, garantiaId: b.garantiaId || null, ajustes: b.ajustes || null, resultado: r },
     });
     if (r.migracaoFaltando) return NextResponse.json(r, { status: 503 });
     return NextResponse.json(r);

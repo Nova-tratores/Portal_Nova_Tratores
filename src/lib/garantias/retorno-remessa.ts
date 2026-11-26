@@ -187,6 +187,80 @@ export function cstPedeBeneficio(cst: string | null | undefined): boolean {
   return ['20', '30', '40', '41', '50', '51', '70', '90'].includes(String(cst || '').trim());
 }
 
+/** CST do ICMS para os quais a SEFAZ-SP exige o cBenef (rejeição 930 sem ele) */
+const ICMS_PEDE_BENEF = new Set(['20', '30', '40', '41', '50', '51', '53', '70', '90']);
+/** CST do ICMS que tem imposto destacado (alíquota esperada) */
+const ICMS_COM_ALIQ = new Set(['00', '10', '20', '70', '90']);
+
+/** Ajuste fiscal feito na prévia, item a item (vazio = mantém o da nota da fábrica). */
+export interface AjusteFiscal {
+  icmsCst?: string | null;
+  icmsOrigem?: string | null;
+  cBenef?: string | null;
+  /** a pessoa confirmou que o item não tem benefício fiscal (não exige o cBenef) */
+  semBenef?: boolean;
+  ipiCst?: string | null;
+  ipiTpCalc?: string | null;
+  ipiAliq?: number | null;
+}
+
+const txt = (v: unknown) => String(v ?? '').trim();
+
+/** item com o ajuste da tela aplicado por cima do que veio da nota */
+export function aplicarAjuste(item: ItemEntrada, a?: AjusteFiscal | null): ItemEntrada {
+  if (!a) return item;
+  const out: ItemEntrada = { ...item, icms: { ...(item.icms || {}) }, ipi: { ...(item.ipi || {}) } };
+  if (txt(a.icmsCst)) out.icms!.cSitTrib = txt(a.icmsCst);
+  if (txt(a.icmsOrigem)) out.icms!.cOrigem = txt(a.icmsOrigem);
+  if (a.cBenef != null) out.cBenef = txt(a.cBenef).toUpperCase() || null;
+  if (a.semBenef) out.cBenef = null;
+  if (txt(a.ipiCst)) out.ipi!.cSitTribIPI = txt(a.ipiCst);
+  if (txt(a.ipiTpCalc)) out.ipi!.cTpCalcIPI = txt(a.ipiTpCalc).toUpperCase();
+  if (a.ipiAliq != null && Number.isFinite(Number(a.ipiAliq))) {
+    const novo = Number(a.ipiAliq);
+    if (novo !== num(item.ipi?.nAliqIPI)) {
+      // alíquota trocada: recalcula o IPI sobre a base da nota (ou o valor do produto, se a nota não trouxe base)
+      const base = num(item.ipi?.nBCIPI) || item.vTotalItem || r2(item.qtdNF * item.precoUnit);
+      out.ipi!.nAliqIPI = novo;
+      out.ipi!.nBCIPI = novo > 0 ? base : 0;
+      out.ipi!.nValIPI = r2(base * novo / 100);
+    }
+  }
+  return out;
+}
+
+export interface ProblemaFiscal { nivel: 'erro' | 'aviso'; campo: string; msg: string }
+
+/** Confere o item antes de emitir: o que a Omie ou a SEFAZ recusariam (erro) e o que parece estranho (aviso).
+ *  Nasceu das 3 recusas da NF 840225 (Marchesan, 19/11/2026): código do item, tipo de cálculo do IPI, cBenef. */
+export function conferirFiscal(item: ItemEntrada, a?: AjusteFiscal | null): ProblemaFiscal[] {
+  const it = aplicarAjuste(item, a);
+  const p: ProblemaFiscal[] = [];
+  const cst = txt(it.icms?.cSitTrib);
+  if (!/^\d{2}$/.test(cst)) p.push({ nivel: 'erro', campo: 'icmsCst', msg: 'CST do ICMS inválido ou vazio.' });
+  if (!/^\d$/.test(txt(it.icms?.cOrigem))) p.push({ nivel: 'aviso', campo: 'icmsOrigem', msg: 'Origem da mercadoria vazia: vai como 0 (nacional).' });
+  if (ICMS_PEDE_BENEF.has(cst) && !txt(it.cBenef) && !a?.semBenef) {
+    p.push({ nivel: 'erro', campo: 'cBenef', msg: `ICMS CST ${cst} pede o código de benefício fiscal (a SEFAZ rejeita com 930). Copie o cBenef da nota da fábrica ou marque "não tem benefício".` });
+  }
+  if (txt(it.cBenef) && !/^[A-Z]{2}[A-Z0-9]{6,8}$/.test(txt(it.cBenef))) {
+    p.push({ nivel: 'erro', campo: 'cBenef', msg: `Código de benefício "${it.cBenef}" fora do formato (ex.: SP058811).` });
+  }
+  if (ICMS_COM_ALIQ.has(cst) && num(it.icms?.nValor) > 0 && !num(it.icms?.nAliq)) {
+    p.push({ nivel: 'aviso', campo: 'icmsCst', msg: 'ICMS com valor mas sem alíquota.' });
+  }
+  const ipiCst = txt(it.ipi?.cSitTribIPI) || '55';
+  if (!/^\d{2}$/.test(ipiCst)) p.push({ nivel: 'erro', campo: 'ipiCst', msg: 'CST do IPI inválido.' });
+  if (IPI_TRIBUTADO.has(ipiCst)) {
+    if (txt(it.ipi?.cTpCalcIPI) && !['B', 'Q'].includes(txt(it.ipi?.cTpCalcIPI))) {
+      p.push({ nivel: 'erro', campo: 'ipiTpCalc', msg: 'Tipo de cálculo do IPI deve ser B (alíquota) ou Q (quantidade).' });
+    }
+    if (!num(it.ipi?.nAliqIPI)) p.push({ nivel: 'aviso', campo: 'ipiAliq', msg: `IPI CST ${ipiCst} (tributado) sem alíquota: sai com IPI zero.` });
+  } else if (num(it.ipi?.nValIPI) > 0) {
+    p.push({ nivel: 'aviso', campo: 'ipiCst', msg: `IPI CST ${ipiCst} não é tributado, mas a nota da fábrica trouxe IPI de ${it.ipi?.nValIPI}.` });
+  }
+  return p;
+}
+
 export type SituacaoNfe = 'autorizada' | 'rejeitada' | 'aguardando';
 /** Situação da NF-e da remessa pelo StatusRemessa: 006 = autorizada; mensagem "Rejeição…"/009 = rejeitada. */
 export function situacaoNfe(nfe: { cStatusNFe?: string; mensagens?: Array<{ cCodigo?: string; cDescricao?: string }> } | null | undefined): { situacao: SituacaoNfe; mensagem: string | null } {
