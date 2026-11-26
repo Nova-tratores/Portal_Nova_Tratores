@@ -110,32 +110,32 @@ export async function resumoDasFilas(userIds: string[], opc: { detalhes?: boolea
   const feriados = feriadosDoAno(hoje)
   const out = new Map<string, ResumoFila>()
   if (!userIds.length) return out
-  const med = await medianasPorCategoria().catch(() => new Map<string, Mediana>())
-  const [tks, plano] = await Promise.all([
+  // Lentidão (26/11/2026): medianas, tickets e plano vão juntos (antes as medianas iam primeiro, sozinhas).
+  const [med, tks, plano] = await Promise.all([
+    medianasPorCategoria().catch(() => new Map<string, Mediana>()),
     supabaseAdmin.from('tickets').select('id, numero, titulo, prazo, payload, responsavel_id, aceite, aceite_em, visibilidade, solicitante_id, status, quadro_id, updated_at, created_at, categoria')
       .in('responsavel_id', userIds).not('tipo', 'in', '(compras,reuniao)').not('status', 'in', FORA).limit(3000),
     supabaseAdmin.from('tickets_plano').select('ticket_id, posicao, user_id').in('user_id', userIds),
   ])
   // Bola parada: só o que está com quem faz (aceito e não esperando terceiro).
   const comBola = ((tks.data || []) as Tk[]).filter((t) => t.aceite !== 'pendente' && !t.status.startsWith('aguardando'))
-  // semBola: quem só precisa das datas (previsão, negociação) não paga a consulta dos eventos.
-  const ultimo = opc.semBola ? new Map<string, string>() : await ultimoEventoDoResponsavel(comBola).catch(() => new Map<string, string>())
   const comBolaIds = new Set(opc.semBola ? [] : comBola.map((t) => t.id))
   const porPessoa = new Map<string, Tk[]>()
   for (const t of (tks.data || []) as Tk[]) porPessoa.set(t.responsavel_id, [...(porPessoa.get(t.responsavel_id) || []), t])
   // "De quem é": nome de quem pediu e o quadro (só quando pedem detalhes — a carga da Equipe não precisa).
   const nomes = new Map<string, string>(), quadros = new Map<string, { nome: string; cor: string }>()
-  if (opc.detalhes) {
-    const lista = (tks.data || []) as Tk[]
-    const uids = [...new Set(lista.map((t) => t.solicitante_id))]
-    const qids = [...new Set(lista.map((t) => t.quadro_id).filter((x): x is string => !!x))]
-    const [us, qs] = await Promise.all([
-      uids.length ? supabaseAdmin.from('financeiro_usu').select('id, nome').in('id', uids) : Promise.resolve({ data: [] }),
-      qids.length ? supabaseAdmin.from('tickets_quadros').select('id, nome, cor').in('id', qids) : Promise.resolve({ data: [] }),
-    ])
-    for (const u of (us.data || []) as { id: string; nome: string }[]) nomes.set(u.id, u.nome)
-    for (const q of (qs.data || []) as { id: string; nome: string; cor: string }[]) quadros.set(q.id, { nome: q.nome, cor: q.cor })
-  }
+  const lista = (tks.data || []) as Tk[]
+  const uids = opc.detalhes ? [...new Set(lista.map((t) => t.solicitante_id))] : []
+  const qids = opc.detalhes ? [...new Set(lista.map((t) => t.quadro_id).filter((x): x is string => !!x))] : []
+  // Eventos da bola parada e nomes/quadros também vão juntos (antes: um depois do outro).
+  const [ultimo, us, qs] = await Promise.all([
+    // semBola: quem só precisa das datas (previsão, negociação) não paga a consulta dos eventos.
+    opc.semBola ? Promise.resolve(new Map<string, string>()) : ultimoEventoDoResponsavel(comBola).catch(() => new Map<string, string>()),
+    uids.length ? supabaseAdmin.from('financeiro_usu').select('id, nome').in('id', uids) : Promise.resolve({ data: [] }),
+    qids.length ? supabaseAdmin.from('tickets_quadros').select('id, nome, cor').in('id', qids) : Promise.resolve({ data: [] }),
+  ])
+  for (const u of (us.data || []) as { id: string; nome: string }[]) nomes.set(u.id, u.nome)
+  for (const q of (qs.data || []) as { id: string; nome: string; cor: string }[]) quadros.set(q.id, { nome: q.nome, cor: q.cor })
   const agoraMs = Date.now()
   const posDe = new Map<string, Map<string, number>>()
   for (const p of (plano.data || []) as { ticket_id: string; posicao: number; user_id: string }[]) {

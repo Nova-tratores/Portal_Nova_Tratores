@@ -6,7 +6,7 @@ import { enviarConvitesEmail, enviarConvitesWhats } from './convite'
 import { migrationFaltou } from '@/lib/marketing/erros'
 import type { Autenticado } from '@/lib/auth/server'
 import {
-  carregarTicket, podeVerTicket, garantirParticipante, registrarEvento, notificarTicket, camposDoStatus,
+  carregarTicket, podeVer, podeVerTicket, garantirParticipante, registrarEvento, notificarTicket, camposDoStatus,
 } from '@/lib/tickets/server'
 import { STATUS_FINAIS, type Ticket, type TicketParticipante, type TicketStatus } from '@/lib/tickets/constantes'
 import { hojeSP, moverEtapaDoTicket, sincronizarEtapaDoTicket } from '@/lib/trabalho/cronograma-server'
@@ -409,11 +409,22 @@ export async function listarReunioes(auth: Autenticado, visao: VisaoReunioes, se
   for (const p of (ok(pres) as PresencaRow[])) (presPor[p.reuniao_id] ||= []).push(p)
   const nItens: Record<string, number> = {}
   for (const i of (ok(itens) as { reuniao_id: string }[])) nItens[i.reuniao_id] = (nItens[i.reuniao_id] || 0) + 1
-  const visiveis: Ticket[] = []
-  for (const t of tickets) {
-    if (visao === 'minhas' && !(presPor[t.id] || []).some((p) => p.usuario_id === auth.userId)) continue
-    if (await podeVerTicket(t, porTicket.get(t.id) || [], auth)) visiveis.push(t)
+  // Lentidão (26/11/2026): antes o podeVerTicket rodava UM POR UM (até 2 consultas por reunião, em
+  // fila — 300 reuniões = centenas de idas ao banco). Agora é a mesma regra, com o quadro e a
+  // participação buscados de uma vez só para todos os que dependem do quadro.
+  const candidatos = tickets.filter((t) => visao !== 'minhas' || (presPor[t.id] || []).some((p) => p.usuario_id === auth.userId))
+  const peloQuadro = candidatos.filter((t) => !podeVer(t, porTicket.get(t.id) || [], auth) && t.quadro_id && t.visibilidade === 'publico')
+  const qids = [...new Set(peloQuadro.map((t) => t.quadro_id as string))]
+  const quadroOk = new Set<string>()
+  if (qids.length) {
+    const [qs, ms] = await Promise.all([
+      supabaseAdmin.from('tickets_quadros').select('id, visibilidade, criado_por').in('id', qids),
+      supabaseAdmin.from('tickets_quadro_membros').select('quadro_id').in('quadro_id', qids).eq('user_id', auth.userId),
+    ])
+    for (const q of (qs.data || []) as { id: string; visibilidade: string; criado_por: string }[]) if (q.visibilidade === 'publico' || q.criado_por === auth.userId) quadroOk.add(q.id)
+    for (const m of (ms.data || []) as { quadro_id: string }[]) if ((qs.data || []).some((q: { id: string }) => q.id === m.quadro_id)) quadroOk.add(m.quadro_id)
   }
+  const visiveis = candidatos.filter((t) => podeVer(t, porTicket.get(t.id) || [], auth) || (!!t.quadro_id && t.visibilidade === 'publico' && quadroOk.has(t.quadro_id)))
   return { reunioes: visiveis, presencas: presPor, itens: nItens }
 }
 
@@ -425,9 +436,18 @@ export async function acoesDaSerieOuCondutor(r: ReuniaoCarregada): Promise<AcaoD
     const rows = ok(await supabaseAdmin.from('tickets').select('id').eq('tipo', 'reuniao').eq('reuniao_serie_id', r.serie.id)) as { id: string }[]
     reunioesIds = rows.map((x) => x.id)
   } else {
-    const condutor = condutorDe(r)
-    const rows = ok(await supabaseAdmin.from('tickets').select('id').eq('tipo', 'reuniao').is('reuniao_serie_id', null).eq('solicitante_id', condutor)) as { id: string }[]
-    reunioesIds = rows.map((x) => x.id)
+    // Avulsa (26/11/2026, José: "tá misturando as tarefas"): antes juntava as ações de TODAS as reuniões
+    // avulsas do mesmo condutor. Agora: só esta reunião e as anteriores da mesma sequência
+    // ("Marcar outra reunião a partir desta" grava o evento continuacao_de).
+    reunioesIds = [r.ticket.id]
+    let atual = r.ticket.id
+    for (let passo = 0; passo < 20; passo++) {
+      const { data } = await supabaseAdmin.from('tickets_eventos').select('payload').eq('ticket_id', atual).eq('tipo', 'edicao')
+        .eq('payload->>campo', 'continuacao_de').order('created_at', { ascending: false }).limit(1).maybeSingle()
+      const anterior = (data?.payload as { reuniao_id?: string } | null)?.reuniao_id
+      if (!anterior || reunioesIds.includes(anterior)) break
+      reunioesIds.push(anterior); atual = anterior
+    }
   }
   if (!reunioesIds.length) return []
   const rows = ok(await supabaseAdmin.from('tickets')

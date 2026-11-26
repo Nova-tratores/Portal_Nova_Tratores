@@ -133,8 +133,11 @@ function ReunioesInner() {
   useEffect(() => { if (userProfile) carregar() }, [carregar, userProfile])
   useEffect(() => {
     const f = () => carregar()
-    window.addEventListener('central-trabalho-mudou', f); window.addEventListener('focus', f)
-    return () => { window.removeEventListener('central-trabalho-mudou', f); window.removeEventListener('focus', f) }
+    // Voltar para a janela recarrega no máximo a cada 1 min (antes era a cada Alt+Tab).
+    let ultima = Date.now()
+    const foco = () => { if (Date.now() - ultima > 60_000) { ultima = Date.now(); f() } }
+    window.addEventListener('central-trabalho-mudou', f); window.addEventListener('focus', foco)
+    return () => { window.removeEventListener('central-trabalho-mudou', f); window.removeEventListener('focus', foco) }
   }, [carregar])
 
   const nome = (id: string) => dados?.usuarios[id]?.nome || '—'

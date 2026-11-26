@@ -26,16 +26,19 @@ export async function GET(req: NextRequest) {
   const hoje = hojeSP()
   const paradoDesde = new Date(Date.now() - DIAS_PARADO * 86400000).toISOString()
   const vencidoAntes = menosDias(hoje, DIAS_VENCIDO)
-  const { data, error } = await supabaseAdmin.from('tickets')
-    .select('id, numero, titulo, prazo, status, responsavel_id, solicitante_id, ultima_atividade_em, created_at')
+  const contar = req.nextUrl.searchParams.get('contar') === '1'
+  // contar=1 (barra e Minha fila, 26/11/2026): só a contagem, sem trazer as linhas (máximo 200, como antes).
+  let q = supabaseAdmin.from('tickets')
+    .select('id, numero, titulo, prazo, status, responsavel_id, solicitante_id, ultima_atividade_em, created_at', contar ? { count: 'exact', head: true } : undefined)
     .or(`responsavel_id.eq.${auth.userId},solicitante_id.eq.${auth.userId}`)
     .not('tipo', 'in', '(compras,reuniao,pop_revisao)')
     .not('status', 'in', '(resolvido,fechado,cancelado)')
     .or(`ultima_atividade_em.lt.${paradoDesde},prazo.lt.${vencidoAntes}`)
-    .order('ultima_atividade_em', { ascending: true }).limit(200)
+  if (!contar) q = q.order('ultima_atividade_em', { ascending: true }).limit(200)
+  const { data, error, count } = await q
   if (error) return erro(error.message, 500)
+  if (contar) return NextResponse.json({ n: Math.min(200, count || 0) })
   const lista = data || []
-  if (req.nextUrl.searchParams.get('contar') === '1') return NextResponse.json({ n: lista.length })
 
   const ids = [...new Set(lista.flatMap((t) => [t.responsavel_id as string, t.solicitante_id as string]))]
   const { data: us } = ids.length ? await supabaseAdmin.from('financeiro_usu').select('id, nome').in('id', ids) : { data: [] }

@@ -271,4 +271,50 @@ export const CSS_AGENDA = `
   .gc-select-vista{padding:0 4px;max-width:96px}
   .gc-topo-esc{white-space:nowrap;font-size:11px;left:0}
 }
+/* ===== CAMADA PORTAL (26/11/2026, José: "menos Google e mais portal") =====
+   Mesmo funcionamento; só o visual segue docs/estilo-pos-newportal.md: vermelho da Nova no lugar do
+   azul do Google, cantos 10–16, sem caixa alta, sem negrito acima de 500, botões e campos do portal. */
+.gc{--gc-azul:#dc2626;--gc-azul-claro:color-mix(in srgb,#dc2626 10%,transparent);--gc-hover:color-mix(in srgb,#dc2626 5%,transparent);background:var(--portal-bg,#f6f6f6)}
+.gc-barra-topo{background:var(--portal-surface,#fefefe);gap:8px;padding:10px 16px}
+.gc-icone{border-radius:11px}
+.gc-logo{font-size:20px;font-weight:500;letter-spacing:-.01em}
+.gc-logo-ic{width:40px;height:40px;border-radius:11px;border:1px solid color-mix(in srgb,#dc2626 18%,transparent);background:color-mix(in srgb,#dc2626 9%,var(--portal-surface,#fefefe));font-weight:500}
+.gc-logo-ic span:first-child{display:none}
+.gc-logo-ic span:last-child{font-size:16px;color:#dc2626}
+.gc-btn-hoje{height:40px;border-radius:11px;padding:0 14px;background:var(--portal-surface,#fefefe);color:var(--portal-text-secondary,#475569)}
+.gc-titulo-per{font-size:20px;font-weight:500;letter-spacing:-.01em}
+.gc-titulo-per::first-letter{text-transform:uppercase}
+.gc-busca{height:40px;border-radius:11px;background:var(--portal-surface,#fefefe);border:1px solid var(--gc-linha)}
+.gc-select-vista{height:40px;border-radius:11px}
+.gc-lateral{background:var(--portal-surface,#fefefe);padding:12px 10px 24px}
+.gc-criar{height:44px;padding:0 16px 0 12px;gap:8px;border-radius:11px;background:#dc2626;color:#fefefe!important;font-weight:500;box-shadow:0 6px 14px -8px #dc2626}
+.gc-criar:hover{background:#dc2626;filter:brightness(1.06);box-shadow:0 8px 18px -8px #dc2626}
+.gc-mais-cor{width:20px;height:20px}
+.gc-mais-cor:before{width:14px;height:2px;background:#fefefe}
+.gc-mais-cor:after{width:2px;height:14px;background:#fefefe}
+.gc-mini{margin-bottom:8px;padding:8px 6px;border:1px solid var(--gc-linha);border-radius:16px}
+.gc-mini-dia{border-radius:9px}
+.gc-mini-hoje,.gc-mini-sel{font-weight:500}
+.gc-busca-pessoas{border-radius:11px;background:var(--portal-bg,#f6f6f6);border:1px solid var(--gc-linha)}
+.gc-grupo-cab,.gc-agenda-linha{border-radius:10px}
+.gc-principal{background:var(--portal-surface,#fefefe)}
+.gc-cab-sem,.gc-mes-sem,.gc-lista-sem{text-transform:lowercase;letter-spacing:0;font-size:12.5px;font-weight:400}
+.gc-cab-sem::first-letter,.gc-mes-sem::first-letter,.gc-lista-sem::first-letter{text-transform:uppercase}
+.gc-cab-num{font-size:22px;font-weight:500;width:42px;height:42px;border-radius:12px;font-variant-numeric:tabular-nums}
+.gc-lista-num{border-radius:11px}
+.gc-mes-num{border-radius:8px}
+.gc-col-hoje{background:color-mix(in srgb,#dc2626 3%,transparent)}
+.gc-ev{border-radius:8px;padding:3px 8px;border:1px solid color-mix(in srgb,#000 8%,transparent)}
+.gc-ev:hover{box-shadow:0 10px 20px -12px rgba(15,23,42,.55)}
+.gc-barra,.gc-mes-ev,.gc-ghost{border-radius:7px}
+.gc-lista-item{border-radius:12px}
+.gc-pop,.gc-modal{border-radius:16px;border:1px solid var(--gc-linha);box-shadow:0 24px 48px -20px rgba(15,23,42,.45)}
+.gc-tipo-menu,.gc-sugestoes{border-radius:12px;border:1px solid var(--gc-linha)}
+.gc-btn-azul{height:40px;border-radius:11px;box-shadow:0 6px 14px -8px #dc2626}
+.gc-btn-txt{border-radius:10px}
+.gc-titulo-grande{border-radius:10px 10px 0 0}
+.gc-modal input[type=date],.gc-modal input[type=time],.gc-modal select,.gc-campo-ic input,.gc-campo-ic textarea,.gc-busca-convidado{border-radius:10px}
+.gc-segmentado{border-radius:10px}
+.gc-toast{border-radius:12px}
+.gc-erro,.gc-resp,.gc-avatar{font-weight:500}
 `

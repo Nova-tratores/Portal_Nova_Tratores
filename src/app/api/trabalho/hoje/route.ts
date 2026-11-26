@@ -23,14 +23,21 @@ export async function GET(req: NextRequest) {
   const auth = await autenticar(req)
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   if (!temModuloTickets(auth)) return NextResponse.json({ ativo: false })
-  const [pend, itens, confirmado, pref, filas, { data: pedidos }] = await Promise.all([
+  const [pend, itens, confirmado, pref, filas, { count: nPedidos }, fator, negociar, prioridades] = await Promise.all([
     // Lentidão (24/11/2026: 4–24 s por chamada): o lembrete e a Minha fila só usam as REUNIÕES do dia
     // (o resto vem da fila), então sai o itensDoDia (~6 consultas em fila) e fica só reunioesDoDia.
     pendentesDeAceite(auth.userId), reunioesDoDia(auth.userId), diaConfirmado(auth.userId), preferencias(auth.userId),
     // Lembrete do dia na ORDEM DA FILA (24/11/2026): o que cabe hoje, a semana e quanto tem.
     resumoDasFilas([auth.userId], { detalhes: true }).catch(() => null),
     // quantos pedidos meus estão com outras pessoas (antes rodava sozinho, depois de tudo)
-    supabaseAdmin.from('tickets').select('id').eq('solicitante_id', auth.userId).neq('responsavel_id', auth.userId).not('status', 'in', '(fechado,cancelado)'),
+    // (26/11/2026) só a contagem, sem trazer as linhas
+    supabaseAdmin.from('tickets').select('id', { count: 'exact', head: true }).eq('solicitante_id', auth.userId).neq('responsavel_id', auth.userId).not('status', 'in', '(fechado,cancelado)'),
+    // Lentidão (26/11/2026): estes 3 rodavam DEPOIS de tudo, um por vez; agora vão juntos.
+    // "você costuma levar 1,8× o que estima" (melhorias 2.1 · bônus)
+    fatorPessoal(auth.userId).catch(() => null),
+    // Prazo impossível (melhorias 2.2): meus pedidos para decidir e as prioridades que me pediram.
+    negociacoesDe(auth.userId).catch(() => []),
+    prioridadesPendentes(auth.userId).catch(() => []),
   ])
   // nomes de quem pediu e dos quadros
   const pessoas = [...new Set(pend.map((p: { solicitante_id: string }) => p.solicitante_id))]
@@ -49,13 +56,9 @@ export async function GET(req: NextRequest) {
     })),
     itens,
     fila: filas?.get(auth.userId) || null,
-    // "você costuma levar 1,8× o que estima" (melhorias 2.1 · bônus)
-    fator: await fatorPessoal(auth.userId).catch(() => null),
-    // Prazo impossível (melhorias 2.2): meus pedidos para decidir e as prioridades que me pediram.
-    negociar: await negociacoesDe(auth.userId).catch(() => []),
-    prioridades: await prioridadesPendentes(auth.userId).catch(() => []),
+    fator, negociar, prioridades,
     confirmado,
-    pedidos: (pedidos || []).length,
+    pedidos: nPedidos || 0,
     preferencias: pref,
   })
 }

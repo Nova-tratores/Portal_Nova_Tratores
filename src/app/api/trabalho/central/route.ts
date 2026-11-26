@@ -23,6 +23,13 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   if (!temModuloTickets(auth)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
 
+  // ?so=contagem (barra da Central): só o nº de pendências. ?so=pedidos (Minha fila): só os pedidos
+  // que fiz e os nomes. Sem ?so, tudo como sempre (Quadros, Nova tarefa). Lentidão, 26/11/2026.
+  const so = req.nextUrl.searchParams.get('so')
+  const contarPend = () => supabaseAdmin.from('portal_tarefas').select('id', { count: 'exact', head: true })
+    .eq('atribuido_a', auth.userId).is('ticket_id', null).eq('concluida', false)
+  if (so === 'contagem') return NextResponse.json({ pendencias: (await contarPend()).count || 0 })
+
   const finais = `(${STATUS_FINAIS.join(',')})`
   const { data, error } = await supabaseAdmin.from('tickets').select('*')
     .or(`responsavel_id.eq.${auth.userId},solicitante_id.eq.${auth.userId}`)
@@ -38,6 +45,13 @@ export async function GET(req: NextRequest) {
     && t.tipo !== 'pop' && t.tipo !== 'pop_revisao')
   const pedidos = lista.filter((t) => t.solicitante_id === auth.userId && t.responsavel_id !== auth.userId)
   const paraTarefa = lista.filter((t) => t.status !== 'resolvido')
+  if (so === 'pedidos') {
+    const ids = [...new Set(pedidos.map((t) => t.responsavel_id))]
+    const { data: us } = ids.length ? await supabaseAdmin.from('financeiro_usu').select('id, nome, avatar_url').in('id', ids) : { data: [] }
+    const usuarios: Record<string, { id: string; nome: string; avatar_url: string | null }> = {}
+    for (const u of (us || []) as { id: string; nome: string; avatar_url: string | null }[]) usuarios[u.id] = u
+    return NextResponse.json({ pedidos, usuarios })
+  }
 
   const idsQuadro = [...new Set(lista.map((t) => t.quadro_id).filter(Boolean))] as string[]
   const idsColuna = [...new Set(pedidos.map((t) => t.quadro_coluna_id).filter(Boolean))] as string[]
@@ -47,8 +61,7 @@ export async function GET(req: NextRequest) {
     idsColuna.length ? supabaseAdmin.from('tickets_quadro_colunas').select('id, nome').in('id', idsColuna) : Promise.resolve({ data: [] }),
     idsUsuarios.length ? supabaseAdmin.from('financeiro_usu').select('id, nome, avatar_url').in('id', idsUsuarios) : Promise.resolve({ data: [] }),
     contagemPassos(pedidos.map((t) => t.id)),
-    supabaseAdmin.from('portal_tarefas').select('id', { count: 'exact', head: true })
-      .eq('atribuido_a', auth.userId).is('ticket_id', null).eq('concluida', false),
+    contarPend(),
     paraTarefa.length
       ? supabaseAdmin.from('tickets_participantes').select('ticket_id, user_id').in('ticket_id', paraTarefa.map((t) => t.id)).is('removido_em', null)
       : Promise.resolve({ data: [] }),

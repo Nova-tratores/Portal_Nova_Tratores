@@ -108,7 +108,7 @@ export default function MinhaFila({ layout = 'lista', abaFixa }: { layout?: Layo
       const hd = await authHeaders()
       const [r, rc, ra, rf] = await Promise.all([
         fetch('/api/trabalho/hoje', { headers: hd, cache: 'no-store' }),
-        fetch('/api/trabalho/central', { headers: hd, cache: 'no-store' }),
+        fetch('/api/trabalho/central?so=pedidos', { headers: hd, cache: 'no-store' }),
         fetch('/api/trabalho/agora', { headers: hd, cache: 'no-store' }),
         fetch('/api/trabalho/faxina?contar=1', { headers: hd, cache: 'no-store' }),
       ])

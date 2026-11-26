@@ -61,7 +61,7 @@ export default function CentralNav() {
       const h = await authHeaders()
       const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
       const [c, r, fx] = await Promise.allSettled([
-        fetch('/api/trabalho/central', { headers: h }).then((x) => x.json()),
+        fetch('/api/trabalho/central?so=contagem', { headers: h }).then((x) => x.json()),
         fetch('/api/reunioes?visao=minhas', { headers: h }).then((x) => x.json()),
         fetch('/api/trabalho/faxina?contar=1', { headers: h }).then((x) => x.json()),
       ])

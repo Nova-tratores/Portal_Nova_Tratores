@@ -4,9 +4,9 @@
 // Histórico. TODO fase 1: a grade semanal (gradeSemana) ficou só no Histórico; ver se ainda faz sentido lá.
 // Capa do cartão em palavras simples (a etapa técnica fica escondida); canceladas escondidas por padrão.
 // Clique abre a janela com o botão do próximo passo e as Tarefas da reunião (TarefasRapidas).
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Play, ListPlus, FileText, Check, X, MapPin, CalendarCheck, CircleCheck, CircleHelp, Ban, ArrowRight, CalendarClock, Pencil, Trash2, Lock, Globe } from 'lucide-react'
+import { Users, Play, ListPlus, FileText, Check, X, MapPin, CalendarCheck, CircleCheck, CircleHelp, Ban, ArrowRight, CalendarClock, Pencil, Trash2, Lock, Globe, CalendarPlus } from 'lucide-react'
 import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
 import type { ReuniaoEtapa, Serie } from '@/lib/reunioes/regras'
 import type { PresencaRow } from '@/lib/reunioes/server'
@@ -15,6 +15,7 @@ import TarefasRapidas from './TarefasRapidas'
 import RemarcarReuniao from './RemarcarReuniao'
 import EditarReuniao from './EditarReuniao'
 import ConviteReuniao from './ConviteReuniao'
+import VirarSerie from './VirarSerie'
 import TicketModal from '@/components/tickets/TicketModal'
 import { chamar, horaDe, hojeISO, CronometroReuniao } from './comum'
 import { horasPessoa, textoCusto, textoHoras } from '@/lib/reunioes/fila-reuniao'
@@ -157,6 +158,8 @@ export default function AgendaReunioes({ meuId, isAdmin, onAviso, modo = 'proxim
   const [ticketAberto, setTicketAberto] = useState<string | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [remarcar, setRemarcar] = useState<Ticket | null>(null)
+  // Marcar outra reunião a partir desta, sem sair da janela (26/11/2026)
+  const [proxima, setProxima] = useState<Ticket | null>(null)
   const [editar, setEditar] = useState<Ticket | null>(null)
   const [filtroHist, setFiltroHist] = useState<FiltroHist>('todas')
   const [busca, setBusca] = useState('')
@@ -171,14 +174,32 @@ export default function AgendaReunioes({ meuId, isAdmin, onAviso, modo = 'proxim
   useEffect(() => { carregar() }, [carregar])
   useEffect(() => {
     const f = () => carregar()
-    window.addEventListener('central-trabalho-mudou', f); window.addEventListener('focus', f)
-    return () => { window.removeEventListener('central-trabalho-mudou', f); window.removeEventListener('focus', f) }
+    // Voltar para a janela recarrega no máximo a cada 1 min (antes era a cada Alt+Tab).
+    let ultima = Date.now()
+    const foco = () => { if (Date.now() - ultima > 60_000) { ultima = Date.now(); f() } }
+    window.addEventListener('central-trabalho-mudou', f); window.addEventListener('focus', foco)
+    return () => { window.removeEventListener('central-trabalho-mudou', f); window.removeEventListener('focus', foco) }
   }, [carregar])
 
-  const carregarDet = useCallback(async (id: string) => {
-    try { setDet(await chamar<ReuniaoUI>(`/api/reunioes/${id}`)) } catch { setDet(null) }
+  // Abrir tudo junto (26/11/2026): a janela só aparece quando o detalhe chega (antes abria e os
+  // botões, o convite e as ações "pulavam" depois). Passar o mouse no cartão já começa a buscar.
+  const cacheDet = useRef(new Map<string, Promise<ReuniaoUI>>())
+  const buscarDet = useCallback((id: string) => {
+    let p = cacheDet.current.get(id)
+    if (!p) { p = chamar<ReuniaoUI>(`/api/reunioes/${id}`); p.catch(() => cacheDet.current.delete(id)); cacheDet.current.set(id, p)
+      // a pré-busca vale por 30 s; depois a próxima abertura busca de novo
+      const esta = p; setTimeout(() => { if (cacheDet.current.get(id) === esta) cacheDet.current.delete(id) }, 30_000) }
+    return p
   }, [])
-  const abrir = (t: Ticket) => { setAberta(t); setDet(null); carregarDet(t.id) }
+  const [detFalhou, setDetFalhou] = useState<string | null>(null)
+  const carregarDet = useCallback(async (id: string) => {
+    cacheDet.current.delete(id)
+    try { setDet(await buscarDet(id)) } catch { setDetFalhou(id) }
+  }, [buscarDet])
+  const abrir = (t: Ticket) => {
+    setAberta(t); setDet(null); setDetFalhou(null)
+    buscarDet(t.id).then((x) => setDet(x)).catch(() => setDetFalhou(t.id))
+  }
 
   const d = useMemo(() => {
     const vistos = new Set<string>()
@@ -272,7 +293,12 @@ export default function AgendaReunioes({ meuId, isAdmin, onAviso, modo = 'proxim
   const janela = (
     <>
       {/* ───────────── JANELA DA REUNIÃO ───────────── */}
-      {aberta && (() => {
+      {aberta && !(det?.reuniao.id === aberta.id || detFalhou === aberta.id) && (
+        <div className="ag-modal" onClick={() => setAberta(null)}>
+          <div onClick={(e) => e.stopPropagation()} style={{ alignItems: 'center', padding: '28px 22px', fontSize: 13.5, color: 'var(--portal-text-muted,#64748b)' }}>Abrindo a reunião…</div>
+        </div>
+      )}
+      {aberta && (det?.reuniao.id === aberta.id || detFalhou === aberta.id) && (() => {
         const t = aberta; const p = passo(t); const info = PASSO[p]; const c = condutor(t); const n = d.itens[t.id] || 0
         const pres = (det?.presencas || d.presencas[t.id] || []).map((x) => x.usuario_id)
         const usuarios = { ...d.usuarios, ...(det?.usuarios || {}) }
@@ -314,7 +340,7 @@ export default function AgendaReunioes({ meuId, isAdmin, onAviso, modo = 'proxim
               {t.descricao && !/^Reunião( da série ".*")? em \d{2}\/\d{2}\/\d{4} às \d{2}:\d{2}\.$/.test(t.descricao) && (
                 <div style={{ fontSize: 13.5, color: 'var(--portal-text-secondary,#475569)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{t.descricao}</div>
               )}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{botoes(t)}{det?.posso_editar && <button className="ag-btn" onClick={() => setEditar(t)}><Pencil size={15} /> Editar</button>}{det?.posso_remarcar &&<button className="ag-btn" onClick={() => setRemarcar(t)}><CalendarClock size={15} /> Remarcar</button>}{det?.posso_excluir && det.reuniao.id === t.id && <button className="ag-btn" style={{ color: '#dc2626' }} disabled={ocupado} title="Apaga de vez (reunião de teste ou marcada por engano)" onClick={() => excluir(t)}><Trash2 size={15} /> Excluir</button>}</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>{botoes(t)}{det?.posso_editar && <button className="ag-btn" onClick={() => setEditar(t)}><Pencil size={15} /> Editar</button>}{det?.posso_remarcar &&<button className="ag-btn" onClick={() => setRemarcar(t)}><CalendarClock size={15} /> Remarcar</button>}{det?.posso_excluir && det.reuniao.id === t.id && <button className="ag-btn" style={{ color: '#dc2626' }} disabled={ocupado} title="Apaga de vez (reunião de teste ou marcada por engano)" onClick={() => excluir(t)}><Trash2 size={15} /> Excluir</button>}{det?.posso_continuar && det.reuniao.id === t.id && <button className="ag-btn" style={{ color: '#4f46e5', borderColor: 'color-mix(in srgb,#4f46e5 35%,var(--portal-border,#e2e8f0))' }} onClick={() => setProxima(t)} title="Marcar a reunião seguinte (ou repetir esta)"><CalendarPlus size={15} /> Marcar outra reunião</button>}</div>
               {det && p !== 'cancelada' && (
                 <ConviteReuniao reuniaoId={t.id} presencas={det.presencas} usuarios={usuarios} meuId={meuId} convite={det.convite}
                   encerrada={['ata_publicada', 'cancelada'].includes(t.reuniao_etapa || '')} onMudou={() => carregarDet(t.id)} />
@@ -331,6 +357,11 @@ export default function AgendaReunioes({ meuId, isAdmin, onAviso, modo = 'proxim
           </div>
         )
       })()}
+      {proxima && det?.reuniao.id === proxima.id && (
+        <VirarSerie reuniaoId={proxima.id} inicio={proxima.reuniao_inicio ?? null} titulo={proxima.titulo} pessoas={det.presencas.map((p) => p.usuario_id)} condutorId={det.condutor_id}
+          podeRepetir={!!det.posso_virar_serie} onFechar={() => setProxima(null)}
+          onFeito={(msg, novaId) => { setProxima(null); setAberta(null); onAviso(msg); window.dispatchEvent(new Event('central-trabalho-mudou')); if (novaId) router.push(`/reunioes/${novaId}`) }} />
+      )}
       {ticketAberto && <TicketModal id={ticketAberto} zIndex={1500} onFechar={() => setTicketAberto(null)} onMudou={() => aberta && carregarDet(aberta.id)} />}
       {editar && (
         <EditarReuniao reuniaoId={editar.id} titulo={editar.titulo} descricao={editar.descricao ?? null} visibilidade={editar.visibilidade ?? null}
@@ -353,7 +384,7 @@ export default function AgendaReunioes({ meuId, isAdmin, onAviso, modo = 'proxim
     const p = passo(t); const info = PASSO[p]
     return (
       <div key={t.id} role="button" tabIndex={0} className={`ag-lin${p === 'cancelada' ? ' cancelada' : ''}`} style={{ ['--c' as string]: info.cor }}
-        onClick={() => abrir(t)} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrir(t) } }}>
+        onClick={() => abrir(t)} onMouseEnter={() => { buscarDet(t.id).catch(() => {}) }} onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); abrir(t) } }}>
         <span className="h">{horaDe(t.reuniao_inicio)}<small>até {horaDe(fimDe(t))}</small></span>
         <span style={{ minWidth: 0 }}>
           <span className="t">{titulo(t)}</span>

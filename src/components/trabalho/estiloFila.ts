@@ -18,6 +18,35 @@ export const ESTILO_FILA = `
 @keyframes mf-entra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .mf-anim{animation:mf-entra .35s ease both}
 @media (prefers-reduced-motion:reduce){.mf-anim{animation:none}.mf-card,.mf-it{transition:none!important}}
+.mf-topo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.mf-titulo{display:flex;flex-direction:column;gap:2px;margin-right:8px}
+.mf-titulo h1{margin:0;font-size:22px;font-weight:500;letter-spacing:-.01em}
+.mf-titulo span{font-size:13px;color:var(--portal-text-muted,#64748b)}
+.mf-aba{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px 0 8px;border-radius:11px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);color:var(--portal-text-secondary,#475569);font-size:14px;font-weight:500;cursor:pointer}
+.mf-aba .ic{width:26px;height:26px;border-radius:8px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 11%,transparent)}
+.mf-aba.on{background:color-mix(in srgb,var(--c) 9%,var(--portal-surface,#fefefe));border-color:color-mix(in srgb,var(--c) 45%,var(--portal-border,#e2e8f0));color:var(--portal-text,#0f172a)}
+.mf-aba.on .ic{background:var(--c);color:#fefefe}
+.mf-btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 14px;border-radius:11px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);color:var(--portal-text-secondary,#475569);font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap;font-family:inherit;text-decoration:none}
+.mf-btn:hover{background:var(--portal-bg-secondary,#f8fafc)}
+.mf-btn.cheio{border:none;color:#fefefe;background:var(--c,#dc2626);box-shadow:0 6px 14px -8px var(--c,#dc2626)}
+.mf-btn.peq{min-height:34px;padding:0 11px;font-size:13px;border-radius:10px}
+.mf-btn:disabled{opacity:.5;cursor:default}
+.mf-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(200px,100%),1fr));gap:12px}
+.mf-kpi{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);text-align:left;font:inherit;color:inherit;cursor:pointer;transition:box-shadow .25s,transform .25s,border-color .25s}
+.mf-kpi:hover,.mf-kpi.on{transform:translateY(-2px);box-shadow:0 14px 28px -20px rgba(15,23,42,.55);border-color:color-mix(in srgb,var(--c) 35%,var(--portal-border,#e2e8f0))}
+.mf-kpi.on{background:color-mix(in srgb,var(--c) 6%,var(--portal-surface,#fefefe))}
+.mf-kpi b{display:block;font-size:22px;font-weight:500;letter-spacing:-.01em;font-variant-numeric:tabular-nums;line-height:1.15}
+.mf-kpi small{font-size:13px;color:var(--portal-text-muted,#64748b)}
+.mf-ic{flex:none;width:40px;height:40px;border-radius:11px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 9%,var(--portal-surface,#fefefe));border:1px solid color-mix(in srgb,var(--c) 18%,transparent)}
+.mf-ic.p{width:32px;height:32px;border-radius:9px}
+.mf-grade{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+@media (min-width:1100px){.mf-grade{grid-template-columns:minmax(0,1.9fr) minmax(320px,1fr)}}
+.mf-grade3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:16px;align-items:start}
+.mf-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.mf-card{border-radius:16px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);padding:14px 16px 10px}
+.mf-cab{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.mf-cab h2{margin:0;font-size:16px;font-weight:500}
+.mf-cab span{font-size:13px;color:var(--portal-text-muted,#64748b)}
 .mf-it{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:10px 12px 10px 8px;margin-top:8px;border:1px solid var(--portal-border,#e2e8f0);border-radius:12px;background:var(--portal-surface,#fefefe);transition:box-shadow .2s,border-color .2s,opacity .2s}
 .mf-it:hover{border-color:color-mix(in srgb,#2563eb 35%,var(--portal-border,#e2e8f0));box-shadow:0 8px 18px -14px rgba(15,23,42,.45)}
 .mf-it[draggable="true"]{cursor:grab}

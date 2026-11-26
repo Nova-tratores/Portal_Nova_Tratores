@@ -17,16 +17,20 @@ const mediana = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); con
 export async function temposReais(ids: string[]): Promise<Map<string, number>> {
   const out = new Map<string, number>()
   if (!ids.length) return out
-  const [tempo, ev] = await Promise.all([
-    supabaseAdmin.from('tickets_tempo').select('ticket_id, inicio, fim').in('ticket_id', ids).not('fim', 'is', null),
-    supabaseAdmin.from('tickets_eventos').select('ticket_id, payload, created_at').eq('tipo', 'status').in('ticket_id', ids).order('created_at'),
-  ])
+  // (26/11/2026) Em lotes de 150 ids: com 1.500 ids numa URL só a consulta ficava enorme e lenta.
+  const lotes: string[][] = []
+  for (let i = 0; i < ids.length; i += 150) lotes.push(ids.slice(i, i + 150))
+  const resp = await Promise.all(lotes.map((l) => Promise.all([
+    supabaseAdmin.from('tickets_tempo').select('ticket_id, inicio, fim').in('ticket_id', l).not('fim', 'is', null),
+    supabaseAdmin.from('tickets_eventos').select('ticket_id, payload, created_at').eq('tipo', 'status').in('ticket_id', l).order('created_at'),
+  ])))
   const cron = new Map<string, number>()
-  if (!tempo.error) for (const l of (tempo.data || []) as { ticket_id: string; inicio: string; fim: string }[]) {
+  for (const [tempo] of resp) if (!tempo.error) for (const l of (tempo.data || []) as { ticket_id: string; inicio: string; fim: string }[]) {
     cron.set(l.ticket_id, (cron.get(l.ticket_id) || 0) + (Date.parse(l.fim) - Date.parse(l.inicio)) / 3600000)
   }
   const ini = new Map<string, string>(), fim = new Map<string, string>()
-  for (const e of (ev.data || []) as { ticket_id: string; payload: { para?: string } | null; created_at: string }[]) {
+  // created_at em ordem dentro de cada lote; um ticket está num lote só, então a ordem por ticket se mantém.
+  for (const e of resp.flatMap(([, ev]) => (ev.data || []) as { ticket_id: string; payload: { para?: string } | null; created_at: string }[])) {
     if (e.payload?.para === 'em_andamento' && !ini.has(e.ticket_id)) ini.set(e.ticket_id, e.created_at)
     if (e.payload?.para === 'resolvido') fim.set(e.ticket_id, e.created_at)
   }
@@ -42,6 +46,12 @@ export async function temposReais(ids: string[]): Promise<Map<string, number>> {
 /** categoria → { horas (mediana, de 15 em 15 min), n }. Só categorias com 5+ amostras. */
 export async function medianasPorCategoria(): Promise<Map<string, Mediana>> {
   if (cache && Date.now() - cache.quando < 10 * 60 * 1000) return cache.mapa
+  // Quem chega enquanto a conta está sendo feita espera a mesma conta (não refaz tudo em paralelo).
+  if (!calculando) calculando = calcularMedianas().finally(() => { calculando = null })
+  return calculando
+}
+let calculando: Promise<Map<string, Mediana>> | null = null
+async function calcularMedianas(): Promise<Map<string, Mediana>> {
   const desde = new Date(Date.now() - 365 * 86400000).toISOString()
   const { data } = await supabaseAdmin.from('tickets').select('id, categoria')
     .eq('tipo', 'generico').in('status', ['resolvido', 'fechado']).gte('created_at', desde).limit(1500)
