@@ -4,6 +4,7 @@ import { ACESSO_RECEBIMENTOS } from '@/lib/ajustes/recebimentos-espelho';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
 import type { Conta } from '@/lib/ajustes/conta';
 import { previaRetorno, emitirRetorno, faturarRetorno, notasParaGarantia } from '@/lib/garantias/retorno-remessa-server';
+import { vinculoDaFicha, buscarGarantias, ligarGarantias, marcarSemGarantia, pendentesDeVinculo } from '@/lib/garantias/retorno-vinculo-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -18,11 +19,17 @@ const contaDe = (v: unknown): Conta | null => {
 };
 
 // GET ?conta=&idReceb= → prévia da nota · GET ?garantia=<id> → notas da fábrica dessa garantia
+// GET ?vincular=<fichaId> → garantias ligadas + sugestões · ?buscarGarantia=<q> · ?pendentesVinculo=1
 export async function GET(req: NextRequest) {
   const g = await protegerRota(req, ACESSO);
   if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   try {
+    const vincular = sp.get('vincular');
+    if (vincular) return NextResponse.json(await vinculoDaFicha(vincular));
+    const bg = sp.get('buscarGarantia');
+    if (bg != null) return NextResponse.json({ garantias: await buscarGarantias(bg) });
+    if (sp.get('pendentesVinculo')) return NextResponse.json(await pendentesDeVinculo());
     const garantia = sp.get('garantia');
     if (garantia) return NextResponse.json(await notasParaGarantia(garantia));
     const conta = contaDe(sp.get('conta'));
@@ -45,6 +52,20 @@ export async function POST(req: NextRequest) {
   try {
     const b = await req.json().catch(() => ({}));
     let r: Record<string, unknown>;
+    if (b.acao === 'ligar' || b.acao === 'sem_garantia') {
+      if (!b.fichaId) return NextResponse.json({ erro: 'Informe a devolução.' }, { status: 400 });
+      const fichaId = String(b.fichaId);
+      const rv: Record<string, unknown> = b.acao === 'ligar'
+        ? await ligarGarantias(fichaId, (Array.isArray(b.garantiaIds) ? b.garantiaIds : []).map(String), quem)
+        : await marcarSemGarantia(fichaId, String(b.motivo || ''), quem, !!b.desfazer);
+      await registrarAuditLog({
+        userId: g.user.id, userName: quem, sistema: 'garantias',
+        acao: b.acao === 'ligar' ? 'devolucao_garantia_ligada' : b.desfazer ? 'devolucao_garantia_sem_garantia_desfeito' : 'devolucao_garantia_sem_garantia',
+        entidade: 'garantia_retorno', entidadeId: fichaId, entidadeLabel: 'Devolução em garantia ↔ garantia',
+        detalhes: { garantiaIds: b.garantiaIds || null, motivo: b.motivo || null, resultado: rv },
+      });
+      return NextResponse.json(rv, { status: rv.migracaoFaltando ? 503 : rv.ok ? 200 : 400 });
+    }
     if (b.acao === 'faturar') {
       if (!b.fichaId) return NextResponse.json({ erro: 'Informe a devolução.' }, { status: 400 });
       r = await faturarRetorno(String(b.fichaId), quem, b.ajustes && typeof b.ajustes === 'object' ? b.ajustes : null);
@@ -56,6 +77,7 @@ export async function POST(req: NextRequest) {
       r = await emitirRetorno({
         conta, idReceb, escolha, texto: String(b.texto || ''), frete: b.frete || undefined,
         categoria: b.categoria ? String(b.categoria) : null, garantiaId: b.garantiaId ? String(b.garantiaId) : null,
+        garantiaIds: Array.isArray(b.garantiaIds) ? b.garantiaIds.map(String) : null,
         userId: g.user.id, userNome: quem, ajustes: b.ajustes && typeof b.ajustes === 'object' ? b.ajustes : null,
       });
     } else {

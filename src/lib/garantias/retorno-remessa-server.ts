@@ -15,6 +15,7 @@ import {
   limparTexto, ehItemGarantia, cfopRetorno, CATEGORIA_PADRAO, FRETE_PADRAO, type ItemEntrada, type Escolha,
   cBenefDoXml, cstPedeBeneficio, situacaoNfe, aplicarAjuste, conferirFiscal, type AjusteFiscal,
 } from './retorno-remessa';
+import { garantiasDaFicha, situacaoVinculo } from './retorno-vinculo';
 
 type Ajustes = Record<string, AjusteFiscal>;
 const ajusteDe = (aj: Ajustes | null | undefined, seq: number): AjusteFiscal | null => (aj && aj[String(seq)]) || null;
@@ -27,6 +28,8 @@ export function tabelaFaltando(e: { code?: string; message?: string } | null | u
   return !!e && (e.code === '42P01' || e.code === 'PGRST205' || /garantia_retornos/.test(e.message || ''));
 }
 const MSG_MIGRACAO = 'Falta aplicar sql/garantia-retorno-remessa.sql no banco.';
+/** coluna nova ainda não criada (select = 42703; insert/update pelo PostgREST = PGRST204) */
+export const colunaFaltando = (e: { code?: string } | null | undefined) => !!e && (e.code === '42703' || e.code === 'PGRST204');
 
 export interface Padroes { categoria: string; projeto: number | null; vendedor: number | null; email: string | null; frete: string; deRemessa: string | null }
 
@@ -77,19 +80,38 @@ async function beneficiosDoXml(chave: string): Promise<Record<number, string> | 
 
 /** retornos já gravados desta nota + quanto de cada item já voltou (remessas não canceladas/falhas) */
 async function historico(conta: Conta, idReceb: number) {
-  const { data, error } = await supabase.from(TBL)
-    .select('id, cod_int_rem, n_cod_rem, status, nf_numero, itens, valor_total, erro, user_nome, criado_em, faturado_em, garantia_id')
-    .eq('conta_omie', conta).eq('id_receb', idReceb).order('criado_em', { ascending: true });
+  const COLS = 'id, cod_int_rem, n_cod_rem, status, nf_numero, itens, valor_total, erro, user_nome, criado_em, faturado_em, garantia_id';
+  const ler = (cols: string) => supabase.from(TBL).select(cols).eq('conta_omie', conta).eq('id_receb', idReceb).order('criado_em', { ascending: true });
+  // colunas do vínculo (sql/garantia-retornos-vinculo.sql); sem a migration, lê sem elas
+  let { data, error } = await ler(`${COLS}, garantia_ids, sem_garantia_motivo, sem_garantia_por, sem_garantia_em`);
+  if (colunaFaltando(error)) ({ data, error } = await ler(COLS));
   if (error) {
     if (tabelaFaltando(error)) return { migracaoFaltando: true, linhas: [], porSeq: {} as Record<number, number> };
     throw new Error(error.message);
   }
   const porSeq: Record<number, number> = {};
-  for (const l of data || []) {
+  for (const l of (data || []) as unknown as LinhaHist[]) {
     if (l.status === 'falhou' || l.status === 'cancelada') continue;
     for (const it of (l.itens as Array<{ seq: number; qtd: number }>) || []) porSeq[it.seq] = (porSeq[it.seq] || 0) + Number(it.qtd || 0);
   }
-  return { migracaoFaltando: false, linhas: data || [], porSeq };
+  const linhas = await comVinculos((data || []) as unknown as LinhaHist[]);
+  return { migracaoFaltando: false, linhas, porSeq };
+}
+
+type LinhaHist = { id: string; status: string; itens: unknown; garantia_id?: string | null; garantia_ids?: string[] | null; sem_garantia_em?: string | null } & Record<string, unknown>;
+
+/** acrescenta a cada devolução a situação do vínculo e o nº das garantias ligadas */
+async function comVinculos(linhas: LinhaHist[]) {
+  const ids = [...new Set(linhas.flatMap((l) => garantiasDaFicha(l)))];
+  const nums = new Map<string, string>();
+  if (ids.length) {
+    const { data } = await supabase.from('garantias').select('id, numero').in('id', ids);
+    for (const g of data || []) nums.set(g.id as string, g.numero as string);
+  }
+  return linhas.map((l) => ({
+    ...l, vinculo: situacaoVinculo(l),
+    garantias: garantiasDaFicha(l).map((id) => ({ id, numero: nums.get(id) || '?' })),
+  }));
 }
 
 /** categoria/projeto/vendedor/e-mail/frete da última remessa de garantia faturada p/ esse fornecedor */
@@ -139,7 +161,10 @@ export async function previaRetorno(conta: Conta, idReceb: number) {
   const nota = await lerNota(conta, idReceb);
   const h = await historico(conta, idReceb);
   const pad = await padroes(conta, nota.cnpj);
+  const { sugestoesParaItens } = await import('./retorno-vinculo-server');
+  const sugestoes = await sugestoesParaItens(nota.itens.filter((i) => ehItemGarantia(i.cfopForn)), nota.fornecedor).catch(() => []);
   return {
+    sugestoesGarantia: sugestoes,
     nota: {
       idReceb, numero: sem0(nota.numero), emissao: nota.emissao, chave: nota.chave, fornecedor: nota.fornecedor,
       cnpj: nota.cnpj, recebido: nota.recebido, volumes: nota.volumes,
@@ -170,6 +195,8 @@ export interface EmitirArgs {
   conta: Conta; idReceb: number; escolha: Escolha[]; texto: string;
   frete?: { tipo?: string; qtdVol?: number; especie?: string | null; marca?: string | null; pesoBruto?: number; pesoLiq?: number };
   categoria?: string | null; garantiaId?: string | null; userId: string; userNome: string;
+  /** garantias desta devolução escolhidas na janela (além da garantiaId de quem abriu pela garantia) */
+  garantiaIds?: string[] | null;
   /** ajustes fiscais da prévia por item (chave = seq) */
   ajustes?: Ajustes | null;
 }
@@ -199,14 +226,18 @@ export async function emitirRetorno(a: EmitirArgs) {
   const itensFicha = escolhidos.map(({ e, it, aj }) => ({ seq: it.seq, nCodProd: it.nCodProd, codigo: it.codigo, descricao: it.descricao, qtd: e.qtd, valor: valorItem(it, e.qtd), ...(aj ? { ajuste: aj } : {}) }));
   const total = Math.round(itensFicha.reduce((s, i) => s + i.valor, 0) * 100) / 100;
   const cod = codIntRem(a.idReceb, h.linhas.length + 1);
+  const gIds = [...new Set([a.garantiaId, ...(a.garantiaIds || [])].filter((x): x is string => !!x))];
   const texto = limparTexto(a.texto || textoRetorno({ numero: nota.numero, emissao: nota.emissao, chave: nota.chave }));
 
-  const { data: ficha, error: eIns } = await supabase.from(TBL).insert({
+  const linha = {
     conta_omie: a.conta, id_receb: a.idReceb, numero_nfe: nota.numero, chave_ref: nota.chave, fornecedor: nota.fornecedor,
-    n_cod_cli: nota.nCodCli, garantia_id: a.garantiaId || null, cod_int_rem: cod, itens: itensFicha, valor_total: total,
+    n_cod_cli: nota.nCodCli, garantia_id: gIds[0] || null, cod_int_rem: cod, itens: itensFicha, valor_total: total,
     texto, status: 'criando', user_id: a.userId, user_nome: a.userNome,
-  }).select('id').single();
-  if (eIns) return { ok: false, erro: tabelaFaltando(eIns) ? MSG_MIGRACAO : eIns.message };
+  };
+  let { data: ficha, error: eIns } = await supabase.from(TBL).insert({ ...linha, garantia_ids: gIds }).select('id').single();
+  // sem a migration do vínculo: grava só a 1ª garantia na coluna antiga
+  if (colunaFaltando(eIns)) ({ data: ficha, error: eIns } = await supabase.from(TBL).insert(linha).select('id').single());
+  if (!ficha) return { ok: false, erro: eIns ? (tabelaFaltando(eIns) ? MSG_MIGRACAO : eIns.message) : 'Não gravou a devolução.' };
 
   const f = a.frete || {};
   const payload = {
@@ -354,16 +385,18 @@ export async function faturarRetorno(fichaId: string, userNome: string, ajustes?
   return concluirFicha(f, fichaId, nCodRem, st, userNome);
 }
 
-/** NF-e autorizada: grava na ficha e dá baixa na garantia */
-async function concluirFicha(f: { garantia_id?: string | null; numero_nfe?: string | null }, fichaId: string, nCodRem: number, st: StatusRem | null, userNome: string) {
+/** NF-e autorizada: grava na ficha e dá baixa nas garantias ligadas (sem nenhuma: avisa para ligar) */
+async function concluirFicha(f: { garantia_id?: string | null; garantia_ids?: string[] | null; numero_nfe?: string | null; fornecedor?: string | null; sem_garantia_em?: string | null }, fichaId: string, nCodRem: number, st: StatusRem | null, userNome: string) {
   const nf = nfDe(st);
   const agora = new Date().toISOString();
   await supabase.from(TBL).update({
     status: 'faturada', n_cod_rem: nCodRem, nf_numero: nf?.numero || null, nf_chave: nf?.chave || null,
     erro: null, faturado_em: agora, atualizado_em: agora,
   }).eq('id', fichaId);
-  if (f.garantia_id) await baixarNaGarantia(f.garantia_id, nf?.numero || null, f.numero_nfe || null, userNome).catch(() => {});
-  return { ok: true, nf: nf?.numero || null, nCodRem };
+  const ids = garantiasDaFicha({ status: 'faturada', garantia_id: f.garantia_id, garantia_ids: f.garantia_ids });
+  for (const id of ids) await baixarNaGarantia(id, nf?.numero || null, f.numero_nfe || null, userNome).catch(() => {});
+  if (!ids.length && !f.sem_garantia_em) await avisarSemGarantia(fichaId, nf?.numero || null, f.numero_nfe || null, f.fornecedor || null);
+  return { ok: true, nf: nf?.numero || null, nCodRem, semGarantia: !ids.length };
 }
 
 /** Regrava os itens da remessa com a regra de hoje (mesmos itens e quantidades da ficha). Devolve o erro ou null. */
@@ -391,8 +424,20 @@ async function alinharItens(conta: Conta, f: { id_receb: number; itens: unknown 
   }
 }
 
+/** devolução faturada sem garantia: avisa no sino na hora (o lembrete semanal repete até resolver) */
+async function avisarSemGarantia(fichaId: string, nf: string | null, nfFabrica: string | null, fornecedor: string | null) {
+  try {
+    await notificarGarantistas({
+      titulo: `Devolução em garantia${nf ? ` NF ${nf}` : ''} sem garantia ligada`,
+      descricao: `Retorno da NF ${sem0(nfFabrica)} da fábrica${fornecedor ? ` (${fornecedor})` : ''}. Ligue à garantia para fechar a pendência de devolução, ou marque que não tem garantia no portal.`,
+      link: `/garantias?retornos=1&ficha=${fichaId}`,
+    });
+    await supabase.from(TBL).update({ vinculo_alertado_em: new Date().toISOString().slice(0, 10) }).eq('id', fichaId);
+  } catch { /* aviso não derruba a emissão */ }
+}
+
 /** dá baixa na pendência "Devolução de peças" da garantia com a NF-e emitida */
-async function baixarNaGarantia(garantiaId: string, nf: string | null, nfFabrica: string | null, ator: string) {
+export async function baixarNaGarantia(garantiaId: string, nf: string | null, nfFabrica: string | null, ator: string) {
   const { data: g } = await supabase.from('garantias').select('id, numero, id_ordem, devolucao_status').eq('id', garantiaId).maybeSingle();
   if (!g) return;
   const detalhe = `Devolução emitida pelo portal na Omie${nf ? ` — NF ${nf}` : ''} (retorno da NF ${sem0(nfFabrica)} da fábrica)`;

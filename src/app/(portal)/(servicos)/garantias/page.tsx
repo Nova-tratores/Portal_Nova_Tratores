@@ -17,6 +17,7 @@ import MontadorasConfig from '@/components/garantias/MontadorasConfig';
 import CriarGarantiaManualModal from '@/components/garantias/CriarGarantiaManualModal';
 import PaginaClientePainel from '@/components/garantias/PaginaClientePainel';
 import FaturarReembolso from '@/components/garantias/FaturarReembolso';
+import RetornosSemGarantia from '@/components/garantias/RetornosSemGarantia';
 import { gateBtn, estiloSemPermissao, MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
 
 type Aba = 'pipeline' | 'finalizadas' | 'relatorio' | 'buscar' | 'montadoras' | 'cliente' | 'faturar';
@@ -175,6 +176,8 @@ function GarantiasPageInner() {
           </button>
         ))}
       </div>
+
+      {(podeFinalizar || podeAnalisar) && <RetornosSemGarantia onMudou={() => setRefreshKey((k) => k + 1)} />}
 
       {/* Conteúdo */}
       {aba === 'pipeline' &&

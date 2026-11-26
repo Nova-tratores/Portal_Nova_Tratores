@@ -5,6 +5,7 @@
 // (seção Devolução: escolhe a nota da fábrica; ao faturar, dá baixa na pendência).
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { fetchAuth } from '@/lib/auth/client';
+import LigarGarantia from './LigarGarantia';
 import { conferirFiscal, aplicarAjuste, type AjusteFiscal, type ItemEntrada, type ProblemaFiscal } from '@/lib/garantias/retorno-remessa';
 
 interface ItemPrevia {
@@ -14,7 +15,11 @@ interface ItemPrevia {
   /** item da nota da fábrica como a Omie devolveu (para conferir os ajustes fiscais na tela) */
   base?: ItemEntrada; problemas?: ProblemaFiscal[];
 }
-interface Historico { id: string; cod_int_rem: string; status: string; nf_numero: string | null; valor_total: number | null; erro: string | null; user_nome: string | null; criado_em: string }
+interface Historico {
+  id: string; cod_int_rem: string; status: string; nf_numero: string | null; valor_total: number | null; erro: string | null; user_nome: string | null; criado_em: string;
+  vinculo?: 'ligada' | 'sem_garantia' | 'pendente' | 'nao_se_aplica'; garantias?: Array<{ id: string; numero: string }>; sem_garantia_motivo?: string | null;
+}
+interface SugestaoG { id: string; numero: string; numeroExterno: string | null; cliente: string | null; idOrdem: string | null; devolucaoStatus: string | null; motivo: string }
 interface Tentativa { quando: string; quem: string | null; acao: 'emitir' | 'faturar'; ok: boolean; erro: string | null; nf: string | null; fichaId: string | null }
 interface Previa {
   nota: { idReceb: number; numero: string; emissao: string | null; chave: string | null; fornecedor: string | null; recebido: boolean;
@@ -22,6 +27,7 @@ interface Previa {
   itens: ItemPrevia[]; historico: Historico[]; tentativas?: Tentativa[];
   padroes: { categoria: string; frete: string; email: string | null; deRemessa: string | null };
   texto: string; avisos?: string[]; migracaoFaltando?: boolean; erro?: string;
+  sugestoesGarantia?: SugestaoG[];
 }
 interface NotaGarantia { conta: string; idReceb: number; numero: string; data: string; fornecedor: string; valor: number; sugerida: boolean }
 
@@ -44,7 +50,10 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
   const [enviando, setEnviando] = useState(false);
   const [ajustes, setAjustes] = useState<Record<number, AjusteFiscal>>({});
   const [fiscalAberto, setFiscalAberto] = useState<Record<number, boolean>>({});
-  const [resultado, setResultado] = useState<{ ok: boolean; nf?: string | null; erro?: string; fichaId?: string } | null>(null);
+  const [resultado, setResultado] = useState<{ ok: boolean; nf?: string | null; erro?: string; fichaId?: string; semGarantia?: boolean } | null>(null);
+  // garantias desta devolução (quando não veio pela garantia): escolhidas antes de emitir
+  const [gSel, setGSel] = useState<string[]>([]);
+  const [ligarAberto, setLigarAberto] = useState<string | null>(null);
 
   // pela garantia: lista as notas da fábrica para escolher
   useEffect(() => {
@@ -110,9 +119,11 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
   };
   const emitir = () => {
     if (!previa || !alvo) return;
-    if (!window.confirm(`Emitir a NF-e de devolução em garantia para ${previa.nota.fornecedor || 'o fornecedor'}?\n\n${escolha.length} item(ns) · ${brl(total)}\n\nA remessa é criada e FATURADA na Omie agora (não mexe no estoque).`)) return;
+    const nums = (previa.sugestoesGarantia || []).filter((g) => gSel.includes(g.id)).map((g) => g.numero);
+    const linhaG = garantiaId ? '' : nums.length ? `\nLigada a ${nums.join(', ')} (fecha a pendência de devolução).` : '\nSEM garantia ligada: a devolução fica no aviso da tela Garantias até alguém ligar.';
+    if (!window.confirm(`Emitir a NF-e de devolução em garantia para ${previa.nota.fornecedor || 'o fornecedor'}?\n\n${escolha.length} item(ns) · ${brl(total)}${linhaG}\n\nA remessa é criada e FATURADA na Omie agora (não mexe no estoque).`)) return;
     post({
-      acao: 'emitir', conta: alvo.conta, idReceb: alvo.idReceb, escolha, texto, garantiaId: garantiaId || null, ajustes: ajustesEnvio,
+      acao: 'emitir', conta: alvo.conta, idReceb: alvo.idReceb, escolha, texto, garantiaId: garantiaId || null, garantiaIds: garantiaId ? null : gSel, ajustes: ajustesEnvio,
       frete: { tipo: frete.tipo, qtdVol: Number(frete.qtdVol) || 0, especie: frete.especie || null, marca: frete.marca || null, pesoBruto: Number(String(frete.pesoBruto).replace(',', '.')) || 0, pesoLiq: Number(String(frete.pesoLiq).replace(',', '.')) || 0 },
     });
   };
@@ -196,6 +207,22 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
               </table>
             </div>
 
+            {!garantiaId && (
+              <div style={{ marginTop: 12, border: `1px solid ${gSel.length ? '#fcd34d' : '#fecaca'}`, background: gSel.length ? '#fffbeb' : '#fef2f2', borderRadius: 8, padding: '8px 10px' }}>
+                <div style={{ fontSize: '.78rem', fontWeight: 700, color: '#92400e', marginBottom: 4 }}>De qual garantia são estas peças?</div>
+                <div style={{ fontSize: '.72rem', color: '#475569', marginBottom: 6 }}>
+                  Ligar fecha a pendência &quot;Devolução de peças&quot; da garantia quando a NF-e for autorizada. Sem garantia ligada, a devolução fica no aviso da tela Garantias até alguém resolver.
+                </div>
+                {(previa.sugestoesGarantia || []).length === 0 && <div style={{ fontSize: '.76rem', color: '#64748b' }}>Nenhuma garantia do portal tem estas peças. Dá para procurar e ligar depois de emitir.</div>}
+                {(previa.sugestoesGarantia || []).map((g) => (
+                  <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 40, fontSize: '.8rem', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={gSel.includes(g.id)} onChange={(e) => setGSel((l) => e.target.checked ? [...l, g.id] : l.filter((x) => x !== g.id))} style={{ width: 20, height: 20 }} />
+                    <span><b>{g.numero}</b>{g.numeroExterno ? ` · SG ${g.numeroExterno}` : ''}{g.cliente ? ` · ${g.cliente}` : ''}<span style={{ display: 'block', fontSize: '.7rem', color: '#64748b' }}>{g.motivo}</span></span>
+                  </label>
+                ))}
+              </div>
+            )}
+
             <label style={{ display: 'block', fontSize: '.72rem', fontWeight: 600, color: '#475569', margin: '12px 0 4px' }}>Dados adicionais da NF-e</label>
             <textarea value={texto} onChange={(e) => setTexto(e.target.value)} rows={3} style={{ ...inp, width: '100%', resize: 'vertical' }} />
 
@@ -225,6 +252,19 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
                     {h.valor_total != null && <span>{brl(h.valor_total)}</span>}
                     <span style={{ color: '#64748b' }}>{h.user_nome}</span>
                     {h.erro && <span style={{ color: '#b91c1c', fontSize: '.72rem' }}>{h.erro}</span>}
+                    {h.vinculo === 'ligada' && <span style={{ fontSize: '.72rem', color: '#047857', fontWeight: 600 }}>garantia {(h.garantias || []).map((x) => x.numero).join(', ')}</span>}
+                    {h.vinculo === 'sem_garantia' && <span style={{ fontSize: '.72rem', color: '#64748b' }} title={h.sem_garantia_motivo || ''}>sem garantia no portal</span>}
+                    {h.vinculo === 'pendente' && <span style={{ fontSize: '.72rem', color: '#b91c1c', fontWeight: 700 }}>⚠ sem garantia ligada</span>}
+                    {h.vinculo && h.vinculo !== 'nao_se_aplica' && (
+                      <button type="button" onClick={() => setLigarAberto((x) => x === h.id ? null : h.id)} style={{ minHeight: 36, padding: '2px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '.72rem', color: '#334155' }}>
+                        {ligarAberto === h.id ? 'Fechar' : h.vinculo === 'pendente' ? 'Ligar a uma garantia' : 'Mudar garantia'}
+                      </button>
+                    )}
+                    {ligarAberto === h.id && (
+                      <div style={{ width: '100%', border: '1px solid #fde68a', background: '#fffbeb', borderRadius: 8, padding: 10 }}>
+                        <LigarGarantia fichaId={h.id} onMudou={(m) => { onFeito?.(m); carregar(); }} />
+                      </div>
+                    )}
                     {h.status === 'criada' && (() => {
                       const rejeitada = !!h.nf_numero && /rejeit/i.test(h.erro || '');
                       const rotulo = rejeitada ? 'Corrigir e reenviar' : h.nf_numero ? 'Conferir de novo' : 'Faturar de novo';
@@ -257,7 +297,7 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
 
         {resultado && (
           <div style={{ marginTop: 12, borderRadius: 8, padding: '10px 12px', fontSize: '.84rem', background: resultado.ok ? '#f0fdf4' : '#fef2f2', border: `1px solid ${resultado.ok ? '#bbf7d0' : '#fecaca'}`, color: resultado.ok ? '#166534' : '#b91c1c' }}>
-            {resultado.ok ? `NF-e de devolução emitida${resultado.nf ? `: nº ${resultado.nf}` : ' (o número aparece em instantes)'}.` : resultado.erro}
+            {resultado.ok ? `NF-e de devolução emitida${resultado.nf ? `: nº ${resultado.nf}` : ' (o número aparece em instantes)'}.${resultado.semGarantia && !garantiaId ? ' Ela está sem garantia ligada: use "Ligar a uma garantia" na lista acima.' : ''}` : resultado.erro}
           </div>
         )}
 
