@@ -538,7 +538,8 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
   const [editandoVendedor, setEditandoVendedor] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [resultado, setResultado] = useState<{ numero: number | null; ja: boolean; offline?: boolean } | null>(null);
+  // 26/11 (José): número da sorte EM ESPERA na ficha do vendedor — no lugar dele, a proposta em PDF vai para o WhatsApp do cliente
+  const [resultado, setResultado] = useState<{ ja: boolean; offline?: boolean; pdf?: { enviado: boolean; motivo?: string; base64?: string } } | null>(null);
   const topo = useRef<HTMLDivElement>(null);
 
   // o aparelho do vendedor lembra o nome dele (conveniência do aparelho, não dado do negócio)
@@ -550,7 +551,7 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
   const FILA = `cs-fila-${slug}`, RECUSADAS = `cs-fila-recusadas-${slug}`;
   const [pendentes, setPendentes] = useState(0);
   const [recusadas, setRecusadas] = useState(0);
-  const [enviadas, setEnviadas] = useState<{ nome: string; numero: number }[]>([]);
+  const [enviadas, setEnviadas] = useState<{ nome: string; pdf: boolean }[]>([]);
   const sincronizando = useRef(false);
   const lerLista = (k: string): { id: number; corpo: any }[] => { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch { return []; } };
   const gravarLista = (k: string, l: { id: number; corpo: any }[]) => { try { localStorage.setItem(k, JSON.stringify(l)); } catch { /* sem armazenamento */ } };
@@ -568,7 +569,7 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
         } catch { break; }                                    // caiu a internet de novo: tenta depois
         if (r.status === 429 || r.status >= 500) break;       // servidor ocupado: tenta depois
         const j = await r.json().catch(() => ({}));
-        if (r.ok) setEnviadas((v) => [...v, { nome: String(item.corpo.nome || ''), numero: j.numero }]);
+        if (r.ok) setEnviadas((v) => [...v, { nome: String(item.corpo.nome || ''), pdf: !!j.pdf?.enviado }]);
         else { gravarLista(RECUSADAS, [...lerLista(RECUSADAS), { ...item, corpo: { ...item.corpo, _erro: j.error || r.status } }]); setRecusadas((n) => n + 1); }
         fila = lerLista(FILA).filter((x) => x.id !== item.id);
         gravarLista(FILA, fila); setPendentes(fila.length);
@@ -585,9 +586,9 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const avisoFila = (pendentes > 0 || recusadas > 0 || enviadas.length > 0) && (
     <div className="cs-f-fila" role="status">
-      {pendentes > 0 && <p><b>{pendentes} ficha(s) salva(s) neste aparelho</b>, esperando internet. Vão sozinhas quando ela voltar; não feche o navegador.</p>}
+      {pendentes > 0 && <p><b>{pendentes} ficha(s) salva(s) neste aparelho</b>, esperando internet. Vão sozinhas quando ela voltar (e a proposta segue para o WhatsApp do cliente); não feche o navegador.</p>}
       {enviadas.length > 0 && (
-        <p className="cs-f-fila-ok">Enviadas: {enviadas.map((e) => `${e.nome.split(/\s+/)[0]} nº ${numeroSorte(e.numero)}`).join(' · ')}
+        <p className="cs-f-fila-ok">Enviadas: {enviadas.map((e) => `${e.nome.split(/\s+/)[0]} (${e.pdf ? 'proposta no WhatsApp' : 'salva, sem PDF'})`).join(' · ')}
           <button type="button" onClick={() => setEnviadas([])}>ok</button></p>
       )}
       {recusadas > 0 && <p className="cs-f-fila-erro">{recusadas} ficha(s) não foram aceitas pelo sistema (dado faltando ou evento fechado). Ficaram guardadas neste aparelho: chame o Marketing.</p>}
@@ -633,6 +634,7 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
             embutido_pct: numBR(pEmbutido) ?? padrao.embutido, lance_proprio: numBR(pLance) ?? padrao.lance,
           } : {}),
           prazo_contemplacao: pContemp, proposta_obs: pObs,
+          enviar_pdf: true,
       };
       let r: Response | null = null;
       if (navigator.onLine !== false) {
@@ -642,13 +644,13 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
         // sem internet: guarda no aparelho e segue atendendo
         const fila = [...lerLista(FILA), { id: Date.now(), corpo }];
         gravarLista(FILA, fila); setPendentes(fila.length);
-        setResultado({ numero: null, ja: false, offline: true });
+        setResultado({ ja: false, offline: true });
         requestAnimationFrame(() => topo.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
         return;
       }
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'Não deu para salvar. Tente de novo.');
-      setResultado({ numero: j.numero, ja: j.ja_inscrito });
+      setResultado({ ja: j.ja_inscrito, pdf: j.pdf });
       requestAnimationFrame(() => topo.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     } catch (e: any) {
       setErro(e.message);
@@ -665,7 +667,6 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
   }
 
   if (resultado) {
-    const num = resultado.numero != null ? numeroSorte(resultado.numero) : null;
     const modelo = modelos.find((m) => m.nome === interesse);
     const lb = credito ? lanceDoBolso(credito, cfg) : null;
     const sa = cfg.super_assembleia;
@@ -677,15 +678,14 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
       'Segue o resumo do seu consórcio Mahindra:',
       '',
       ...(credito ? [
-        `🚜 ${modelo?.nome || 'Carta'}: crédito de ${reais(credito, 0)}`,
-        `💰 Parcela de ${reais(parcela(credito, cfg))} por mês (${reais(porDia(credito, cfg))} por dia), em ${cfg.prazo_meses} meses, sem juros`,
-        cfg.desconto_parcela ? `🎁 ${cfg.desconto_parcela.numero}ª parcela com ${cfg.desconto_parcela.pct}% de desconto: ${reais(parcelaComDesconto(credito, cfg)!)}` : null,
-        semEntrada ? '✅ Sem entrada: você começa pagando só a 1ª parcela' : null,
-        lb ? `📈 Lance fixo de ${lb.fixoPct}%: ${reais(lb.valor, 0)} do seu bolso (os outros ${cfg.lance_embutido_pct}% saem da própria carta)` : null,
+        `${modelo?.nome || 'Carta'}: crédito de ${reais(credito, 0)}`,
+        `Parcela de ${reais(parcela(credito, cfg))} por mês (${reais(porDia(credito, cfg))} por dia), em ${cfg.prazo_meses} meses, sem juros`,
+        cfg.desconto_parcela ? `${cfg.desconto_parcela.numero}ª parcela com ${cfg.desconto_parcela.pct}% de desconto: ${reais(parcelaComDesconto(credito, cfg)!)}` : null,
+        semEntrada ? 'Sem entrada: você começa pagando só a 1ª parcela' : null,
+        lb ? `Lance fixo de ${lb.fixoPct}%: ${reais(lb.valor, 0)} do seu bolso (os outros ${cfg.lance_embutido_pct}% saem da própria carta)` : null,
       ] : []),
-      assembleia?.proxima_assembleia ? `🗓 Grupo ${assembleia.grupo}: vencimento ${dataCurta(assembleia.vencimento)}, assembleia ${dataCurta(assembleia.proxima_assembleia)}` : null,
-      sa && modelo?.grupos.includes(sa.grupo || '') ? `🏆 Super Assembleia de ${sa.quando}: ${sa.cartas} contemplações` : null,
-      num ? `🍀 Seu número da sorte: ${num}${ev.sorteio_em ? ` (sorteio ${dataHora(ev.sorteio_em)})` : ''}` : null,
+      assembleia?.proxima_assembleia ? `Grupo ${assembleia.grupo}: vencimento ${dataCurta(assembleia.vencimento)}, assembleia ${dataCurta(assembleia.proxima_assembleia)}` : null,
+      sa && modelo?.grupos.includes(sa.grupo || '') ? `Super Assembleia de ${sa.quando}: ${sa.cartas} contemplações` : null,
       passo ? `\nPróximo passo: ${passo}${passoData ? ` em ${dataCurta(passoData)}` : ''}.` : null,
       '',
       `Qualquer dúvida, é só responder aqui. ${vendedor.trim()} · Nova Tratores`,
@@ -696,13 +696,19 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
       <div ref={topo} className="cs-sorte">
         {avisoFila}
         {resultado.offline ? (
-          <p><b>Sem internet: a ficha de {primeiroNome} ficou salva neste aparelho.</b> Ela vai sozinha quando a internet voltar, e o número da sorte aparece no topo da ficha.</p>
-        ) : (<>
-          <p>{resultado.ja ? `${primeiroNome} já estava cadastrado (ficha atualizada). O número da sorte é` : `Salvo! O número da sorte de ${primeiroNome} é`}</p>
-          <div className="cs-sorte-num">{num}</div>
-        </>)}
+          <p><b>Sem internet: a ficha de {primeiroNome} ficou salva neste aparelho.</b> Quando a internet voltar, ela vai sozinha e a proposta em PDF segue para o WhatsApp do cliente.</p>
+        ) : resultado.pdf?.enviado ? (
+          <p><b>Salvo!</b> A proposta em PDF foi enviada para o WhatsApp de {primeiroNome} ({tel}).</p>
+        ) : (
+          <p><b>Ficha salva{resultado.ja ? ' (o cliente já estava cadastrado; a ficha foi atualizada)' : ''}.</b> O PDF não foi pelo WhatsApp{resultado.pdf?.motivo ? `: ${resultado.pdf.motivo}` : ''}. Baixe o PDF abaixo e mande você mesmo.</p>
+        )}
         <div className="cs-sorte-acoes">
-          <a className="cs-btn cs-btn-zap" href={linkCliente} target="_blank" rel="noopener noreferrer">Mandar resumo no WhatsApp</a>
+          {resultado.pdf?.base64 && (
+            <a className="cs-btn cs-btn-claro" href={`data:application/pdf;base64,${resultado.pdf.base64}`} download={`Proposta Consorcio Mahindra - ${primeiroNome}.pdf`}>Baixar o PDF</a>
+          )}
+          {!resultado.pdf?.enviado && !resultado.offline && (
+            <a className="cs-btn cs-btn-zap" href={linkCliente} target="_blank" rel="noopener noreferrer">Mandar resumo em texto</a>
+          )}
           <button className="cs-btn cs-btn-claro" onClick={proximo}>+ Próximo cliente</button>
         </div>
         <details className="cs-f-resumo"><summary>Ver o resumo que vai para o cliente</summary><pre className="cs-resumo">{texto}</pre></details>
@@ -777,9 +783,9 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
           <div className="cs-f-bloco">
             <span className="cs-f-titulo"><i>3</i>Como o cliente está?</span>
             <div className="cs-f-temp">
-              {([['quente', '🔥', 'Quente', 'quer fechar'], ['morno', '🙂', 'Morno', 'interessado'], ['frio', '❄️', 'Frio', 'só olhando']] as const).map(([v, ic, rot, dica]) => (
+              {([['quente', 'Quente', 'quer fechar'], ['morno', 'Morno', 'interessado'], ['frio', 'Frio', 'só olhando']] as const).map(([v, rot, dica]) => (
                 <button key={v} type="button" className={`cs-f-t cs-f-t-${v}`} aria-pressed={temperatura === v} onClick={() => setTemperatura(v)}>
-                  <span aria-hidden="true">{ic}</span><b>{rot}</b><small>{dica}</small>
+                  <b>{rot}</b><small>{dica}</small>
                 </button>
               ))}
             </div>
@@ -840,7 +846,7 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
           </label>
           {erro && <div className="cs-erro" role="alert">{erro}</div>}
           <div className="cs-f-salvar">
-            <button className="cs-btn" type="submit" disabled={enviando}>{enviando ? 'Salvando…' : 'Salvar e gerar número da sorte'}</button>
+            <button className="cs-btn" type="submit" disabled={enviando}>{enviando ? 'Salvando e enviando…' : 'Salvar e enviar a proposta'}</button>
           </div>
         </form>
       )}
@@ -1251,7 +1257,7 @@ a.cs-btn-contorno{display:flex;align-items:center;justify-content:center;text-de
 /* carta: prazo vira faixa fina (o preço volta a ser o que mais pesa) */
 .cs .cs-prazo{background:rgba(227,24,55,.1);border-left:4px solid var(--vermelho);border-radius:0 10px 10px 0;padding:8px 14px;gap:8px;flex-wrap:wrap;color:var(--claro)}
 .cs .cs-prazo b{color:#fff;font-size:1rem}
-.cs .cs-prazo b::before{content:'⏱ ';}
+.cs .cs-prazo b::before{content:'';}
 .cs .cs-prazo span{font-size:.92rem}
 .cs .cs-prazo span::before{content:'· ';color:var(--vermelho)}
 /* foto no meio da coluna (no desktop continua presa ao rolar) */

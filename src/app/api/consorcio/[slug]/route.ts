@@ -12,6 +12,9 @@
 // =============================================================================
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as db } from '@/lib/server/supabase-admin';
+import { gerarPropostaPdf } from '@/lib/consorcio/proposta-pdf';
+import { lerConfig, modelosUnicos, grupoDaUrgencia } from '@/lib/consorcio/conta';
+import { enviarPdfPeloChatwoot, motivoTxt } from '@/lib/chatwoot/avisar-pessoa';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,6 +23,10 @@ const MSG_MIGRACAO = 'As tabelas do consórcio ainda não existem no banco. Rode
 const faltaTabela = (e: any) => /consorcio_|does not exist|schema cache|PGRST20[0-5]|42P01|42883/.test(`${e?.code} ${e?.message}`);
 
 const ultimoEnvio = new Map<string, number>();   // IP -> hora do último cadastro (memória do servidor)
+// PDF da proposta no WhatsApp (26/11): a rota é pública, então tem trava — o mesmo número não recebe de novo em
+// 5 min, e no máximo 300 PDFs por dia por servidor (o estande não passa disso; robô sim).
+const ultimoPdf = new Map<string, number>();
+let pdfsHoje = { dia: '', n: 0 };
 
 async function evento(slug: string) {
   const { data, error } = await db.from('consorcio_eventos')
@@ -140,7 +147,44 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
     });
     if (error) throw error;
     const linha = Array.isArray(data) ? data[0] : data;
-    return NextResponse.json({ numero: linha?.o_numero, ja_inscrito: !!linha?.o_ja_inscrito });
+
+    // ficha do vendedor (26/11, José): no lugar do número da sorte, a proposta em PDF vai para o WhatsApp do cliente
+    let pdf: { enviado: boolean; motivo?: string; base64?: string } | undefined;
+    if (b.enviar_pdf === true) {
+      try {
+        const cfg = lerConfig(ev.config);
+        const modelo = modelosUnicos(cfg).find((m) => m.nome === txt(b.interesse, 120));
+        const urg = grupoDaUrgencia(cfg);
+        const bytes = gerarPropostaPdf({
+          evento: { nome: ev.nome, cidade: ev.cidade, inicio: ev.inicio, fim: ev.fim },
+          cfg,
+          cliente: { nome, telefone, cidade: txt(b.cidade, 60), endereco: extra.endereco || '' },
+          trator: modelo?.nome || txt(b.interesse, 120),
+          credito: Number.isFinite(credito) && credito > 0 ? credito : null,
+          parcela: extra.parcela, prazo: extra.prazo_meses, embutidoPct: extra.embutido_pct, lanceProprio: extra.lance_proprio,
+          contemplacao: extra.prazo_contemplacao || '', observacao: extra.proposta_obs || '',
+          assembleia: urg && (!modelo || modelo.grupos.includes(urg.grupo)) ? urg : null,
+          superAssembleia: !!(cfg.super_assembleia && modelo?.grupos.includes(cfg.super_assembleia.grupo || '')),
+          vendedor: txt(b.vendedor, 60) || 'Nova Tratores',
+        });
+        pdf = { enviado: false, base64: Buffer.from(bytes).toString('base64') };
+        const hoje = new Date().toISOString().slice(0, 10);
+        if (pdfsHoje.dia !== hoje) pdfsHoje = { dia: hoje, n: 0 };
+        if (agora - (ultimoPdf.get(digitos) || 0) < 5 * 60_000) pdf.motivo = 'já foi enviado para este número agora há pouco';
+        else if (pdfsHoje.n >= 300) pdf.motivo = 'limite do dia atingido';
+        else {
+          const primeiro = nome.split(/s+/)[0];
+          const texto = `Olá, ${primeiro}! Aqui é ${txt(b.vendedor, 60) || 'a equipe'}, da Nova Tratores, na ${ev.nome}. Obrigado pela visita! Segue a sua proposta do consórcio Mahindra. Qualquer dúvida, é só responder aqui.`;
+          const r = await enviarPdfPeloChatwoot(telefone, nome, texto, `Proposta Consorcio Mahindra - ${primeiro}.pdf`, bytes);
+          if (r.ok) { pdf.enviado = true; ultimoPdf.set(digitos, agora); pdfsHoje.n++; if (ultimoPdf.size > 5000) ultimoPdf.clear(); }
+          else pdf.motivo = motivoTxt(r);
+        }
+      } catch (e: any) {
+        console.error('[consorcio] PDF da proposta', e);
+        pdf = { enviado: false, motivo: 'não deu para gerar o PDF' };
+      }
+    }
+    return NextResponse.json({ numero: linha?.o_numero, ja_inscrito: !!linha?.o_ja_inscrito, pdf });
   } catch (e: any) {
     if (faltaTabela(e)) return NextResponse.json({ error: MSG_MIGRACAO }, { status: 503 });
     console.error('[consorcio] POST', e);
