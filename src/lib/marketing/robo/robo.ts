@@ -16,7 +16,21 @@ import type { RedeId } from '../redes/redes'
 import { CUSTO_IDEIA_USD, TEMAS_DIA, ideiaParaData, ideiaParaDia, type Ideia } from './ideia'
 import { CUSTO_CENA_USD, imagemPronta, montarCena } from './cena'
 import { PALETAS_EM_ORDEM, type Paleta } from './arte'
-import { desenhar, guardarCena, type Camadas } from './camadas'
+import { gerarPecas, guardarCena, type Camadas } from './camadas'
+import { ESTILOS_EM_ORDEM, type Estilo, type Posicao } from './paletas'
+
+/** Visual de cada post (José, 26/11: "os posts estão muito semelhantes"): modelo × posição do texto × cor.
+ *  Monta as combinações e começa pelas que não saíram nos últimos posts. */
+type Visual = { estilo: Estilo; posicao: Posicao; paleta: Paleta }
+function filaDeVisuais(ultimos: Partial<Visual>[]): Visual[] {
+  const todas: Visual[] = []
+  for (const estilo of ESTILOS_EM_ORDEM) for (const paleta of PALETAS_EM_ORDEM) for (const posicao of (estilo === 'cena' ? ['alto', 'baixo'] : ['alto']) as Posicao[]) todas.push({ estilo, posicao, paleta })
+  const pontos = (v: Visual) => ultimos.reduce((s, u, i) => s + (u.estilo === v.estilo ? 3 / (i + 1) : 0) + (u.paleta === v.paleta ? 2 / (i + 1) : 0) + (u.posicao === v.posicao ? .5 / (i + 1) : 0), 0) + Math.random() * .3
+  // escolhe um por vez, sempre o mais diferente dos anteriores (inclusive dos que acabou de escolher)
+  const fila: Visual[] = [], hist = [...ultimos]
+  for (let k = 0; k < 10; k++) { const v = [...todas].sort((a, b) => pontos(a) - pontos(b) || 0)[0]; fila.push(v); hist.unshift(v); ultimos = hist }
+  return fila
+}
 
 const SOCIAIS: RedeId[] = ['instagram', 'facebook', 'tiktok', 'youtube']
 const DIAS_FRENTE = 30
@@ -74,7 +88,7 @@ const notasDoRobo = (i: Ideia, vaga: Vaga) => [
 ].filter(Boolean).join('\n\n')
 
 /** Faz uma vaga inteira. Devolve o id do post. */
-async function fazerVaga(vaga: Vaga, ctx: { tecnicos: string[]; recentes: string[]; fotosRecentes: string[]; temaDia: string; paleta: Paleta }) {
+async function fazerVaga(vaga: Vaga, ctx: { tecnicos: string[]; recentes: string[]; fotosRecentes: string[]; temaDia: string; visual: Visual }) {
   const ideia = vaga.tipo === 'data'
     ? await ideiaParaData(vaga.data!, { tecnicos: ctx.tecnicos, recentes: ctx.recentes })
     : await ideiaParaDia(vaga.dia, ctx.temaDia, { tecnicos: ctx.tecnicos, recentes: ctx.recentes })
@@ -87,18 +101,16 @@ async function fazerVaga(vaga: Vaga, ctx: { tecnicos: string[]; recentes: string
     cena: await guardarCena(await montarCena(base, ideia.cena)),
     data: vaga.data ? { nome: vaga.data.nome.replace(/\s*\(.*\)$/, ''), dia: vaga.dia.slice(8, 10) + '/' + vaga.dia.slice(5, 7) } : null,
     titulo: ideia.arte_titulo, frase: ideia.arte_frase, destaque: ideia.arte_destaque || '',
-    paleta: ctx.paleta, posicao: 'alto', foto_id: foto.id, cena_pedido: ideia.cena.slice(0, 1000),
+    paleta: ctx.visual.paleta, posicao: ctx.visual.posicao, estilo: ctx.visual.estilo, foto_id: foto.id, cena_pedido: ideia.cena.slice(0, 1000),
   }
-  const jpg = await desenhar(camadas)
-  const caminho = `posts/robo/artes/${vaga.dia}-${Math.random().toString(36).slice(2, 8)}.jpg`
-  const up = await sb.storage.from('site-produtos').upload(caminho, jpg, { contentType: 'image/jpeg', cacheControl: '31536000', upsert: false })
-  if (up.error) throw new Error(`guardar a arte: ${up.error.message}`)
-  const url = sb.storage.from('site-produtos').getPublicUrl(caminho).data.publicUrl
+  // todas as redes (José, 26/11): feed 1080×1350, em pé 1080×1920 e vídeo em pé (TikTok e Shorts só aceitam vídeo)
+  const pecas = await gerarPecas(camadas)
+  const midia: Record<string, string> = { feed: pecas.feed, vertical: pecas.vertical, ...(pecas.video ? { video: pecas.video } : {}) }
 
   const post = {
     titulo: ideia.titulo.slice(0, 120),
     legenda: `${ideia.legenda.trim()}\n\n${ideia.hashtags.join(' ')}`.slice(0, 5000),
-    redes: SOCIAIS, formato: 'feed', midia: { feed: url },
+    redes: SOCIAIS, formato: 'feed', midia,
     quando: new Date(`${vaga.dia}T${HORA}:00-03:00`).toISOString(),
     status: 'ideia', resultado: {}, notas: notasDoRobo(ideia, vaga),
     criado_por: 'Robô de posts', atualizado_por: 'Robô de posts',
@@ -138,16 +150,15 @@ export async function rodarRobo(max = POR_VEZ()): Promise<{ resumo: string; pula
   const { data: titulos } = await sb.from('site_posts').select('titulo').gte('quando', `${somar(hoje, -30)}T00:00:00-03:00`).limit(60)
   const recentes = [...ultimos.filter((c) => c.status === 'feito' && c.tema).slice(0, 15).map((c) => c.tema as string), ...((titulos || []) as { titulo: string }[]).map((t) => t.titulo)].slice(0, 30)
   const fotosRecentes = ultimos.filter((c) => c.foto_id).slice(0, 4).map((c) => c.foto_id as string)
-  // cores alternando: começa pela paleta que está há mais tempo sem sair
-  const { data: ultArtes } = await sb.from('site_posts').select('arte').eq('criado_por', 'Robô de posts').order('criado_em', { ascending: false }).limit(PALETAS_EM_ORDEM.length)
-  const usadas = ((ultArtes || []) as { arte?: { paleta?: Paleta } | null }[]).map((p) => p.arte?.paleta).filter(Boolean) as Paleta[]
-  const fila_paletas = [...PALETAS_EM_ORDEM.filter((p) => !usadas.includes(p)), ...usadas.reverse()]
-  const ctx = { tecnicos: await tecnicos(), recentes, fotosRecentes, temaDia: '', paleta: fila_paletas[0] }
+  // visual alternando (modelo × cor × posição): começa pelo mais diferente dos últimos posts do robô
+  const { data: ultArtes } = await sb.from('site_posts').select('arte').eq('criado_por', 'Robô de posts').order('criado_em', { ascending: false }).limit(6)
+  const visuais = filaDeVisuais(((ultArtes || []) as { arte?: Partial<Visual> | null }[]).map((p) => p.arte || {}))
+  const ctx = { tecnicos: await tecnicos(), recentes, fotosRecentes, temaDia: '', visual: visuais[0] }
   const usadosDia = ultimos.filter((c) => c.tema).map((c) => (c.tema as string).toLowerCase())
 
   const feitos: string[] = [], erros: string[] = []
   for (const [n, vaga] of fila.entries()) {
-    ctx.paleta = fila_paletas[n % fila_paletas.length]
+    ctx.visual = visuais[n % visuais.length]
     ctx.temaDia = TEMAS_DIA.find((t) => !usadosDia.some((u) => u.includes(t.split(' ')[0]))) || TEMAS_DIA[Math.floor(Math.random() * TEMAS_DIA.length)]
     try {
       const r = await fazerVaga(vaga, ctx)
