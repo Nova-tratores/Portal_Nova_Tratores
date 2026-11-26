@@ -535,7 +535,7 @@ export default function CalendarioRedes() {
         {r.id && r.arte?.cena && (
           <Secao icone="fa-layer-group" cor="#d0102b" titulo="Editar arte" sub="Mude o texto, as cores ou a posição. A prévia aparece em 1 segundo, sem custo">
             <EditarArte key={r.id} postId={r.id} arte={r.arte} atual={r.midia.feed || undefined} podeEditar={podeEditar}
-              onSalvo={(url, arte) => { setR((x) => (x ? { ...x, midia: { ...x.midia, feed: url }, arte } : x)); carregar(); }} />
+              onSalvo={(pecas, arte) => { setR((x) => (x ? { ...x, midia: { ...x.midia, feed: pecas.feed, vertical: pecas.vertical, ...(pecas.video ? { video: pecas.video } : {}) }, arte } : x)); carregar(); }} />
           </Secao>
         )}
 

@@ -4,13 +4,14 @@
 // Texto, cor e posição: a prévia redesenha em ~1 s, sem custo. "Nova cena": a IA refaz o fundo (centavos, ~30 s).
 import { useEffect, useRef, useState } from 'react';
 import { fetchAuth } from '@/lib/auth/client';
-import { PALETAS, PALETAS_EM_ORDEM, type Camadas } from '@/lib/marketing/robo/paletas';
+import { ESTILOS, ESTILOS_EM_ORDEM, PALETAS, PALETAS_EM_ORDEM, type Camadas } from '@/lib/marketing/robo/paletas';
 import { AZUL, BORDA, T1, T2, T3, bt, campoNP, ic } from './np';
 
 const VERDE = '#16a34a';
 
 export default function EditarArte({ postId, arte, atual, podeEditar, onSalvo }: {
-  postId: string; arte: Camadas; atual?: string; podeEditar: boolean; onSalvo: (url: string, arte: Camadas) => void;
+  postId: string; arte: Camadas; atual?: string; podeEditar: boolean;
+  onSalvo: (pecas: { feed: string; vertical: string; video?: string }, arte: Camadas) => void;
 }) {
   const [c, setC] = useState<Camadas>(arte);
   const [previa, setPrevia] = useState<string | null>(null);
@@ -44,8 +45,8 @@ export default function EditarArte({ postId, arte, atual, podeEditar, onSalvo }:
     setOcupado('');
     if (!r.ok || !j.ok) { setMsg(j.erro || 'Não deu certo.'); return; }
     setC(j.arte); setPrevia(null); setPedido('');
-    onSalvo(j.url, j.arte);
-    setMsg(tipo === 'cena' ? 'Cena nova pronta e guardada.' : 'Arte guardada.');
+    onSalvo(j.pecas, j.arte);
+    setMsg(j.aviso || (tipo === 'cena' ? 'Cena nova pronta. Feed, em pé e vídeo atualizados.' : 'Arte guardada. Feed, em pé e vídeo atualizados.'));
   }
 
   const muda = <K extends keyof Camadas>(k: K, v: Camadas[K]) => setC((x) => ({ ...x, [k]: v }));
@@ -104,7 +105,19 @@ export default function EditarArte({ postId, arte, atual, podeEditar, onSalvo }:
         </div>
 
         <div style={{ display: 'grid', gap: 6 }}>
-          <span style={{ fontSize: 13, color: T2 }}>Onde fica o texto</span>
+          <span style={{ fontSize: 13, color: T2 }}>Modelo da arte</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {ESTILOS_EM_ORDEM.map((e) => (
+              <button key={e} type="button" disabled={!podeEditar} onClick={() => muda('estilo', e)} aria-pressed={(c.estilo || 'cena') === e}
+                style={{ ...bt((c.estilo || 'cena') === e ? AZUL : T2, (c.estilo || 'cena') === e), minHeight: 36 }}>
+                {ic(e === 'cena' ? 'fa-image' : e === 'faixa' ? 'fa-table-rows' : 'fa-border-all')} {ESTILOS[e]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gap: 6, opacity: (c.estilo || 'cena') === 'cena' ? 1 : .45 }}>
+          <span style={{ fontSize: 13, color: T2 }}>Onde fica o texto {(c.estilo || 'cena') !== 'cena' && '(só no modelo Cena inteira)'}</span>
           <div style={{ display: 'flex', gap: 8 }}>
             {(['alto', 'baixo'] as const).map((p) => (
               <button key={p} type="button" disabled={!podeEditar} onClick={() => muda('posicao', p)} aria-pressed={c.posicao === p}
@@ -117,7 +130,7 @@ export default function EditarArte({ postId, arte, atual, podeEditar, onSalvo }:
 
         {podeEditar && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button type="button" style={bt(VERDE, true)} disabled={!mudou || !!ocupado} onClick={() => enviar({}, 'salvar')}>{ic('fa-check')} {ocupado === 'salvar' ? 'Guardando…' : 'Guardar arte'}</button>
+            <button type="button" style={bt(VERDE, true)} disabled={!mudou || !!ocupado} onClick={() => enviar({}, 'salvar')}>{ic('fa-check')} {ocupado === 'salvar' ? 'Gerando feed, em pé e vídeo…' : 'Guardar arte'}</button>
             <button type="button" style={bt(T2)} disabled={!mudou || !!ocupado} onClick={() => { setC(arte); setMsg(''); }}>{ic('fa-rotate-left')} Desfazer</button>
           </div>
         )}

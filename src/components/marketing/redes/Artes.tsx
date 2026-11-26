@@ -115,18 +115,23 @@ export function EnviarVideo({ pasta, rotulo = 'Enviar vídeo', onEnviado }: { pa
 export function CaixaArte({ arte, url, pasta, onTroca, usadaPor }: { arte: Arte; url: string | null | undefined; pasta: string; onTroca: (u: string | null) => void; usadaPor: RedeId[] }) {
   const a = ARTES[arte];
   const video = arte === 'video';
+  const [grande, setGrande] = useState(false); // 26/11/2026 (José): "devo conseguir clicar para ver a imagem"
   return (
     <div style={{ display: 'grid', gap: 8, alignContent: 'start', minWidth: 0 }}>
+      {grande && url && <Ampliada url={url} video={video} fechar={() => setGrande(false)} />}
       <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 13, color: T2 }}>
         {a.nome}
         <span style={{ display: 'inline-flex', gap: 5, marginLeft: 'auto' }}>{usadaPor.map((id) => <IconeRede key={id} id={id} tam={13} />)}</span>
       </span>
-      <span style={{ aspectRatio: `${a.w} / ${a.h}`, maxHeight: 260, width: '100%', borderRadius: 12, background: '#111111', display: 'grid', placeItems: 'center', overflow: 'hidden', border: '1px solid var(--border)', justifySelf: 'center' }}>
+      <span role={url ? 'button' : undefined} tabIndex={url ? 0 : undefined} title={url ? 'Toque para ver grande' : undefined}
+        onClick={() => url && setGrande(true)} onKeyDown={(e) => { if (url && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setGrande(true); } }}
+        style={{ position: 'relative', aspectRatio: `${a.w} / ${a.h}`, maxHeight: 260, width: '100%', borderRadius: 12, background: '#111111', display: 'grid', placeItems: 'center', overflow: 'hidden', border: '1px solid var(--border)', justifySelf: 'center', cursor: url ? 'zoom-in' : 'default' }}>
         {url ? (video
-          ? <video src={url} muted loop playsInline controls style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          ? <video src={url} muted loop playsInline autoPlay style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }} />
           // eslint-disable-next-line @next/next/no-img-element
           : <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />)
           : <span style={{ color: '#94a3b8', fontSize: 12, textAlign: 'center', padding: 8 }}>{a.w} × {a.h}</span>}
+        {url && <span style={{ position: 'absolute', right: 6, bottom: 6, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 11, padding: '3px 7px', borderRadius: 6 }}>{ic('fa-magnifying-glass-plus')} ver</span>}
       </span>
       <SeloTamanho url={url} arte={arte} />
       <span style={{ fontSize: 12, color: T3, lineHeight: 1.45 }}>{a.ajuda}</span>
@@ -136,6 +141,25 @@ export function CaixaArte({ arte, url, pasta, onTroca, usadaPor }: { arte: Arte;
           : <EnviarFoto pasta={pasta} rotulo={url ? 'Trocar' : 'Enviar arte'} onEnviada={([u]) => onTroca(u)} />}
         {url && <button type="button" style={bt('#64748b')} onClick={() => onTroca(null)}>{ic('fa-xmark')}Tirar</button>}
       </span>
+    </div>
+  );
+}
+
+/** Arte em tela cheia (imagem ou vídeo com som e controles). Fecha no X, no Esc ou clicando fora. */
+function Ampliada({ url, video, fechar }: { url: string; video: boolean; fechar: () => void }) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') fechar(); };
+    addEventListener('keydown', esc); return () => removeEventListener('keydown', esc);
+  }, [fechar]);
+  return (
+    <div onClick={fechar} role="dialog" aria-label="Arte ampliada"
+      style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(10,12,16,.88)', display: 'grid', placeItems: 'center', padding: 16, cursor: 'zoom-out' }}>
+      <button type="button" onClick={fechar} aria-label="Fechar" style={{ position: 'absolute', top: 14, right: 14, width: 42, height: 42, borderRadius: '50%', border: 0, background: '#fff', color: '#111', fontSize: 18, cursor: 'pointer' }}>{ic('fa-xmark')}</button>
+      {video
+        ? <video src={url} controls autoPlay playsInline onClick={(e) => e.stopPropagation()} style={{ maxWidth: '100%', maxHeight: '92vh', borderRadius: 10 }} />
+        // eslint-disable-next-line @next/next/no-img-element
+        : <img src={url} alt="Arte" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '100%', maxHeight: '92vh', borderRadius: 10, cursor: 'default' }} />}
+      <a href={url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', bottom: 16, color: '#fff', fontSize: 14 }}>{ic('fa-arrow-up-right-from-square')} abrir em outra aba</a>
     </div>
   );
 }

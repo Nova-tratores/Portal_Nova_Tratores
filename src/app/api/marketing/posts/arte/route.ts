@@ -8,7 +8,7 @@ import { desenhar, limparCamadas, novaCena, salvarArte, type Camadas } from '@/l
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300
+export const maxDuration = 300 // nova cena (~30 s) + feed + em pé + vídeo (~20 s)
 
 const podeEditar = (u: { isAdmin: boolean; modulos: string[] }) =>
   u.isAdmin || u.modulos.includes('marketing') || u.modulos.includes('marketing:conteudo:editar')
@@ -34,8 +34,8 @@ export async function POST(req: Request) {
       return new NextResponse(new Uint8Array(jpg), { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'no-store' } })
     }
     if (b.novaCena) c = await novaCena(c, String(b.pedido || '').slice(0, 600))
-    const url = await salvarArte(id, c, por)
-    return NextResponse.json({ ok: true, url, arte: c })
+    const pecas = await salvarArte(id, c, por)
+    return NextResponse.json({ ok: true, url: pecas.feed, pecas, arte: c, aviso: pecas.erroVideo ? `As imagens ficaram prontas, mas o vídeo falhou: ${pecas.erroVideo}` : undefined })
   } catch (e) {
     return NextResponse.json({ ok: false, erro: (e as Error).message }, { status: 500 })
   }

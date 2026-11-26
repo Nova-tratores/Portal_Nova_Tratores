@@ -37,10 +37,12 @@ export type DadosArte = {
   tema?: Tema
   paleta?: Paleta         // só no layout 'cena'
   posicao?: Posicao       // só no layout 'cena': texto em cima (padrão) ou embaixo
+  estilo?: Estilo         // só no layout 'cena': cena inteira, faixa de cor ou quadro
+  altura?: 1350 | 1920    // 1350 = feed (4:5) · 1920 = em pé (stories, reels, TikTok, Shorts)
   whatsapp?: string
 }
 
-import { PALETAS, PALETAS_EM_ORDEM, type Paleta, type Posicao } from './paletas'
+import { PALETAS, PALETAS_EM_ORDEM, type Estilo, type Paleta, type Posicao } from './paletas'
 export { PALETAS, PALETAS_EM_ORDEM, type Paleta, type Posicao }
 
 const pasta = path.join(process.cwd(), 'src/lib/marketing/robo')
@@ -130,43 +132,96 @@ export async function arteDoPost(d: DadosArte): Promise<Buffer> {
   const PAD = 58
 
   let corpo: React.ReactElement
+  const H = d.altura === 1920 ? 1920 : 1350
   if (layout === 'cena') {
-    // a cena ocupa tudo; sombra em cima (texto) e embaixo (rodapé) para ler em qualquer imagem
-    const ls = linhas(d.titulo, 118)
-    const tam = Math.min(...ls.map((l) => tamanho(l, 118)))
     const p = PALETAS[d.paleta || 'ouro'] || PALETAS.ouro
+    const estilo: Estilo = d.estilo || 'cena'
     const baixo = d.posicao === 'baixo'
     const branco: Cores = { ...c, texto: '#ffffff', fraco: 'rgba(255,255,255,.82)', destaque: p.destaque }
-    const bloco = (
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
-        {d.data && (
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <span style={{ fontFamily: 'Quantum Rise', fontSize: 40, color: p.t1 }}>{d.data.dia}</span>
-            <div style={{ display: 'flex', width: 46, height: 3, background: p.t1, margin: '0 18px' }} />
-            <span style={{ fontFamily: 'Quantum Rise', fontSize: d.data.nome.length > 22 ? 30 : 36, color: '#ffffff' }}>{d.data.nome.toUpperCase()}</span>
-          </div>
-        )}
-        <div style={{ display: 'flex', flexDirection: 'column', marginTop: d.data ? 22 : 0, fontFamily: 'Quantum Rise', fontSize: tam, lineHeight: 1.02 }}>
-          {ls.map((l, i) => <span key={i} style={{ color: i === 0 ? p.t1 : p.t2, whiteSpace: 'nowrap' }}>{l}</span>)}
-        </div>
-        <div style={{ display: 'flex', marginTop: 22, maxWidth: 900 }}><Frase frase={d.frase} destaque={d.destaque} c={branco} tam={38} /></div>
+    const maxTit = estilo === 'cena' ? 118 : 104
+    const ls = linhas(d.titulo, maxTit)
+    const tam = Math.min(...ls.map((l) => tamanho(l, maxTit)))
+    const linhaData = d.data && (
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <span style={{ fontFamily: 'Quantum Rise', fontSize: 40, color: p.t1 }}>{d.data.dia}</span>
+        <div style={{ display: 'flex', width: 46, height: 3, background: p.t1, margin: '0 18px' }} />
+        <span style={{ fontFamily: 'Quantum Rise', fontSize: d.data.nome.length > 22 ? 30 : 36, color: '#ffffff' }}>{d.data.nome.toUpperCase()}</span>
       </div>
     )
-    corpo = (
-      <div style={{ width: 1080, height: 1350, display: 'flex', position: 'relative', fontFamily: 'Georama', background: '#111' }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={d.foto} alt="" width={1080} height={1350} style={{ position: 'absolute', left: 0, top: 0, width: 1080, height: 1350, objectFit: 'cover' }} />
-        <div style={{ display: 'flex', position: 'absolute', left: 0, top: 0, width: 1080, height: baixo ? 260 : 760, background: 'linear-gradient(180deg, rgba(10,10,12,.78) 0%, rgba(10,10,12,.55) 45%, rgba(10,10,12,0) 100%)' }} />
-        <div style={{ display: 'flex', position: 'absolute', left: 0, bottom: 0, width: 1080, height: baixo ? 860 : 300, background: 'linear-gradient(0deg, rgba(10,10,12,.86) 0%, rgba(10,10,12,.6) 55%, rgba(10,10,12,0) 100%)' }} />
-        <div style={{ display: 'flex', flexDirection: 'column', position: 'relative', width: 1080, height: 1350, padding: `52px ${PAD}px 48px` }}>
+    const titulo = (mt: number) => (
+      <div style={{ display: 'flex', flexDirection: 'column', marginTop: mt, fontFamily: 'Quantum Rise', fontSize: tam, lineHeight: 1.02 }}>
+        {ls.map((l, i) => <span key={i} style={{ color: i === 0 ? p.t1 : p.t2, whiteSpace: 'nowrap' }}>{l}</span>)}
+      </div>
+    )
+    const frase = (t: number) => <div style={{ display: 'flex', marginTop: 20, maxWidth: 920 }}><Frase frase={d.frase} destaque={d.destaque} c={branco} tam={t} /></div>
+    const foto = (w: number, h: number, extra: React.CSSProperties = {}) => (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={d.foto} alt="" width={w} height={h} style={{ width: w, height: h, objectFit: 'cover', ...extra }} />
+    )
+
+    if (estilo === 'faixa') {
+      // cena em cima (~58%), bloco de cor sólida embaixo; a data vira um selo na emenda
+      const hFoto = Math.round(H * (H === 1920 ? 0.64 : 0.56))   // em pé sobrava fundo vazio embaixo
+      corpo = (
+        <div style={{ width: 1080, height: H, display: 'flex', flexDirection: 'column', position: 'relative', fontFamily: 'Georama', background: p.base }}>
+          <div style={{ display: 'flex', position: 'relative', width: 1080, height: hFoto }}>
+            {foto(1080, hFoto)}
+            <div style={{ display: 'flex', position: 'absolute', left: 0, top: 0, width: 1080, height: 220, background: 'linear-gradient(180deg, rgba(10,10,12,.7), rgba(10,10,12,0))' }} />
+            <div style={{ display: 'flex', position: 'absolute', left: 0, bottom: 0, width: 1080, height: 10, background: p.t1 }} />
+            <div style={{ display: 'flex', position: 'absolute', left: PAD, top: 52 }}><Topo c={branco} logoBranco /></div>
+            {d.data && (
+              <div style={{ display: 'flex', position: 'absolute', left: PAD, bottom: -34, alignItems: 'center', background: p.t1, borderRadius: 12, padding: '12px 22px' }}>
+                <span style={{ fontFamily: 'Quantum Rise', fontSize: 38, color: p.base }}>{d.data.dia}</span>
+                <span style={{ fontFamily: 'Quantum Rise', fontSize: 28, color: p.base, marginLeft: 16 }}>{d.data.nome.toUpperCase()}</span>
+              </div>
+            )}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: `${d.data ? 72 : 44}px ${PAD}px 48px` }}>
+            {titulo(0)}
+            {frase(36)}
+            <div style={{ display: 'flex', flex: 1 }} />
+            <Rodape c={branco} zap={zap} />
+          </div>
+        </div>
+      )
+    } else if (estilo === 'quadro') {
+      // fundo de cor sólida, texto em cima e a cena num quadro arredondado
+      corpo = (
+        <div style={{ width: 1080, height: H, display: 'flex', flexDirection: 'column', fontFamily: 'Georama', background: `linear-gradient(170deg, ${p.base} 0%, #0d0f12 100%)`, padding: `52px ${PAD}px 48px` }}>
           <Topo c={branco} logoBranco />
-          {!baixo && <div style={{ display: 'flex', marginTop: d.data ? 56 : 64 }}>{bloco}</div>}
-          <div style={{ display: 'flex', flex: 1 }} />
-          {baixo && <div style={{ display: 'flex', marginBottom: 40 }}>{bloco}</div>}
+          {d.data && <div style={{ display: 'flex', marginTop: 44 }}>{linhaData}</div>}
+          {titulo(d.data ? 20 : 54)}
+          {frase(36)}
+          <div style={{ display: 'flex', flex: 1, margin: '30px 0 30px', minHeight: 0, position: 'relative', borderRadius: 28, overflow: 'hidden', border: `4px solid ${p.t1}` }}>
+            {foto(956, H, { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%' })}
+          </div>
           <Rodape c={branco} zap={zap} />
         </div>
-      </div>
-    )
+      )
+    } else {
+      // cena inteira; sombra em cima e embaixo para ler em qualquer imagem
+      const bloco = (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {linhaData}
+          {titulo(d.data ? 22 : 0)}
+          {frase(38)}
+        </div>
+      )
+      corpo = (
+        <div style={{ width: 1080, height: H, display: 'flex', position: 'relative', fontFamily: 'Georama', background: '#111' }}>
+          {foto(1080, H, { position: 'absolute', left: 0, top: 0 })}
+          <div style={{ display: 'flex', position: 'absolute', left: 0, top: 0, width: 1080, height: baixo ? 260 : Math.round(H * 0.56), background: 'linear-gradient(180deg, rgba(10,10,12,.78) 0%, rgba(10,10,12,.55) 45%, rgba(10,10,12,0) 100%)' }} />
+          <div style={{ display: 'flex', position: 'absolute', left: 0, bottom: 0, width: 1080, height: baixo ? Math.round(H * 0.64) : 300, background: 'linear-gradient(0deg, rgba(10,10,12,.86) 0%, rgba(10,10,12,.6) 55%, rgba(10,10,12,0) 100%)' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', position: 'relative', width: 1080, height: H, padding: `52px ${PAD}px 48px` }}>
+            <Topo c={branco} logoBranco />
+            {!baixo && <div style={{ display: 'flex', marginTop: d.data ? 56 : 64 }}>{bloco}</div>}
+            <div style={{ display: 'flex', flex: 1 }} />
+            {baixo && <div style={{ display: 'flex', marginBottom: 40 }}>{bloco}</div>}
+            <Rodape c={branco} zap={zap} />
+          </div>
+        </div>
+      )
+    }
   } else if (layout === 'topo') {
     // foto real ocupando os 52% de cima (sem borda), logo branco por cima; texto embaixo no fundo do tema
     const ls = linhas(d.titulo, 104)
@@ -214,7 +269,7 @@ export async function arteDoPost(d: DadosArte): Promise<Buffer> {
   }
 
   const r = new ImageResponse(corpo, {
-    width: 1080, height: 1350,
+    width: 1080, height: layout === 'cena' ? H : 1350,
     fonts: [
       { name: 'Quantum Rise', data: ler('quantum-rise-bold.ttf'), weight: 700, style: 'normal' },
       { name: 'Georama', data: ler('georama-semiexpanded-regular.ttf'), weight: 400, style: 'normal' },
