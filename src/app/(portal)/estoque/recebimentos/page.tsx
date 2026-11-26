@@ -11,6 +11,7 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 import { supabase } from '@/lib/supabase';
 import { authHeaders, fetchAuth } from '@/lib/auth/client';
 import { casaBusca, diasDesde, type RecebNorm } from '@/lib/ajustes/recebimento-regras';
+import { faixaParada, DIAS_ESQUECIDA, DIAS_ANTIGA } from '@/lib/estoque/recebimentos-esquecidos';
 import ProdutoPrecoModal from '@/components/estoque/ProdutoPrecoModal';
 import ModalReabrir from '@/components/estoque/ModalReabrir';
 import ModalRelancar from '@/components/estoque/ModalRelancar';
@@ -255,6 +256,8 @@ export default function RecebimentosPage() {
   const [tipoFiltro, setTipoFiltro] = useState('');
   const [respFiltro, setRespFiltro] = useState<'todas' | 'me' | '__nenhum__'>('todas');
   const [soGarantia, setSoGarantia] = useState(false);
+  // idade da nota pendente: esquecidas (7–90 dias, as do robô diário) · antigas (+90 dias)
+  const [idadeFiltro, setIdadeFiltro] = useState<'' | 'esquecida' | 'antiga'>('');
   // ordenacao/filtro por coluna (nivel NF)
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
   const [filtros, setFiltros] = useState<Record<string, string>>({});
@@ -287,6 +290,9 @@ export default function RecebimentosPage() {
       const c = (sp.get('conta') || '').toUpperCase();
       if ((c === 'NOVA' || c === 'CASTRO') && c !== conta) setConta(c);
       notaDoLink.current = sp.get('nota');
+      const idade = sp.get('idade');
+      if (idade === 'esquecidas') setIdadeFiltro('esquecida');
+      else if (idade === 'antigas') setIdadeFiltro('antiga');
     } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -437,7 +443,7 @@ export default function RecebimentosPage() {
   const recs = useMemo(() => dados?.recebimentos || [], [dados]);
   const contagens = useMemo(() => {
     const porTipo: Record<string, number> = {};
-    let garantia = 0, semResp = 0, minhas = 0, valor = 0, paradas = 0;
+    let garantia = 0, semResp = 0, minhas = 0, valor = 0, paradas = 0, esquecidas = 0, antigas = 0;
     for (const r of recs) {
       const t = r.tipo || '';
       if (t) porTipo[t] = (porTipo[t] || 0) + 1;
@@ -446,8 +452,11 @@ export default function RecebimentosPage() {
       if (userProfile?.id && r.responsavelUserId === userProfile.id) minhas++;
       valor += Number(r.valorNFe) || 0;
       if ((diasDesde(r.dataEmissao) || 0) > 30) paradas++;
+      const fx = faixaParada(diasDesde(r.dataEmissao));
+      if (fx === 'esquecida') esquecidas++;
+      else if (fx === 'antiga') antigas++;
     }
-    return { total: recs.length, porTipo, garantia, semResp, minhas, valor, paradas };
+    return { total: recs.length, porTipo, garantia, semResp, minhas, valor, paradas, esquecidas, antigas };
   }, [recs, userProfile?.id]);
 
   const lista = useMemo(() => {
@@ -456,6 +465,7 @@ export default function RecebimentosPage() {
       if (respFiltro === 'me' && !(userProfile?.id && r.responsavelUserId === userProfile.id)) return false;
       if (respFiltro === '__nenhum__' && r.responsavelUserId) return false;
       if (soGarantia && !r.temSinalGarantia) return false;
+      if (idadeFiltro && faixaParada(diasDesde(r.dataEmissao)) !== idadeFiltro) return false;
       if (busca.trim() && !casaBusca(r as unknown as RecebNorm, busca)) return false;
       return true;
     });
@@ -473,7 +483,7 @@ export default function RecebimentosPage() {
       l = [...l].sort((a, b) => (aba === 'pendentes' ? tsEmissao(a.dataEmissao) - tsEmissao(b.dataEmissao) : tsEmissao(b.dataEmissao) - tsEmissao(a.dataEmissao)));
     }
     return l;
-  }, [recs, tipoFiltro, respFiltro, soGarantia, busca, filtros, sort, userProfile?.id, aba]);
+  }, [recs, tipoFiltro, respFiltro, soGarantia, idadeFiltro, busca, filtros, sort, userProfile?.id, aba]);
 
   const temFiltro = Object.values(filtros).some((v) => v && v.trim());
   const temAtalho = !!tipoFiltro || respFiltro !== 'todas' || soGarantia;
@@ -545,6 +555,10 @@ export default function RecebimentosPage() {
             <Toggle value={respFiltro} onChange={(v) => setRespFiltro(v as typeof respFiltro)}
               options={[{ v: 'todas', l: 'Todas' }, { v: 'me', l: `Minhas (${contagens.minhas})` }, { v: '__nenhum__', l: `Sem responsável (${contagens.semResp})` }]} />
             <Chip label="Garantia" active={soGarantia} count={contagens.garantia} onClick={() => setSoGarantia((s) => !s)} />
+            {aba === 'pendentes' && <>
+              <Chip label={`Esquecidas (${DIAS_ESQUECIDA}–${DIAS_ANTIGA} dias)`} active={idadeFiltro === 'esquecida'} count={contagens.esquecidas} onClick={() => setIdadeFiltro((v) => (v === 'esquecida' ? '' : 'esquecida'))} />
+              <Chip label={`Paradas +${DIAS_ANTIGA} dias`} active={idadeFiltro === 'antiga'} count={contagens.antigas} onClick={() => setIdadeFiltro((v) => (v === 'antiga' ? '' : 'antiga'))} />
+            </>}
             <button onClick={toggleProdutos} title="Mostra/esconde os produtos de cada NF"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: mostrarProdutos ? '#eef2ff' : '#fff', color: '#334155', cursor: 'pointer', fontSize: '.74rem' }}>
               {mostrarProdutos ? '▾ Esconder produtos' : '▸ Mostrar produtos'}

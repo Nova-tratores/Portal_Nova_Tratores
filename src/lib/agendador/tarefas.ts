@@ -665,6 +665,12 @@ export const TAREFAS: Record<string, Tarefa> = {
     return rodarAvisosVendas(momento);
   },
 
+  'recebimentos-esquecidos': async () => {
+    if (desligada('RECEB_ESQUECIDOS')) return { pular: 'desligado (RECEB_ESQUECIDOS=off)' };
+    const { vigiarRecebimentosEsquecidos } = await import('@/lib/estoque/recebimentos-esquecidos-server');
+    return vigiarRecebimentosEsquecidos();
+  },
+
   'requisicoes-lembretes': async () => {
     if (desligada('REQ_LEMBRETES')) return { pular: 'desligado (REQ_LEMBRETES=off)' };
     const { vigiarRequisicoes } = await import('@/lib/requisicoes/lembretes-server');
