@@ -56,5 +56,8 @@ export const CSS_PM = `
   .pm-modal-fundo { padding: 0; }
   .pm-modal { width: 100%; max-height: 100dvh; height: 100dvh; border-radius: 0; }
   .pm-faixa-dir .pm-txt-longo { display: none; }
+  /* celular: Quadro/Relação/Painel numa linha e Como ler/Novo pedido na de baixo (antes ficavam escondidos na barra que rola) */
+  .pm-faixa.leve { flex-wrap: wrap; }
+  .pm-faixa.leve .pm-faixa-dir { margin-left: 0; width: 100%; justify-content: flex-end; }
 }
 `;

@@ -103,8 +103,21 @@ async function executar(req: NextRequest) {
     }
   }
 
+  // ── Devoluções em garantia (NF de retorno) sem garantia ligada ───────────
+  // Um aviso por rodada com todas; cada devolução volta a ser lembrada a cada 7 dias até
+  // alguém ligar à garantia ou marcar "sem garantia no portal".
+  let vinculo: { avisadas: number; pulado?: string; erro?: string } = { avisadas: 0 };
+  try {
+    const { lembrarVinculosPendentes } = await import('@/lib/garantias/retorno-vinculo-server');
+    vinculo = await lembrarVinculosPendentes(hoje, ha6dias);
+  } catch (e) {
+    console.warn('[garantias/devolucoes] vínculo das devoluções pulado:', (e as Error).message);
+    vinculo = { avisadas: 0, erro: (e as Error).message };
+  }
+
   return NextResponse.json({
     ok: true,
+    devolucoes_sem_garantia: vinculo,
     candidatos: (pendentes || []).length,
     alertados,
     guarda_candidatos: guardaCandidatos,

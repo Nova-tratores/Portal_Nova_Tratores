@@ -91,6 +91,62 @@ const thSortR: React.CSSProperties = { ...thStyle, cursor: 'pointer', userSelect
 const thFiltroStyle: React.CSSProperties = { background: '#f8fafc', padding: '0 6px 6px', borderBottom: '1px solid #e2e8f0' };
 const filtroInput: React.CSSProperties = { width: '100%', minWidth: 60, border: '1px solid #cbd5e1', borderRadius: 4, padding: '3px 6px', fontSize: '.72rem', fontWeight: 400 };
 
+// Colunas com lista de marcar/desmarcar no menu do cabecalho (estilo planilha).
+const COLS_LISTA = new Set(['criadoPor', 'etapa']);
+const COLS_NUMERICAS = new Set(['inclusao', 'dias', 'parado', 'itens', 'valor']);
+const SEM_VALOR = '(vazio)';
+// Valor exibido/agrupado por coluna (o mesmo da celula).
+function chaveLista(col: string, p: Pedido): string {
+  const v = col === 'criadoPor' ? (p.criadoPorNome || p.criadoPorLogin || '') : col === 'etapa' ? (p.etapaNome || p.etapa || '') : '';
+  return v.trim() || SEM_VALOR;
+}
+function escHtml(s: unknown): string {
+  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Uma folha (ou mais, se nao couber) por usuario que criou, com a lista e a
+// ordem que estao na tela. Abre numa janela e chama a impressao.
+function htmlFolhasPorUsuario(lista: Pedido[], conta: string, filtrosTxt: string): string {
+  const grupos = new Map<string, Pedido[]>();
+  for (const p of lista) {
+    const k = chaveLista('criadoPor', p);
+    if (!grupos.has(k)) grupos.set(k, []);
+    grupos.get(k)!.push(p);
+  }
+  const nomes = [...grupos.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const folhas = nomes.map((nome) => {
+    const ps = grupos.get(nome)!;
+    const total = ps.reduce((s, p) => s + (p.valorTotal || 0), 0);
+    const linhas = ps.map((p) => {
+      const dias = diasDesdeBR(p.dataInclusao || p.dataPrevisao);
+      const parado = p.diasParadoEtapa != null ? p.diasParadoEtapa : diasDesdeBR(p.dataAlteracao || p.dataInclusao);
+      return `<tr><td class="mono">${escHtml(p.numero || '?')}</td><td>${escHtml(p.dataInclusao || p.dataPrevisao || '')}</td>`
+        + `<td class="r">${dias ?? '-'}</td><td class="r">${parado ?? '-'}</td>`
+        + `<td>${escHtml(p.nomeCliente || ('cli #' + (p.codigoCliente || '?')))}</td>`
+        + `<td>${escHtml(p.etapaNome || p.etapa || '')}</td><td class="r">${(p.itens || []).length}</td>`
+        + `<td class="r">${escHtml(fmtBRL(p.valorTotal))}</td><td class="ok"></td></tr>`;
+    }).join('');
+    return `<section class="folha"><header><div><h1>${escHtml(nome)}</h1>`
+      + `<div class="sub">Pedidos de venda abertos · ${escHtml(conta.toUpperCase())}${filtrosTxt ? ' · ' + escHtml(filtrosTxt) : ''}</div></div>`
+      + `<div class="tot"><b>${ps.length}</b> pedido${ps.length === 1 ? '' : 's'}<br><b>${escHtml(fmtBRL(total))}</b></div></header>`
+      + `<table><thead><tr><th>Número</th><th>Inclusão</th><th class="r">Dias</th><th class="r">Parado</th><th>Cliente</th><th>Etapa</th><th class="r">Itens</th><th class="r">Valor</th><th>Conferido</th></tr></thead>`
+      + `<tbody>${linhas}</tbody></table><footer>Gerado em ${escHtml(agora)} · Portal Nova Tratores</footer></section>`;
+  }).join('');
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Pedidos abertos por usuário</title><style>
+@page{size:A4 landscape;margin:10mm}
+*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:0;background:#fff}
+.folha{page-break-after:always;break-after:page;padding:4mm 0}.folha:last-child{page-break-after:auto;break-after:auto}
+header{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1f2937;padding-bottom:6px;margin-bottom:8px}
+h1{font-size:18px;margin:0 0 2px}.sub{font-size:11px;color:#555}.tot{text-align:right;font-size:12px;line-height:1.4}
+table{width:100%;border-collapse:collapse;font-size:10.5px}thead{display:table-header-group}
+th{background:#1f2937;color:#fff;text-align:left;padding:4px 6px;font-size:9.5px;text-transform:uppercase;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+td{padding:4px 6px;border-bottom:1px solid #ddd}tr{page-break-inside:avoid}tbody tr:nth-child(even) td{background:#f3f4f6;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.r{text-align:right}.mono{font-family:monospace}.ok{width:70px;border-left:1px solid #ddd}
+footer{margin-top:8px;font-size:9px;color:#888}
+</style></head><body>${folhas || '<p>Nenhum pedido na lista.</p>'}<script>window.onload=function(){setTimeout(function(){window.print()},200)}</script></body></html>`;
+}
+
 export default function PedidosPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
@@ -127,6 +183,19 @@ export default function PedidosPage() {
     setOrdem((o) => (o && o.col === col ? (o.dir === 'asc' ? { col, dir: 'desc' } : null) : { col, dir: 'asc' }));
   }, []);
   const setaCol = (col: string) => (ordem?.col === col ? (ordem.dir === 'asc' ? ' ▲' : ' ▼') : '');
+  // valores desmarcados por coluna (lista de marcar no menu do cabecalho)
+  const [excluidos, setExcluidos] = useState<Record<string, string[]>>({});
+  // menu aberto do cabecalho (posicao fixa: o container da tabela rola e cortaria)
+  const [menu, setMenu] = useState<{ col: string; x: number; y: number } | null>(null);
+  const [buscaMenu, setBuscaMenu] = useState('');
+  const abrirMenu = useCallback((col: string, ev: React.MouseEvent) => {
+    ev.stopPropagation();
+    const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+    const largura = 250;
+    const x = Math.max(8, Math.min(r.left, window.innerWidth - largura - 8));
+    setBuscaMenu('');
+    setMenu((m) => (m && m.col === col ? null : { col, x, y: r.bottom + 4 }));
+  }, []);
 
   const buscarAbertos = useCallback(async (force: boolean) => {
     if (!conta) return;
@@ -256,6 +325,11 @@ export default function PedidosPage() {
       if (!acc) continue;
       arr = arr.filter((p) => String(acc(p)).toLowerCase().includes(t));
     }
+    for (const [col, fora] of Object.entries(excluidos)) {
+      if (!fora.length) continue;
+      const set = new Set(fora);
+      arr = arr.filter((p) => !set.has(chaveLista(col, p)));
+    }
     if (ordem) {
       const acc = ACESSO[ordem.col];
       if (acc) {
@@ -267,7 +341,43 @@ export default function PedidosPage() {
       }
     }
     return arr;
-  }, [peds, filtros, ordem]);
+  }, [peds, filtros, excluidos, ordem]);
+
+  // opcoes da lista do menu aberto (com contagem sobre todos os pedidos carregados)
+  const opcoesMenu = useMemo(() => {
+    if (!menu || !COLS_LISTA.has(menu.col)) return [];
+    const cont = new Map<string, number>();
+    for (const p of peds) { const k = chaveLista(menu.col, p); cont.set(k, (cont.get(k) || 0) + 1); }
+    return [...cont.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR')).map(([valor, n]) => ({ valor, n }));
+  }, [menu, peds]);
+
+  const imprimirPorUsuario = useCallback(() => {
+    if (!pedsView.length) { alert('Nenhum pedido na lista para imprimir.'); return; }
+    const partes: string[] = [];
+    if (de || ate) partes.push(`inclusão ${de ? de.split('-').reverse().join('/') : '…'} a ${ate ? ate.split('-').reverse().join('/') : '…'}`);
+    if ((excluidos.etapa || []).length) partes.push('etapas filtradas');
+    if (Object.values(filtros).some((v) => v.trim())) partes.push('com filtro');
+    const w = window.open('', '_blank');
+    if (!w) { alert('O navegador bloqueou a janela de impressão. Libere pop-ups para o portal.'); return; }
+    w.document.open();
+    w.document.write(htmlFolhasPorUsuario(pedsView, conta || '', partes.join(' · ')));
+    w.document.close();
+  }, [pedsView, conta, de, ate, excluidos, filtros]);
+
+  const thMenu = (col: string, rotulo: string, direita = false) => {
+    const ativo = ordem?.col === col || (excluidos[col] || []).length > 0;
+    return (
+      <th style={direita ? thSortR : thSort} onClick={() => toggleOrdem(col)} title="Clique para ordenar A→Z / Z→A">
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {rotulo}{setaCol(col)}
+          <button type="button" onClick={(e) => abrirMenu(col, e)} aria-label={`Ordenar e filtrar ${rotulo}`} title="Ordenar e filtrar"
+            style={{ border: '1px solid ' + (ativo ? '#2563eb' : '#cbd5e1'), background: ativo ? '#dbeafe' : '#fff', color: ativo ? '#1d4ed8' : '#64748b', borderRadius: 4, fontSize: '.6rem', lineHeight: 1, padding: '3px 5px', cursor: 'pointer', minWidth: 20 }}>
+            ▾{(excluidos[col] || []).length ? ' •' : ''}
+          </button>
+        </span>
+      </th>
+    );
+  };
 
   if (!permLoading && userProfile && !pode('ajustes', 'pedidos')) return <SemPermissao />;
 
@@ -298,6 +408,7 @@ export default function PedidosPage() {
               <button onClick={() => exportar('csv')} style={{ padding: '7px 12px', background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>CSV</button>
               <button onClick={() => exportar('xlsx')} title="Excel (.xlsx) com datas e valores ja' tipados" style={{ padding: '7px 12px', background: '#dcfce7', color: '#166534', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Excel</button>
               <button onClick={() => exportar('pdf')} style={{ padding: '7px 12px', background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>PDF</button>
+              <button onClick={imprimirPorUsuario} disabled={!pedsView.length} title="Uma folha para cada usuario que criou, com os filtros e a ordem da tela" style={{ padding: '7px 12px', minHeight: 34, background: '#1e293b', color: '#fefefe', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: pedsView.length ? 'pointer' : 'not-allowed', opacity: pedsView.length ? 1 : 0.5 }}>Imprimir por usuário</button>
             </>
           )}
           <ContaSelector />
@@ -322,7 +433,7 @@ export default function PedidosPage() {
         <span style={{ padding: '3px 8px', borderRadius: 6, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e' }}>
           ⚠ O encerramento informal e&apos; <b>irreversivel pelo app</b> (baixa de estoque + cancelamento do pedido). Conferir os itens antes.
         </span>
-        <span style={{ marginLeft: 'auto', color: '#64748b' }}>{carregando ? 'Carregando…' : statusMsg}</span>
+        <span style={{ marginLeft: 'auto', color: '#64748b' }}>{carregando ? 'Carregando…' : statusMsg}{!carregando && modo === 'abertos' && peds.length > 0 && pedsView.length !== peds.length ? ` · mostrando ${fmtNum(pedsView.length)} de ${fmtNum(peds.length)}` : ''}</span>
       </div>
 
       {erro && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem' }}>{erro}</div>}
@@ -338,15 +449,15 @@ export default function PedidosPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th style={thSort} onClick={() => toggleOrdem('numero')}>Numero{setaCol('numero')}</th>
-                    <th style={thSort} onClick={() => toggleOrdem('inclusao')}>Inclusao{setaCol('inclusao')}</th>
-                    <th style={thSortR} onClick={() => toggleOrdem('dias')}>Dias{setaCol('dias')}</th>
-                    <th style={thSortR} onClick={() => toggleOrdem('parado')}>Parado{setaCol('parado')}</th>
-                    <th style={thSort} onClick={() => toggleOrdem('cliente')}>Cliente{setaCol('cliente')}</th>
-                    <th style={thSort} onClick={() => toggleOrdem('criadoPor')}>Criado por{setaCol('criadoPor')}</th>
-                    <th style={thSort} onClick={() => toggleOrdem('etapa')}>Etapa{setaCol('etapa')}</th>
-                    <th style={thSortR} onClick={() => toggleOrdem('itens')}>Itens{setaCol('itens')}</th>
-                    <th style={thSortR} onClick={() => toggleOrdem('valor')}>Valor{setaCol('valor')}</th>
+                    {thMenu('numero', 'Numero')}
+                    {thMenu('inclusao', 'Inclusao')}
+                    {thMenu('dias', 'Dias', true)}
+                    {thMenu('parado', 'Parado', true)}
+                    {thMenu('cliente', 'Cliente')}
+                    {thMenu('criadoPor', 'Criado por')}
+                    {thMenu('etapa', 'Etapa')}
+                    {thMenu('itens', 'Itens', true)}
+                    {thMenu('valor', 'Valor', true)}
                     <th style={{ ...thStyle, textAlign: 'right' }}>Acao</th>
                   </tr>
                   <tr>
@@ -440,6 +551,57 @@ export default function PedidosPage() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Menu do cabecalho: ordenar A→Z / Z→A + marcar/desmarcar valores */}
+      {menu && (
+        <>
+          <div onClick={() => setMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 60 }} />
+          <div style={{ position: 'fixed', left: menu.x, top: Math.min(menu.y, window.innerHeight - 120), zIndex: 61, width: 250, maxWidth: 'calc(100vw - 16px)', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.18)', padding: 8, fontSize: '.8rem', color: '#334155' }}>
+            {(() => {
+              const num = COLS_NUMERICAS.has(menu.col);
+              const op = (dir: 'asc' | 'desc', rot: string) => (
+                <button type="button" onClick={() => { setOrdem({ col: menu.col, dir }); setMenu(null); }}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', minHeight: 40, border: 'none', borderRadius: 6, cursor: 'pointer', background: ordem?.col === menu.col && ordem.dir === dir ? '#dbeafe' : 'transparent', color: '#1e293b', fontSize: '.82rem' }}>
+                  {rot}
+                </button>
+              );
+              return (<>
+                {op('asc', num ? (menu.col === 'inclusao' ? 'Mais antigo → mais novo' : 'Menor → maior') : 'Ordenar A → Z')}
+                {op('desc', num ? (menu.col === 'inclusao' ? 'Mais novo → mais antigo' : 'Maior → menor') : 'Ordenar Z → A')}
+                {ordem?.col === menu.col && (
+                  <button type="button" onClick={() => { setOrdem(null); setMenu(null); }} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px', border: 'none', background: 'transparent', color: '#64748b', cursor: 'pointer', fontSize: '.74rem' }}>Tirar ordenação</button>
+                )}
+              </>);
+            })()}
+            {COLS_LISTA.has(menu.col) && (() => {
+              const fora = new Set(excluidos[menu.col] || []);
+              const t = buscaMenu.trim().toLowerCase();
+              const visiveis = opcoesMenu.filter((o) => !t || o.valor.toLowerCase().includes(t));
+              const setFora = (s: Set<string>) => setExcluidos((e) => ({ ...e, [menu.col]: [...s] }));
+              return (
+                <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 6, paddingTop: 6 }}>
+                  <input value={buscaMenu} onChange={(e) => setBuscaMenu(e.target.value)} placeholder="Procurar…" autoFocus style={{ ...filtroInput, padding: '6px 8px', fontSize: '.8rem', marginBottom: 6 }} />
+                  <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
+                    <button type="button" onClick={() => { const s = new Set(fora); visiveis.forEach((o) => s.delete(o.valor)); setFora(s); }} style={{ flex: 1, padding: '6px', minHeight: 32, border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: 6, cursor: 'pointer', fontSize: '.74rem' }}>Marcar todos</button>
+                    <button type="button" onClick={() => { const s = new Set(fora); visiveis.forEach((o) => s.add(o.valor)); setFora(s); }} style={{ flex: 1, padding: '6px', minHeight: 32, border: '1px solid #cbd5e1', background: '#f8fafc', borderRadius: 6, cursor: 'pointer', fontSize: '.74rem' }}>Desmarcar todos</button>
+                  </div>
+                  <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+                    {visiveis.length === 0 && <div style={{ padding: 8, color: '#94a3b8', fontSize: '.74rem' }}>Nada encontrado.</div>}
+                    {visiveis.map((o) => (
+                      <label key={o.valor} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 6px', minHeight: 36, cursor: 'pointer', borderRadius: 4 }}>
+                        <input type="checkbox" checked={!fora.has(o.valor)} onChange={() => { const s = new Set(fora); if (s.has(o.valor)) s.delete(o.valor); else s.add(o.valor); setFora(s); }} style={{ width: 16, height: 16 }} />
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: o.valor === SEM_VALOR ? '#94a3b8' : '#1e293b' }}>{o.valor}</span>
+                        <span style={{ color: '#94a3b8', fontSize: '.7rem' }}>{o.n}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div style={{ fontSize: '.7rem', color: '#64748b', marginTop: 4 }}>{opcoesMenu.length - fora.size} de {opcoesMenu.length} marcados</div>
+                </div>
+              );
+            })()}
+          </div>
+        </>
       )}
 
       {/* Modal de encerramento */}

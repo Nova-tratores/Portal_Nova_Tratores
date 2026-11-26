@@ -86,6 +86,8 @@ export async function PATCH(req: Request) {
     const quem = autor(g.user);
 
     if (moverFase) {
+      // clicar na fase em que o pedido já está não muda nada (antes gravava "Fase: X → X" no histórico)
+      if (p.status === String(b.status)) return Response.json({ ok: true, semMudanca: true });
       const erro = podeMoverPara(p.status, String(b.status), { enviado: !!p.pedido_omie });
       if (erro) throw new ErroPedido(409, erro);
       const { error } = await supabaseAdmin.from(T.pedidos).update({ status: b.status }).eq('id', p.id);

@@ -278,7 +278,7 @@ function BuscaCliente({ nome, doc, disabled, onEscolher }: { nome: string | null
     return () => clearTimeout(t);
   }, [q]);
   return (
-    <div className="pm-campo" style={{ position: 'relative', gridColumn: 'span 2' }}>
+    <div className="pm-campo" style={{ position: 'relative', gridColumn: '1 / -1' }}>
       <span className="pm-lbl">Cliente *</span>
       {!aberto ? (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', minHeight: 40, flexWrap: 'wrap' }}>

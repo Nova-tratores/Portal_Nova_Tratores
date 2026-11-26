@@ -18,6 +18,8 @@ const COR_EVENTO: Record<string, string> = {
   devolucao_prazo: '#b45309',
   devolucao_dispensar: '#64748b',
   devolucao_reabrir: '#b45309',
+  devolucao_ligada: '#b45309',
+  devolucao_desligada: '#64748b',
   aprovada: '#16a34a',
   rejeitada: '#dc2626',
   localizacao: '#0d9488',
