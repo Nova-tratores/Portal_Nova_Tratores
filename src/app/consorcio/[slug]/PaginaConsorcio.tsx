@@ -11,6 +11,7 @@
 // Cliente:  topo (contagem/local) → faixa → carta → condições → cartas maiores → como recebe → como nos encontrar → sorteio.
 // Vendedor: barra → FICHA → o mesmo conteúdo (para mostrar ao cliente no tablet).
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { authHeaders } from '@/lib/auth/client';
 import {
   lerConfig, parcela, porDia, creditoComEmbutido, totalPago, totalComTaxas, reais, numeroSorte, modelosUnicos, parcelaComDesconto, modeloDestaque, lanceDoBolso, whatsappDoAtendimento, faseDoEvento, linkDoMapa,
   mapaEmbutido, datasVivas, diasAte, grupoDaUrgencia, periodoCurto, type ConfigConsorcio,
@@ -536,6 +537,7 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
   const [pContemp, setPContemp] = useState('');
   const [pObs, setPObs] = useState('');
   const [editandoVendedor, setEditandoVendedor] = useState(false);
+  const [verLeads, setVerLeads] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   // 26/11 (José): número da sorte EM ESPERA na ficha do vendedor — no lugar dele, a proposta em PDF vai para o WhatsApp do cliente
@@ -694,6 +696,7 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
 
     return (
       <div ref={topo} className="cs-sorte">
+        {verLeads && <PainelLeads slug={slug} pendentes={pendentes} onFechar={() => setVerLeads(false)} />}
         {avisoFila}
         {resultado.offline ? (
           <p><b>Sem internet: a ficha de {primeiroNome} ficou salva neste aparelho.</b> Quando a internet voltar, ela vai sozinha e a proposta em PDF segue para o WhatsApp do cliente.</p>
@@ -709,7 +712,9 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
           {!resultado.pdf?.enviado && !resultado.offline && (
             <a className="cs-btn cs-btn-zap" href={linkCliente} target="_blank" rel="noopener noreferrer">Mandar resumo em texto</a>
           )}
+          <button className="cs-btn cs-btn-claro" onClick={() => { setResultado(null); requestAnimationFrame(() => topo.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })); }}>Editar cliente</button>
           <button className="cs-btn cs-btn-claro" onClick={proximo}>+ Próximo cliente</button>
+          <button className="cs-btn cs-btn-claro" onClick={() => setVerLeads(true)}>Ver leads</button>
         </div>
         <details className="cs-f-resumo"><summary>Ver o resumo que vai para o cliente</summary><pre className="cs-resumo">{texto}</pre></details>
       </div>
@@ -721,6 +726,8 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
   // temperatura em 3 botões grandes; o resto em "Mais detalhes (opcional)"; botão de salvar sempre à vista.
   return (
     <div ref={topo} className="cs-ficha cs-ficha-rapida">
+      {verLeads && <PainelLeads slug={slug} pendentes={pendentes} onFechar={() => setVerLeads(false)} />}
+      <button type="button" className="cs-f-leads" onClick={() => setVerLeads(true)}>Ver leads</button>
       {!ev.ativo ? (
         <div className="cs-vazio">As inscrições deste evento estão encerradas.</div>
       ) : (
@@ -850,6 +857,102 @@ function Ficha({ slug, ev, cfg, modelos, rastreio, assembleia, interesse, setInt
           </div>
         </form>
       )}
+    </div>
+  );
+}
+
+// 26/11 (José): "um modal onde vemos o total de leads, separado por vendedor, e a gente vê tudo".
+// Só com login do portal (a rota recusa sem): a ficha é aberta, a lista de clientes não.
+const TEMP_TXT: Record<string, string> = { quente: 'Quente', morno: 'Morno', frio: 'Frio' };
+function PainelLeads({ slug, pendentes, onFechar }: { slug: string; pendentes: number; onFechar: () => void }) {
+  const [estado, setEstado] = useState<'carregando' | 'login' | 'erro' | 'ok'>('carregando');
+  const [erroTxt, setErroTxt] = useState('');
+  const [leads, setLeads] = useState<any[]>([]);
+  const [filtro, setFiltro] = useState<string>('');
+  const [aberto, setAberto] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch(`/api/consorcio/${encodeURIComponent(slug)}/leads`, { headers: await authHeaders(), cache: 'no-store' });
+        if (r.status === 401) { setEstado('login'); return; }
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'Não deu para carregar.');
+        setLeads(j.leads || []); setEstado('ok');
+      } catch (e: any) { setErroTxt(navigator.onLine === false ? 'Sem internet agora. O painel precisa de internet.' : e.message); setEstado('erro'); }
+    })();
+  }, [slug]);
+  useEffect(() => { const f = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar(); }; window.addEventListener('keydown', f); return () => window.removeEventListener('keydown', f); }, [onFechar]);
+
+  const quemDe = (l: any) => (l.vendedor || '').trim() || 'Página (QR code)';
+  const porVendedor = useMemo(() => {
+    const m = new Map<string, any[]>();
+    for (const l of leads) { const k = quemDe(l); m.set(k, [...(m.get(k) || []), l]); }
+    return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
+  }, [leads]);
+  const lista = filtro ? leads.filter((l) => quemDe(l) === filtro) : leads;
+  const conta = (t: string) => lista.filter((l) => l.temperatura === t).length;
+  const dt = (iso?: string | null) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? `${m[3]}/${m[2]}` : ''; };
+  const hora = (iso: string) => { try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
+
+  return (
+    <div className="cs-modal" role="dialog" aria-modal="true" aria-label="Leads do evento" onClick={(e) => { if (e.target === e.currentTarget) onFechar(); }}>
+      <div className="cs-modal-caixa">
+        <div className="cs-modal-topo">
+          <div><small>Leads do evento</small><b>{estado === 'ok' ? lista.length : '…'}</b>{filtro && <span> de {filtro}</span>}</div>
+          <button type="button" onClick={onFechar} aria-label="Fechar">Fechar</button>
+        </div>
+        {pendentes > 0 && <p className="cs-modal-aviso">{pendentes} ficha(s) deste aparelho ainda esperando internet (não entram na conta até serem enviadas).</p>}
+        {estado === 'carregando' && <p className="cs-modal-msg">Carregando…</p>}
+        {estado === 'erro' && <p className="cs-modal-msg">{erroTxt}</p>}
+        {estado === 'login' && (
+          <div className="cs-modal-msg">
+            <p>Para ver os leads, entre no portal neste aparelho.</p>
+            <a className="cs-btn" href={`/login?redirect_to=${encodeURIComponent(typeof location !== 'undefined' ? location.pathname : '/')}`}>Entrar no portal</a>
+          </div>
+        )}
+        {estado === 'ok' && (<>
+          <div className="cs-modal-vend">
+            <button type="button" aria-pressed={!filtro} onClick={() => setFiltro('')}>Todos <i>{leads.length}</i></button>
+            {porVendedor.map(([v, ls]) => (
+              <button key={v} type="button" aria-pressed={filtro === v} onClick={() => setFiltro(filtro === v ? '' : v)}>{v} <i>{ls.length}</i></button>
+            ))}
+          </div>
+          <div className="cs-modal-temp">
+            <span className="q">Quente <b>{conta('quente')}</b></span><span className="m">Morno <b>{conta('morno')}</b></span><span className="f">Frio <b>{conta('frio')}</b></span>
+          </div>
+          {!lista.length && <p className="cs-modal-msg">Nenhum lead ainda.</p>}
+          <div className="cs-modal-lista">
+            {lista.map((l) => {
+              const ab = aberto === l.id;
+              const det: [string, string][] = ([
+                ['WhatsApp', l.telefone], ['Cidade', l.cidade], ['Endereço', l.endereco], ['Como chegou', l.vinda_de],
+                ['Trator', l.interesse], ['Crédito', l.credito ? reais(Number(l.credito), 0) : ''], ['Parcela', l.parcela ? reais(Number(l.parcela)) : ''],
+                ['Prazo', l.prazo_meses ? `${l.prazo_meses} meses` : ''], ['Embutido', l.embutido_pct ? `${l.embutido_pct}%` : ''],
+                ['Lance próprio', l.lance_proprio ? reais(Number(l.lance_proprio), 0) : ''], ['Contemplação', l.prazo_contemplacao],
+                ['Obs. da proposta', l.proposta_obs], ['Já tem trator', l.tem_trator == null ? '' : l.tem_trator ? 'Sim' : 'Não'],
+                ['Usado para lance', l.usado_para_lance ? `Sim${l.usado_descricao ? ` (${l.usado_descricao})` : ''}` : l.usado_para_lance === false ? 'Não' : ''],
+                ['Retorno', l.proximo_passo ? `${l.proximo_passo}${l.proximo_passo_data ? ` em ${dt(l.proximo_passo_data)}` : ''}` : ''],
+                ['Fechou em', dt(l.fechamento_data)], ['Observação', l.observacao], ['Vendedor', quemDe(l)], ['Cadastrado', hora(l.criado_em)],
+              ] as [string, string][]).filter(([, v]) => v);
+              return (
+                <div key={l.id} className="cs-lead">
+                  <button type="button" className="cs-lead-cab" aria-expanded={ab} onClick={() => setAberto(ab ? null : l.id)}>
+                    <span className={`cs-lead-t cs-lead-t-${l.temperatura || 'x'}`}>{TEMP_TXT[l.temperatura] || '-'}</span>
+                    <span className="cs-lead-n"><b>{l.nome}</b><small>{[l.interesse, l.cidade].filter(Boolean).join(' · ') || l.telefone}</small></span>
+                    <span className="cs-lead-v">{quemDe(l)}</span>
+                  </button>
+                  {ab && (
+                    <dl className="cs-lead-det">
+                      {det.map(([k, v]) => <Fragment key={k}><dt>{k}</dt><dd>{k === 'WhatsApp' ? <a href={`https://wa.me/55${String(v).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">{v}</a> : v}</dd></Fragment>)}
+                    </dl>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>)}
+      </div>
     </div>
   );
 }
@@ -1652,6 +1755,38 @@ a.cs-btn-contorno{display:flex;align-items:center;justify-content:center;text-de
 .cs-f-fila button{margin-left:8px;border:0;background:var(--grafite);color:#fff;border-radius:8px;padding:2px 10px;font-weight:700;cursor:pointer}
 .cs-f-fila-ok{color:#1d6b35}
 .cs-f-fila-erro{color:var(--vermelho-esc)}
+.cs-f-leads{display:block;margin:0 0 10px auto;border:1.5px solid var(--borda);background:#fff;color:var(--preto);font-family:var(--fonte);font-weight:700;font-size:.9rem;border-radius:999px;padding:8px 16px;cursor:pointer}
+.cs-modal{position:fixed;inset:0;z-index:60;background:rgba(20,18,19,.55);display:flex;align-items:flex-end;justify-content:center}
+@media (min-width:700px){.cs-modal{align-items:center}}
+.cs-modal-caixa{background:#F4F4F5;width:100%;max-width:720px;max-height:92vh;overflow:auto;border-radius:20px 20px 0 0;padding:16px 16px 28px;font-family:var(--fonte);color:var(--preto)}
+@media (min-width:700px){.cs-modal-caixa{border-radius:20px}}
+.cs-modal-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;position:sticky;top:-16px;background:#F4F4F5;padding:4px 0 10px;z-index:1}
+.cs-modal-topo small{display:block;font-size:.8rem;color:var(--aco);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+.cs-modal-topo b{font-family:var(--titulo);font-size:2.2rem;line-height:1}
+.cs-modal-topo span{color:var(--aco);font-weight:600;margin-left:6px}
+.cs-modal-topo button{border:0;background:var(--grafite);color:#fff;border-radius:10px;padding:10px 16px;font-weight:700;font-family:var(--fonte);cursor:pointer}
+.cs-modal-aviso{background:#FFF7E0;border:1.5px solid var(--dourado);border-radius:12px;padding:8px 12px;font-size:.88rem;margin:0 0 10px}
+.cs-modal-msg{text-align:center;color:var(--aco);padding:24px 8px}
+.cs-modal-msg .cs-btn{margin-top:12px}
+.cs-modal-vend{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px}
+.cs-modal-vend button{flex:none;border:1.5px solid var(--borda);background:#fff;border-radius:999px;padding:8px 14px;font-family:var(--fonte);font-weight:700;font-size:.9rem;cursor:pointer;color:var(--preto)}
+.cs-modal-vend button[aria-pressed="true"]{background:var(--preto);border-color:var(--preto);color:#fff}
+.cs-modal-vend i{font-style:normal;margin-left:4px;opacity:.7}
+.cs-modal-temp{display:flex;gap:8px;margin-bottom:12px;font-size:.88rem;font-weight:700}
+.cs-modal-temp span{flex:1;background:#fff;border-radius:12px;padding:8px 10px;border-left:5px solid}
+.cs-modal-temp b{float:right}
+.cs-modal-temp .q{border-color:var(--vermelho)}.cs-modal-temp .m{border-color:var(--dourado)}.cs-modal-temp .f{border-color:#5B8DB8}
+.cs-modal-lista{display:grid;gap:8px}
+.cs-lead{background:#fff;border-radius:14px;box-shadow:0 1px 3px rgba(35,31,32,.08);overflow:hidden}
+.cs-lead-cab{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;padding:12px;text-align:left;font-family:var(--fonte);cursor:pointer;color:var(--preto)}
+.cs-lead-t{flex:none;font-size:.72rem;font-weight:800;text-transform:uppercase;border-radius:6px;padding:4px 7px;color:#fff;background:#9a9a9e}
+.cs-lead-t-quente{background:var(--vermelho)}.cs-lead-t-morno{background:#C9971F}.cs-lead-t-frio{background:#5B8DB8}
+.cs-lead-n{flex:1;min-width:0}.cs-lead-n b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cs-lead-n small{display:block;color:var(--aco);font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cs-lead-v{flex:none;font-size:.8rem;color:var(--aco);font-weight:700;max-width:30%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cs-lead-det{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:0;padding:4px 14px 14px;font-size:.9rem;border-top:1px dashed var(--borda)}
+.cs-lead-det dt{color:var(--aco);padding-top:6px}.cs-lead-det dd{margin:0;font-weight:700;padding-top:6px;word-break:break-word}
+.cs-lead-det a{color:#1d6b35}
 .cs-f-dica{margin:0 0 10px;font-size:13px;color:var(--aco)}
 .cs-f-mais[open]{padding-bottom:16px}
 .cs-f-mais > *:not(summary){margin-top:12px}
