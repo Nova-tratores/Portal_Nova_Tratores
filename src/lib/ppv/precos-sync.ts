@@ -51,7 +51,7 @@ export function linhaPrecoCompleto(p: OmieProduto, conta: Conta) {
   };
 }
 
-async function sincronizarConta(conta: Conta, de: string, ate: string): Promise<{ alterados: number; cadastro: number }> {
+async function sincronizarConta(conta: Conta, de: string, ate: string, filtro: 'alteracao' | 'inclusao' = 'alteracao'): Promise<{ alterados: number; cadastro: number }> {
   let pagina = 1;
   let totalPaginas = 1;
   let total = 0;
@@ -62,7 +62,8 @@ async function sincronizarConta(conta: Conta, de: string, ate: string): Promise<
       '/geral/produtos/', 'ListarProdutos',
       {
         pagina, registros_por_pagina: POR_PAGINA, apenas_importado_api: 'N', filtrar_apenas_omiepdv: 'N',
-        filtrar_apenas_alteracao: 'S', filtrar_por_data_de: de, filtrar_por_data_ate: ate, exibir_caracteristicas: 'N',
+        ...(filtro === 'inclusao' ? { filtrar_apenas_inclusao: 'S' } : { filtrar_apenas_alteracao: 'S' }),
+        filtrar_por_data_de: de, filtrar_por_data_ate: ate, exibir_caracteristicas: 'N',
       },
       { conta, retries: 2, maxWaitMs: 30_000 },
     );
@@ -86,20 +87,27 @@ async function sincronizarConta(conta: Conta, de: string, ate: string): Promise<
   return { alterados: total, cadastro };
 }
 
-/** Busca na Omie os produtos alterados nos últimos `dias` e atualiza a tabela de preços. */
+/** Busca na Omie os produtos alterados E os incluídos nos últimos `dias` e atualiza as tabelas.
+ *  Duas passadas por conta (alteração + inclusão): peça recém-cadastrada é justamente a que
+ *  trava o envio do PPV ("Produto não encontrado no Omie"). Cada passada é 1 página na prática. */
 export async function sincronizarPrecosAlterados(agora: Date = new Date(), dias = DIAS_JANELA): Promise<PrecosSyncConta[]> {
   const de = dataBR(new Date(agora.getTime() - dias * 86_400_000));
   const ate = dataBR(agora);
   const saida: PrecosSyncConta[] = [];
   for (const { id } of getContasOmie()) {
-    try {
-      saida.push({ conta: id, ...(await sincronizarConta(id, de, ate)) });
-    } catch (e) {
-      const msg = (e as Error).message;
-      // "não existem registros" = nenhum produto alterado na janela, não é erro
-      if (/n[ãa]o existem registros/i.test(msg)) saida.push({ conta: id, alterados: 0 });
-      else saida.push({ conta: id, alterados: 0, erro: msg });
+    let alterados = 0, cadastro = 0;
+    const erros: string[] = [];
+    for (const filtro of ['alteracao', 'inclusao'] as const) {
+      try {
+        const r = await sincronizarConta(id, de, ate, filtro);
+        alterados += r.alterados; cadastro += r.cadastro;
+      } catch (e) {
+        const msg = (e as Error).message;
+        // "não existem registros" = nenhum produto na janela, não é erro
+        if (!/n[ãa]o existem registros/i.test(msg)) erros.push(`${filtro}: ${msg}`);
+      }
     }
+    saida.push({ conta: id, alterados, cadastro, ...(erros.length ? { erro: erros.join(' | ') } : {}) });
   }
   return saida;
 }

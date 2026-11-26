@@ -134,8 +134,8 @@ export const api = {
     request<OSBusca[]>("/api/ppv/ordens-servico?abertas=1"),
 
   // --- Busca de Produtos ---
-  buscarProdutos: (termo: string) =>
-    request<ProdutoBusca[]>(`/api/ppv/produtos?termo=${encodeURIComponent(termo)}`),
+  buscarProdutos: (termo: string, empresa?: "nova" | "castro") =>
+    request<ProdutoBusca[]>(`/api/ppv/produtos?termo=${encodeURIComponent(termo)}${empresa ? `&empresa=${empresa}` : ""}`),
 
   produtosMaisUsados: () =>
     request<{ codigo: string; descricao: string; preco: number; usos: number }[]>("/api/ppv/produtos/mais-usados"),

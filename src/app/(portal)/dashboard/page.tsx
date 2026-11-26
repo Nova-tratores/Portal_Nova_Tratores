@@ -86,6 +86,16 @@ export default function DashboardPage() {
     clientes: true, projetos: true, produtos: true,
   })
 
+  // Link do PPV "Sincronizar peças" (/dashboard?sincronizar=produtos): abre a janela já só com Produtos
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('sincronizar') === 'produtos') {
+        setSyncSelection({ clientes: false, projetos: false, produtos: true })
+        setShowSync(true)
+      }
+    } catch { /* sem window */ }
+  }, [])
+
   // Favoritos: mesma chave de antes (ninguém perde os que já marcou)
   useEffect(() => {
     if (!userProfile?.id) return
@@ -630,7 +640,7 @@ export default function DashboardPage() {
               {([
                 { label: 'Clientes', key: 'clientes' as const },
                 { label: 'Projetos', key: 'projetos' as const },
-                { label: 'Produtos', key: 'produtos' as const },
+                { label: 'Produtos (só incluídos/alterados nos últimos 7 dias)', key: 'produtos' as const },
               ]).map(s => {
                 const selected = syncSelection[s.key]
                 const hasResult = !!syncResults?.[s.key]
@@ -673,7 +683,7 @@ export default function DashboardPage() {
                     </span>
                     {done && syncResults?.[s.key] && (
                       <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#16a34a', fontWeight: '600' }}>
-                        {syncResults[s.key].total} registros
+                        {syncResults[s.key].total} {s.key === 'produtos' && syncResults[s.key].rapido ? 'peças atualizadas' : 'registros'}
                       </span>
                     )}
                   </label>

@@ -68,6 +68,18 @@ export async function POST(req: NextRequest) {
   }
   if (tipo === "produtos") {
     try {
+      // Padrão: RÁPIDO — só o que foi incluído/alterado no Omie nos últimos 7 dias
+      // (segundos, em vez de baixar as ~12 mil peças). `completo=1` faz a carga inteira.
+      if (searchParams.get("completo") !== "1") {
+        const { sincronizarPrecosAlterados } = await import("@/lib/ppv/precos-sync");
+        const porConta = await sincronizarPrecosAlterados(new Date(), 7);
+        const erros = porConta.filter((c) => c.erro);
+        if (erros.length === porConta.length && erros.length > 0) {
+          return NextResponse.json({ sucesso: false, erro: erros.map((c) => `${c.conta}: ${c.erro}`).join(" | ") }, { status: 500 });
+        }
+        const total = porConta.reduce((s, c) => s + c.alterados, 0);
+        return NextResponse.json({ sucesso: true, resultado: { total, rapido: true, porConta } });
+      }
       const r = await syncProdutos();
       return NextResponse.json({ sucesso: true, resultado: r });
     } catch (err) {

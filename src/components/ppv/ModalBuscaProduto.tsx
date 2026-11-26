@@ -27,6 +27,8 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
   const [resultados, setResultados] = useState<ProdutoBusca[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [mensagem, setMensagem] = useState("Digite para pesquisar produtos...");
+  // Filtro de empresa da busca: todas | nova | castro
+  const [empresaFiltro, setEmpresaFiltro] = useState<"todas" | "nova" | "castro">("todas");
   const [verCatalogo, setVerCatalogo] = useState(false);
   const [editandoPreco, setEditandoPreco] = useState<{ idx: number; valor: string } | null>(null);
   const [salvandoPreco, setSalvandoPreco] = useState(false);
@@ -64,7 +66,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
       .catch(() => {});
   }, [open, mode, maisUsados.length, cacheProduct]);
 
-  const buscar = useCallback(async (searchTermo: string) => {
+  const buscar = useCallback(async (searchTermo: string, emp: "todas" | "nova" | "castro" = empresaFiltro) => {
     if (searchTermo.trim().length < 2) {
       setResultados([]);
       setMensagem("Digite ao menos 2 caracteres...");
@@ -73,15 +75,20 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
     setBuscando(true);
     setMensagem("");
     try {
-      const data = await api.buscarProdutos(searchTermo.trim());
+      const data = await api.buscarProdutos(searchTermo.trim(), emp === "todas" ? undefined : emp);
       setResultados(data);
       data.forEach((p) => cacheProduct(p.codigo, p.descricao, p.preco, p.empresa));
-      if (data.length === 0) setMensagem("Nenhum produto encontrado.");
+      if (data.length === 0) setMensagem(emp === "todas" ? "Nenhum produto encontrado." : `Nenhum produto encontrado na ${emp === "nova" ? "Nova" : "Castro"}.`);
     } catch {
       setMensagem("Erro na busca.");
     }
     setBuscando(false);
-  }, [cacheProduct]);
+  }, [cacheProduct, empresaFiltro]);
+
+  function trocarEmpresa(emp: "todas" | "nova" | "castro") {
+    setEmpresaFiltro(emp);
+    if (termo.trim().length >= 2) buscar(termo, emp);
+  }
 
   function handleChange(value: string) {
     setTermo(value);
@@ -269,6 +276,22 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
             )}
           </div>
 
+          {/* Filtro de empresa: Todas / Nova / Castro */}
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Empresa</span>
+            {([["todas", "Todas"], ["nova", "Nova"], ["castro", "Castro"]] as const).map(([v, rot]) => {
+              const ativo = empresaFiltro === v;
+              const cor = v === "castro" ? { bg: "#DBEAFE", fg: "#2563EB", bd: "#93C5FD" } : v === "nova" ? { bg: "#FEE2E2", fg: "#DC2626", bd: "#FCA5A5" } : { bg: "#F1F5F9", fg: "#334155", bd: "#CBD5E1" };
+              return (
+                <button key={v} type="button" onClick={() => trocarEmpresa(v)}
+                  className="rounded-full px-3.5 py-1 text-[12.5px] font-bold transition-colors"
+                  style={ativo ? { background: cor.fg, color: "#fff", border: `1px solid ${cor.fg}` } : { background: "#fff", color: cor.fg, border: `1px solid ${cor.bd}` }}>
+                  {rot}
+                </button>
+              );
+            })}
+          </div>
+
           {/* MAIS UTILIZADOS — aparece antes de pesquisar */}
           {termo.trim().length < 2 && !buscando && maisUsados.length > 0 && (
             <div className="mb-3">
@@ -302,6 +325,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                 <tr className="sticky top-0 z-10 bg-orange-50/50">
                   <th className="border-b border-orange-200/60 px-4 py-3 text-left text-[11px] font-bold uppercase text-slate-400">CODIGO <span className="ml-1 normal-case font-medium text-red-400">· clique p/ ver</span></th>
                   <th className="border-b border-orange-200/60 px-4 py-3 text-left text-[11px] font-bold uppercase text-slate-400">DESCRICAO</th>
+                  <th className="border-b border-orange-200/60 px-4 py-3 text-center text-[11px] font-bold uppercase text-slate-400">ESTOQUE</th>
                   <th className="border-b border-orange-200/60 px-4 py-3 text-right text-[11px] font-bold uppercase text-slate-400">PRECO</th>
                   <th className="border-b border-orange-200/60 px-4 py-3 text-center text-[11px] font-bold uppercase text-slate-400">EMPRESA</th>
                   <th className="border-b border-orange-200/60 px-4 py-3 text-center text-[11px] font-bold uppercase text-slate-400">ORIGEM</th>
@@ -309,7 +333,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
               </thead>
               <tbody>
                 {buscando ? (
-                  <tr><td colSpan={5} className="p-5 text-center">
+                  <tr><td colSpan={6} className="p-5 text-center">
                     <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-red-600" />
                     <span className="ml-2 text-sm text-slate-500">Buscando produtos...</span>
                   </td></tr>
@@ -329,6 +353,16 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                       </td>
                       <td className="max-w-[280px] px-4 py-3 text-[13px] text-slate-700">
                         <div className="truncate" title={p.descricao}>{highlightMatch(p.descricao)}</div>
+                      </td>
+                      <td className="px-4 py-3 text-center text-[13px]">
+                        {p.estoque === undefined || p.estoque === null ? (
+                          <span className="text-[12px] text-slate-400">—</span>
+                        ) : (
+                          <span className={`rounded-full px-2.5 py-1 font-bold ${p.estoque > 0 ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-400"}`}
+                            title={p.estoque > 0 ? "Quantidade em estoque nessa empresa" : "Sem estoque nessa empresa"}>
+                            {p.estoque.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right text-[13px] font-semibold text-slate-800">
                         <div className="flex items-center justify-end gap-1.5">
@@ -407,7 +441,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan={5} className="p-8 text-center">
+                  <tr><td colSpan={6} className="p-8 text-center">
                     <i className="fas fa-box-open mb-2 text-2xl text-slate-200" />
                     <div className="text-sm text-slate-400">{mensagem}</div>
                   </td></tr>

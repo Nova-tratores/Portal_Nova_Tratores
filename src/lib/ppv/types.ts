@@ -45,6 +45,8 @@ export interface ProdutoBusca {
   preco: number;
   origem: "completos" | "manuais";
   empresa?: string;
+  /** Quantidade em estoque na empresa da peça (null = sem informação). */
+  estoque?: number | null;
 }
 
 export interface ClienteBusca {
