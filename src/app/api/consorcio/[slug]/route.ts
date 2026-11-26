@@ -15,6 +15,7 @@ import { supabaseAdmin as db } from '@/lib/server/supabase-admin';
 import { gerarPropostaPdf } from '@/lib/consorcio/proposta-pdf';
 import { lerConfig, modelosUnicos, grupoDaUrgencia } from '@/lib/consorcio/conta';
 import { enviarPdfPeloChatwoot, motivoTxt } from '@/lib/chatwoot/avisar-pessoa';
+import { autenticar } from '@/lib/auth/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -127,6 +128,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
       proposta_obs: txt(b.proposta_obs, 500) || null,
     };
 
+    // 26/11 (José): o vendedor entra com o perfil do portal — com login, o nome vem do perfil (não do que foi digitado)
+    // e a ficha guarda o id do usuário, para contar certinho por vendedor. Sem login (cliente pelo QR code), segue igual.
+    const auth = req.headers.get('authorization') ? await autenticar(req) : null;
+    let vendedorNome = txt(b.vendedor, 60);
+    if (auth) {
+      const { data: perfil } = await db.from('financeiro_usu').select('nome').eq('id', auth.userId).maybeSingle();
+      vendedorNome = txt(perfil?.nome || vendedorNome || auth.email, 60);
+    }
+
     const ev = await evento(slug);
     if (!ev) return NextResponse.json({ error: 'Evento não encontrado.' }, { status: 404 });
     if (!ev.ativo) return NextResponse.json({ error: 'As inscrições deste evento estão encerradas.' }, { status: 423 });
@@ -140,13 +150,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
       p_credito: Number.isFinite(credito) && credito > 0 && credito < 5_000_000 ? Math.round(credito * 100) / 100 : null,
       p_tem_trator: typeof b.tem_trator === 'boolean' ? b.tem_trator : null,
       p_aceite: true,
-      p_vendedor: txt(b.vendedor, 60),
+      p_vendedor: vendedorNome,
       p_origem: origem,
       p_utm: Object.keys(utm).length ? utm : null,
       p_extra: extra,
     });
     if (error) throw error;
     const linha = Array.isArray(data) ? data[0] : data;
+    if (auth && linha?.o_numero) {
+      // quem atendeu (id do portal) — coluna criada em sql/consorcio-lead-atualiza.sql; antes dele, só não grava
+      const { error: eV } = await db.from('consorcio_inscricoes').update({ vendedor_id: auth.userId, vendedor: vendedorNome })
+        .eq('evento_id', ev.id).eq('numero', linha.o_numero);
+      if (eV) console.warn('[consorcio] vendedor_id', eV.message);
+    }
 
     // ficha do vendedor (26/11, José): no lugar do número da sorte, a proposta em PDF vai para o WhatsApp do cliente
     let pdf: { enviado: boolean; motivo?: string; base64?: string } | undefined;
@@ -165,7 +181,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
           contemplacao: extra.prazo_contemplacao || '', observacao: extra.proposta_obs || '',
           assembleia: urg && (!modelo || modelo.grupos.includes(urg.grupo)) ? urg : null,
           superAssembleia: !!(cfg.super_assembleia && modelo?.grupos.includes(cfg.super_assembleia.grupo || '')),
-          vendedor: txt(b.vendedor, 60) || 'Nova Tratores',
+          vendedor: vendedorNome || 'Nova Tratores',
         });
         pdf = { enviado: false, base64: Buffer.from(bytes).toString('base64') };
         const hoje = new Date().toISOString().slice(0, 10);
@@ -174,7 +190,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ slug: s
         else if (pdfsHoje.n >= 300) pdf.motivo = 'limite do dia atingido';
         else {
           const primeiro = nome.split(/s+/)[0];
-          const texto = `Olá, ${primeiro}! Aqui é ${txt(b.vendedor, 60) || 'a equipe'}, da Nova Tratores, na ${ev.nome}. Obrigado pela visita! Segue a sua proposta do consórcio Mahindra. Qualquer dúvida, é só responder aqui.`;
+          const texto = `Olá, ${primeiro}! Aqui é ${vendedorNome || 'a equipe'}, da Nova Tratores, na ${ev.nome}. Obrigado pela visita! Segue a sua proposta do consórcio Mahindra. Qualquer dúvida, é só responder aqui.`;
           const r = await enviarPdfPeloChatwoot(telefone, nome, texto, `Proposta Consorcio Mahindra - ${primeiro}.pdf`, bytes);
           if (r.ok) { pdf.enviado = true; ultimoPdf.set(digitos, agora); pdfsHoje.n++; if (ultimoPdf.size > 5000) ultimoPdf.clear(); }
           else pdf.motivo = motivoTxt(r);
