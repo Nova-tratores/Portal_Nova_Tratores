@@ -12,7 +12,8 @@ export type AvisoPreco =
   | 'diferente_cadastro' // preço do item ≠ preço de venda atual do cadastro
   | 'abaixo_custo'       // preço unitário < custo (CMC)
   | 'sem_custo'          // sem CMC no sistema (peça de encomenda): margem não conferida
-  | 'sem_cadastro'       // código não está no cadastro de preços
+  | 'sem_cadastro'       // código não está no cadastro de preços (nenhuma empresa)
+  | 'outra_empresa'      // pedido numa empresa, mas o código só existe na outra
 
 export interface ItemParaConferir {
   codigo: string
@@ -48,6 +49,8 @@ export interface ResumoConferencia {
   abaixoCusto: number
   semCusto: number
   semCadastro: number
+  /** Itens pedidos numa empresa que só existem cadastrados na outra. */
+  outraEmpresa: number
   /** Soma de diferencaTotal dos itens diferentes do cadastro. */
   diferencaTotal: number
   prejuizo: number
@@ -123,7 +126,10 @@ export function conferirPrecos(
 
     const avisos: AvisoPreco[] = []
     if (!cad) avisos.push('sem_cadastro')
-    else if (precoCadastro !== null && precoDifere(preco, precoCadastro)) avisos.push('diferente_cadastro')
+    else {
+      if (conta && cad.conta !== conta) avisos.push('outra_empresa')
+      if (precoCadastro !== null && precoDifere(preco, precoCadastro)) avisos.push('diferente_cadastro')
+    }
     if (custo !== null && preco < custo) avisos.push('abaixo_custo')
     if (custo === null) avisos.push('sem_custo')
 
@@ -140,6 +146,7 @@ export function conferirPrecos(
     abaixoCusto: saida.filter((i) => i.avisos.includes('abaixo_custo')).length,
     semCusto: saida.filter((i) => i.avisos.includes('sem_custo')).length,
     semCadastro: saida.filter((i) => i.avisos.includes('sem_cadastro')).length,
+    outraEmpresa: saida.filter((i) => i.avisos.includes('outra_empresa')).length,
     diferencaTotal: r2(saida.reduce((s, i) => s + i.diferencaTotal, 0)),
     prejuizo: r2(saida.reduce((s, i) => s + i.prejuizo, 0)),
   }

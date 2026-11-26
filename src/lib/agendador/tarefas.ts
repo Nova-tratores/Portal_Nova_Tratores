@@ -178,6 +178,14 @@ export const TAREFAS: Record<string, Tarefa> = {
     return feitos.length ? { resumo: feitos.join(' | ') } : { pular: rs.map((r) => r.pulado).join(' · ') };
   },
 
+  // Marketing (26/11/2026): robô de posts — preenche o calendário 30 dias à frente (lib/marketing/robo/robo.ts).
+  'marketing-robo-posts': async () => {
+    if (desligada('MARKETING_ROBO_POSTS')) return { pular: 'desligado (MARKETING_ROBO_POSTS=off)' };
+    const { rodarRobo } = await import('@/lib/marketing/robo/robo');
+    const r = await rodarRobo();
+    return r.pulado ? { pular: r.pulado } : { resumo: r.resumo };
+  },
+
   // Marketing (Fase 4.3, 23/11/2026): conversa que começou com o código de um post conta como contato dele.
   'marketing-contatos-posts': async () => {
     if (desligada('MARKETING_CONTATOS_POSTS')) return { pular: 'desligado (MARKETING_CONTATOS_POSTS=off)' };

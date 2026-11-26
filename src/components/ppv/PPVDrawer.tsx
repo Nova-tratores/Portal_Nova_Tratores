@@ -22,7 +22,6 @@ import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 import FaturarModal from "./FaturarModal";
 import ModalImportarOrcamento, { type ItemImportado } from "./ModalImportarOrcamento";
 import { useConferenciaPrecos, PainelConferenciaPrecos, AvisoPrecoLinha } from "./ConferenciaPrecos";
-import { contaDoItemPPV } from "@/lib/ppv/conferencia-precos";
 import { supabase as supabaseBrowser } from "@/lib/supabase";
 import ItemOrcamentoModal from "./ItemOrcamentoModal";
 import AnexosModal from "./AnexosModal";
@@ -603,9 +602,22 @@ export default function PPVDrawer({
 
   // Conferência de preço: item × preço de venda atual do cadastro × custo (CMC).
   // Pedido já faturado não confere (o preço da nota já foi).
+  // Conta Omie do pedido = maioria dos itens (mesma regra do envio em
+  // lib/ppv/omie.ts): item da "Primária/Castro" conta pro CASTRO.
+  // Os cenários fiscais são POR CONTA — o Castro tem "Padrão", a Nova "VENDA".
+  // A conferência também usa: cada peça é conferida contra a empresa do PEDIDO, e aí
+  // aparece "não cadastrada" / "só na outra empresa" antes de enviar ao Omie.
+  const contaPedido = useMemo<"NOVA" | "CASTRO">(() => {
+    let nova = 0, castro = 0;
+    (details?.produtos || []).forEach((p) => {
+      if (!p.empresa) return;
+      if (/primari|castro/i.test(p.empresa)) castro += 1; else nova += 1;
+    });
+    return castro > nova ? "CASTRO" : "NOVA";
+  }, [details]);
   const itensConferir = produtosComSaldo
     .filter((p) => p.saldo > 0)
-    .map((p) => ({ codigo: p.codigo, conta: contaDoItemPPV(p.empresa), preco: p.preco, quantidade: p.saldo }));
+    .map((p) => ({ codigo: p.codigo, conta: contaPedido, preco: p.preco, quantidade: p.saldo }));
   const conferencia = useConferenciaPrecos(itensConferir, open && !faturadoEm);
 
   // Regenera as parcelas quando muda a condição, a previsão ou o total (reseta
@@ -614,18 +626,6 @@ export default function PPVDrawer({
   useEffect(() => {
     setParcelas(calcularParcelas(numParcelas, previsaoFat, totalFinal));
   }, [numParcelas, previsaoFat, totalFinal]);
-
-  // Conta Omie do pedido = maioria dos itens (mesma regra do envio em
-  // lib/ppv/omie.ts): item da "Primária/Castro" conta pro CASTRO.
-  // Os cenários fiscais são POR CONTA — o Castro tem "Padrão", a Nova "VENDA".
-  const contaPedido = useMemo(() => {
-    let nova = 0, castro = 0;
-    (details?.produtos || []).forEach((p) => {
-      if (!p.empresa) return;
-      if (/primari|castro/i.test(p.empresa)) castro += 1; else nova += 1;
-    });
-    return castro > nova ? "CASTRO" : "NOVA";
-  }, [details]);
 
   // Departamentos + listas (categorias/contas/etapas/cenários) do banco —
   // recarrega se a conta do pedido mudar (itens do Castro chegaram depois).
@@ -1565,6 +1565,8 @@ export default function PPVDrawer({
                     {!faturadoEm && (
                       <PainelConferenciaPrecos
                         resultado={conferencia.resultado}
+                        recolhivel
+                        avisarCadastro
                         onAtualizarTodos={podeItem ? (itens) => usarPrecoCadastro(itens) : undefined}
                         desabilitado={salvandoPreco}
                         descricoes={Object.fromEntries(produtosComSaldo.map((p) => [p.codigo, p.descricao]))}
@@ -1631,7 +1633,7 @@ export default function PPVDrawer({
                                   </span>
                                 )}
                                 {!editando && !isDevolvido && !faturadoEm && (
-                                  <AvisoPrecoLinha item={conferencia.doItem(p.codigo, contaDoItemPPV(p.empresa))} desabilitado={salvandoPreco || !podeItem}
+                                  <AvisoPrecoLinha item={conferencia.doItem(p.codigo, contaPedido)} avisarCadastro desabilitado={salvandoPreco || !podeItem}
                                     onAtualizar={podeItem ? (preco) => usarPrecoCadastro([{ codigo: p.codigo, precoCadastro: preco }]) : undefined} />
                                 )}
                               </div>

@@ -19,6 +19,10 @@ export async function GET(req: NextRequest) {
   const filtroOmie = filtroBuscaProdutos(parsed.data.termo, ["Codigo_Produto", "Descricao_Produto"]);
   const filtroManual = filtroBuscaProdutos(parsed.data.termo, ["Prod_Codigo", "Prod_Descricao"]);
   if (!filtroOmie) return NextResponse.json([]);
+  // Filtro de empresa (nova | castro); sem ele = todas. Produto manual não tem empresa → só em "todas".
+  const empresaParam = (req.nextUrl.searchParams.get("empresa") || "").toLowerCase();
+  const empresa = empresaParam === "nova" || empresaParam === "castro" ? empresaParam : null;
+  const filtroEmpresa = empresa ? `&conta_omie=eq.${empresa.toUpperCase()}` : "";
   const resultados: ProdutoBusca[] = [];
   // Códigos que já vieram do Omie (Produtos_Completos) — o Omie tem prioridade:
   // se o mesmo código existir também em Produtos_Manuais, o manual é descartado.
@@ -26,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const res1 = await supabaseFetch<Record<string, unknown>[]>(
-      `${TBL_PRODUTOS}?${filtroOmie}&select=Codigo_Produto,Descricao_Produto,Preco_Venda,Empresa&limit=40`
+      `${TBL_PRODUTOS}?${filtroOmie}${filtroEmpresa}&select=Codigo_Produto,Descricao_Produto,Preco_Venda,Empresa&limit=40`
     );
     res1.forEach((row) => {
       const codigo = String(getValorInsensivel(row, "Codigo_Produto", "codigo") || "").trim();
@@ -42,6 +46,27 @@ export async function GET(req: NextRequest) {
   } catch (e) {
     console.error("Erro busca Produtos:", e);
   }
+
+  // Estoque de cada peça (espelho `produtos`, por conta) — aparece do lado do resultado
+  if (resultados.length > 0) {
+    try {
+      const lista = Array.from(new Set(resultados.map((r) => r.codigo))).map((c) => `"${c.replace(/"/g, "")}"`).join(",");
+      const est = await supabaseFetch<{ codigo: string; conta_omie: string; estoque: number | null }[]>(
+        `produtos?select=codigo,conta_omie,estoque&codigo=in.(${encodeURIComponent(lista)})&inativo=is.false`
+      );
+      const mapa = new Map<string, number>();
+      for (const e of est || []) mapa.set(`${String(e.codigo).trim().toUpperCase()}|${String(e.conta_omie).toLowerCase()}`, Number(e.estoque) || 0);
+      for (const r of resultados) {
+        const conta = /castro/i.test(r.empresa || "") ? "castro" : "nova";
+        const v = mapa.get(`${r.codigo.toUpperCase()}|${conta}`);
+        r.estoque = v === undefined ? null : v;
+      }
+    } catch (e) {
+      console.error("Erro estoque na busca:", e);
+    }
+  }
+
+  if (empresa) return NextResponse.json(resultados);
 
   try {
     const res2 = await supabaseFetch<Record<string, unknown>[]>(
