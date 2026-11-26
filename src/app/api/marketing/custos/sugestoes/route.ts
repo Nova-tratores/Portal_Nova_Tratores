@@ -76,6 +76,24 @@ export async function GET(req: Request) {
       motivo = 'a ação não tem projeto do Omie nem data — sem base pra sugerir';
     }
 
+    // Plano 0 (23/11/2026): requisições dos GRUPOS ligados a esta ação (requisicao_grupos.mkt_acao_id) vêm
+    // primeiro — quem montou o grupo "Confraternização" já disse que aquilo é deste evento.
+    // Sem a coluna (sql/marketing-evento-interno.sql não rodado) a consulta só falha e segue como antes.
+    const { data: grupos } = await db.from('requisicao_grupos').select('id, nome').eq('mkt_acao_id', acaoId);
+    if (grupos?.length) {
+      const { data: membros } = await db.from('requisicao_grupo_membros').select('req_id').in('grupo_id', grupos.map((x: any) => x.id));
+      const reqIds = [...new Set((membros ?? []).map((m: any) => m.req_id))];
+      if (reqIds.length) {
+        const { data: doGrupo } = await db.from('Requisicao').select(COLS_REQ).in('id', reqIds).neq('status', 'lixeira');
+        const jaTem = new Set(requisicoes.map((r: any) => r.id));
+        requisicoes = [...(doGrupo ?? []).filter((r: any) => !jaTem.has(r.id)), ...requisicoes];
+        const nomes = grupos.map((x: any) => `"${x.nome}"`).join(', ');
+        motivo = motivo && !motivo.startsWith('a ação não tem')
+          ? `requisições do grupo ${nomes} e ${motivo}`
+          : `requisições do grupo ${nomes}`;
+      }
+    }
+
     return NextResponse.json({
       porProjeto,
       motivo,
@@ -88,6 +106,7 @@ export async function GET(req: Request) {
           data: r.data,
           valorCru: r.valor_despeza,   // texto BR/US — converter no cliente
           extra: [r.tipo, r.setor, r.numero_nota ? `NF ${r.numero_nota}` : null].filter(Boolean).join(' · '),
+          tipoRequisicao: r.tipo,   // ajuda a sugerir a categoria (lib/marketing/categorizar.ts)
           status: r.status,
         })),
       contas: contas

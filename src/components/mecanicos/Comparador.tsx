@@ -65,9 +65,9 @@ export default function Comparador({ a, b, pessoas, onTrocar, onFechar }: {
             return (
               <div key={rot} className="cmp-linha" style={{ animationDelay: `${i * 45}ms` }}>
                 <div className="cmp-v" style={{ fontWeight: !empate && ganhaA ? 900 : 600, color: !empate && ganhaA ? AZUL : undefined }}>{!empate && ganhaA && <i className="fas fa-crown" />} {fmt(va)}</div>
-                <div className="cmp-b esq"><i style={{ width: `${(Math.abs(va) / max) * 100}%`, background: !empate && ganhaA ? AZUL : '#cbd5e1', animationDelay: `${i * 45 + 150}ms` }} /></div>
+                <div className="cmp-b esq"><i style={{ width: `${(Math.abs(va) / max) * 100}%`, background: !empate && ganhaA ? AZUL : 'var(--mx-bg2, #cbd5e1)', animationDelay: `${i * 45 + 150}ms` }} /></div>
                 <div className="cmp-r">{rot}</div>
-                <div className="cmp-b"><i style={{ width: `${(Math.abs(vb) / max) * 100}%`, background: !empate && !ganhaA ? ROXO : '#cbd5e1', animationDelay: `${i * 45 + 150}ms` }} /></div>
+                <div className="cmp-b"><i style={{ width: `${(Math.abs(vb) / max) * 100}%`, background: !empate && !ganhaA ? ROXO : 'var(--mx-bg2, #cbd5e1)', animationDelay: `${i * 45 + 150}ms` }} /></div>
                 <div className="cmp-v" style={{ textAlign: 'left', fontWeight: !empate && !ganhaA ? 900 : 600, color: !empate && !ganhaA ? ROXO : undefined }}>{fmt(vb)} {!empate && !ganhaA && <i className="fas fa-crown" />}</div>
               </div>
             )

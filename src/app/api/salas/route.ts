@@ -2,7 +2,7 @@
 // Todo usuário logado lê (reservar não exige módulo).
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
-import { listarSalas, listarReservas, migrationFaltou, MSG_MIGRATION_SALAS } from '@/lib/salas/server'
+import { listarSalas, listarReservas, mascararPrivadas, migrationFaltou, MSG_MIGRATION_SALAS } from '@/lib/salas/server'
 import { localDe, addDias } from '@/lib/salas/regras'
 
 export const runtime = 'nodejs'
@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
   if (ate < de) ate = de
   if (ate > addDias(de, 41)) ate = addDias(de, 41)
   try {
-    const [salas, reservas] = await Promise.all([listarSalas(), listarReservas(de, ate, sp.get('sala'))])
+    const [salas, todas] = await Promise.all([listarSalas(), listarReservas(de, ate, sp.get('sala'))])
+    // Reunião privada: quem não está nela vê só "Reunião (privada)" (24/11/2026).
+    const reservas = await mascararPrivadas(todas, auth)
     return NextResponse.json({ salas, reservas, agora, eu: auth.userId, admin: auth.isAdmin })
   } catch (e) {
     if (migrationFaltou(e)) return NextResponse.json({ salas: [], reservas: [], agora, eu: auth.userId, admin: auth.isAdmin, migracaoFaltando: true, error: MSG_MIGRATION_SALAS })

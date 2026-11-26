@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Search, User as UserIcon } from 'lucide-react'
 import type { UsuarioMin } from '@/lib/tickets/constantes'
-import { casaBusca } from '@/lib/texto'
+import { casaBusca, ehContaTeste } from '@/lib/texto'
 
 interface Props {
   value: string
@@ -25,11 +25,12 @@ export default function UserSelect({ value, onChange, excluir = [], placeholder 
 
   useEffect(() => {
     const carregar = async () => {
-      const { data } = await supabase
-        .from('financeiro_usu')
-        .select('id, nome, avatar_url, ativo')
-        .order('nome')
-      setUsuarios(((data || []) as (UsuarioMin & { ativo?: boolean })[]).filter((u) => u.ativo !== false))
+      // Coluna `teste` (sql/usuarios-teste.sql): se ainda não existe, a consulta dá erro e
+      // repete sem ela (ehContaTeste cai no filtro antigo por nome/função).
+      const ler = (cols: string) => supabase.from('financeiro_usu').select(cols).order('nome')
+      let { data, error } = await ler('id, nome, avatar_url, ativo, funcao, teste')
+      if (error) ({ data, error } = await ler('id, nome, avatar_url, ativo, funcao'))
+      setUsuarios(((data || []) as unknown as (UsuarioMin & { ativo?: boolean; funcao?: string | null })[]).filter((u) => u.ativo !== false))
     }
     carregar()
   }, [])
@@ -43,7 +44,9 @@ export default function UserSelect({ value, onChange, excluir = [], placeholder 
   }, [])
 
   const selecionado = usuarios.find((u) => u.id === value)
+  // Contas de teste não aparecem para escolher (só se já for a escolhida).
   const filtrados = usuarios
+    .filter((u) => u.id === value || !ehContaTeste(u as UsuarioMin & { funcao?: string | null; teste?: boolean | null }))
     .filter((u) => !excluir.includes(u.id))
     .filter((u) => casaBusca(busca, u.nome))
 

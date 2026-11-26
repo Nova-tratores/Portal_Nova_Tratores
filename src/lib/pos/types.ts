@@ -111,6 +111,10 @@ export interface Produto {
   pedidoOmie?: string;
   codigo?: string;
   conta?: "NOVA" | "CASTRO";
+  /** peça marcada "não gerar cobrança" (valor já vem 0) */
+  semCobranca?: { motivo: string; precoOriginal: number } | null;
+  tipoPedido?: string;
+  faturado?: boolean;
 }
 
 export interface LogEntry {

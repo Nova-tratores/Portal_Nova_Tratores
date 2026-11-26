@@ -13,8 +13,11 @@ import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 import {
   itensDaEntrada, itemRemessa, valorItem, validarEscolha, disponivel, textoRetorno, codIntRem,
   limparTexto, ehItemGarantia, cfopRetorno, CATEGORIA_PADRAO, FRETE_PADRAO, type ItemEntrada, type Escolha,
-  cBenefDoXml, cstPedeBeneficio, situacaoNfe,
+  cBenefDoXml, cstPedeBeneficio, situacaoNfe, aplicarAjuste, conferirFiscal, type AjusteFiscal,
 } from './retorno-remessa';
+
+type Ajustes = Record<string, AjusteFiscal>;
+const ajusteDe = (aj: Ajustes | null | undefined, seq: number): AjusteFiscal | null => (aj && aj[String(seq)]) || null;
 
 const TBL = 'garantia_retornos';
 const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -148,6 +151,8 @@ export async function previaRetorno(conta: Conta, idReceb: number) {
         garantia: ehItemGarantia(it.cfopForn), temProduto: !!it.nCodProd, qtdNF: it.qtdNF, precoUnit: it.precoUnit,
         jaDevolvido: it.devolvidoNaOmie ? it.qtdNF : (h.porSeq[it.seq] || 0), devolvidoNaOmie: it.devolvidoNaOmie,
         disponivel: disp, valorDisponivel: valorItem(it, disp), icmsCst: it.icms?.cSitTrib || null, temST: !!it.st,
+        // a tela confere de novo (conferirFiscal) a cada ajuste feito nos campos fiscais
+        base: it, problemas: conferirFiscal(it),
       };
     }),
     historico: h.linhas,
@@ -165,6 +170,8 @@ export interface EmitirArgs {
   conta: Conta; idReceb: number; escolha: Escolha[]; texto: string;
   frete?: { tipo?: string; qtdVol?: number; especie?: string | null; marca?: string | null; pesoBruto?: number; pesoLiq?: number };
   categoria?: string | null; garantiaId?: string | null; userId: string; userNome: string;
+  /** ajustes fiscais da prévia por item (chave = seq) */
+  ajustes?: Ajustes | null;
 }
 
 /** grava a ficha, cria a remessa na Omie e já fatura. Cada passo fica registrado na ficha. */
@@ -177,10 +184,19 @@ export async function emitirRetorno(a: EmitirArgs) {
   if (h.linhas.some((l) => l.status === 'criando')) return { ok: false, erro: 'Já existe uma devolução desta nota em andamento. Atualize a janela.' };
   const erros = validarEscolha(nota.itens, a.escolha, h.porSeq);
   if (erros.length) return { ok: false, erro: erros.join(' ') };
+  // conferência fiscal: o que a Omie/SEFAZ recusaria não vai
+  const fiscais = a.escolha.filter((e) => e.qtd > 0).flatMap((e) => {
+    const it = nota.itens.find((i) => i.seq === e.seq)!;
+    return conferirFiscal(it, ajusteDe(a.ajustes, it.seq)).filter((p) => p.nivel === 'erro').map((p) => `${it.codigo || `item ${it.seq}`}: ${p.msg}`);
+  });
+  if (fiscais.length) return { ok: false, erro: fiscais.join(' ') };
 
   const pad = await padroes(a.conta, nota.cnpj);
-  const escolhidos = a.escolha.filter((e) => e.qtd > 0).map((e) => ({ e, it: nota.itens.find((i) => i.seq === e.seq)! }));
-  const itensFicha = escolhidos.map(({ e, it }) => ({ seq: it.seq, nCodProd: it.nCodProd, codigo: it.codigo, descricao: it.descricao, qtd: e.qtd, valor: valorItem(it, e.qtd) }));
+  const escolhidos = a.escolha.filter((e) => e.qtd > 0).map((e) => {
+    const aj = ajusteDe(a.ajustes, e.seq);
+    return { e, aj, it: aplicarAjuste(nota.itens.find((i) => i.seq === e.seq)!, aj) };
+  });
+  const itensFicha = escolhidos.map(({ e, it, aj }) => ({ seq: it.seq, nCodProd: it.nCodProd, codigo: it.codigo, descricao: it.descricao, qtd: e.qtd, valor: valorItem(it, e.qtd), ...(aj ? { ajuste: aj } : {}) }));
   const total = Math.round(itensFicha.reduce((s, i) => s + i.valor, 0) * 100) / 100;
   const cod = codIntRem(a.idReceb, h.linhas.length + 1);
   const texto = limparTexto(a.texto || textoRetorno({ numero: nota.numero, emissao: nota.emissao, chave: nota.chave }));
@@ -253,10 +269,20 @@ const ultimaNfe = (st: StatusRem | null): NfeStatus | null => { const l = (st?.L
 const nfDe = (st: StatusRem | null) => { const l = st?.ListaNfe || []; const n = l[l.length - 1]; return n?.cNumNFe ? { numero: sem0(n.cNumNFe), chave: n.cChaveNFe || null } : null; };
 
 /** fatura (emite a NF-e) a remessa de uma ficha já criada. Serve também para "tentar de novo". */
-export async function faturarRetorno(fichaId: string, userNome: string) {
+export async function faturarRetorno(fichaId: string, userNome: string, ajustes?: Ajustes | null) {
   const { data: f, error } = await supabase.from(TBL).select('*').eq('id', fichaId).maybeSingle();
   if (error) return { ok: false, erro: tabelaFaltando(error) ? MSG_MIGRACAO : error.message };
   if (!f) return { ok: false, erro: 'Devolução não encontrada.' };
+  if (f.status === 'faturada') return { ok: true, nf: f.nf_numero || null, nCodRem: Number(f.n_cod_rem) || null };
+  if (ajustes && Object.keys(ajustes).length) {
+    // correção feita na tela: guarda na ficha (vale para este envio e os próximos)
+    const itens = ((f.itens as Array<{ seq: number; ajuste?: AjusteFiscal }>) || []).map((i) => {
+      const aj = ajusteDe(ajustes, Number(i.seq));
+      return aj ? { ...i, ajuste: { ...(i.ajuste || {}), ...aj } } : i;
+    });
+    await supabase.from(TBL).update({ itens, atualizado_em: new Date().toISOString() }).eq('id', fichaId);
+    f.itens = itens;
+  }
   const conta = f.conta_omie as Conta;
   let nCodRem = Number(f.n_cod_rem) || 0;
   if (!nCodRem) nCodRem = await nCodRemPorCodigo(conta, f.cod_int_rem);
@@ -273,14 +299,29 @@ export async function faturarRetorno(fichaId: string, userNome: string) {
   }
   const sit0 = situacaoNfe(ultimaNfe(st0));
   if (st0?.faturada === 'S' && sit0.situacao === 'rejeitada') {
-    // remessa CONCLUÍDA com a NF-e rejeitada: a Omie não valida nem reenvia pela API
-    // ("Não é possível validar, pois a Nota de Remessa de produto já foi concluída"). Corrige na tela da Omie.
+    // remessa CONCLUÍDA com a NF-e rejeitada: Conferir/Concluir recusam ("já foi concluída"), mas o
+    // AlterarRemessa é aceito e a Omie retransmite a NF-e com o item corrigido (NF 8577, 26/11/2026).
     const nfR = nfDe(st0);
-    const rc = await omieRequest('/produtos/remessa/', 'ConsultarRemessa', { nCodRem }, conta).catch(() => null);
-    const numRem = sem0(rc?.cabec?.cNumeroRemessa) || String(nCodRem);
-    const erro = `A SEFAZ rejeitou a NF-e${nfR ? ` ${nfR.numero}` : ''}: ${sit0.mensagem}. A Omie não reenvia nota rejeitada pelo portal: abra a remessa ${numRem} na Omie, corrija o item e retransmita a NF-e; depois clique em "Conferir de novo" aqui.`;
-    await supabase.from(TBL).update({ status: 'criada', n_cod_rem: nCodRem, nf_numero: nfR?.numero || null, nf_chave: nfR?.chave || null, erro, atualizado_em: new Date().toISOString() }).eq('id', fichaId);
-    return { ok: false, erro, rejeitada: true };
+    const al = await alinharItens(conta, f, nCodRem);
+    if (al) return marcarErro(al);
+    let st1 = st0;
+    let sit1 = sit0;
+    for (let i = 0; i < 12; i++) {
+      await espera(5000);
+      st1 = (await statusRem(conta, nCodRem)) || st1;
+      sit1 = situacaoNfe(ultimaNfe(st1));
+      if (sit1.situacao === 'autorizada' || (sit1.situacao === 'rejeitada' && sit1.mensagem !== sit0.mensagem)) break;
+    }
+    if (sit1.situacao !== 'autorizada') {
+      const rc = await omieRequest('/produtos/remessa/', 'ConsultarRemessa', { nCodRem }, conta).catch(() => null);
+      const numRem = sem0(rc?.cabec?.cNumeroRemessa) || String(nCodRem);
+      const erro = sit1.situacao === 'rejeitada'
+        ? `A SEFAZ rejeitou a NF-e${nfR ? ` ${nfR.numero}` : ''}: ${sit1.mensagem}. Corrija os campos fiscais do item na tabela acima e clique em "Corrigir e reenviar" (ou corrija na remessa ${numRem} da Omie).`
+        : `A remessa ${numRem} foi corrigida e a NF-e${nfR ? ` ${nfR.numero}` : ''} aguarda a SEFAZ. Clique em "Conferir de novo" em alguns minutos.`;
+      await supabase.from(TBL).update({ status: 'criada', n_cod_rem: nCodRem, nf_numero: nfR?.numero || null, nf_chave: nfR?.chave || null, erro, atualizado_em: new Date().toISOString() }).eq('id', fichaId);
+      return { ok: false, erro, rejeitada: sit1.situacao === 'rejeitada', podeTentarDeNovo: true };
+    }
+    return concluirFicha(f, fichaId, nCodRem, st1, userNome);
   }
   if (st0?.faturada !== 'S') {
     // acerta os itens da remessa já criada com a regra atual (ex.: IPI, código de benefício) antes de faturar
@@ -310,12 +351,18 @@ export async function faturarRetorno(fichaId: string, userNome: string) {
     await supabase.from(TBL).update({ status: 'criada', n_cod_rem: nCodRem, nf_numero: nf?.numero || null, nf_chave: nf?.chave || null, erro: `A SEFAZ rejeitou a NF-e${nf ? ` ${nf.numero}` : ''}: ${sit.mensagem}`, atualizado_em: new Date().toISOString() }).eq('id', fichaId);
     return { ok: false, erro: `A SEFAZ rejeitou a NF-e${nf ? ` ${nf.numero}` : ''}: ${sit.mensagem}`, podeTentarDeNovo: true };
   }
+  return concluirFicha(f, fichaId, nCodRem, st, userNome);
+}
+
+/** NF-e autorizada: grava na ficha e dá baixa na garantia */
+async function concluirFicha(f: { garantia_id?: string | null; numero_nfe?: string | null }, fichaId: string, nCodRem: number, st: StatusRem | null, userNome: string) {
+  const nf = nfDe(st);
   const agora = new Date().toISOString();
   await supabase.from(TBL).update({
     status: 'faturada', n_cod_rem: nCodRem, nf_numero: nf?.numero || null, nf_chave: nf?.chave || null,
     erro: null, faturado_em: agora, atualizado_em: agora,
   }).eq('id', fichaId);
-  if (f.garantia_id) await baixarNaGarantia(f.garantia_id, nf?.numero || null, f.numero_nfe, userNome).catch(() => {});
+  if (f.garantia_id) await baixarNaGarantia(f.garantia_id, nf?.numero || null, f.numero_nfe || null, userNome).catch(() => {});
   return { ok: true, nf: nf?.numero || null, nCodRem };
 }
 
@@ -325,9 +372,12 @@ async function alinharItens(conta: Conta, f: { id_receb: number; itens: unknown 
     const nota = await lerNota(conta, Number(f.id_receb));
     const rc = await omieRequest('/produtos/remessa/', 'ConsultarRemessa', { nCodRem }, conta);
     const atuais = (rc?.produtos || []) as Array<{ nCodIt?: number; cCodItInt?: string; nCodProd?: number }>;
-    const produtos = ((f.itens as Array<{ seq: number; qtd: number }>) || []).map((fi) => {
-      const it = nota.itens.find((i) => i.seq === Number(fi.seq));
-      if (!it) throw new Error(`item ${fi.seq} não está mais na nota`);
+    const produtos = ((f.itens as Array<{ seq: number; qtd: number; ajuste?: AjusteFiscal }>) || []).map((fi) => {
+      const orig = nota.itens.find((i) => i.seq === Number(fi.seq));
+      if (!orig) throw new Error(`item ${fi.seq} não está mais na nota`);
+      const erroF = conferirFiscal(orig, fi.ajuste || null).find((p) => p.nivel === 'erro');
+      if (erroF) throw new Error(`${orig.codigo || `item ${orig.seq}`}: ${erroF.msg}`);
+      const it = aplicarAjuste(orig, fi.ajuste || null);
       const esp = itemRemessa(it, Number(fi.qtd));
       const atual = atuais.find((a) => a.cCodItInt === esp.cCodItInt) || atuais.find((a) => Number(a.nCodProd) === Number(it.nCodProd));
       return { ...esp, ...(atual?.nCodIt ? { nCodIt: atual.nCodIt } : {}) };

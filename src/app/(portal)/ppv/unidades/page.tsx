@@ -13,6 +13,7 @@ import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import QRUnidadeModal from '@/components/ppv/QRUnidadeModal'
 import PecasNav, { subAbasPPV } from '@/components/ppv/PecasNav'
+import { usePpvVisualNovo, ESTILO_PPV_VN } from '@/components/ppv/VisualNovoPPV'
 import { htmlFolha, qrSvg, urlDaUnidade, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
 import { alvoDaUnidade, STATUS_LABEL, STATUS_COR, DESTINO_LABEL, EMPRESA_LABEL, EMPRESA_COR, type PecaUnidade, type UnidadeStatus } from '@/lib/pecas/unidades'
 import type { DivergenciaPPV } from '@/lib/pecas/ppv-vinculo'
@@ -68,6 +69,7 @@ function SeloFaturamento({ s }: { s: SituacaoFaturamento }) {
 }
 
 export default function UnidadesRastreioPage() {
+  usePpvVisualNovo() // mesmo visual do /ppv (forma do POS, cores do PPV)
   const { userProfile } = useAuth()
   const { pode, loading: pLoading } = usePermissoes(userProfile?.id)
 
@@ -226,7 +228,8 @@ export default function UnidadesRastreioPage() {
   })
 
   return (
-    <div className="pecas-skin">
+    <div className="pecas-skin ppv-vn-page ppv-vn-aba">
+    <style>{ESTILO_PPV_VN}</style>
     <PecasNav sub={subAbasPPV({ ativo: 'retiradas', podeCatalogo: pode('ppv', 'catalogo'), podeEtiquetas: pode('ppv', 'etiquetas'), podeRetiradas: true })} />
     <style>{'@media (max-width: 768px) { .ppv-x-unid { padding: 12px 10px !important; } }'}</style>
     <div className="ppv-x-unid" style={{ padding: '18px 22px', maxWidth: 1200, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>

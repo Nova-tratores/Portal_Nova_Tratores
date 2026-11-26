@@ -5,7 +5,9 @@ import { NextResponse } from 'next/server';
 import { guardar, erroResposta, apenas, num, dataOuNull } from '@/lib/marketing/rota';
 import { db, listarAcoes, lerOuVazio, idsInativos, roletasDas } from '@/lib/marketing/db';
 import { logMarketing, nomeDoUsuario } from '@/lib/marketing/server';
-import type { Acao } from '@/lib/marketing/tipos';
+import { exigeResponsavel, type Acao } from '@/lib/marketing/tipos';
+import { grupoDaCampanha } from '@/lib/marketing/grupo-da-campanha';
+import { mascararLista, salvarResponsaveis } from '@/lib/marketing/acesso';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,12 +19,13 @@ const CAMPOS = [
   'orcamento_previsto', 'meta_leads', 'meta_vendas', 'meta_receita',
   'responsavel_id', 'responsavel_nome', 'responsavel_email',
   'publico_estimado', 'publico_total_evento', 'dias_participacao', 'stand_descricao',
-  'leads_declarados', 'observacoes', 'capa_url',
+  'leads_declarados', 'observacoes', 'capa_url', 'visibilidade',
 ] as const;
 
 /** Normaliza o que vem do formulário: número é número, data é data. */
 function normalizar(body: any) {
   const dados: any = apenas(body, CAMPOS);
+  if ('visibilidade' in dados) dados.visibilidade = dados.visibilidade === 'privada' ? 'privada' : 'publica';
   for (const k of ['projeto_codigo', 'orcamento_previsto', 'meta_leads', 'meta_vendas',
                    'meta_receita', 'publico_estimado', 'publico_total_evento',
                    'dias_participacao', 'leads_declarados']) {
@@ -50,13 +53,15 @@ export async function GET(req: Request) {
       incluirLixeira: url.searchParams.get('lixeira') === '1',
     };
 
-    const { dados: acoes, migracaoFaltando } = await lerOuVazio<Acao[]>(
+    const { dados: todas, migracaoFaltando } = await lerOuVazio<Acao[]>(
       () => listarAcoes(filtro),
       [],
     );
     if (migracaoFaltando) {
       return NextResponse.json({ acoes: [], resumos: {}, inativos: [], migracaoFaltando: true });
     }
+    // 25/11/2026: privada que a pessoa não pode ver vira cartão mudo (sem nome, sem id real, sem números)
+    const { visiveis: acoes, lista } = await mascararLista(g.auth, todas as any[]);
 
     // Resumo por ação (custo, apoio, leads, propostas) numa consulta por tabela,
     // não uma por ação — a lista abre com 4 queries, não com 4×N.
@@ -103,7 +108,7 @@ export async function GET(req: Request) {
 
     const roletas = await roletasDas(ids);
 
-    return NextResponse.json({ acoes, resumos, inativos: [...inativos], roletas });
+    return NextResponse.json({ acoes: lista, resumos, inativos: [...inativos], roletas });
   } catch (e) {
     return erroResposta(e, 'GET /acoes');
   }
@@ -119,6 +124,8 @@ export async function POST(req: Request) {
     if (!dados.nome || !String(dados.nome).trim()) {
       return NextResponse.json({ error: 'Informe o nome da ação' }, { status: 400 });
     }
+    const semDono = exigeResponsavel(dados.status, dados.responsavel_id);   // Fase 2 (23/11/2026)
+    if (semDono) return NextResponse.json({ error: semDono }, { status: 400 });
 
     const autor = await nomeDoUsuario(g.auth);
     const { data, error } = await db
@@ -136,7 +143,20 @@ export async function POST(req: Request) {
       detalhes: { tipo: data.tipo, empresa: data.empresa },
     });
 
-    return NextResponse.json({ acao: data });
+    // 25/11/2026: responsáveis da campanha = os escolhidos + o dono + quem criou (senão quem cria uma privada a perde de vista).
+    // Se o SQL novo ainda não rodou, a campanha fica criada do mesmo jeito.
+    try {
+      const ids = [...(Array.isArray(body.responsaveis) ? body.responsaveis : []), data.responsavel_id, g.auth.userId].map(String).filter((x) => x && x !== 'null');
+      await salvarResponsaveis(data.id, ids, g.auth.userId);
+    } catch (er: any) { console.warn('[marketing] responsáveis não gravados:', er?.message || er); }
+
+    // 24/11/2026: a campanha já nasce com o grupo em Requisições. Se falhar, a campanha fica e vai um aviso
+    // (na ficha há o botão "Criar grupo de requisições" para tentar de novo).
+    let grupo = null, avisoGrupo: string | undefined;
+    try { grupo = (await grupoDaCampanha({ id: data.id, nome: data.nome }, autor)).grupo; }
+    catch (eg: any) { avisoGrupo = `A campanha foi criada, mas o grupo em Requisições não: ${eg?.message || eg}`; }
+
+    return NextResponse.json({ acao: data, grupo, aviso: avisoGrupo });
   } catch (e) {
     return erroResposta(e, 'POST /acoes');
   }

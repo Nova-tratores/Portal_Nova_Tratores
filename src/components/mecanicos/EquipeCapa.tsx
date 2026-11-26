@@ -155,8 +155,8 @@ export default function EquipeCapa({ mes }: { mes: string }) {
                 </svg>
                 <div className="eqc-vel-l">
                   <div><span style={{ '--c': '#2563eb' } as React.CSSProperties}><i className="fas fa-screwdriver-wrench" /></span><p>A equipe fez <b>{h1(d.feitas)} h</b> de <b>{h1(metaMes)} h</b> da meta do mês</p></div>
-                  {d.atual && <div><span style={{ '--c': '#0f172a' } as React.CSSProperties}><i className="fas fa-location-dot" /></span><p>Até hoje deveria ter <b>{h1(esperadoHoje)} h</b> (a marca preta): {d.feitas >= esperadoHoje ? <b style={{ color: '#047857' }}>{h1(d.feitas - esperadoHoje)} h à frente</b> : <b style={{ color: '#b91c1c' }}>{h1(esperadoHoje - d.feitas)} h atrás</b>}</p></div>}
-                  <div><span style={{ '--c': tom } as React.CSSProperties}><i className="fas fa-flag-checkered" /></span><p>{falta <= 0 ? <>Meta do mês <b style={{ color: '#047857' }}>batida</b></> : d.atual && restam ? <>Faltam <b>{h1(falta)} h</b> em {restam} dia{restam === 1 ? '' : 's'} útil{restam === 1 ? '' : 'eis'}: <b>{h1(falta / restam)} h por dia</b> (o normal é {h1(diaBas)} h)</> : <>Faltaram <b>{h1(falta)} h</b> para a meta</>}</p></div>
+                  {d.atual && <div><span style={{ '--c': '#0f172a' } as React.CSSProperties}><i className="fas fa-location-dot" /></span><p>Até hoje deveria ter <b>{h1(esperadoHoje)} h</b> (a marca preta): {d.feitas >= esperadoHoje ? <b style={{ color: 'var(--mx-fg-green, #047857)' }}>{h1(d.feitas - esperadoHoje)} h à frente</b> : <b style={{ color: 'var(--mx-fg-red, #b91c1c)' }}>{h1(esperadoHoje - d.feitas)} h atrás</b>}</p></div>}
+                  <div><span style={{ '--c': tom } as React.CSSProperties}><i className="fas fa-flag-checkered" /></span><p>{falta <= 0 ? <>Meta do mês <b style={{ color: 'var(--mx-fg-green, #047857)' }}>batida</b></> : d.atual && restam ? <>Faltam <b>{h1(falta)} h</b> em {restam} dia{restam === 1 ? '' : 's'} útil{restam === 1 ? '' : 'eis'}: <b>{h1(falta / restam)} h por dia</b> (o normal é {h1(diaBas)} h)</> : <>Faltaram <b>{h1(falta)} h</b> para a meta</>}</p></div>
                 </div>
               </div>
             )
@@ -209,90 +209,94 @@ function Meta({ ic, cor, rot, v, pct, oque, conta, porque }: { ic: string; cor: 
 
 const ESTILO_EQC = `
 .eqc { display: grid; gap: 14px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 18px; padding: 18px 20px }
-.eqc-carr { padding: 30px; text-align: center; color: #475569 }
-.eqc-topo { display: flex; gap: 10px 16px; align-items: center; justify-content: space-between; flex-wrap: wrap } .eqc-t { font-size: 15px; color: #334155 } .eqc-t i { color: #0891b2; margin-right: 4px }
+.eqc-carr { padding: 30px; text-align: center; color: var(--mx-t2, #475569) }
+.eqc-topo { display: flex; gap: 10px 16px; align-items: center; justify-content: space-between; flex-wrap: wrap } .eqc-t { font-size: 15px; color: var(--mx-t2, #334155) } .eqc-t i { color: #0891b2; margin-right: 4px }
 .eqc-corpo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px }
 .eqc-nums { display: grid; gap: 12px }
-.eqc-n { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; align-items: start } .eqc-n + .eqc-n { border-top: 1px solid #f1f5f9; padding-top: 12px }
-.eqc-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 15px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, #fefefe) }
-.eqc-n > div { display: grid; gap: 3px; min-width: 0 } .eqc-n small { font-size: 13px; color: #475569 } .eqc-n > div > b { font-size: 22px; font-weight: 500; color: #0f172a; font-variant-numeric: tabular-nums; line-height: 1.2 } .eqc-n .de { font-size: 14px; color: #475569; font-weight: 400 }
-.eqc-n > div > span { font-size: 13px; color: #334155; line-height: 1.45 } .eqc-n > div > span em { font-style: normal; font-weight: 600 } .eqc-n > div > span b { font-weight: 600 }
-.eqc-bar { position: relative; display: block; height: 10px; border-radius: 99px; background: #eef2f6; margin: 4px 0 2px } .eqc-bar u { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #60a5fa, #2563eb); animation: eqcEnche 1.2s cubic-bezier(.2,.8,.2,1) both; transform-origin: left }
+.eqc-n { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; align-items: start } .eqc-n + .eqc-n { border-top: 1px solid var(--mx-bd, #f1f5f9); padding-top: 12px }
+.eqc-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 15px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, var(--mx-bg0, #fefefe)) }
+.eqc-n > div { display: grid; gap: 3px; min-width: 0 } .eqc-n small { font-size: 13px; color: var(--mx-t2, #475569) } .eqc-n > div > b { font-size: 22px; font-weight: 500; color: var(--mx-t, #0f172a); font-variant-numeric: tabular-nums; line-height: 1.2 } .eqc-n .de { font-size: 14px; color: var(--mx-t2, #475569); font-weight: 400 }
+.eqc-n > div > span { font-size: 13px; color: var(--mx-t2, #334155); line-height: 1.45 } .eqc-n > div > span em { font-style: normal; font-weight: 600 } .eqc-n > div > span b { font-weight: 600 }
+.eqc-bar { position: relative; display: block; height: 10px; border-radius: 99px; background: var(--mx-bg1, #eef2f6); margin: 4px 0 2px } .eqc-bar u { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #60a5fa, #2563eb); animation: eqcEnche 1.2s cubic-bezier(.2,.8,.2,1) both; transform-origin: left }
 @keyframes eqcEnche { from { transform: scaleX(0) } }
 .eqc-bar s { position: absolute; top: -4px; width: 3px; height: 18px; border-radius: 2px; background: #94a3b8; transform: translateX(-50%) } .eqc-bar s.hoje { background: #0f172a }
 .eqc-graf { display: grid; gap: 10px; min-width: 0 }
 .eqc-graf-topo { display: flex; justify-content: flex-end }
-.eqc-vista { display: inline-flex; gap: 2px; background: #f1f5f9; border-radius: 99px; padding: 3px } .eqc-vista button { border: 0; background: transparent; border-radius: 99px; padding: 6px 14px; font-family: inherit; font-size: 13px; color: #334155; cursor: pointer } .eqc-vista button.on { background: #fefefe; color: #0f172a; box-shadow: 0 1px 3px rgba(15,23,42,.1) } .eqc-vista button i { margin-right: 4px; color: #2563eb }
+.eqc-vista { display: inline-flex; gap: 2px; background: var(--mx-bg1, #f1f5f9); border-radius: 99px; padding: 3px } .eqc-vista button { border: 0; background: transparent; border-radius: 99px; padding: 6px 14px; font-family: inherit; font-size: 13px; color: var(--mx-t2, #334155); cursor: pointer } .eqc-vista button.on { background: var(--mx-bg0, #fefefe); color: var(--mx-t, #0f172a); box-shadow: 0 1px 3px rgba(15,23,42,.1) } .eqc-vista button i { margin-right: 4px; color: var(--mx-fg-blue, #2563eb) }
 .eqc-leg { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px }
-.eqc-leg > div { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 9px; align-items: center; border-radius: 12px; padding: 7px 10px; background: color-mix(in srgb, var(--c) 7%, #fefefe) }
+.eqc-leg > div { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 9px; align-items: center; border-radius: 12px; padding: 7px 10px; background: color-mix(in srgb, var(--c) 7%, var(--mx-bg0, #fefefe)) }
 .eqc-leg > div > span { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--c); color: #fefefe; font-size: 13px }
-.eqc-leg p { margin: 0; display: grid; line-height: 1.25 } .eqc-leg b { font-size: 13px; font-weight: 500; color: #0f172a } .eqc-leg small { font-size: 12px; color: #475569 }
+.eqc-leg p { margin: 0; display: grid; line-height: 1.25 } .eqc-leg b { font-size: 13px; font-weight: 500; color: var(--mx-t, #0f172a) } .eqc-leg small { font-size: 12px; color: var(--mx-t2, #475569) }
 .eqc-dica { background: #0f172a; color: #fefefe; border-radius: 12px; padding: 10px 12px; display: grid; gap: 5px; min-width: 210px; box-shadow: 0 10px 30px rgba(15,23,42,.25) }
 .eqc-dica > b { font-size: 13px; font-weight: 500 } .eqc-dica > div { display: grid; grid-template-columns: 16px 1fr auto; gap: 8px; align-items: center; font-size: 12.5px } .eqc-dica span { color: #cbd5e1 } .eqc-dica em { font-style: normal; font-variant-numeric: tabular-nums }
 .eqc-dica > small { font-size: 12px; font-weight: 600; filter: brightness(1.6) }
-.eqc-faixa { display: grid; gap: 14px; background: linear-gradient(180deg, #f8fafc, #fefefe); border: 1px solid #eef2f6; border-radius: 16px; padding: 16px 18px }
+.eqc-faixa { display: grid; gap: 14px; background: linear-gradient(180deg, var(--mx-bg1, #f8fafc), var(--mx-bg0, #fefefe)); border: 1px solid var(--mx-bd, #eef2f6); border-radius: 16px; padding: 16px 18px }
 .eqc-regua { position: relative; padding: 34px 70px 30px 10px }
-.eqc-regua-trilho { position: relative; height: 14px; border-radius: 99px; background: linear-gradient(90deg, #e2e8f0, #eef2f6) }
+.eqc-regua-trilho { position: relative; height: 14px; border-radius: 99px; background: linear-gradient(90deg, var(--mx-bg2, #e2e8f0), var(--mx-bg1, #eef2f6)) }
 .eqc-regua-trilho > u { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: linear-gradient(90deg, #60a5fa, #2563eb); transform-origin: left; animation: eqcEnche 1.4s cubic-bezier(.2,.8,.2,1) both }
 .eqc-regua-trilho > s { position: absolute; top: -6px; bottom: -6px; width: 3px; border-radius: 2px; transform: translateX(-50%) } .eqc-regua-trilho > s.hoje { background: #0f172a } .eqc-regua-trilho > s.bas { background: #64748b } .eqc-regua-trilho > s.ide { background: #7c3aed }
 .eqc-eu { position: absolute; bottom: calc(100% + 8px); transform: translateX(-50%); display: grid; justify-items: center; white-space: nowrap; animation: eqcEu 1.4s cubic-bezier(.2,.8,.2,1) both }
-.eqc-eu b { font-size: 14px; font-weight: 600; color: #fefefe; background: #2563eb; border-radius: 8px; padding: 2px 8px } .eqc-eu small { font-size: 11.5px; color: #1d4ed8 }
+.eqc-eu b { font-size: 14px; font-weight: 600; color: #fefefe; background: #2563eb; border-radius: 8px; padding: 2px 8px } .eqc-eu small { font-size: 11.5px; color: var(--mx-fg-blue, #1d4ed8) }
 .eqc-eu::after { content: ''; position: absolute; bottom: -6px; border: 5px solid transparent; border-top-color: #2563eb; border-bottom: 0 }
 @keyframes eqcEu { from { left: 0; opacity: 0 } }
-.eqc-marcas { position: relative; height: 38px; margin-top: 10px } .eqc-marcas > span.hoje { top: 20px } .eqc-marcas > span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; font-size: 12.5px; color: #334155 } .eqc-marcas i { font-size: 11px }
-.eqc-marcas .hoje i { color: #0f172a } .eqc-marcas .bas i { color: #64748b } .eqc-marcas .ide { transform: translateX(-90%) } .eqc-marcas .ide i { color: #7c3aed }
+.eqc-marcas { position: relative; height: 38px; margin-top: 10px } .eqc-marcas > span.hoje { top: 20px } .eqc-marcas > span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; font-size: 12.5px; color: var(--mx-t2, #334155) } .eqc-marcas i { font-size: 11px }
+.eqc-marcas .hoje i { color: var(--mx-t, #0f172a) } .eqc-marcas .bas i { color: var(--mx-t3, #64748b) } .eqc-marcas .ide { transform: translateX(-90%) } .eqc-marcas .ide i { color: var(--mx-fg-violet, #7c3aed) }
 .eqc-cartoes-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px }
-.eqc-cartoes-meta > div { --c: #64748b; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: #fefefe; border: 1px solid #e8edf3; border-radius: 14px; padding: 10px 12px; animation: eqcEntra .5s both }
+.eqc-cartoes-meta > div { --c: #64748b; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: var(--mx-bg0, #fefefe); border: 1px solid var(--mx-bd, #e8edf3); border-radius: 14px; padding: 10px 12px; animation: eqcEntra .5s both }
 .eqc-cartoes-meta > .ide { --c: #7c3aed; animation-delay: 80ms } .eqc-cartoes-meta > .rit { animation-delay: 160ms }
-.eqc-cartoes-meta span { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 14%, #fefefe); color: var(--c); font-size: 14px }
-.eqc-cartoes-meta p { margin: 0; display: grid; gap: 1px } .eqc-cartoes-meta p > b { font-size: 14px; font-weight: 500; color: #0f172a } .eqc-cartoes-meta small { font-size: 12.5px; color: #475569; line-height: 1.4 } .eqc-cartoes-meta small b { font-weight: 600; color: #0f172a }
+.eqc-cartoes-meta span { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 14%, var(--mx-bg0, #fefefe)); color: var(--c); font-size: 14px }
+.eqc-cartoes-meta p { margin: 0; display: grid; gap: 1px } .eqc-cartoes-meta p > b { font-size: 14px; font-weight: 500; color: var(--mx-t, #0f172a) } .eqc-cartoes-meta small { font-size: 12.5px; color: var(--mx-t2, #475569); line-height: 1.4 } .eqc-cartoes-meta small b { font-weight: 600; color: var(--mx-t, #0f172a) }
 .eqc-cartoes-meta em { font-style: normal; font-size: 20px; font-weight: 500; color: var(--c); font-variant-numeric: tabular-nums }
-.eqc-chips { display: flex; gap: 8px; flex-wrap: wrap } .eqc-chips span { font-size: 13px; color: #334155; background: #f1f5f9; border-radius: 99px; padding: 5px 12px } .eqc-chips i { color: #64748b; margin-right: 3px } .eqc-chips b { font-weight: 600 }
+.eqc-chips { display: flex; gap: 8px; flex-wrap: wrap } .eqc-chips span { font-size: 13px; color: var(--mx-t2, #334155); background: var(--mx-bg1, #f1f5f9); border-radius: 99px; padding: 5px 12px } .eqc-chips i { color: var(--mx-t3, #64748b); margin-right: 3px } .eqc-chips b { font-weight: 600 }
 .eqc-sem { display: grid; gap: 8px; min-width: 0; align-content: start }
-.eqc-sem-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap } .eqc-sem-cab b { font-size: 15px; font-weight: 500; color: #0f172a }
-.eqc-sem-cab span { display: inline-flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: #475569 } .eqc-sem-cab i { display: inline-block; width: 10px; height: 10px; border-radius: 3px }
+.eqc-sem-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap } .eqc-sem-cab b { font-size: 15px; font-weight: 500; color: var(--mx-t, #0f172a) }
+.eqc-sem-cab span { display: inline-flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--mx-t2, #475569) } .eqc-sem-cab i { display: inline-block; width: 10px; height: 10px; border-radius: 3px }
 .eqc-sem-cab span u { display: inline-flex; gap: 6px; align-items: center; text-decoration: none } .eqc-sem-cab i.ok { background: #10b981 } .eqc-sem-cab i.quase { background: #f59e0b } .eqc-sem-cab i.baixo { background: #ef4444 }
-.eqc-vis { display: inline-flex; gap: 2px; background: #f1f5f9; border-radius: 99px; padding: 3px }
-.eqc-vis button { position: relative; overflow: hidden; border: 0; background: transparent; border-radius: 99px; padding: 6px 14px; font-family: inherit; font-size: 13.5px; color: #334155; cursor: pointer; transition: background .25s, color .25s }
-.eqc-vis button i { font-size: 12px; margin-right: 3px; color: #2563eb } .eqc-vis button.on { background: #fefefe; color: #0f172a; box-shadow: 0 1px 3px rgba(15,23,42,.12) }
+.eqc-vis { display: inline-flex; gap: 2px; background: var(--mx-bg1, #f1f5f9); border-radius: 99px; padding: 3px }
+.eqc-vis button { position: relative; overflow: hidden; border: 0; background: transparent; border-radius: 99px; padding: 6px 14px; font-family: inherit; font-size: 13.5px; color: var(--mx-t2, #334155); cursor: pointer; transition: background .25s, color .25s }
+.eqc-vis button i { font-size: 12px; margin-right: 3px; color: var(--mx-fg-blue, #2563eb) } .eqc-vis button.on { background: var(--mx-bg0, #fefefe); color: var(--mx-t, #0f172a); box-shadow: 0 1px 3px rgba(15,23,42,.12) }
 .eqc-vis-t { position: absolute; left: 12px; right: 12px; bottom: 2px; height: 2px; border-radius: 2px; background: #2563eb; transform-origin: left; animation: eqcTempo 9s linear both; opacity: .6 }
 @keyframes eqcTempo { from { transform: scaleX(0) } }
 .eqc-palco { position: relative; overflow: hidden }
 .eqc-slide { display: grid; gap: 8px; animation: eqcSlide .55s cubic-bezier(.2,.8,.2,1) both } .eqc-slide.semana { animation-name: eqcSlideV }
 @keyframes eqcSlide { from { opacity: 0; transform: translateX(-28px) } } @keyframes eqcSlideV { from { opacity: 0; transform: translateX(28px) } }
-.eqc-w.forte { background: #fefefe; box-shadow: inset 0 0 0 1px #e2e8f0 } .eqc-w.forte .eqc-w-t b { font-weight: 600 } .eqc-w.forte .eqc-w-bar { height: 20px }
+.eqc-w.forte { background: var(--mx-bg0, #fefefe); box-shadow: inset 0 0 0 1px #e2e8f0 } .eqc-w.forte .eqc-w-t b { font-weight: 600 } .eqc-w.forte .eqc-w-bar { height: 20px }
 .eqc-w-bar s { position: absolute; top: -4px; bottom: -4px; width: 3px; border-radius: 2px; background: #0f172a; transform: translateX(-50%) }
-.eqc-w { display: grid; grid-template-columns: 150px minmax(0, 1fr) 150px; gap: 14px; align-items: center; padding: 10px 12px; border-radius: 12px; background: #f8fafc; animation: eqcEntra .45s both }
-.eqc-w.agora { background: #eff6ff; box-shadow: inset 0 0 0 1px #bfdbfe } .eqc-w.fut { opacity: .55 }
+.eqc-w { display: grid; grid-template-columns: 150px minmax(0, 1fr) 150px; gap: 14px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--mx-bg1, #f8fafc); animation: eqcEntra .45s both }
+.eqc-w.agora { background: var(--mx-bg1, #eff6ff); box-shadow: inset 0 0 0 1px #bfdbfe } .eqc-w.fut { opacity: .55 }
 @keyframes eqcEntra { from { opacity: 0; transform: translateY(6px) } }
-.eqc-w-t { display: grid; gap: 1px } .eqc-w-t b { font-size: 14px; font-weight: 500; color: #0f172a } .eqc-w-t small { font-size: 12.5px; color: #475569 } .eqc-w-t em { justify-self: start; font-style: normal; font-size: 11.5px; color: #1d4ed8; background: #dbeafe; border-radius: 99px; padding: 1px 8px; margin-top: 2px }
-.eqc-w-bar { position: relative; height: 16px; border-radius: 99px; background: #eef2f6 }
-.eqc-w-bar .esp { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: #dde3ea }
+.eqc-w-t { display: grid; gap: 1px } .eqc-w-t b { font-size: 14px; font-weight: 500; color: var(--mx-t, #0f172a) } .eqc-w-t small { font-size: 12.5px; color: var(--mx-t2, #475569) } .eqc-w-t em { justify-self: start; font-style: normal; font-size: 11.5px; color: var(--mx-fg-blue, #1d4ed8); background: var(--mx-p-blue, #dbeafe); border-radius: 99px; padding: 1px 8px; margin-top: 2px }
+.eqc-w-bar { position: relative; height: 16px; border-radius: 99px; background: var(--mx-bg1, #eef2f6) }
+.eqc-w-bar .esp { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: var(--mx-bg2, #dde3ea) }
 .eqc-w-bar u { position: absolute; inset: 0 auto 0 0; border-radius: 99px; transform-origin: left; animation: eqcEnche 1s cubic-bezier(.2,.8,.2,1) both }
-.eqc-w.ok .eqc-w-bar u { background: linear-gradient(90deg, #34d399, #10b981) } .eqc-w.quase .eqc-w-bar u { background: linear-gradient(90deg, #fbbf24, #f59e0b) } .eqc-w.baixo .eqc-w-bar u { background: linear-gradient(90deg, #f87171, #ef4444) } .eqc-w.fut .eqc-w-bar u { background: #cbd5e1 }
-.eqc-w-v { display: grid; justify-items: end; gap: 1px; font-variant-numeric: tabular-nums } .eqc-w-v b { font-size: 16px; font-weight: 500; color: #0f172a } .eqc-w-v small { font-size: 12.5px; color: #475569 }
-.eqc-w.ok .eqc-w-v small { color: #047857 } .eqc-w.baixo .eqc-w-v small { color: #b91c1c } .eqc-w.quase .eqc-w-v small { color: #b45309 }
+.eqc-w.ok .eqc-w-bar u { background: linear-gradient(90deg, #34d399, #10b981) } .eqc-w.quase .eqc-w-bar u { background: linear-gradient(90deg, #fbbf24, #f59e0b) } .eqc-w.baixo .eqc-w-bar u { background: linear-gradient(90deg, #f87171, #ef4444) } .eqc-w.fut .eqc-w-bar u { background: var(--mx-bg2, #cbd5e1) }
+.eqc-w-v { display: grid; justify-items: end; gap: 1px; font-variant-numeric: tabular-nums } .eqc-w-v b { font-size: 16px; font-weight: 500; color: var(--mx-t, #0f172a) } .eqc-w-v small { font-size: 12.5px; color: var(--mx-t2, #475569) }
+.eqc-w.ok .eqc-w-v small { color: var(--mx-fg-green, #047857) } .eqc-w.baixo .eqc-w-v small { color: var(--mx-fg-red, #b91c1c) } .eqc-w.quase .eqc-w-v small { color: var(--mx-fg-orange, #b45309) }
 @media (max-width: 700px) { .eqc-w { grid-template-columns: 1fr; gap: 6px } .eqc-w-v { justify-items: start } }
-.eqc-exp { margin: 0; font-size: 13px; color: #334155; line-height: 1.5; background: #f8fafc; border-radius: 10px; padding: 9px 12px } .eqc-exp > i { color: #2563eb; margin-right: 4px }
-.eqc-abrir { justify-self: start; display: inline-flex; gap: 8px; align-items: center; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: 99px; padding: 8px 16px; font-family: inherit; font-size: 14px; cursor: pointer } .eqc-abrir:hover, .eqc-abrir.on { background: #dbeafe }
+.eqc-exp { margin: 0; font-size: 13px; color: var(--mx-t2, #334155); line-height: 1.5; background: var(--mx-bg1, #f8fafc); border-radius: 10px; padding: 9px 12px } .eqc-exp > i { color: var(--mx-fg-blue, #2563eb); margin-right: 4px }
+.eqc-abrir { justify-self: start; display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--mx-pb-blue, #bfdbfe); background: var(--mx-bg1, #eff6ff); color: var(--mx-fg-blue, #1d4ed8); border-radius: 99px; padding: 8px 16px; font-family: inherit; font-size: 14px; cursor: pointer } .eqc-abrir:hover, .eqc-abrir.on { background: var(--mx-p-blue, #dbeafe) }
 .eqc-vel { display: grid; grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); gap: 24px; align-items: center; padding: 6px 4px }
-.eqc-vel-g { width: 100%; height: auto } .eqc-vel-g path { fill: none; stroke-width: 18; stroke-linecap: round } .eqc-vel-g .tr { stroke: #eef2f6 }
+.eqc-vel-g { width: 100%; height: auto } .eqc-vel-g path { fill: none; stroke-width: 18; stroke-linecap: round } .eqc-vel-g .tr { stroke: var(--mx-bd, #eef2f6) }
 .eqc-vel-g .ch { animation: eqcPonteiro 1.3s cubic-bezier(.2,.8,.2,1) both } @keyframes eqcPonteiro { from { stroke-dasharray: 0 100 } }
-.eqc-vel-g .hj { stroke: #0f172a; stroke-width: 3.5; stroke-linecap: round } .eqc-vel-g .pc { font-size: 34px; font-weight: 500; font-family: inherit } .eqc-vel-g .sb { font-size: 11.5px; fill: #475569; font-family: inherit }
+.eqc-vel-g .hj { stroke: #0f172a; stroke-width: 3.5; stroke-linecap: round } .eqc-vel-g .pc { font-size: 34px; font-weight: 500; font-family: inherit } .eqc-vel-g .sb { font-size: 11.5px; fill: var(--mx-t2, #475569); font-family: inherit }
 .eqc-vel-l { display: grid; gap: 10px } .eqc-vel-l > div { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: center; animation: eqcEntra .45s both } .eqc-vel-l > div:nth-child(2) { animation-delay: 90ms } .eqc-vel-l > div:nth-child(3) { animation-delay: 180ms }
-.eqc-vel-l span { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 12%, #fefefe); color: var(--c); font-size: 14px }
-.eqc-vel-l p { margin: 0; font-size: 15px; color: #334155; line-height: 1.45 } .eqc-vel-l b { font-weight: 600; color: #0f172a }
+.eqc-vel-l span { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 12%, var(--mx-bg0, #fefefe)); color: var(--c); font-size: 14px }
+.eqc-vel-l p { margin: 0; font-size: 15px; color: var(--mx-t2, #334155); line-height: 1.45 } .eqc-vel-l b { font-weight: 600; color: var(--mx-t, #0f172a) }
 @media (max-width: 760px) { .eqc-vel { grid-template-columns: 1fr } }
 .eqc-metas { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px }
-.eqc-m { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: center; text-align: left; border: 1px solid #eef2f6; background: #fefefe; border-radius: 14px; padding: 10px 12px; font-family: inherit; cursor: help; animation: eqcEntra .45s both; transition: border-color .2s, box-shadow .2s }
-.eqc-m:hover, .eqc-m:focus { border-color: color-mix(in srgb, var(--c) 40%, #e2e8f0); box-shadow: 0 8px 20px -14px rgba(15,23,42,.4); outline: none; z-index: 20 }
-.eqc-m-ic { position: relative; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 10%, #fefefe); color: var(--c); font-size: 15px }
+.eqc-m { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: center; text-align: left; border: 1px solid var(--mx-bd, #eef2f6); background: var(--mx-bg0, #fefefe); border-radius: 14px; padding: 10px 12px; font-family: inherit; cursor: help; animation: eqcEntra .45s both; transition: border-color .2s, box-shadow .2s }
+.eqc-m:hover, .eqc-m:focus { border-color: color-mix(in srgb, var(--c) 40%, var(--mx-bd, #e2e8f0)); box-shadow: 0 8px 20px -14px rgba(15,23,42,.4); outline: none; z-index: 20 }
+.eqc-m-ic { position: relative; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 10%, var(--mx-bg0, #fefefe)); color: var(--c); font-size: 15px }
 .eqc-m-ic svg { position: absolute; inset: 0; transform: rotate(-90deg) } .eqc-m-ic circle { fill: none; stroke: var(--c); stroke-width: 3; stroke-linecap: round; animation: eqcPonteiro 1.2s cubic-bezier(.2,.8,.2,1) both }
 @keyframes eqcPonteiro { from { stroke-dasharray: 0 100 } }
-.eqc-m-t { display: grid; min-width: 0 } .eqc-m-t small { font-size: 12.5px; color: #475569 } .eqc-m-t b { font-size: 18px; font-weight: 500; color: #0f172a; font-variant-numeric: tabular-nums; white-space: nowrap } .eqc-m-t em { font-style: normal; font-size: 12px; color: var(--c); font-weight: 600 }
+.eqc-m-t { display: grid; min-width: 0 } .eqc-m-t small { font-size: 12.5px; color: var(--mx-t2, #475569) } .eqc-m-t b { font-size: 18px; font-weight: 500; color: var(--mx-t, #0f172a); font-variant-numeric: tabular-nums; white-space: nowrap } .eqc-m-t em { font-style: normal; font-size: 12px; color: var(--c); font-weight: 600 }
 .eqc-m-dica { position: absolute; left: 0; top: calc(100% + 8px); width: max(100%, 290px); display: grid; gap: 7px; background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.45; box-shadow: 0 16px 34px rgba(15,23,42,.3); opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity .18s, transform .18s; cursor: default }
 .eqc-m:hover .eqc-m-dica, .eqc-m:focus .eqc-m-dica { opacity: 1; transform: none }
 .eqc-m-dica b { color: #fefefe; font-weight: 600 } .eqc-m-dica .c { color: #cbd5e1; font-size: 12.5px } .eqc-m-dica .p { color: #fde68a; font-size: 12.5px } .eqc-m-dica i { margin-right: 4px; font-size: 11px }
 .eqc-metas > .eqc-m:nth-child(n+4) .eqc-m-dica { left: auto; right: 0 }
 @media (max-width: 1000px) { .eqc-corpo { grid-template-columns: 1fr } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.eqc-ic, .eqc-cartoes-meta span, .eqc-cartoes-meta em, .eqc-vel-l span, .eqc-m-ic, .eqc-m-t em) { color: color-mix(in srgb, var(--c) 60%, #fff) }
+
 `

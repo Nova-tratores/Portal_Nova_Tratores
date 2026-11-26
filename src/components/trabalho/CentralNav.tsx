@@ -1,28 +1,29 @@
 'use client'
 // CENTRAL DE TRABALHO — barra única do módulo. Fica no topo de /tickets*,
-// /cronograma* e /tarefas. Quadros (os blocos de cada um) é a casa; Cronograma
+// /cronograma* e /tarefas. Quadros (os de cada um) é a casa; Cronograma
 // é a visão geral por dia; Pendências só aparece pra quem tem tarefas
-// automáticas (robôs do estoque / DRE). Criar ticket e tarefa = botões.
+// automáticas (robôs do estoque / DRE). Criar ticket = botão; o checklist
+// (passos) se cria dentro do ticket (Fase 0, 24/11/2026: sem "Nova tarefa" solta).
 import { useEffect, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutGrid, Ticket as TicketIcon, GanttChartSquare, SquareCheck, X, ListTodo,
-  ArrowRight, Users, Lock, Calendar, BarChart3, Lightbulb, CalendarClock, MapPin, CalendarDays,
+  LayoutGrid, Ticket as TicketIcon, GanttChartSquare, X, ListTodo,
+  ArrowRight, Users, Lock, Calendar, Lightbulb, CalendarClock, MapPin, CalendarDays, ListOrdered,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import FormTicket from '@/components/tickets/FormTicket'
 import TicketModal from '@/components/tickets/TicketModal'
 import { useBlocoAtual, type BlocoAtual } from '@/lib/trabalho/bloco-atual'
-import FormTarefa from './FormTarefa'
 import { ESTILO_CENTRAL_VN } from './visualCentral'
+import PaletaComandos from './PaletaComandos'
 
 export default function CentralNav() {
   const pathname = usePathname() || ''
   const { userProfile } = useAuth()
-  const { isAdmin, isDev } = usePermissoes(userProfile?.id)
+  const { isDev } = usePermissoes(userProfile?.id)
   const [ajuda, setAjuda] = useState(false)
   const [novoTicket, setNovoTicket] = useState(false)
   const [preenchido, setPreenchido] = useState<{ titulo: string; descricao: string } | null>(null)
@@ -47,49 +48,61 @@ export default function CentralNav() {
     if (bloco) { setPerguntaBloco(true); return }
     setNoBloco(null); setNovoTicket(true)
   }
-  const [novaTarefa, setNovaTarefa] = useState(false)
   const [ticketAberto, setTicketAberto] = useState<string | null>(null)
   const [pendencias, setPendencias] = useState(0)
   const [reunioesHoje, setReunioesHoje] = useState(0)
 
+  // Contagens da barra. Desde 24/11/2026 a barra fica montada no PortalLayout (não desmonta ao
+  // navegar): carrega uma vez e de novo só quando algo muda — antes eram 2 chamadas a cada página.
+  const [parados, setParados] = useState(0)
   useEffect(() => {
     let vivo = true
-    ;(async () => {
-      try {
-        const r = await fetch('/api/trabalho/central', { headers: await authHeaders() })
-        const j = await r.json()
-        if (vivo && r.ok) setPendencias(j.pendencias || 0)
-      } catch { /* sem contagem: a aba fica escondida */ }
-      // Reuniões de hoje em que participo (chip da aba Reuniões).
-      try {
-        const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-        const r = await fetch('/api/reunioes?visao=minhas', { headers: await authHeaders() })
-        const j = await r.json()
-        if (vivo && r.ok) setReunioesHoje((j.reunioes || []).filter((t: { prazo?: string | null }) => t.prazo === hoje).length)
-      } catch { /* sem contagem */ }
-    })()
-    return () => { vivo = false }
-  }, [pathname])
+    const contar = async () => {
+      const h = await authHeaders()
+      const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+      const [c, r, fx] = await Promise.allSettled([
+        fetch('/api/trabalho/central?so=contagem', { headers: h }).then((x) => x.json()),
+        fetch('/api/reunioes?visao=minhas', { headers: h }).then((x) => x.json()),
+        fetch('/api/trabalho/faxina?contar=1', { headers: h }).then((x) => x.json()),
+      ])
+      if (!vivo) return
+      if (c.status === 'fulfilled') setPendencias(c.value.pendencias || 0)
+      if (r.status === 'fulfilled') setReunioesHoje(((r.value.reunioes || []) as { prazo?: string | null }[]).filter((t) => t.prazo === hoje).length)
+      if (fx.status === 'fulfilled') setParados(fx.value.n || 0)
+    }
+    void contar()
+    window.addEventListener('central-trabalho-mudou', contar)
+    return () => { vivo = false; window.removeEventListener('central-trabalho-mudou', contar) }
+  }, [])
 
-  // /tickets (exato) é só a Visão gerencial; o resto de /tickets* é Quadros.
+  // /tickets (exato) é só a Visão gerencial; o resto de /tickets* é Quadros (por link).
   const naGerencial = pathname === '/tickets'
   const emQuadros = pathname.startsWith('/tickets') && !naGerencial
+  // Barra única (melhorias 1.4, 24/11/2026): Minha fila · Equipe · Todos · Agenda · Reuniões · Ideias.
+  // Lista/Kanban/Gantt/Calendário são um seletor DENTRO de Todos. Agenda tem a vista Salas ao lado.
+  const naAgenda = pathname.startsWith('/agenda') || pathname.startsWith('/salas')
+  const naEquipe = pathname.startsWith('/fila/equipe')
   const abas = [
-    { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={15} />, ativo: emQuadros },
-    // Agenda coletiva estilo Google (todos por setor + reuniões, sala, prazos, técnicos).
-    { href: '/agenda', label: 'Agenda', icone: <CalendarDays size={15} />, ativo: pathname.startsWith('/agenda') },
-    { href: '/cronograma', label: 'Cronograma', icone: <GanttChartSquare size={15} />, ativo: pathname.startsWith('/cronograma') },
-    // Reuniões (pauta + ata sobre a engine de tickets): mesma permissão da Central.
+    // Minha fila: o item da vez, os próximos, o que chegou. O número = pedidos parados (Faxina).
+    { href: '/fila', label: 'Minha fila', icone: <ListOrdered size={15} />, ativo: pathname.startsWith('/fila') && !naEquipe, n: parados },
+    // Equipe: a carga de cada pessoa, só números.
+    { href: '/fila/equipe', label: 'Equipe', icone: <Users size={15} />, ativo: naEquipe },
+    // Todos os pedidos (lista, kanban, Gantt, calendário) + Visão geral e quadros por link.
+    { href: '/cronograma', label: 'Todos', icone: <GanttChartSquare size={15} />, ativo: pathname.startsWith('/cronograma') || pathname.startsWith('/tickets') },
+    // Agenda coletiva (todos por setor + reuniões, prazos, técnicos) com a vista Salas.
+    { href: '/agenda', label: 'Agenda', icone: <CalendarDays size={15} />, ativo: naAgenda },
+    // Reuniões (pauta + ata): mesma permissão da Central.
     { href: '/reunioes', label: 'Reuniões', icone: <CalendarClock size={15} />, ativo: pathname.startsWith('/reunioes'), n: reunioesHoje },
-    // Sala de reunião: um dos módulos da Central (José, 04/11/2026), aberta a todo logado.
-    { href: '/salas', label: 'Sala de reunião', icone: <MapPin size={15} />, ativo: pathname.startsWith('/salas') },
-    ...(isAdmin ? [{ href: '/tickets?aba=gerencial', label: 'Visão gerencial', icone: <BarChart3 size={15} />, ativo: naGerencial }] : []),
-    // Bloco de notas dos devs (captar → agrupar → planejar vira ticket). Só Dev.
+    // Bloco de notas dos devs (captar → agrupar → planejar vira pedido). A tela é só de Dev.
     ...(isDev ? [{ href: '/ideias', label: 'Ideias', icone: <Lightbulb size={15} />, ativo: pathname.startsWith('/ideias') }] : []),
     ...(pendencias > 0 || pathname.startsWith('/tarefas')
       ? [{ href: '/tarefas', label: 'Pendências', icone: <ListTodo size={15} />, ativo: pathname.startsWith('/tarefas'), n: pendencias }]
       : []),
   ]
+  const vistas = naAgenda ? [
+    { href: '/agenda', label: 'Calendário', icone: <CalendarDays size={14} />, ativo: pathname.startsWith('/agenda') },
+    { href: '/salas', label: 'Salas', icone: <MapPin size={14} />, ativo: pathname.startsWith('/salas') },
+  ] : []
   // Avisa a página aberta (Quadros/Cronograma) que algo novo foi criado.
   const avisarMudanca = () => window.dispatchEvent(new Event('central-trabalho-mudou'))
   const botao = (cor: string): React.CSSProperties => ({
@@ -103,21 +116,41 @@ export default function CentralNav() {
     <>
       {/* Tela estreita: abas numa linha (rolam de lado) e os botões de criar na linha de baixo. */}
       <style>{ESTILO_CENTRAL_VN}</style>
+      {/* 901–1100 px (Fase 0, 24/11/2026): sem rolar de lado. Aba que não está aberta mostra só o ícone; o nome vem no title. */}
+      <style>{`@media (min-width: 901px) and (max-width: 1100px){.ct-aba{padding:9px 10px 10px !important}.ct-aba:not(.on) .ct-aba-txt{display:none}}`}</style>
+      <style>{`.ct-vistas{display:flex;gap:4px;padding:3px;margin-left:10px;border-radius:11px;background:var(--portal-bg-secondary,#f1f5f9);flex:none}
+.ct-vista{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:9px;font-size:13px;font-weight:500;color:var(--portal-text-secondary,#475569);text-decoration:none;white-space:nowrap}
+.ct-vista:hover{color:var(--portal-text,#0f172a)}
+.ct-vista.on{background:var(--portal-surface,#fefefe);color:var(--portal-text,#0f172a);box-shadow:0 1px 3px rgba(15,23,42,.12)}
+@media (max-width:900px){.ct-vistas{order:3;margin:6px 0 4px;overflow-x:auto;max-width:100%}}
+@media (max-width:1100px){.ct-k-txt{display:none}}`}</style>
       <style>{`@media (max-width: 900px){.ct-nav{flex-wrap:wrap;padding:0 12px !important}.ct-nav-abas{flex:1 1 100% !important}.ct-nav-acoes{flex:1 1 100%;margin-left:0 !important;padding:8px 0 10px !important;justify-content:flex-end}.ct-nav-acoes button{min-height:36px}.ct-nav-acoes .ct-nav-ajuda{width:36px !important;height:36px !important}}`}</style>
       <nav aria-label="Central de Trabalho" className="ct-nav" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 16px', borderBottom: '1px solid var(--portal-border,#eee)', background: 'var(--portal-surface,#fff)' }}>
         <div className="ct-nav-abas" style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 0, overflowX: 'auto' }}>
         {/* abas estilo Chrome, sem o nome do módulo ao lado (José, 04/11/2026 — docs/padrao-telas.md); CSS em visualCentral.ts */}
         {abas.map((a) => (
-          <Link key={a.label} href={a.href} className={`ct-aba${a.ativo ? ' on' : ''}`} aria-current={a.ativo ? 'page' : undefined}>
-            <span className="ct-aba-ic">{a.icone}</span> {a.label}
+          <Link key={a.label} href={a.href} className={`ct-aba${a.ativo ? ' on' : ''}`} aria-current={a.ativo ? 'page' : undefined} title={a.label} aria-label={a.label}>
+            <span className="ct-aba-ic">{a.icone}</span> <span className="ct-aba-txt">{a.label}</span>
             {'n' in a && typeof a.n === 'number' && a.n > 0 && <span className="ct-aba-n">{a.n}</span>}
           </Link>
         ))}
         </div>
+        {vistas.length > 1 && (
+          // Vistas da aba aberta (24/11/2026): no lugar das abas que repetiam calendário e kanban.
+          <div className="ct-vistas" role="group" aria-label="Vistas">
+            {vistas.map((v) => (
+              <Link key={v.label} href={v.href} className={`ct-vista${v.ativo ? ' on' : ''}`} aria-current={v.ativo ? 'page' : undefined}>
+                {v.icone} {v.label}
+              </Link>
+            ))}
+          </div>
+        )}
         <span className="ct-nav-acoes" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12 }}>
           {/* só na aba Quadros (José, 17/11/2026) */}
-          {emQuadros && <button onClick={abrirNovoTicket} style={botao('#dc2626')}><TicketIcon size={15} /> Novo ticket</button>}
-          {emQuadros && <button onClick={() => setNovaTarefa(true)} style={botao('#16a34a')}><SquareCheck size={15} /> Nova tarefa</button>}
+          {emQuadros && <button onClick={abrirNovoTicket} style={botao('#dc2626')}><TicketIcon size={15} /> Novo pedido</button>}
+          {/* Na Minha fila o pedido é o botão "Pedir para alguém" da própria tela. */}
+          {/* Ctrl+K (melhorias 5.4): pedir escrevendo ou ir para uma tela */}
+          <PaletaComandos />
           <button className="ct-nav-ajuda" onClick={() => setAjuda(true)} title="Como funciona" aria-label="Como funciona a Central de Trabalho"
             style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>?</button>
         </span>
@@ -132,11 +165,6 @@ export default function CentralNav() {
           quadro={noBloco ? { id: noBloco.id, nome: noBloco.nome, colunaId: noBloco.colunaId ?? null } : undefined}
           onFechar={() => { setNovoTicket(false); setPreenchido(null); setNoBloco(null) }}
           onCriado={(id) => { setNovoTicket(false); setNoBloco(null); avisarMudanca(); setTicketAberto(id) }} />
-      )}
-      {novaTarefa && (
-        <FormTarefa onFechar={() => setNovaTarefa(false)}
-          onNovoTicket={() => { setNovaTarefa(false); setNovoTicket(true) }}
-          onCriada={(id) => { setNovaTarefa(false); avisarMudanca(); setTicketAberto(id) }} />
       )}
       {ticketAberto && <TicketModal id={ticketAberto} onFechar={() => setTicketAberto(null)} onMudou={avisarMudanca} />}
     </>
@@ -155,19 +183,19 @@ function ConfirmarBloco({ nome, onEscolher, onFechar }: { nome: string; onEscolh
       <div onClick={(e) => e.stopPropagation()}
         style={{ width: '100%', maxWidth: 400, background: 'var(--portal-surface,#fff)', borderRadius: 14, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, color: 'var(--portal-text,#111)', marginBottom: 8 }}>
-          <LayoutGrid size={18} color="#dc2626" /> Abrir no bloco {nome}?
+          <LayoutGrid size={18} color="#dc2626" /> Abrir no quadro {nome}?
         </div>
         <p style={{ margin: '0 0 18px', fontSize: 14, lineHeight: 1.5, color: 'var(--portal-text-secondary,#555)' }}>
-          Você está dentro do bloco <strong>{nome}</strong>. O ticket novo já entra nele.
+          Você está dentro do quadro <strong>{nome}</strong>. O ticket novo já entra nele.
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button autoFocus onClick={() => onEscolher(true)}
             style={{ padding: '10px 14px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-            Sim, abrir no bloco {nome}
+            Sim, abrir no quadro {nome}
           </button>
           <button onClick={() => onEscolher(false)}
             style={{ padding: '10px 14px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', color: 'var(--portal-text-secondary,#555)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-            Não, abrir fora do bloco
+            Não, abrir fora do quadro
           </button>
         </div>
       </div>
@@ -182,11 +210,11 @@ function ComoFunciona({ onFechar }: { onFechar: () => void }) {
   })
   const seta: React.CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text-muted,#888)', textAlign: 'center', flex: 'none' }
   const passos = [
-    ['1. Peça', 'Novo ticket: o que precisa, para quem e até quando. Quem pediu acompanha o dia e a situação até o fim.'],
-    ['2. Quem recebe organiza', 'Confirma (ou propõe outra data / recusa) e escolhe em qual BLOCO o ticket vai e se fica privado ou compartilhado com o bloco.'],
-    ['3. Blocos', 'Cada pessoa tem os seus blocos, por assunto, cada um de uma cor. Dá pra convidar colegas para um bloco.'],
-    ['4. Tarefas', 'Nova tarefa sempre dentro de um ticket (que você criou ou recebeu): os passos pequenos, com quem faz e prazo.'],
-    ['5. Cronograma', 'Tudo que você pode ver, por dia, cada ticket na cor do seu bloco. Atrasados aparecem primeiro.'],
+    ['1. Peça', 'Novo pedido: o que precisa, para quem e até quando. Quem pediu acompanha o dia e a situação até o fim.'],
+    ['2. Quem recebe organiza', 'Confirma (ou propõe outra data / recusa) e escolhe em qual QUADRO o ticket vai e se fica privado ou compartilhado com o quadro.'],
+    ['3. Quadros', 'Cada pessoa tem os seus quadros, por assunto, cada um de uma cor. Dá pra convidar colegas para um quadro.'],
+    ['4. Checklist e Ações', 'Dentro do ticket, o checklist são os passos pequenos, com quem faz e prazo. Na reunião, o que fica combinado vira Ação, que é um ticket.'],
+    ['5. Cronograma', 'Tudo que você pode ver, por dia, cada ticket na cor do seu quadro. Atrasados aparecem primeiro.'],
   ]
   return (
     <div onClick={(e) => { if (e.target === e.currentTarget) onFechar() }} style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -197,18 +225,18 @@ function ComoFunciona({ onFechar }: { onFechar: () => void }) {
         </header>
         <div style={{ padding: 18, color: 'var(--portal-text,#111)' }}>
           <p style={{ margin: 0, color: 'var(--portal-text-secondary,#555)', fontSize: 13.5 }}>
-            O <b>Ticket</b> é o pedido. Quem recebe guarda num dos seus <b>Blocos</b> (por assunto, cada um de uma cor). As <b>Tarefas</b> são os passos dentro do ticket. O <b>Cronograma</b> junta tudo por dia.
+            O <b>Ticket</b> é o pedido. Quem recebe guarda num dos seus <b>Quadros</b> (por assunto, cada um de uma cor). O <b>Checklist</b> são os passos dentro do ticket. O <b>Cronograma</b> junta tudo por dia.
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0', flexWrap: 'wrap' }}>
             <div style={caixa(true)}><TicketIcon size={22} color="#dc2626" /><b>Ticket</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>o pedido</small></div>
             <div style={seta}><span>quem recebe<br />escolhe</span><ArrowRight size={18} /></div>
-            <div style={caixa(false)}><LayoutGrid size={22} color="#dc2626" /><b>Bloco</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>organização, com cor</small></div>
+            <div style={caixa(false)}><LayoutGrid size={22} color="#dc2626" /><b>Quadro</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>organização, com cor</small></div>
             <div style={seta}><span>por dia</span><ArrowRight size={18} /></div>
-            <div style={caixa(false)}><Calendar size={22} color="#dc2626" /><b>Cronograma</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>tudo, na cor do bloco</small></div>
+            <div style={caixa(false)}><Calendar size={22} color="#dc2626" /><b>Cronograma</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>tudo, na cor do quadro</small></div>
           </div>
           <div style={{ display: 'grid', gap: 6, marginBottom: 14, fontSize: 13.5 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Lock size={16} color="#6b7280" /> <b>Privado</b>: só você, quem pediu e quem estiver no ticket</div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Users size={16} color="#059669" /> <b>Compartilhado</b>: quem participa do bloco também vê</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Users size={16} color="#059669" /> <b>Compartilhado</b>: quem participa do quadro também vê</div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(210px,100%),1fr))', gap: 10 }}>
             {passos.map(([t, d]) => (

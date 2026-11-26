@@ -17,8 +17,17 @@ export const TIPOS_ACAO = [
   { id: 'patrocinio',   label: 'Patrocínio' },
   { id: 'midia',        label: 'Mídia / publicidade' },
   { id: 'brinde',       label: 'Brindes' },
+  // 23/11/2026: confraternização, festa de fim de ano, aniversário, almoço da equipe (sql/marketing-evento-interno.sql)
+  { id: 'evento_interno', label: 'Evento interno' },
   { id: 'outro',        label: 'Outro' },
 ] as const;
+
+/**
+ * Evento interno não é venda: sem stand, leads, propostas, apoio de fábrica nem contrapartida.
+ * Uma lista só, usada pelo formulário, pelas abas da ficha e pelo cartão da lista.
+ */
+export const ehEventoInterno = (tipo: string | null | undefined) => tipo === 'evento_interno';
+export const ABAS_FORA_EVENTO_INTERNO = ['Apoio de fábrica', 'Leads', 'Propostas', 'Itens expostos', 'Ações realizadas', 'Concorrentes', 'Relatório'] as const;
 
 export const STATUS_ACAO = [
   { id: 'planejada',    label: 'Planejada',    cor: '#64748b' },
@@ -157,6 +166,7 @@ export const TIPOS_REALIZADA = [
 export const TIPOS_MIDIA = [
   { id: 'foto',      label: 'Foto' },
   { id: 'video',     label: 'Vídeo' },
+  { id: 'audio',     label: 'Áudio' },   // 23/11/2026 — sql/marketing-midias-audio.sql
   { id: 'post',      label: 'Post em rede' },
   { id: 'clipping',  label: 'Imprensa' },
   { id: 'banner',    label: 'Banner / peça gráfica' },
@@ -177,6 +187,27 @@ export const REPETIR_OPCOES = [
 // final do "não vendido". Um typo aqui zera a receita atribuída sem erro
 // nenhum aparecer na tela.
 // =============================================================================
+// ── Retorno (Fase 2 do plano do Marketing, 23/11/2026) ───────────────────────
+// Retorno = MARGEM atribuída / custo líquido (antes era a receita bruta: 13x enganoso).
+// Os valores abaixo são o padrão; a tela Resultados grava os da empresa em mkt_parametros ('retorno').
+
+/** % de margem por tipo de proposta, usado quando a proposta não tem custo/margem cadastrados. */
+export const MARGEM_PADRAO_PCT: Record<string, number> = { trator: 10, implemento: 15, autopropelido: 10, outro: 12 };
+
+/**
+ * Janela de atribuição: a venda conta para a ação se fechou entre o início da ação e o FIM + estes dias.
+ * null = sem janela (conta qualquer data). 0 = só durante a ação.
+ */
+export const JANELA_ATRIBUICAO_DIAS: Record<string, number | null> = {
+  feira: 90, dia_de_campo: 90, acao_loja: 30, campanha: 15, patrocinio: 60, midia: 30, brinde: 60, evento_interno: 0, outro: 60,
+};
+
+export interface RegrasRetorno {
+  margemPadraoPct: Record<string, number>;
+  janelaDias: Record<string, number | null>;
+}
+export const REGRAS_RETORNO_PADRAO: RegrasRetorno = { margemPadraoPct: MARGEM_PADRAO_PCT, janelaDias: JANELA_ATRIBUICAO_DIAS };
+
 export const PROPOSTA_VENDIDA = 'Concluida-Vendido';
 export const PROPOSTA_PERDIDA = 'Concluida- Não vendido.';
 /** Propostas ainda vivas (não concluídas) — o pipeline em aberto da ação. */
@@ -244,7 +275,7 @@ export interface Acao {
 }
 
 /** A roleta do site ligada a uma campanha (tabela `campanhas`, campanhas.acao_id). */
-export interface RoletaLigada { slug: string; capa: string | null }
+export interface RoletaLigada { slug: string; capa: string | null; /** inscrições na roleta (só na ficha) */ participantes?: number }
 
 export interface Apoio {
   id: string;
@@ -329,6 +360,15 @@ export interface PropostaVinculada {
   cliente: string | null;
   vendedor_nome: string | null;
   criado_em: string | null;
+  // Fase 2 (23/11/2026) — opcionais para os testes antigos continuarem valendo
+  /** trator | implemento | autopropelido | null */
+  tipo?: string | null;
+  /** margem em R$ (líquido − custo da máquina), quando a proposta tem custo cadastrado */
+  margem_prevista?: number | null;
+  /** quando virou "vendida" (fechado_em, ou status_desde como reserva) */
+  fechado_em?: string | null;
+  /** proposta na lixeira do Comercial: não conta para nada */
+  na_lixeira?: boolean;
 }
 
 // ── Helpers de rótulo (usados na tela e no PDF) ──────────────────────────────
@@ -343,3 +383,53 @@ export function cor(lista: readonly Opcao[], id: string | null | undefined, padr
   if (!id) return padrao;
   return lista.find((o) => o.id === id)?.cor ?? padrao;
 }
+
+/**
+ * Fase 2 (23/11/2026): campanha "Aprovada" ou "Em andamento" precisa de responsável.
+ * Devolve a mensagem de erro, ou null se está tudo certo. Usado na criação e na edição.
+ */
+export function exigeResponsavel(status: unknown, responsavelId: unknown): string | null {
+  if ((status === 'aprovada' || status === 'em_andamento') && !String(responsavelId ?? '').trim()) {
+    return 'Escolha o responsável antes de deixar a campanha "Aprovada" ou "Em andamento".';
+  }
+  return null;
+}
+
+// ── O que cada tipo de campanha mostra (revisão geral das telas, 23/11/2026) ──
+// Um mapa só, em vez de `if` espalhado por aba. Tipo novo = uma linha aqui.
+//   'sim' = sempre · 'dado' = só se já houver registro naquele bloco · 'nao' = não aparece
+export type BlocoCampanha = 'apoio' | 'funil' | 'roleta' | 'realizadas' | 'equipe' | 'itens' | 'concorrentes' | 'midia' | 'questionario';
+type Mostra = 'sim' | 'dado' | 'nao';
+const S = 'sim', D = 'dado', N = 'nao';
+//                                   apoio funil roleta realiz equipe itens conc  midia quest
+const LINHAS: Record<string, Mostra[]> = {
+  campanha:       [D, S, S, S, N, N, N, S, N],
+  feira:          [S, S, D, S, S, S, S, S, S],
+  dia_de_campo:   [S, S, D, S, S, S, D, S, S],
+  acao_loja:      [D, S, S, S, S, D, N, S, D],
+  patrocinio:     [S, D, N, D, N, N, N, S, S],
+  midia:          [D, S, N, D, N, N, N, S, N],
+  brinde:         [D, D, N, N, N, N, N, N, N],
+  evento_interno: [N, N, D, D, S, N, N, S, S],
+  outro:          [D, D, D, D, D, D, D, D, D],
+};
+const ORDEM_BLOCOS: BlocoCampanha[] = ['apoio', 'funil', 'roleta', 'realizadas', 'equipe', 'itens', 'concorrentes', 'midia', 'questionario'];
+
+/** O bloco aparece nesta campanha? `temDado` = já existe algum registro nele. */
+export function mostraBloco(tipo: string | null | undefined, bloco: BlocoCampanha, temDado = false): boolean {
+  const m = (LINHAS[String(tipo)] ?? LINHAS.outro)[ORDEM_BLOCOS.indexOf(bloco)];
+  return m === 'sim' || (m === 'dado' && temDado);
+}
+
+// ── Origem do lead (Fase 5, 23/11/2026): um funil só para todas as entradas ──
+export const ORIGENS_LEAD = [
+  { id: 'site', label: 'Site (pedido de proposta)' },
+  { id: 'site-whatsapp', label: 'Site (WhatsApp)' },
+  { id: 'feira', label: 'Feira / evento' },
+  { id: 'roleta', label: 'Roleta' },
+  { id: 'post', label: 'Post nas redes' },
+  { id: 'anuncio-meta', label: 'Anúncio Meta' },
+  { id: 'anuncio-google', label: 'Anúncio Google' },
+  { id: 'balcao', label: 'Balcão' },
+  { id: 'telefone', label: 'Telefone' },
+] as const;

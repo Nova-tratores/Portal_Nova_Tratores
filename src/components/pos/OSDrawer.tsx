@@ -10,6 +10,7 @@ import { useFasesDo } from "@/hooks/useFasesQuadro";
 import { faltaParaEnviarOmie } from "@/lib/pos/envio-omie-regras";
 import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/lib/pos/types";
+import { motivoValido, type RemocaoAlimentacao } from "@/lib/pos/alimentacao-remocao";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import SearchModal from "./SearchModal";
 import LogPanel from "./LogPanel";
@@ -18,6 +19,7 @@ import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 import ItemOrcamentoModal from "@/components/ppv/ItemOrcamentoModal";
 import ModalEditarItemOS from "./ModalEditarItemOS";
+import { ModalSemCobranca, AvisoFaturarSemCobranca, acaoSemCobranca } from "@/components/ppv/SemCobranca";
 import { PPVMiniProvider } from "@/lib/ppv/PPVContext";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
 import MaquinasClienteIcone from "@/components/MaquinasClienteIcone";
@@ -55,6 +57,7 @@ import { GradeServicosOmie, AbaDepartamentos, AbaInfoAdicionais, AbaParcelas, Ab
 import { espelhoPadrao, normalizarEspelho, aplicarInterna, totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import type { DocAnterior } from "@/lib/pos/omie-anteriores";
 import PaliativosOS from "./PaliativosOS";
+import { ESTILO_POS_ESCURO } from "./VisualNovoPOS";
 import type { PaliativoOS } from "@/lib/pos/paliativos";
 
 // Previsão de faturamento vazia = hoje (José, 13/10/2026), no fuso de São Paulo, "aaaa-mm-dd".
@@ -423,6 +426,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [anexosCount, setAnexosCount] = useState(0);
   const [duplicando, setDuplicando] = useState(false);
   const avisar = useCallback((t: "success" | "error", m: string) => { if (t === "error") alert(m); }, []);
+
+  // ── Peça "não gerar cobrança" (mexe no PPV da peça; depois recarrega as peças da OS) ──
+  const [semCobItem, setSemCobItem] = useState<{ ppvId: string; codigo: string; descricao: string; valorTotal: number; motivoAtual?: string } | null>(null);
+  const [semCobBusy, setSemCobBusy] = useState(false);
   const recarregarTarefasCount = useCallback(async () => {
     if (!osId) { setTarefasPendentes(0); return; }
     try {
@@ -464,7 +471,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [servicoOficina, setServicoOficina] = useState(false);
   const [servicoInterno, setServicoInterno] = useState(false);
   const internoOriginalRef = useRef(false);
-  const [alimentacoes, setAlimentacoes] = useState<AlimentacaoItem[]>([]);
+  // _salvo = veio do banco: tirar esse dia pede MOTIVO (vai pro Histórico ao salvar)
+  const [alimentacoes, setAlimentacoes] = useState<(AlimentacaoItem & { _salvo?: boolean })[]>([]);
+  const [remocoesAlim, setRemocoesAlim] = useState<RemocaoAlimentacao[]>([]);
+  const [removerAlimIdx, setRemoverAlimIdx] = useState<number | null>(null);
+  const [motivoRemAlim, setMotivoRemAlim] = useState("");
   // Fotos das notas de almoço enviadas pelo técnico, casadas por dia ({ data → foto }).
   const [fotosAlmocoDia, setFotosAlmocoDia] = useState<Record<string, string>>({});
   // upload da NOTA pelo admin — anexou, a despesa automática abre NA HORA
@@ -719,6 +730,28 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       console.error("Erro ao carregar PPV");
     }
   }, []);
+
+  // "Não gerar cobrança": marcar / desmarcar / separar em remessa (a remessa nova já fica ligada à OS)
+  async function rodarSemCobranca(b: Parameters<typeof acaoSemCobranca>[0]) {
+    if (!podeEditar) { alert(MSG_SEM_PERMISSAO); return; }
+    setSemCobBusy(true);
+    try {
+      const r = await acaoSemCobranca(b);
+      setSemCobItem(null);
+      let lista = ppv;
+      if (r.novoId) {
+        const ids = ppv.split(",").map((s) => s.trim()).filter(Boolean);
+        if (!ids.includes(r.novoId)) ids.push(r.novoId);
+        lista = ids.join(", ");
+        setPpv(lista);
+        alert(`Remessa ${r.novoId} criada com as peças sem cobrança e ligada a esta OS.${r.aviso ? "\n\n" + r.aviso : ""}`);
+      }
+      await loadPPV(lista);
+      setLogRefreshKey((k) => k + 1);
+      onSaved?.();
+    } catch (e) { alert(e instanceof Error ? e.message : "Erro"); }
+    setSemCobBusy(false);
+  }
 
   // Abre a busca de produto pra adicionar no PPV vinculado. Se houver mais de um
   // PPV, exige escolher pra qual antes de abrir.
@@ -1016,6 +1049,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       servicoInterno,
       // item com NOTA anexada mas valor ainda não lançado não pode sumir no save
       alimentacoes: alimentacoes.filter(a => (a.valor || 0) > 0 || a.foto),
+      remocoesAlimentacao: remocoesAlim,
       userName,
     };
     try {
@@ -1078,6 +1112,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       }
       if (aConcluir.length) setLembretes((prev) => prev.filter((x) => !aConcluir.some((c) => c.id === x.id && !(c.resto && c.resto > 0))));
       setSaving(false);
+      // gravou: o que ficou na lista agora é "salvo" (tirar depois pede motivo) e os motivos já foram pro Histórico
+      setAlimentacoes((prev) => prev.map((a) => ((a.valor || 0) > 0 || a.foto ? { ...a, _salvo: true } : a)));
+      setRemocoesAlim([]);
       setLogRefreshKey((k) => k + 1);
       // Avisa quando a ordem muda de externa↔interna (muda só o destino das peças)
       if (mode === "edit" && servicoInterno !== internoOriginalRef.current) {
@@ -1102,7 +1139,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   }, [mode, osId, clienteChave, clienteInfo, tecnico1, tecnico2, tipoServico, revisao, projeto,
       servSolicitado, qtdHoras, qtdKm, ppv, status, ordemOmie, motivoCancel, descValor,
       descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento, dataFimServico, servicoNumero,
-      gerarPPV, servicoOficina, servicoInterno, alimentacoes, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved, podeEditar, podeCancelar,
+      gerarPPV, servicoOficina, servicoInterno, alimentacoes, remocoesAlim, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved, podeEditar, podeCancelar,
       pecasPendentes, abrirReqDepois, esp, descHoraEf, descKmEf, userName]);
 
   // Aplicou valor de lembrete: salva a OS assim que o estado novo (espelho/desconto) estiver no salvar
@@ -1181,7 +1218,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setLembretes([]); setEditingLembreteId(null);
     setServicoOficina(false);
     setServicoInterno(false);
-    setAlimentacoes([]);
+    setAlimentacoes([]); setRemocoesAlim([]); setRemoverAlimIdx(null);
     setAba("os");
   }, []);
 
@@ -1249,6 +1286,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           setServicoInterno(!!d.servicoInterno);
           internoOriginalRef.current = !!d.servicoInterno;
           // Alimentações: usa o array novo; se vazio mas houver valor antigo, migra p/ 1 linha
+          setRemocoesAlim([]); setRemoverAlimIdx(null);
           if (Array.isArray(d.alimentacoes) && d.alimentacoes.length > 0) {
             setAlimentacoes(d.alimentacoes.map((a: any) => ({
               data: typeof a?.data === 'string' ? a.data.slice(0, 10) : '',
@@ -1256,9 +1294,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
               tecnicos: Array.isArray(a?.tecnicos) ? a.tecnicos.filter(Boolean).slice(0, 2) : [],
               no_pdf: !!a?.no_pdf,
               foto: typeof a?.foto === 'string' && a.foto ? a.foto : null, // nota do admin
+              _salvo: true,
             })));
           } else if (d.alimentacaoTecnico && parseFloat(d.alimentacaoValor || 0) > 0) {
-            setAlimentacoes([{ data: (d.Data || '').slice(0, 10), valor: parseFloat(d.alimentacaoValor || 0), tecnicos: [d.tecnicoResponsavel || ''].filter(Boolean), no_pdf: !!d.alimentacaoNoPdf }]);
+            setAlimentacoes([{ data: (d.Data || '').slice(0, 10), valor: parseFloat(d.alimentacaoValor || 0), tecnicos: [d.tecnicoResponsavel || ''].filter(Boolean), no_pdf: !!d.alimentacaoNoPdf, _salvo: true }]);
           } else {
             setAlimentacoes([]);
           }
@@ -1298,8 +1337,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // PPVs vinculados (o campo aceita vários separados por vírgula)
   const fmtBR = (n: unknown) => (Number(n) || 0).toFixed(2).replace(".", ",");
   // estilos do cabeçalho Omie — copiados do PPVDrawer pra ficar IGUAL
-  const L_OMIE: React.CSSProperties = { textTransform: "none", letterSpacing: 0, fontWeight: 500, color: "#64748b", fontSize: 12.5, display: "block", marginBottom: 5 };
-  const R_OMIE: React.CSSProperties = { fontSize: 12, color: "#6b6259", marginBottom: 4 };
+  const L_OMIE: React.CSSProperties = { textTransform: "none", letterSpacing: 0, fontWeight: 500, color: "var(--pos-c-rotulo, #64748b)", fontSize: 12.5, display: "block", marginBottom: 5 };
+  const R_OMIE: React.CSSProperties = { fontSize: 12, color: "var(--pos-c-rotulo, #6b6259)", marginBottom: 4 };
   const B_OMIE: React.CSSProperties = { background: "var(--surface, #fefefe)", border: "1px solid var(--border)", borderRadius: 8, height: 40, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 12px", fontSize: 14, color: "inherit", fontVariantNumeric: "tabular-nums" };
   // versão discreta (linha compacta dentro do card Descrição do Serviço)
   const L_DISC: React.CSSProperties = { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 500, marginBottom: 3, textTransform: "none", letterSpacing: 0 };
@@ -1409,7 +1448,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   </span>
                 );
               })()}
-              <button type="button" onClick={() => setAlimentacoes(prev => prev.filter((_, idx) => idx !== i))} title="Remover este dia" style={{ marginLeft: 'auto', width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface, #fefefe)', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
+              <button type="button"
+                onClick={() => {
+                  // dia já salvo (com valor ou nota) só sai com motivo escrito
+                  if (mode === 'edit' && a._salvo && ((a.valor || 0) > 0 || a.foto)) { setMotivoRemAlim(''); setRemoverAlimIdx(i); return; }
+                  setAlimentacoes(prev => prev.filter((_, idx) => idx !== i));
+                }}
+                title="Remover este dia" style={{ marginLeft: 'auto', width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface, #fefefe)', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
                 <i className="fas fa-trash" style={{ fontSize: 12 }} />
               </button>
             </div>
@@ -1442,6 +1487,51 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           </div>
         </div>)
       })()}
+
+      {/* Motivo OBRIGATÓRIO para tirar um dia de alimentação já salvo (vai pro Histórico ao salvar a OS) */}
+      {removerAlimIdx !== null && alimentacoes[removerAlimIdx] && (() => {
+        const alvo = alimentacoes[removerAlimIdx];
+        const ok = motivoValido(motivoRemAlim);
+        const fechar = () => { setRemoverAlimIdx(null); setMotivoRemAlim(''); };
+        const confirmar = () => {
+          if (!ok) return;
+          setRemocoesAlim(prev => [...prev, { data: alvo.data, valor: alvo.valor || 0, tecnicos: alvo.tecnicos || [], motivo: motivoRemAlim.replace(/\s+/g, ' ').trim() }]);
+          setAlimentacoes(prev => prev.filter((_, idx) => idx !== removerAlimIdx));
+          fechar();
+        };
+        return (
+          <div className="pos-rem-alim" onClick={fechar} style={{ position: 'fixed', inset: 0, zIndex: 100002, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <style>{`@media (max-width: 600px) { .pos-rem-alim { padding: 0 !important; } .pos-rem-alim > div { width: 100% !important; max-width: 100% !important; height: 100%; border-radius: 0 !important; } }`}</style>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--surface, #fefefe)', border: '2px solid #DC2626', borderRadius: 16, width: 480, maxWidth: '94vw', overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column' }}>
+              <div style={{ padding: '14px 18px', background: '#DC2626', color: '#fefefe', display: 'flex', alignItems: 'center', gap: 10, fontWeight: 800, fontSize: 15 }}>
+                <i className="fas fa-trash" /> Remover alimentação
+              </div>
+              <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12, flex: 1 }}>
+                <div style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
+                  <b>{alvo.data ? alvo.data.split('-').reverse().join('/') : 'Sem data'}</b> · R$ {fmtBR(alvo.valor)}{alvo.tecnicos?.length ? ` · ${alvo.tecnicos.join(' e ')}` : ''}
+                </div>
+                <label style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'none', letterSpacing: 0, margin: 0 }}>
+                  Por que está retirando esta despesa? <span style={{ color: '#DC2626' }}>*</span>
+                </label>
+                <textarea autoFocus value={motivoRemAlim} onChange={(e) => setMotivoRemAlim(e.target.value)} maxLength={400} rows={4}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) confirmar(); }}
+                  placeholder="Ex.: lançado em dobro, cliente pagou o almoço, dia não trabalhado…"
+                  style={{ width: '100%', padding: 10, border: `1px solid ${ok || !motivoRemAlim ? 'var(--border)' : '#DC2626'}`, borderRadius: 10, fontSize: 14, fontFamily: 'inherit', resize: 'vertical', marginBottom: 0 }} />
+                <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
+                  Fica no Histórico da OS com o seu nome, a data e a hora quando você <b>salvar a OS</b>.
+                </div>
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 'auto', flexWrap: 'wrap' }}>
+                  <button type="button" onClick={fechar} style={{ minHeight: 42, padding: '0 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface, #fefefe)', color: 'var(--portal-text)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Cancelar</button>
+                  <button type="button" onClick={confirmar} disabled={!ok} title={ok ? '' : 'Escreva o motivo (pelo menos 5 letras)'}
+                    style={{ minHeight: 42, padding: '0 16px', borderRadius: 10, border: 'none', background: ok ? '#DC2626' : '#fca5a5', color: '#fefefe', fontWeight: 800, cursor: ok ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                    <i className="fas fa-trash" style={{ marginRight: 6 }} /> Remover
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 
@@ -1449,6 +1539,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     <>
       <div className={`drawer-overlay active fs pos-osd${mode === "create" ? " criando" : ""}`}>
         {/* Responsivo (tablet/celular): abas roláveis, cabeçalho empilha, trilho de ações vira barra embaixo até 900px */}
+        <style>{ESTILO_POS_ESCURO}</style>
         <style>{`
           /* Abas: NUNCA encolhem (a coluna tem altura limitada; com overflow
              diferente de visible o min-height vira 0 e a faixa sumia). No PC
@@ -1710,10 +1801,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           <div style={R_OMIE}>
                             Valor do Desconto{" "}
                             <button type="button" onClick={() => setDescontoModoOS((m) => (m === "pct" ? "valor" : "pct"))} title="Alternar entre % e R$"
-                              style={{ border: "none", background: "transparent", cursor: "pointer", color: "#a79f92", fontSize: 10, padding: 0, marginLeft: 2 }}>
+                              style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--pos-c-muted, #a79f92)", fontSize: 10, padding: 0, marginLeft: 2 }}>
                               <i className="fas fa-pen" />
                             </button>{" "}
-                            <span style={{ fontSize: 10.5, color: "#b7b0a3" }}>({descontoModoOS === "pct" ? "%" : "R$"})</span>
+                            <span style={{ fontSize: 10.5, color: "var(--pos-c-muted, #b7b0a3)" }}>({descontoModoOS === "pct" ? "%" : "R$"})</span>
                             {descValor > 0 && esp.descontoMotivo?.texto && (
                               <IconeMotivoDesconto motivo={esp.descontoMotivo.texto} por={esp.descontoMotivo.por} onClick={() => setPedirMotivo(true)} />
                             )}
@@ -1747,7 +1838,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                      <div className="os-omie-totais" style={{ alignSelf: "stretch", justifyContent: "center" }}>
                        <div className="os-omie-totais-linha"><span>Serviços:</span><b>R$ {fmtBR(subtotalHoras)}</b></div>
                        <div className="os-omie-totais-linha"><span>Deslocamento:</span><b>R$ {fmtBR(subtotalKm)}</b></div>
-                       <div className="os-omie-totais-linha"><span>Descontos:</span><b style={{ color: totalDescontos > 0 ? "#0d9488" : "#b7b0a3" }}>R$ {fmtBR(totalDescontos)}</b></div>
+                       <div className="os-omie-totais-linha"><span>Descontos:</span><b style={{ color: totalDescontos > 0 ? "var(--pos-c-teal, #0d9488)" : "var(--pos-c-muted, #b7b0a3)" }}>R$ {fmtBR(totalDescontos)}</b></div>
                        <div className="os-omie-totais-linha"><span>Produtos (PPV):</span><b>R$ {fmtBR(totalPecas + totalRequisicoes)}</b></div>
                        <div className="os-omie-totais-total"><span>Valor Total:</span><span>R$ {fmtBR(total)}</span></div>
                      </div>
@@ -1882,7 +1973,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         <img src="/marcas/omie.png" alt="Omie" style={{ height: 16, width: "auto" }} /> Enviado ao Omie
                         {podeSubstituir && ordemOmie && (
                           <button type="button" onClick={() => setSubstituindo(true)} title="Trocar a OS ou um pedido de venda no Omie (o antigo é cancelado)"
-                            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 8, border: "1px solid var(--border, #e2e8f0)", background: "var(--surface, #fefefe)", color: "#0369A1", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textTransform: "none", letterSpacing: 0 }}>
+                            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 8, border: "1px solid var(--border, #e2e8f0)", background: "var(--surface, #fefefe)", color: "var(--pos-c-azul, #0369A1)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textTransform: "none", letterSpacing: 0 }}>
                             <i className="fas fa-right-left" /> Substituir OS ou pedido
                           </button>
                         )}
@@ -2637,8 +2728,31 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                                 {ppvIds.length > 1 && p.ppvId && <small>PPV {p.ppvId}</small>}
                               </span>
                               <span className="d"><em className="pc-qt">{p.qtde} un</em></span>
-                              <span className="d pc-un">{brlPeca(p.valor)}</span>
-                              <span className="d pc-tot">{brlPeca(p.valor * p.qtde)}</span>
+                              <span className="d pc-un">{p.semCobranca ? <s style={{ opacity: .6 }}>{brlPeca(p.semCobranca.precoOriginal)}</s> : brlPeca(p.valor)}</span>
+                              <span className="d pc-tot">
+                                {p.semCobranca ? (
+                                  <>
+                                    <s style={{ opacity: .6 }}>{brlPeca(p.semCobranca.precoOriginal * p.qtde)}</s>
+                                    <button type="button" disabled={!podeEditar || p.faturado}
+                                      onClick={() => setSemCobItem({ ppvId: p.ppvId!, codigo: p.codigo!, descricao: p.descricao, valorTotal: p.semCobranca!.precoOriginal * p.qtde, motivoAtual: p.semCobranca!.motivo })}
+                                      title={`Não cobrado: ${p.semCobranca.motivo}`}
+                                      style={{ display: "block", marginLeft: "auto", marginTop: 2, padding: "1px 6px", borderRadius: 6, border: "1px solid #A7F3D0", background: "#ECFDF5", color: "#047857", fontSize: 10, fontWeight: 800, cursor: "pointer", textTransform: "uppercase" }}>
+                                      não cobrado
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    {brlPeca(p.valor * p.qtde)}
+                                    {p.codigo && p.ppvId && podeEditar && !p.faturado && p.tipoPedido !== "Remessa" && (
+                                      <button type="button" onClick={() => setSemCobItem({ ppvId: p.ppvId!, codigo: p.codigo!, descricao: p.descricao, valorTotal: p.valor * p.qtde })}
+                                        title="Não gerar cobrança desta peça"
+                                        style={{ display: "block", marginLeft: "auto", marginTop: 3, padding: "1px 7px", borderRadius: 6, border: "1px solid #A7F3D0", background: "transparent", color: "#047857", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                                        <i className="fas fa-hand-holding-heart" style={{ marginRight: 4 }} />não cobrar
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </span>
                               <span className="d">
                                 {p.codigo && p.ppvId && (
                                   <button type="button" className="pc-lapis" onClick={() => setEditandoProd(p)} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Editar quantidade, valor ou remover"}>
@@ -2650,6 +2764,16 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           ))}
                         </div>
                       )}
+
+                      {/* Peça "não gerar cobrança": não fatura junto — desmarcar ou separar em remessa (por PPV) */}
+                      {Array.from(new Set(produtos.filter((p) => p.semCobranca && p.ppvId && !p.faturado && p.tipoPedido !== "Remessa").map((p) => p.ppvId!))).map((pid) => (
+                        <div key={`semcob-${pid}`} style={{ marginTop: 8 }}>
+                          <AvisoFaturarSemCobranca ocupado={semCobBusy}
+                            itens={produtos.filter((p) => p.ppvId === pid && p.semCobranca).map((p) => ({ codigo: p.codigo || "", descricao: `${p.descricao}${ppvIds.length > 1 ? ` · PPV ${pid}` : ""}`, motivo: p.semCobranca!.motivo }))}
+                            onDesmarcar={(codigo) => rodarSemCobranca({ acao: "desmarcar", id: pid, codigo })}
+                            onSeparar={() => { if (confirm(`Criar uma remessa nova só com as peças sem cobrança e tirar elas do ${pid}?`)) void rodarSemCobranca({ acao: "separar", id: pid }); }} />
+                        </div>
+                      ))}
 
                       {/* Total de peças + adicionar peça direto no PPV vinculado */}
                       {ppvIds.length > 0 && (
@@ -3325,6 +3449,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         itens={produtos.filter((p) => p.codigo && p.ppvId === detalheProd?.ppvId).map((p) => ({ codigo: p.codigo!, descricao: p.descricao, conta: p.conta || "NOVA", quantidade: p.qtde, preco: p.valor }))}
         onIrPara={(it) => setDetalheProd(produtos.find((p) => p.ppvId === detalheProd?.ppvId && p.codigo === it.codigo) || null)}
       />
+      <ModalSemCobranca item={semCobItem} salvando={semCobBusy} onFechar={() => setSemCobItem(null)}
+        onConfirmar={(motivo) => semCobItem && rodarSemCobranca({ acao: "marcar", id: semCobItem.ppvId, codigo: semCobItem.codigo, motivo })}
+        onDesmarcar={() => semCobItem && rodarSemCobranca({ acao: "desmarcar", id: semCobItem.ppvId, codigo: semCobItem.codigo })} />
       <ModalEditarItemOS
         item={editandoProd && editandoProd.codigo && editandoProd.ppvId ? { ppvId: editandoProd.ppvId, codigo: editandoProd.codigo, descricao: editandoProd.descricao, qtde: editandoProd.qtde, valor: editandoProd.valor } : null}
         tecnico={tecnico1 || ""}
@@ -3332,6 +3459,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         podeEditar={podeEditar}
         onClose={() => setEditandoProd(null)}
         onSalvo={() => loadPPV(ppv)}
+        onNaoCobrar={editandoProd && editandoProd.codigo && editandoProd.ppvId && !editandoProd.semCobranca && !editandoProd.faturado && editandoProd.tipoPedido !== "Remessa" && podeEditar
+          ? () => setSemCobItem({ ppvId: editandoProd.ppvId!, codigo: editandoProd.codigo!, descricao: editandoProd.descricao, valorTotal: editandoProd.valor * editandoProd.qtde })
+          : undefined}
       />
     </>
   );

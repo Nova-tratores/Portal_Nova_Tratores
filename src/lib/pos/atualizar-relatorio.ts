@@ -385,7 +385,7 @@ const FASE_ENVIADO_OMIE = "Cobrando Cliente";
 export type ResultadoEnvioOmie = { os: string; ok: boolean; cNumOS?: string; pedidoVenda?: string; erro?: string; ppvErro?: string };
 
 // Envia UMA OS ao Omie (a OS + o PPV vinculado, via criarOSNoOmie).
-// Sucesso → guarda Ordem Omie + Pedido de Venda + log, move pra "Enviado Para Omie".
+// Sucesso → guarda Ordem Omie + Pedido de Venda + log, move pra "Cobrando Cliente".
 // Erro (OS ou PPV) → guarda o log com o erro e DEIXA em "Enviar Omie" pra reenviar.
 export async function enviarOSaoOmie(id: string, userName: string): Promise<ResultadoEnvioOmie> {
   try {
@@ -418,15 +418,13 @@ export async function enviarOSaoOmie(id: string, userName: string): Promise<Resu
     if (okFinal) {
       // Só lança alimentação em envio novo (evita duplicar em OS que já estava no Omie).
       if (r.sucesso) { try { await registrarAlimentacaoOS(id); } catch { /* despesa de alimentação — best-effort */ } }
-      // Interna: criarOSNoOmie já concluiu (remessa). Externa: move pra "Enviado Para Omie".
-      if (!r.interna) {
-        await aplicarMudancaFase(id, FASE_ENVIADO_OMIE, userName, {
-          notificar: !!r.pedidoVendaErro,
-          acaoLog: jaEnviada
-            ? `Já estava no Omie (Ordem nº ${numExistente}) — movida pelo Tratorilson`
-            : `Enviada ao Omie${r.cNumOS ? ` (Ordem nº ${r.cNumOS})` : ""}${r.pedidoVenda ? `, PV nº ${r.pedidoVenda}` : ""} — por ${userName}`,
-        });
-      }
+      // Interna e externa vão pra "Cobrando Cliente" (a interna fatura com recibo de lá).
+      await aplicarMudancaFase(id, FASE_ENVIADO_OMIE, userName, {
+        notificar: !!r.pedidoVendaErro,
+        acaoLog: jaEnviada
+          ? `Já estava no Omie (Ordem nº ${numExistente}) — movida pelo Tratorilson`
+          : `Enviada ao Omie${r.cNumOS ? ` (Ordem nº ${r.cNumOS})` : ""}${r.pedidoVenda ? `, PV nº ${r.pedidoVenda}` : ""} — por ${userName}`,
+      });
     }
     return { os: id, ok: okFinal, cNumOS: cNum, pedidoVenda: r.pedidoVenda, erro: okFinal ? undefined : r.erro, ppvErro: r.pedidoVendaErro };
   } catch (e) {

@@ -240,6 +240,13 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
   })
 
   const fmt = (v: number) => (v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  // nomes vindos da Omie chegam com entidade HTML crua ("FELIZARDO &amp; FELIZARDO"): decodifica só na tela.
+  // &amp; por último, senão "&amp;quot;" viraria aspas.
+  const semEntidade = (s: string | null | undefined) => String(s ?? '')
+    .replace(/&#39;|&apos;/g, "'").replace(/&quot;|&#34;/g, '"')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+  // valor sem quebrar "R$" numa linha e o número na outra, com dígitos alinhados
+  const VALOR: React.CSSProperties = { whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }
 
   const tipoLabel: Record<string, string> = { pecas: 'Peças', 'mao-de-obra': 'Mão de Obra', completo: 'Completo' }
   const tipoIcon = (t: string) => t === 'pecas' ? <Package size={14} /> : t === 'mao-de-obra' ? <Wrench size={14} /> : <><Package size={12} /><Wrench size={12} /></>
@@ -349,9 +356,9 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
               <div key={item.id} onClick={() => onEditar(item.id)} style={{ background: '#fff', borderRadius: 14, border: '1px solid #f0f0f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', padding: 14, cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
                   <span style={{ fontWeight: 800, color: '#EA580C', fontSize: 15 }}>{item.numero}</span>
-                  <span style={{ fontWeight: 800, fontSize: 15, color: '#1a1a1a' }}>R$ {fmt(item.total)}</span>
+                  <span style={{ fontWeight: 800, fontSize: 15, color: '#1a1a1a', ...VALOR }}>R$ {fmt(item.total)}</span>
                 </div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.cliente_nome}</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{semEntidade(item.cliente_nome)}</div>
                 <div style={{ fontSize: 12.5, color: '#737373', marginTop: 2 }}>{item.cliente_cidade || '—'} · {new Date(item.created_at).toLocaleDateString('pt-BR')}{item.criado_por ? ` · ${item.criado_por}` : ''}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, background: '#f5f5f5', padding: '4px 10px', borderRadius: 6, fontWeight: 600, color: '#525252' }}>
@@ -417,9 +424,9 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
                       {tipoIcon(item.tipo)} {tipoLabel[item.tipo] || item.tipo}
                     </span>
                   </td>
-                  <td style={{ ...tdStyle, fontWeight: 600 }}>{item.cliente_nome}</td>
+                  <td style={{ ...tdStyle, fontWeight: 600 }}>{semEntidade(item.cliente_nome)}</td>
                   <td style={{ ...tdStyle, color: '#737373' }}>{item.cliente_cidade || '—'}</td>
-                  <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700 }}>R$ {fmt(item.total)}</td>
+                  <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, ...VALOR }}>R$ {fmt(item.total)}</td>
                   <td style={{ ...tdStyle, textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                     <select
                       value={item.status}

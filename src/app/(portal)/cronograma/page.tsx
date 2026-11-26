@@ -1,9 +1,12 @@
 'use client'
-// CENTRAL DE TRABALHO — Cronograma GERAL: tudo que eu posso ver (tickets em
-// aberto), em Gantt · Calendário · Kanban (VistasCronogramaGeral). Os antigos
-// "projetos" saíram: quem organiza agora são os blocos.
+// CENTRAL DE TRABALHO — "Todos" (antes Cronograma geral): todos os pedidos que eu posso ver, em
+// Lista · Kanban · Gantt · Calendário (melhorias 1.4, 24/11/2026: um seletor só, escolha guardada).
+// A Fila de UMA pessoa continua aqui por link (/cronograma?fila=<id>, "ver a fila de Fulano").
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { GanttChartSquare, RefreshCw, CalendarDays, Columns3, ListOrdered } from 'lucide-react'
+import { GanttChartSquare, RefreshCw, CalendarDays, Columns3, List, BarChart3 } from 'lucide-react'
+import Link from 'next/link'
+import SeloAtrasado from '@/components/tickets/SeloAtrasado'
+import { STATUS_INFO } from '@/lib/tickets/constantes'
 import FilaTrabalho from '@/components/trabalho/FilaTrabalho'
 import { authHeaders } from '@/lib/auth/client'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -22,13 +25,14 @@ interface Dados {
   eu: string
 }
 type Filtro = 'tudo' | 'faco' | 'pedi'
-type Vista = VistaGeral | 'fila'
+type Vista = VistaGeral | 'fila' | 'lista'
 const VISTAS: [Vista, string, React.ReactNode][] = [
-  ['fila', 'Fila', <ListOrdered key="f" size={15} />],
+  ['lista', 'Lista', <List key="l" size={15} />],
+  ['kanban', 'Kanban', <Columns3 key="k" size={15} />],
   ['gantt', 'Gantt', <GanttChartSquare key="g" size={15} />],
   ['calendario', 'Calendário', <CalendarDays key="c" size={15} />],
-  ['kanban', 'Kanban', <Columns3 key="k" size={15} />],
 ]
+const brD = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 
 const COR_SEM_BLOCO = '#9ca3af'
 const visiveisBase = (dados: Dados | null, filtro: Filtro) => (dados?.tickets || []).filter((t) => {
@@ -46,7 +50,7 @@ export default function CronogramaGeralPage() {
   const [erro, setErro] = useState('')
   const [filtro, setFiltro] = useState<Filtro>('tudo')
   const [ticketAberto, setTicketAberto] = useState<string | null>(null)
-  const [vista, setVista] = useState<Vista>('gantt')
+  const [vista, setVista] = useState<Vista>('lista')
   const [versao, setVersao] = useState(0) // recarrega a Fila quando algo muda no ticket aberto
   const [filaDe, setFilaDe] = useState<string | null>(null)
   useEffect(() => {
@@ -134,7 +138,7 @@ export default function CronogramaGeralPage() {
   })
 
   return (
-    <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 1400, margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(12px,2vw,28px)' }}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {/* Na Fila os filtros não valem: é a fila de UMA pessoa */}
         {vista !== 'fila' && ([['tudo', 'Tudo'], ['faco', 'Que eu faço'], ['pedi', 'Que eu pedi']] as [Filtro, string][]).map(([v, l]) => (
@@ -149,6 +153,7 @@ export default function CronogramaGeralPage() {
             </button>
           ))}
         </div>
+        {isAdmin && <Link href="/tickets?aba=gerencial" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, fontSize: 13, textDecoration: 'none', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text-secondary,#475569)' }}><BarChart3 size={14} /> Visão geral</Link>}
         <button onClick={() => carregar()} title="Atualizar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: isMobile ? 36 : undefined, minHeight: isMobile ? 36 : undefined, padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
           <RefreshCw size={14} />
         </button>
@@ -165,7 +170,25 @@ export default function CronogramaGeralPage() {
           Nada em aberto por aqui.
         </div>
       ) : (
-        vista === 'kanban' ? (
+        vista === 'lista' ? (
+          // Lista: atrasados em cima, depois pelo prazo. Linha = título · quem faz · prazo · situação.
+          <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {[...visiveis].sort((a, b) => Number(!!b.prazo && b.prazo < hoje) - Number(!!a.prazo && a.prazo < hoje) || (a.prazo || '9').localeCompare(b.prazo || '9')).map((t) => {
+              const atrasado = !!t.prazo && t.prazo < hoje
+              const st = STATUS_INFO[t.status]
+              return (
+                <button key={t.id} onClick={() => setTicketAberto(t.id)}
+                  style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,1fr) 170px 150px 130px', gap: 10, alignItems: 'center', padding: '10px 14px', borderRadius: 12, cursor: 'pointer', textAlign: 'left', font: 'inherit',
+                    border: '1px solid var(--portal-border,#e2e8f0)', background: 'var(--portal-surface,#fefefe)', color: 'var(--portal-text,#0f172a)' }}>
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 14.5, fontWeight: 500 }}>#{t.numero} {t.titulo}</span>
+                  <span style={{ fontSize: 13, color: 'var(--portal-text-secondary,#475569)' }}>faz: {(dados.usuarios[t.responsavel_id]?.nome || '—').split(' ')[0]}</span>
+                  <span>{atrasado ? <SeloAtrasado>desde {brD(t.prazo!)}</SeloAtrasado> : <span style={{ fontSize: 13, color: 'var(--portal-text-muted,#64748b)' }}>{t.prazo ? `prazo ${brD(t.prazo)}` : 'contínuo'}</span>}</span>
+                  <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary,#475569)' }}>{st?.label || t.status}</span>
+                </button>
+              )
+            })}
+          </div>
+        ) : vista === 'kanban' ? (
           <div style={{ marginTop: 16 }}>
             <KanbanTickets tickets={visiveis} usuarios={dados.usuarios} visao="acompanhando" encerrados={false}
               meuId={dados.eu} isAdmin={isAdmin} atualId={null} onMarcarAtual={() => {}}
@@ -183,8 +206,8 @@ export default function CronogramaGeralPage() {
               }} />
           </div>
         ) : (
-          <VistasCronogramaGeral vista={vista} tickets={noPlanoVisiveis} hoje={hoje} corDe={corDe} progresso={progresso}
-            onAbrir={setTicketAberto} onMudarDatas={mudarDatas} />
+          <VistasCronogramaGeral vista={vista as VistaGeral} tickets={noPlanoVisiveis} hoje={hoje} corDe={corDe} progresso={progresso}
+            onAbrir={setTicketAberto} onMudarDatas={mudarDatas} usuarios={dados?.usuarios} />
         )
       )}
 

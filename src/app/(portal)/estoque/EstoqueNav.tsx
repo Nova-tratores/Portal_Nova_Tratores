@@ -76,7 +76,7 @@ export default function EstoqueNav() {
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
             fontSize: '.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.5px',
-            color: '#334155', background: '#f1f5f9', border: '1px solid #cbd5e133',
+            color: '#334155', background: '#f1f5f9', border: '1px solid #cbd5e133', ['--tag-cor' as string]: '#94a3b8',
             borderLeft: '3px solid #334155', borderRadius: 6, padding: '3px 10px', minWidth: 108,
           }}
         >
@@ -114,6 +114,7 @@ export default function EstoqueNav() {
               textTransform: 'uppercase',
               letterSpacing: '.5px',
               color: g.cor,
+              ['--tag-cor' as string]: g.cor,
               background: g.corBg,
               border: `1px solid ${g.cor}22`,
               borderLeft: `3px solid ${g.cor}`,

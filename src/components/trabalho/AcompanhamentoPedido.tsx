@@ -27,7 +27,7 @@ export default function AcompanhamentoPedido({ ticket, dados }: { ticket: { acei
           <CalendarRange size={11} /> previsto {dados.etapa.inicio ? `${br(dados.etapa.inicio)}–` : 'até '}{br(dados.etapa.fim)}{atrasou ? ' (atrasou)' : ''}
         </span>
       )}
-      {dados?.passos && dados.passos.total > 0 && <span style={chip('var(--portal-text-secondary,#555)', 'var(--portal-bg,#f3f4f6)')}><ListChecks size={11} /> {dados.passos.feitas}/{dados.passos.total} tarefas</span>}
+      {dados?.passos && dados.passos.total > 0 && <span style={chip('var(--portal-text-secondary,#555)', 'var(--portal-bg,#f3f4f6)')}><ListChecks size={11} /> {dados.passos.feitas}/{dados.passos.total} passos</span>}
     </>
   )
 }

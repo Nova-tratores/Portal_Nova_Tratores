@@ -6,12 +6,13 @@
 // Guia de dados para leigo: o título de cada cartão é a conclusão; o gráfico mostra o começo; "Ver tudo" abre a lista inteira.
 // Anônimo: cada visita é um aparelho sem nome.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import { fetchAuth } from '@/lib/auth/client';
 import SubAbas from '@/components/marketing/redes/SubAbas';
 import { ABAS_ACESSOS } from '@/components/marketing/redes/abasAcessos';
 import type { Resumo, Visita } from '@/lib/marketing/redes/acessos';
 import type { ResumoPedidos } from '@/app/api/marketing/acessos/route';
-import { Aviso, ComoLer, Conta, Numero, botao, cartao, duracao, grade, quando, real, tela } from '@/components/marketing/redes/ui';
+import { Aviso, Conta, Numero, botao, cartao, duracao, grade, quando, real, tela } from '@/components/marketing/redes/ui';
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 const parte = (a: number, b: number) => (b ? pct(a / b) : '0%');
@@ -229,6 +230,11 @@ export default function AcessosSitePage() {
           </select>
         </label>
         {exemplo && <button style={botao('#b45309', false)} onClick={() => setExemplo(false)}><i className="fa-solid fa-xmark" style={{ fontWeight: 900 }} />Sair do exemplo</button>}
+        {/* 25/11/2026 (José): os textos do site (telefones, horário, aviso, topo, banners) abrem por aqui, na engrenagem */}
+        <Link href="/marketing/acessos/textos" title="Mudar os textos do site: telefones, horário, faixa de aviso, topo e banners"
+          style={{ ...botao('#64748b', false), marginLeft: 'auto', textDecoration: 'none' }}>
+          <i className="fa-solid fa-gear" style={{ fontWeight: 900 }} />Textos do site
+        </Link>
       </div>
 
       {exemplo && (
@@ -422,12 +428,6 @@ export default function AcessosSitePage() {
             </Cartao>
           </div>
 
-          <ComoLer>
-            Cada <b>visita</b> é uma pessoa navegando no site; <b>pessoas</b> conta aparelhos diferentes (sem nome: o site não sabe quem é,
-            só que é o mesmo celular ou computador voltando). <b>Chamaram</b> = tocou no WhatsApp, no telefone ou mandou o pedido de proposta.
-            As setas (▲ ▼) comparam com o período do mesmo tamanho logo antes. Em <b>Procuraram e não acharam</b> está o que o cliente
-            quis e o site não mostrou. Toque numa visita lá embaixo para ver o caminho dela: páginas na ordem, tempo em cada uma, até onde rolou e o que clicou.
-          </ComoLer>
 
           <div style={{ ...cartao, padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', fontWeight: 500, borderBottom: '1px solid var(--border)' }}>

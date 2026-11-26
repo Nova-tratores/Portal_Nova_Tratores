@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import MapaCotacoesPDF from '@/components/requisicoes/MapaCotacoesPDF';
+import CarimbosReq from '@/components/requisicoes/CarimbosReq';
 
 const UNIDADES: any = {
   nova: {
@@ -99,6 +100,8 @@ export default function ImprimirRequisicao() {
           * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
           .print-actions { display: none !important; }
         }
+        /* ?embed=1 → folha mostrada dentro da janela de custo do Marketing (24/11/2026): sem a barra de botões */
+        .em-iframe .print-actions { display: none !important; }
       `}} />
 
       <div className="print-actions" style={{ padding: '12px 20px', background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: 12, alignItems: 'center', fontFamily: 'sans-serif' }}>
@@ -118,7 +121,9 @@ export default function ImprimirRequisicao() {
         <span style={{ fontSize: 12, color: '#64748b' }}>Requisição #{req.id} — {req.titulo}</span>
       </div>
 
-      <div style={{ maxWidth: '210mm', margin: '0 auto', padding: 16, fontFamily: 'ui-sans-serif, system-ui, sans-serif', color: '#000', background: '#fff' }}>
+      <div style={{ position: 'relative', maxWidth: '210mm', margin: '0 auto', padding: 16, fontFamily: 'ui-sans-serif, system-ui, sans-serif', color: '#000', background: '#fff' }}>
+        {/* carimbos NÃO AUTORIZADO / PAGO */}
+        <CarimbosReq req={req} />
         {/* CABEÇALHO */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24, borderBottom: '2px solid #000', paddingBottom: 16 }}>
           <div>

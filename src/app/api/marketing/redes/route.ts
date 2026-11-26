@@ -11,10 +11,16 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   const g = await guardarSite(req, 'acessos')
   if (g.resposta) return g.resposta
-  const rede = new URL(req.url).searchParams.get('rede') || ''
+  const q = new URL(req.url).searchParams
+  const rede = q.get('rede') || ''
   const todas = rede === 'todas'
   if (!todas && (!ehRede(rede) || rede === 'site')) return NextResponse.json({ ok: false, erro: 'rede inválida' }, { status: 400 })
-  const desde = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10)
+  // ?desde=AAAA-MM-DD (25/11/2026, período "de dia tal a dia tal" no Todas as redes): busca mais para trás que os 90 dias,
+  // até 2 anos. Sem ele, os 90 dias de sempre.
+  const padrao = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10)
+  const limite = new Date(Date.now() - 740 * 864e5).toISOString().slice(0, 10)
+  const pedido = /^\d{4}-\d{2}-\d{2}$/.test(q.get('desde') || '') ? q.get('desde')! : null
+  const desde = pedido && pedido < padrao ? (pedido < limite ? limite : pedido) : padrao
   const [m, c, p] = await Promise.all([
     (todas ? sb.from('site_redes_metricas').select('*') : sb.from('site_redes_metricas').select('*').eq('rede', rede)).gte('dia', desde).order('dia'),
     todas ? sb.from('site_redes_contas').select('rede, nome, atualizado_em') : sb.from('site_redes_contas').select('rede, nome, atualizado_em').eq('rede', rede).maybeSingle(),

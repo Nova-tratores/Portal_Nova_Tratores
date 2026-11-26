@@ -62,6 +62,23 @@ export default function MaquinasClienteDestaque({ doc, selecionado, onEscolher, 
 
   const sel = selecionado.trim().toUpperCase();
 
+  // Cliente com MUITAS máquinas (a própria Nova tem 70+) enchia a tela inteira.
+  // Agora: só as LIMITE mais recentes; o resto aparece filtrando ou em "Ver todas".
+  const LIMITE = 5;
+  const [verTodas, setVerTodas] = useState(false);
+  const [filtro, setFiltro] = useState("");
+  useEffect(() => { setVerTodas(false); setFiltro(""); }, [documento]);
+  const ehSel = (m: MaquinaCliente) => !!sel && sel === String(m.projeto || "").trim().toUpperCase();
+  const termo = filtro.trim().toUpperCase();
+  const filtradas = (maquinas || []).filter((m) => !termo || `${m.modelo} ${m.chassis} ${m.projeto}`.toUpperCase().includes(termo));
+  let visiveis = verTodas || termo ? filtradas : filtradas.slice(0, LIMITE);
+  // A máquina já escolhida nunca some
+  if (!verTodas && !termo) {
+    const escolhida = filtradas.find(ehSel);
+    if (escolhida && !visiveis.includes(escolhida)) visiveis = [escolhida, ...visiveis.slice(0, LIMITE - 1)];
+  }
+  const total = maquinas?.length || 0;
+
   return (
     <div className="mcd">
       <style>{`
@@ -97,6 +114,12 @@ export default function MaquinasClienteDestaque({ doc, selecionado, onEscolher, 
         .mcd-card:hover .mcd-usar { opacity: 1; }
         .mcd-esqueleto { height: 92px; border-radius: 11px; background: linear-gradient(90deg, var(--portal-bg-secondary) 25%, var(--portal-border) 50%, var(--portal-bg-secondary) 75%); background-size: 200% 100%; animation: mcd-brilho 1.1s infinite linear; }
         @keyframes mcd-brilho { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+        .mcd-filtro { width: 100%; box-sizing: border-box; padding: 8px 11px; border-radius: 8px; font-size: 13px; font-family: inherit;
+          border: 1px solid var(--portal-border); background: var(--portal-bg-card); color: var(--portal-text); }
+        .mcd-filtro:focus { outline: none; border-color: #0369A1; }
+        .mcd-mais { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; padding: 5px 4px; border: 0; background: none;
+          font-size: 12.5px; font-weight: 700; color: #0369A1; cursor: pointer; font-family: inherit; }
+        .mcd-mais:hover { text-decoration: underline; }
         .mcd-vazio { font-size: 13px; color: var(--portal-text-secondary); padding: 6px 2px; }
       `}</style>
 
@@ -121,9 +144,15 @@ export default function MaquinasClienteDestaque({ doc, selecionado, onEscolher, 
           {erro ? "Não consegui buscar as máquinas agora." : "Nenhuma máquina registrada para este CPF/CNPJ."} Use “Outra máquina” ou cadastre uma nova.
         </div>
       ) : (
+        <>
+        {total > LIMITE && (
+          <input className="mcd-filtro" value={filtro} onChange={(e) => setFiltro(e.target.value)}
+            placeholder={`Filtrar as ${total} máquinas por modelo ou chassi...`} />
+        )}
+        {visiveis.length === 0 && <div className="mcd-vazio">Nenhuma máquina com “{filtro}”.</div>}
         <div className="mcd-grade">
-          {maquinas.map((m, i) => {
-            const on = !!sel && sel === String(m.projeto || "").trim().toUpperCase();
+          {visiveis.map((m, i) => {
+            const on = ehSel(m);
             const ultData = dataBR(m.ultimo_servico?.data);
             return (
               <button type="button" key={`${m.projeto}-${m.empresa}-${i}`} className={`mcd-card${on ? " on" : ""}`}
@@ -143,6 +172,12 @@ export default function MaquinasClienteDestaque({ doc, selecionado, onEscolher, 
             );
           })}
         </div>
+        {!termo && total > LIMITE && (
+          <button type="button" className="mcd-mais" onClick={() => setVerTodas((v) => !v)}>
+            {verTodas ? <><i className="fas fa-chevron-up" /> Mostrar só as {LIMITE} mais recentes</> : <><i className="fas fa-chevron-down" /> Ver todas as {total} máquinas</>}
+          </button>
+        )}
+        </>
       )}
     </div>
   );

@@ -99,9 +99,10 @@ export default function Dashboard() {
         String(b.id).includes(txt)
       )
     }
-    if (filtroStatus !== 'todos') {
-      filtrado = filtrado.filter(b => b.status === filtroStatus)
-    }
+    // "Todos" = o que ainda está andando (sem os pagos, como sempre foi); "Pago" traz os pagos.
+    // Antes os pagos nem chegavam à lista e o filtro "Pago" vinha sempre vazio.
+    if (filtroStatus === 'todos') filtrado = filtrado.filter(b => b.status !== 'pago')
+    else filtrado = filtrado.filter(b => b.status === filtroStatus)
     if (filtroDataInicio) {
       filtrado = filtrado.filter(b => b.vencimento_boleto && b.vencimento_boleto >= filtroDataInicio)
     }
@@ -142,13 +143,12 @@ export default function Dashboard() {
           boletosConfirmados, totalFaturado, statusCount,
         } = resumoDashboard(boletos || [])
 
-        const relatorio = boletosArr
-          .filter(b => b.status !== 'pago')
+        const relatorio = [...boletosArr]
           .sort((a, b) => {
-            const order = ['vencido', 'gerar_boleto', 'enviar_cliente', 'aguardando_vencimento', 'concluido']
+            const order = ['vencido', 'gerar_boleto', 'enviar_cliente', 'aguardando_vencimento', 'pago', 'concluido']
             return order.indexOf(a.status) - order.indexOf(b.status)
           })
-        setBoletosRelatorio(relatorio)
+        setBoletosRelatorio(relatorio.filter(b => b.status !== 'pago'))
         setDadosCompletos(relatorio)
 
         setKpis({
@@ -216,7 +216,7 @@ export default function Dashboard() {
           <p style={{ fontSize: '10px', letterSpacing: '2px', color: '#bbb', marginBottom: '16px' }}>BOLETOS / FATURAMENTO</p>
           <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
             <KpiCard icon={FileText} label="Total de Processos" value={kpis.totalBoletos} sub="todos os status" color="#6366f1" />
-            <KpiCard icon={Clock} label="Em Aberto" value={kpis.boletosEmAberto} sub="aguardando conclusao" color="#f59e0b" />
+            <KpiCard icon={Clock} label="Em Aberto" value={kpis.boletosEmAberto} sub="ainda não pagos" color="#f59e0b" />
             <KpiCard icon={AlertTriangle} label="Em Atraso" value={kpis.boletosAtrasados} sub="status vencido" color="#ef4444" />
             <KpiCard icon={CheckCircle} label="Confirmados / Pagos" value={kpis.boletosConfirmados} sub="pago + concluido" color="#10b981" />
             <KpiCard icon={TrendingUp} label="Total Faturado" value={formatarMoeda(kpis.totalFaturado)} sub="processos pago/concluido" color="#0ea5e9" />

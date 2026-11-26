@@ -1,8 +1,8 @@
 // REUNIÕES — uma reunião: ticket + itens + presenças + bloco de pendências + ata.
-// GET /api/reunioes/:id
+// GET /api/reunioes/:id · DELETE /api/reunioes/:id (só reunião vazia — ver motivoNaoExcluir)
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
-import { temModuloTickets } from '@/lib/tickets/server'
+import { temModuloTickets, notificarTicket } from '@/lib/tickets/server'
 import { avisoMesmaPessoa, corteEm, podeConduzir, podeReabrir, somaTempo, REABRIR_PARA, type ReuniaoEtapa } from '@/lib/reunioes/regras'
 import {
   carregarReuniao, podeVerReuniao, blocoPendencias, condutorDe, secretarioDe, papelNaReuniao, usuariosMin, proximaReuniaoDaSerie,
@@ -10,6 +10,7 @@ import {
 } from '@/lib/reunioes/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { reservaDaReuniao } from '@/lib/salas/server'
+import { textoConviteWhats } from '@/lib/reunioes/convite'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,14 +23,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const r = await carregarReuniao(id)
     if (!r || !(await podeVerReuniao(r, auth))) return NextResponse.json({ error: 'Reunião não encontrada' }, { status: 404 })
-    const [pend, acoes] = await Promise.all([
+    // melhorias 4.5 ("Carregando reunião…" de vários segundos): era uma consulta depois da outra
+    // (~250 ms cada). Agora tudo que só depende da reunião vai junto, inclusive nomes e celulares.
+    const pessoasDaReuniao = r.presencas.map((p) => p.usuario_id)
+    const [pend, acoes, reag, reserva, criador, usuariosBase, cels] = await Promise.all([
       blocoPendencias(r),
       supabaseAdmin.from('tickets').select('id, numero, titulo, status, prazo, responsavel_id, aceite, origem_reuniao_item_id, prazo_reprogramacoes')
         .eq('origem_reuniao_id', r.ticket.id).order('created_at'),
+      reagendamentos(r),
+      reservaDaReuniao(r.ticket.id).catch(() => null),
+      criadorDaReuniao(r.ticket.id).catch(() => null),
+      usuariosMin([auth.userId, ...pessoasDaReuniao, ...r.itens.map((i) => i.trazido_por)]),
+      supabaseAdmin.from('financeiro_usu').select('id, celular').in('id', pessoasDaReuniao),   // sem a coluna: data null, segue sem celular
     ])
-    const { destinos, origens, proxima } = await reagendamentos(r)
-    const reserva = await reservaDaReuniao(r.ticket.id).catch(() => null)
-    const criador = await criadorDaReuniao(r.ticket.id).catch(() => null)
+    const { destinos, origens, proxima } = reag
     const sala = reserva ? { id: reserva.sala_id, nome: reserva.sala_nome || 'Sala', inicio: reserva.inicio, fim: reserva.fim } : null
     const condutor = condutorDe(r)
     const secretario = secretarioDe(r)
@@ -38,21 +45,34 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       ...pend.atrasadas.map((p) => p.responsavel_id), ...pend.vencendo.map((p) => p.responsavel_id),
       ...((acoes.data || []) as { responsavel_id: string }[]).map((a) => a.responsavel_id),
     ]
-    const usuarios = await usuariosMin(ids)
-    const corte = r.ticket.reuniao_inicio ? corteEm(r.ticket.reuniao_inicio, r.serie?.corte_antecedencia_horas ?? 18).toISOString() : null
+    // Só busca os nomes que ainda faltam (responsáveis de pendências e ações).
+    const faltam = ids.filter((x) => x && !usuariosBase[x])
+    const usuarios = { ...usuariosBase, ...(faltam.length ? await usuariosMin(faltam) : {}) }
+    // Convite por WhatsApp (23/11/2026): só quem conduz/criou recebe celulares e o texto pronto de cada pessoa.
+    const gere = podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId
+    const convite: { celulares: Record<string, string | null>; textos: Record<string, string> } | null = gere ? { celulares: {}, textos: {} } : null
+    if (convite) {
+      const pessoas = pessoasDaReuniao
+      for (const c of (cels.data || []) as { id: string; celular: string | null }[]) convite.celulares[c.id] = c.celular
+      const quem = usuarios[auth.userId]?.nome || 'Alguém'
+      for (const u of pessoas) if (u !== auth.userId) convite.textos[u] = textoConviteWhats(r.ticket, usuarios[u]?.nome || '', quem)
+    }
+    const corte = r.ticket.reuniao_inicio ?corteEm(r.ticket.reuniao_inicio, r.serie?.corte_antecedencia_horas ?? 18).toISOString() : null
     return NextResponse.json({
       reuniao: r.ticket, serie: r.serie, itens: r.itens, presencas: r.presencas, ata: r.ata,
       etapa_efetiva: r.etapaEfetiva, corte_em: corte,
       pendencias: pend, acoes: acoes.data || [], usuarios,
       destinos, origens, proxima, sala,
-      condutor_id: condutor, secretario_id: secretario,
+      condutor_id: condutor, secretario_id: secretario, convite,
       meu_papel: papelNaReuniao(r, auth.userId),
       posso_conduzir: podeConduzir(r.presencas, auth.userId, auth.isAdmin),
       criador_id: criador,
+      posso_excluir: (auth.isAdmin || criador === auth.userId) && !motivoNaoExcluir(r.ticket.reuniao_etapa, !!r.ata, (acoes.data || []).length, ((r.ticket.payload as { gravacoes?: unknown[] } | null)?.gravacoes || []).length),
       posso_continuar: r.ticket.reuniao_etapa !== 'cancelada' && (podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId),
       posso_virar_serie:!r.serie && r.ticket.reuniao_etapa !== 'cancelada' && (podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId),
       posso_remarcar:['agendada', 'pauta_fechada'].includes(r.ticket.reuniao_etapa || '') && (podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId),
-      posso_reabrir: !!REABRIR_PARA[r.ticket.reuniao_etapa as ReuniaoEtapa] && podeReabrir(criador, r.ticket.solicitante_id, auth.userId, auth.isAdmin),
+      posso_editar: !['ata_publicada', 'cancelada'].includes(r.ticket.reuniao_etapa || '') && (podeConduzir(r.presencas, auth.userId, auth.isAdmin) || criador === auth.userId),
+      posso_reabrir:!!REABRIR_PARA[r.ticket.reuniao_etapa as ReuniaoEtapa] && podeReabrir(criador, r.ticket.solicitante_id, auth.userId, auth.isAdmin),
       aviso: avisoMesmaPessoa(condutor, secretario),
       tempo_previsto: somaTempo(r.itens),
       duracao_min: Number((r.ticket.payload as { duracao_min?: unknown })?.duracao_min) || r.serie?.duracao_min || 30,
@@ -95,4 +115,48 @@ async function reagendamentos(r: NonNullable<Awaited<ReturnType<typeof carregarR
   for (const x of v) { const t = ref.get(x.reuniao_id); if (t) origens[x.id] = t }
   const proxima: Ref | null = prox ? { reuniao_id: prox.id, numero: prox.numero, prazo: prox.prazo } : null
   return { destinos, origens, proxima }
+}
+
+// ------------------------------------------------------------------ excluir
+// (José, 23/11/2026) Reunião de teste não precisa ficar para sempre no histórico. Só admin ou quem marcou,
+// e só reunião "vazia": sem ata, sem tarefas e sem gravação, que ainda não começou (ou foi cancelada).
+// Presenças, pauta e reserva de sala saem junto (on delete cascade).
+function motivoNaoExcluir(etapa: string | null | undefined, temAta: boolean, nAcoes: number, nGravacoes: number): string | null {
+  if (temAta) return 'Esta reunião já tem ata publicada.'
+  if (nAcoes > 0) return `Esta reunião tem ${nAcoes} ${nAcoes === 1 ? 'tarefa' : 'tarefas'}. Cancele em vez de excluir.`
+  if (nGravacoes > 0) return 'Esta reunião tem gravação. Cancele em vez de excluir.'
+  if (!['agendada', 'pauta_fechada', 'cancelada'].includes(etapa || '')) return 'Só dá para excluir reunião que ainda não começou ou que foi cancelada.'
+  return null
+}
+
+async function contarAcoes(id: string): Promise<number> {
+  const { count } = await supabaseAdmin.from('tickets').select('id', { count: 'exact', head: true }).eq('origem_reuniao_id', id)
+  return count || 0
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await autenticar(req)
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  if (!temModuloTickets(auth)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+  const { id } = await params
+  try {
+    const r = await carregarReuniao(id)
+    if (!r || !(await podeVerReuniao(r, auth))) return NextResponse.json({ error: 'Reunião não encontrada' }, { status: 404 })
+    const criador = await criadorDaReuniao(id).catch(() => null)
+    if (!auth.isAdmin && criador !== auth.userId) return NextResponse.json({ error: 'Só quem marcou a reunião (ou admin) pode excluir.' }, { status: 403 })
+    const gravacoes = ((r.ticket.payload as { gravacoes?: unknown[] } | null)?.gravacoes || []).length
+    const motivo = motivoNaoExcluir(r.ticket.reuniao_etapa, !!r.ata, await contarAcoes(id), gravacoes)
+    if (motivo) return NextResponse.json({ error: motivo }, { status: 409 })
+    // avisa quem estava nela (se ainda estava marcada) ANTES de apagar
+    if (r.ticket.reuniao_etapa !== 'cancelada') {
+      await notificarTicket(r.ticket, r.presencas.map((p) => p.usuario_id), auth.userId, `Reunião excluída: ${r.ticket.titulo}`).catch(() => {})
+    }
+    const { error } = await supabaseAdmin.from('tickets').delete().eq('id', id).eq('tipo', 'reuniao')
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    console.info('[reunioes] excluida', { id, numero: r.ticket.numero, titulo: r.ticket.titulo, por: auth.userId })
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    console.error('[reunioes] DELETE', e)
+    return NextResponse.json({ error: 'Falha ao excluir a reunião' }, { status: 500 })
+  }
 }

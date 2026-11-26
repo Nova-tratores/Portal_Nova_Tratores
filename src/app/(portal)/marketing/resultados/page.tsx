@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { TIPOS_ACAO, rotulo } from '@/lib/marketing/tipos';
+import RegrasRetorno from '@/components/marketing/RegrasRetorno';
 import {
   apiGet, brl, multiplicador, pct, periodoBR, Painel, Kpi, Vazio, AvisoMigracao, Erro, estiloInput,
 } from '@/components/marketing/ui';
@@ -54,16 +55,19 @@ export default function ResultadosPage() {
   }, [linhas, ordem]);
 
   const totais = useMemo(() => {
-    let custo = 0, apoio = 0, receita = 0, leads = 0, vendas = 0;
+    let custo = 0, apoio = 0, receita = 0, margem = 0, leads = 0, vendas = 0, estimada = false;
     for (const l of linhas) {
       custo += l.roi.custoConfirmado;
       apoio += l.roi.apoioRecebido;
       receita += l.roi.receitaAtribuida;
+      margem += l.roi.margemAtribuida ?? 0;
+      estimada = estimada || !!l.roi.margemEstimada;
       leads += l.roi.leads;
       vendas += l.roi.vendasN;
     }
     const liquido = custo - apoio;
-    return { custo, apoio, receita, leads, vendas, liquido, roi: liquido > 0 ? receita / liquido : null };
+    // Retorno pela MARGEM (23/11/2026) — mesma fórmula de lib/marketing/roi.ts
+    return { custo, apoio, receita, margem, estimada, leads, vendas, liquido, roi: liquido > 0 ? margem / liquido : null };
   }, [linhas]);
 
   const anos = useMemo(() => {
@@ -75,32 +79,42 @@ export default function ResultadosPage() {
 
   return (
     <div style={{ padding: 16, maxWidth: 1400, margin: '0 auto' }}>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-        <Kpi rotulo="Investido" valor={brl(totais.custo)} />
-        <Kpi rotulo="Apoio recebido" valor={brl(totais.apoio)} cor="#16a34a" />
-        <Kpi rotulo="Custo líquido" valor={brl(totais.liquido)} dica="O que a empresa pôs do próprio bolso." />
-        <Kpi rotulo="Receita atribuída" valor={brl(totais.receita)} cor="#16a34a" />
-        <Kpi rotulo="Leads" valor={String(totais.leads)} />
-        <Kpi rotulo="Vendas" valor={String(totais.vendas)} />
-        <Kpi rotulo="Retorno" valor={multiplicador(totais.roi)} cor="#7c3aed" />
-      </div>
+      {/* 24/11/2026 ("que negócio feio"): grade em vez de 8 cartões espremidos numa linha — o cartão nunca fica
+          mais estreito que o valor (antes cortava "R$ 38.534"), títulos curtos, Saldo junto, nada de travessão. */}
+      {(() => {
+        const saldo = totais.margem + totais.apoio - totais.custo;
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(235px, 100%), 1fr))', gap: 8, marginBottom: 14 }}>
+            <Kpi rotulo="Investido" valor={brl(totais.custo)} />
+            <Kpi rotulo="Apoio recebido" valor={brl(totais.apoio)} cor="#16a34a" />
+            <Kpi rotulo="Custo líquido" valor={brl(totais.liquido)} dica="Investido menos o apoio recebido: o que saiu do bolso da casa." />
+            <Kpi rotulo="Receita" valor={brl(totais.receita)} cor="#16a34a" dica="Vendas que fecharam dentro da janela de cada ação." />
+            <Kpi rotulo={totais.estimada ? 'Margem (estimada)' : 'Margem'} valor={brl(totais.margem)} cor="#16a34a" dica={totais.estimada ? 'Venda sem custo cadastrado usa o % padrão do tipo.' : 'Valor da venda menos o custo da máquina.'} />
+            <Kpi rotulo="Saldo" valor={brl(saldo)} cor={saldo < 0 ? '#dc2626' : '#16a34a'} dica="Margem + apoio recebido − investido." />
+            <Kpi rotulo="Leads · Vendas" valor={`${totais.leads} · ${totais.vendas}`} />
+            <Kpi rotulo="Retorno" valor={totais.roi === null ? '0,0x' : multiplicador(totais.roi)} cor="#7c3aed" dica={`Margem dividida pelo custo líquido.${totais.estimada ? ' Margem estimada.' : ''}`} />
+          </div>
+        );
+      })()}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-        <select style={{ ...estiloInput, flex: '0 1 120px' }} value={fAno} onChange={(e) => setFAno(e.target.value)}>
+        <select style={{ ...estiloInput, width: 'auto', flex: '0 0 auto' }} value={fAno} onChange={(e) => setFAno(e.target.value)}>
           <option value="">Todo período</option>
           {anos.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
-        <select style={{ ...estiloInput, flex: '0 1 170px' }} value={fTipo} onChange={(e) => setFTipo(e.target.value)}>
+        <select style={{ ...estiloInput, width: 'auto', flex: '0 0 auto' }} value={fTipo} onChange={(e) => setFTipo(e.target.value)}>
           <option value="">Todos os tipos</option>
           {TIPOS_ACAO.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
         </select>
-        <select style={{ ...estiloInput, flex: '0 1 190px' }} value={ordem} onChange={(e) => setOrdem(e.target.value as Ordem)}>
+        <select style={{ ...estiloInput, width: 'auto', flex: '0 0 auto' }} value={ordem} onChange={(e) => setOrdem(e.target.value as Ordem)}>
           <option value="data">Mais recentes primeiro</option>
           <option value="roi">Maior retorno</option>
           <option value="receita">Maior receita</option>
           <option value="custo">Maior custo</option>
           <option value="leads">Mais leads</option>
         </select>
+        <span style={{ flex: 1 }} />
+        <RegrasRetorno onSalvo={carregar} />
       </div>
 
       {erro && <Erro>{erro}</Erro>}
@@ -114,7 +128,7 @@ export default function ResultadosPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 1000 }}>
             <thead>
               <tr style={{ background: 'var(--portal-bg)' }}>
-                {['Ação', 'Período', 'Investido', 'Apoio', 'Líquido', 'Leads', 'Propostas', 'Vendas', 'Receita', 'Retorno', 'Custo/lead'].map((h) => (
+                {['Ação', 'Período', 'Investido', 'Apoio', 'Líquido', 'Leads', 'Propostas', 'Vendas', 'Receita', 'Saldo', 'Retorno', 'Custo/lead'].map((h) => (
                   <th
                     key={h}
                     style={{
@@ -154,9 +168,16 @@ export default function ResultadosPage() {
                   <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--portal-text)' }}>{roi.propostasN}</td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--portal-text)' }}>{roi.vendasN}</td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{brl(roi.receitaAtribuida)}</td>
-                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#7c3aed', whiteSpace: 'nowrap' }}>{multiplicador(roi.roi)}</td>
+                  {(() => {
+                    const s = (Number(roi.margemAtribuida) || 0) + (Number(roi.apoioRecebido) || 0) - (Number(roi.custoConfirmado) || 0);
+                    return <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: s < 0 ? '#dc2626' : '#16a34a', whiteSpace: 'nowrap' }}>{brl(s)}</td>;
+                  })()}
+                  <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#7c3aed', whiteSpace: 'nowrap' }}
+                    title={roi.roi === null ? 'Sem custo líquido: não dá pra dividir.' : undefined}>
+                    {roi.roi === null ? <span style={{ fontWeight: 400, color: 'var(--portal-text-muted, #94a3b8)' }}>sem custo</span> : multiplicador(roi.roi)}
+                  </td>
                   <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>
-                    {roi.custoPorLead === null ? '—' : brl(roi.custoPorLead)}
+                    {roi.custoPorLead === null ? <span style={{ color: 'var(--portal-text-muted, #94a3b8)' }}>sem leads</span> : brl(roi.custoPorLead)}
                   </td>
                 </tr>
               ))}
@@ -166,8 +187,7 @@ export default function ResultadosPage() {
       )}
 
       <div style={{ marginTop: 12, fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>
-        Travessão significa indicador sem base de cálculo — por exemplo, retorno de uma ação cujo
-        custo líquido é zero porque a fábrica cobriu tudo.
+        Saldo = margem das vendas + apoio recebido − investido.
       </div>
     </div>
   );

@@ -9,11 +9,11 @@ import MotivoPerdaModal, { STATUS_PERDIDO } from './MotivoPerdaModal'
 // `nome` = valor real gravado no banco (não mexer). `label` = como aparece pro usuário (padronizado).
 // `pdf` = as MESMAS cores (RGB) pro PDF: fill/text = selo do status; linha = tom claro da etapa na linha inteira.
 const COLUNAS = [
-  { nome: 'Enviar Proposta', label: 'Enviar proposta', cor: 'bg-red-100 text-red-700', pdf: { fill: [254, 226, 226], text: [185, 28, 28], linha: [254, 242, 242] } },
-  { nome: 'AGUARDANDO RESPOSTA CLIENTE', label: 'Aguardando resposta cliente', cor: 'bg-amber-100 text-amber-700', pdf: { fill: [254, 243, 199], text: [180, 83, 9], linha: [255, 251, 235] } },
-  { nome: 'AGUARDANDO RESPOSTA BANCO', label: 'Aguardando resposta banco', cor: 'bg-violet-100 text-violet-700', pdf: { fill: [237, 233, 254], text: [109, 40, 217], linha: [245, 243, 255] } },
-  { nome: 'Concluida-Vendido', label: 'Concluída - vendido', cor: 'bg-emerald-100 text-emerald-700', pdf: { fill: [209, 250, 229], text: [4, 120, 87], linha: [236, 253, 245] } },
-  { nome: 'Concluida- Não vendido.', label: 'Concluída - não vendido', cor: 'bg-zinc-100 text-zinc-600', pdf: { fill: [244, 244, 245], text: [82, 82, 91], linha: [250, 250, 250] } }
+  { nome: 'Enviar Proposta', label: 'Enviar proposta', cor: 'kb-st bg-red-100 text-red-700', pdf: { fill: [254, 226, 226], text: [185, 28, 28], linha: [254, 242, 242] } },
+  { nome: 'AGUARDANDO RESPOSTA CLIENTE', label: 'Aguardando resposta cliente', cor: 'kb-st bg-amber-100 text-amber-700', pdf: { fill: [254, 243, 199], text: [180, 83, 9], linha: [255, 251, 235] } },
+  { nome: 'AGUARDANDO RESPOSTA BANCO', label: 'Aguardando resposta banco', cor: 'kb-st bg-violet-100 text-violet-700', pdf: { fill: [237, 233, 254], text: [109, 40, 217], linha: [245, 243, 255] } },
+  { nome: 'Concluida-Vendido', label: 'Concluída - vendido', cor: 'kb-st bg-emerald-100 text-emerald-700', pdf: { fill: [209, 250, 229], text: [4, 120, 87], linha: [236, 253, 245] } },
+  { nome: 'Concluida- Não vendido.', label: 'Concluída - não vendido', cor: 'kb-st bg-zinc-100 text-zinc-600', pdf: { fill: [244, 244, 245], text: [82, 82, 91], linha: [250, 250, 250] } }
 ]
 
 const statusLabel = (nome) => COLUNAS.find(c => c.nome === nome)?.label || nome
@@ -275,7 +275,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
 
   const getStatusStyle = (status) => {
     const col = COLUNAS.find(c => c.nome === status)
-    return col?.cor || 'bg-zinc-100 text-zinc-600'
+    return col?.cor || 'kb-st bg-zinc-100 text-zinc-600'
   }
 
   const filterInputStyle = "w-full bg-zinc-100/50 text-zinc-700 text-base rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-red-500/40 transition-all placeholder:text-zinc-400 border border-zinc-200"
@@ -292,6 +292,15 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
 
   return (
     <div className="w-full">
+      {/* modo escuro: selos de status e tags (cor escolhida pelo usuário) legíveis sobre fundo escuro */}
+      <style>{`
+        [data-theme="dark"] .kb-st.bg-red-100 { background-color: rgb(248 113 113 / .15) !important; color: #fca5a5 !important; }
+        [data-theme="dark"] .kb-st.bg-amber-100 { background-color: rgb(251 191 36 / .15) !important; color: #fcd34d !important; }
+        [data-theme="dark"] .kb-st.bg-violet-100 { background-color: rgb(167 139 250 / .15) !important; color: #c4b5fd !important; }
+        [data-theme="dark"] .kb-st.bg-emerald-100 { background-color: rgb(52 211 153 / .15) !important; color: #6ee7b7 !important; }
+        [data-theme="dark"] .kb-st.bg-zinc-100 { background-color: rgb(163 163 163 / .15) !important; color: #d4d4d4 !important; }
+        [data-theme="dark"] .kb-tag { color: color-mix(in srgb, var(--tag-c) 50%, #ffffff) !important; }
+      `}</style>
       {/* BUSCA — filtra por qualquer campo */}
       <div className="bg-white border border-zinc-200 rounded-xl p-4 mb-4">
         <label className="block text-xs font-semibold text-zinc-500 mb-2">Filtrar por cliente, ID, marca, modelo, cidade, valor ou status</label>
@@ -356,7 +365,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                       <div className="text-base font-semibold text-zinc-800">{card.Cliente || 'Sem nome'}</div>
                       <div className="text-sm text-zinc-600 mt-0.5">{card.Marca} {card.Modelo}</div>
                       <div className="text-sm text-zinc-400">{card.Cidade || '---'}</div>
-                      {card.tag_nome && <span className="inline-block mt-1.5" style={{ background: (card.tag_cor || '#64748b') + '22', color: card.tag_cor || '#64748b', padding: '2px 8px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{card.tag_nome}</span>}
+                      {card.tag_nome && <span className="kb-tag inline-block mt-1.5" style={{ '--tag-c': card.tag_cor || '#64748b', background: (card.tag_cor || '#64748b') + '22', color: card.tag_cor || '#64748b', padding: '2px 8px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{card.tag_nome}</span>}
                       {card.vendedor_nome && <div className="text-xs text-zinc-500 mt-0.5">Vendedor: {card.vendedor_nome}</div>}
                       <div className="flex items-center justify-between mt-1">
                         <div className={`text-xs ${agingCor(card.dias_na_fase)}`}>parado há {agingTexto(card.dias_na_fase)}</div>
@@ -404,7 +413,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                 <div className="flex flex-wrap items-center gap-1.5 mt-2">
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${getStatusStyle(card.status)}`}>{statusLabel(card.status)}</span>
                   <span className={`text-xs ${agingCor(card.dias_na_fase)}`}>{agingTexto(card.dias_na_fase)}</span>
-                  {card.tag_nome && <span style={{ background: (card.tag_cor || '#64748b') + '22', color: card.tag_cor || '#64748b', padding: '1px 8px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{card.tag_nome}</span>}
+                  {card.tag_nome && <span className="kb-tag" style={{ '--tag-c': card.tag_cor || '#64748b', background: (card.tag_cor || '#64748b') + '22', color: card.tag_cor || '#64748b', padding: '1px 8px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{card.tag_nome}</span>}
                 </div>
                 <div className="mt-2"><TermoBar v={termoValor(card)} /></div>
                 <div className="mt-2" onClick={e => e.stopPropagation()}>
@@ -478,7 +487,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                       </td>
                       <td className="px-5 py-4">
                         {card.tag_nome
-                          ? <span style={{ background: (card.tag_cor || '#64748b') + '22', color: card.tag_cor || '#64748b', padding: '2px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>{card.tag_nome}</span>
+                          ? <span className="kb-tag" style={{ '--tag-c': card.tag_cor || '#64748b', background: (card.tag_cor || '#64748b') + '22', color: card.tag_cor || '#64748b', padding: '2px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>{card.tag_nome}</span>
                           : <span className="text-zinc-300">—</span>}
                       </td>
                       <td className="px-5 py-4 text-right">

@@ -25,7 +25,7 @@ export default function OmieAgora({ painel }: { painel: Painel }) {
 
   return (
     <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '14px 16px', marginBottom: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: '.92rem', marginBottom: 10, color: '#111111' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: '.92rem', marginBottom: 10, color: 'var(--agd-tx, #111111)' }}>
         <Activity size={16} style={{ color: '#dc2626' }} /> Omie agora
         <span style={{ fontWeight: 500, fontSize: '.72rem', color: '#6b7280' }}>
           · fila: {porta.fila.pessoa} de pessoas, {porta.fila.rapido} rápidos, {porta.fila.pesado} pesados
@@ -56,16 +56,16 @@ export default function OmieAgora({ painel }: { painel: Painel }) {
           const emVoo = porta.emVoo.find((e) => e.conta === conta)?.chamadas ?? 0
           return (
             <div key={conta} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: '.8rem' }}>
-              <strong style={{ minWidth: 110, color: '#111111' }}>{conta}</strong>
+              <strong style={{ minWidth: 110, color: 'var(--agd-tx, #111111)' }}>{conta}</strong>
               {bloq.length ? (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#b91c1c', fontWeight: 700 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--agd-err, #b91c1c)', fontWeight: 700 }}>
                   <Ban size={13} /> BLOQUEADA {bloq.map((b) => `${b.metodo} até ${horaSP(b.ate)}`).join(' · ')}
                 </span>
               ) : (
-                <span style={{ color: '#047857', fontWeight: 700 }}>● livre</span>
+                <span style={{ color: 'var(--agd-ok, #047857)', fontWeight: 700 }}>● livre</span>
               )}
               <span style={{ color: '#374151' }}>{chamadas} chamada(s) no último minuto <span style={{ color: '#9ca3af' }}>(limite {LIMITE_MIN} por método)</span></span>
-              {erros > 0 && <span style={{ color: '#b91c1c' }}>{erros} com erro</span>}
+              {erros > 0 && <span style={{ color: 'var(--agd-err, #b91c1c)' }}>{erros} com erro</span>}
               {emVoo > 0 && <span style={{ color: '#1d4ed8' }}>{emVoo} em andamento</span>}
               <span style={{ color: '#9ca3af' }}>{hora} na última hora</span>
             </div>

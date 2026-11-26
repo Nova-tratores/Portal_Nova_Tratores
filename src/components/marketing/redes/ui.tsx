@@ -2,7 +2,13 @@
 // Kit visual do módulo Site (estilo POS NewPortal: cartão 16px, borda fina, sem faixa lateral, pesos 400/500).
 import { useEffect, useState, type ReactNode } from 'react';
 
-export const tela: React.CSSProperties = { padding: 'clamp(12px, 2vw, 28px)', display: 'grid', gap: 16 };
+// 25/11/2026: --surface e --border só existiam dentro do Pós-Vendas; aqui ficavam vazios e cartões/janelas saíam
+// transparentes (a janela do "Todas as redes" aparecia por cima da página sem fundo). A tela agora define os dois.
+export const tela = {
+  padding: 'clamp(12px, 2vw, 28px)', display: 'grid', gap: 16,
+  '--surface': 'var(--portal-bg-card, #ffffff)',
+  '--border': 'color-mix(in srgb, var(--portal-text, #0f172a) 12%, transparent)',
+} as React.CSSProperties;
 
 export const cartao: React.CSSProperties = {
   background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 'clamp(14px, 1.6vw, 20px)', minWidth: 0,
@@ -64,18 +70,6 @@ export function Numero({ icone, cor, rotulo, valor, detalhe, ativo, onClick }: {
 
 export function grade(min: number): React.CSSProperties {
   return { display: 'grid', gap: 12, gridTemplateColumns: `repeat(auto-fit, minmax(min(${min}px, 100%), 1fr))` };
-}
-
-/** "Como ler esta tela" — fechado, abre ao tocar. */
-export function ComoLer({ children }: { children: ReactNode }) {
-  return (
-    <details style={{ ...cartao, padding: '10px 16px' }}>
-      <summary style={{ cursor: 'pointer', fontWeight: 500, color: 'var(--portal-text)' }}>
-        <i className="fa-solid fa-circle-question" style={{ fontWeight: 900, color: '#d97706', marginRight: 8 }} />Como ler esta tela
-      </summary>
-      <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.6, color: 'var(--portal-text)' }}>{children}</div>
-    </details>
-  );
 }
 
 export function Aviso({ children, tom = 'erro' }: { children: ReactNode; tom?: 'erro' | 'info' }) {

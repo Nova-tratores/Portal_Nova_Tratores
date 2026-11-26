@@ -16,6 +16,9 @@ export const CSS_PM = `
 .pm-faixa.leve { background: var(--portal-bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 6px; align-items: center; box-shadow: none; }
 .pm-faixa.leve .pm-guia { border-radius: 8px; background: transparent; }
 .pm-faixa.leve .pm-guia.on { background: #fee2e2; color: #991b1b; box-shadow: none; }
+[data-theme="dark"] .pm-faixa.leve .pm-guia { color: var(--portal-text-secondary, #a3a3a3); }
+[data-theme="dark"] .pm-faixa.leve .pm-guia:hover { color: var(--portal-text, #f5f5f5); background: var(--portal-bg-secondary, #262626); }
+[data-theme="dark"] .pm-faixa.leve .pm-guia.on { background: var(--portal-bg-card, #1a1a1a); color: var(--portal-red-fg, #f87171); box-shadow: inset 0 0 0 1px var(--portal-red-fg, #f87171); }
 .pm-faixa.leve .pm-faixa-dir { padding-bottom: 0; }
 .pm-faixa.leve .pm-btn.branco { background: var(--portal-bg-card); border-color: var(--border); color: var(--text); }
 .pm-tela.embutida .pm-root { padding: 14px 0 0; }

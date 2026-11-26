@@ -1,6 +1,6 @@
-// Conteúdo e publicar → Textos do site (telefones, horário, aviso, topo, banners).
-import TextosSite from '../TextosSite';
+// Endereço antigo dos Textos do site: agora moram em Acessos → Site (engrenagem), 25/11/2026.
+import { redirect } from 'next/navigation';
 
-export default function TextosSitePage() {
-  return <TextosSite />;
+export default function TextosSiteAntigo() {
+  redirect('/marketing/acessos/textos');
 }

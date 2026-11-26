@@ -187,7 +187,18 @@ async function faturarRemessaPPVSemPausa(idPPV: string, usuario = "Portal"): Pro
   try {
     const r = await omieCall<{ cCodStatus?: string; cDescStatus?: string }>("/produtos/remessafat/", "ConcluirRemessa", { nCodRem }, acc.key, acc.secret);
     if (r?.cCodStatus && r.cCodStatus !== "0") return { ok: false, erro: `O Omie não faturou a remessa: ${r.cDescStatus || r.cCodStatus}` };
-  } catch (e) { return { ok: false, erro: `O Omie não faturou a remessa: ${(e as Error).message}` }; }
+  } catch (e) {
+    // Resposta perdida / erro ambíguo: a NF-e pode ter saído mesmo assim. Olha a situação
+    // de novo antes de dizer "não faturou" (senão a tela mentia e a OS via a remessa como falha).
+    let faturou = false;
+    for (let i = 0; i < 3 && !faturou; i++) {
+      await new Promise((r) => setTimeout(r, 4000));
+      const st = await statusRemessaPPV(idPPV, acc.name).catch(() => null);
+      faturou = st?.st.faturada === "S";
+    }
+    if (!faturou) return { ok: false, erro: `O Omie não faturou a remessa: ${(e as Error).message}` };
+    await registrarLog(idPPV, `ConcluirRemessa voltou com erro (${(e as Error).message}), mas a remessa consta faturada no Omie.`).catch(() => {});
+  }
   // a NF-e leva alguns segundos para aparecer
   let nf: string | null = null;
   for (let i = 0; i < 6 && !nf; i++) {
@@ -700,10 +711,19 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
     return { sucesso: false, erro: `CNPJ/CPF não encontrado para o cliente "${detalhes.cliente}"` };
   }
 
+  // Peça "não gerar cobrança": pedido de VENDA não vai com ela (iria a R$ 0 e seria faturada
+  // junto). Remessa vai, no preço original (a NF-e de remessa precisa de valor; não cobra).
+  if (!isRemessa) {
+    const { itensSemCobrancaAtivos, avisoSemCobranca } = await import("./sem-cobranca-regras");
+    const marcadas = itensSemCobrancaAtivos(detalhes);
+    if (marcadas.length) return { sucesso: false, erro: avisoSemCobranca(idPPV, marcadas.length) };
+  }
+
   // 4. Agrega produtos (saídas - devoluções)
   const resumo: Record<string, { descricao: string; qtde: number; preco: number; empresa?: string }> = {};
   for (const p of detalhes.produtos) {
-    if (!resumo[p.codigo]) resumo[p.codigo] = { descricao: p.descricao, qtde: 0, preco: p.preco, empresa: p.empresa };
+    const preco = isRemessa && p.semCobranca ? p.semCobranca.precoOriginal : p.preco;
+    if (!resumo[p.codigo]) resumo[p.codigo] = { descricao: p.descricao, qtde: 0, preco, empresa: p.empresa };
     resumo[p.codigo].qtde += p.quantidade;
   }
   for (const d of detalhes.devolucoes) {
@@ -827,7 +847,10 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
       const daOS = await dadosDaOSParaRemessa(String(detalhes.osId || ""), acc);
       // garantia: CFOP 5.949 (SP) / 6.949 (fora), CST 60 sem benefício fiscal, frete por conta do remetente
       const garantia = await osEhGarantia(String(detalhes.osId || ""));
-      const fiscalGar = garantia ? fiscalItemGarantia(await ufDoClienteOmie(nCodCli, acc)) : null;
+      const ufCli = await ufDoClienteOmie(nCodCli, acc);
+      const fiscalGar = garantia ? fiscalItemGarantia(ufCli) : null;
+      // remessa normal: 5.910 dentro de SP, 6.910 fora (antes ia sempre 5.910 — UF desconhecida vale SP)
+      const cfopRemessa = ufCli && ufCli !== "SP" ? "6.910" : OMIE_CFOP_REMESSA;
       // ── REMESSA de verdade (/produtos/remessa/ IncluirRemessa) ──
       // Itens de remessa vão com CFOP 5.910 (Remessa em Bonificação/Doação/Brinde).
       const remessaPayload: Record<string, unknown> = {
@@ -854,11 +877,23 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
           nCodProd: it.codigoProdutoOmie,
           nQtde: it.qtde,
           nValUnit: it.preco,
-          cCFOP: OMIE_CFOP_REMESSA,
+          cCFOP: cfopRemessa,
           ...(fiscalGar || {}),
         })),
       };
-      const resp = await omieCall<Record<string, unknown>>("/produtos/remessa/", "IncluirRemessa", remessaPayload, acc.key, acc.secret);
+      // Se o IncluirRemessa falhar (resposta perdida, "já cadastrada"…), a remessa RM-<PPV> pode
+      // EXISTIR no Omie sem o portal saber — antes o PPV ficava travado (cada nova tentativa batia
+      // no código repetido). Agora procura pelo código e ADOTA a remessa que já está lá.
+      let resp: Record<string, unknown>;
+      try {
+        resp = await omieCall<Record<string, unknown>>("/produtos/remessa/", "IncluirRemessa", remessaPayload, acc.key, acc.secret);
+      } catch (e) {
+        const ja = await omieCall<Record<string, unknown>>("/produtos/remessa/", "ConsultarRemessa", { cCodIntRem: `RM-${idPPV}` }, acc.key, acc.secret).catch(() => null);
+        const cabJa = (ja?.cabec || {}) as Record<string, unknown>;
+        if (!Number(cabJa.nCodRem)) throw e;
+        console.warn(`[Omie PPV] ${idPPV} → IncluirRemessa falhou (${(e as Error).message}), mas a remessa RM-${idPPV} já existe: adotando.`);
+        resp = { nCodRem: cabJa.nCodRem };
+      }
       console.log(`[Omie PPV] ${idPPV} → IncluirRemessa resp:`, JSON.stringify(resp).slice(0, 200));
       // A resposta traz só { nCodRem, cCodIntRem }. Consulta pra pegar o número amigável.
       const nCodRem = Number(resp.nCodRem) || 0;
@@ -1209,6 +1244,14 @@ async function faturarPPVNoOmieSemPausa(
   if (!cab.pedido_omie) return { sucesso: false, erro: "Este PPV ainda não foi enviado ao Omie." };
   if (String(cab.Tipo_Pedido || "Pedido") === "Remessa") return { sucesso: false, erro: "Remessa não é faturada." };
   if (cab.faturado_omie_em) return { sucesso: false, jaFaturado: true, erro: "Este pedido já foi faturado." };
+
+  // Peça "não gerar cobrança" não fatura junto: desmarcar ou separar em remessa (vale para PPV e OS)
+  {
+    const det = await buscarPPVPorId(idPPV);
+    const { itensSemCobrancaAtivos, avisoSemCobranca } = await import("./sem-cobranca-regras");
+    const marcadas = det ? itensSemCobrancaAtivos(det) : [];
+    if (marcadas.length) return { sucesso: false, erro: avisoSemCobranca(idPPV, marcadas.length) };
+  }
 
   const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null, { porNumero: true });
   if (!achado) return { sucesso: false, erro: "Pedido não encontrado no Omie (ConsultarPedido)." };
@@ -1996,6 +2039,18 @@ async function vigiadoPPV<T>(id: string, oque: string, rodar: () => Promise<T>, 
 export const faturarPPVNoOmie: typeof faturarPPVNoOmieSemPausa = (...a) => vigiadoPPV(a[0], "o pedido de peças",
   () => comRobosPausados('faturar PPV', () => comTravaPPV(a[0], () => faturarPPVNoOmieSemPausa(...a))),
   (r) => (r.sucesso ? null : r.erro || "não faturado"));
+// Remessa também com a trava por pedido: a tela do PPV, o bloco de notas da OS e o
+// faturamento da OS interna podiam faturar a MESMA remessa ao mesmo tempo.
+async function faturarRemessaComTrava(idPPV: string, usuario?: string): ReturnType<typeof faturarRemessaPPVSemPausa> {
+  type R = Awaited<ReturnType<typeof faturarRemessaPPVSemPausa>>;
+  let res: R | null = null;
+  const t = await comTravaPPV(idPPV, async () => { res = await faturarRemessaPPVSemPausa(idPPV, usuario); return { sucesso: res.ok, erro: res.erro }; });
+  if (res) return res;
+  // trava recusou: ou já foi faturada (aí está tudo certo) ou outro faturamento está rodando
+  const cab = await lerCabecalhoPPV(idPPV).catch(() => null);
+  if (cab?.faturado_omie_em) return { ok: true, jaFaturada: true, nf: (cab.nf_numero as string) || null };
+  return { ok: false, erro: t.erro || "Já existe um faturamento desta remessa em andamento." };
+}
 export const faturarRemessaPPV: typeof faturarRemessaPPVSemPausa = (...a) => vigiadoPPV(a[0], "a remessa",
-  () => comRobosPausados('faturar remessa', () => faturarRemessaPPVSemPausa(...a)),
+  () => comRobosPausados('faturar remessa', () => faturarRemessaComTrava(...a)),
   (r) => (r.ok ? null : r.erro || "não faturada"));

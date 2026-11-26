@@ -94,7 +94,7 @@ export default function PecasNav({ sub }: { sub?: SubAbaPecas[] } = {}) {
         <div className="ppv-subabas">
           {modulos.length <= 1 && <style>{SUB_CSS}</style>}
           {sub.map((a) => {
-            const conteudo = <><i className={`fas ${a.icone}`} /> {a.label}{a.extra}</>;
+            const conteudo = <><span className="ppv-subaba-icone"><i className={`fas ${a.icone}`} /></span> {a.label}{a.extra}</>;
             return a.href
               ? <a key={a.chave} href={a.href} title={a.titulo} className={`ppv-subaba ${a.ativo ? 'ativa' : ''}`}>{conteudo}</a>
               : <button key={a.chave} type="button" onClick={a.onClick} title={a.titulo} className={`ppv-subaba ${a.ativo ? 'ativa' : ''}`}>{conteudo}</button>;

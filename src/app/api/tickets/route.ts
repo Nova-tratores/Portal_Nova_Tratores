@@ -10,12 +10,16 @@ import {
 import { STATUS_FINAIS, type Ticket, type TicketPlanoItem, type TicketVisibilidade } from '@/lib/tickets/constantes'
 import { validarNovaSC, pessoasDoPapel, pessoasComPapel } from '@/lib/tickets/compras'
 import { carregarConfigCompras, avaliarBloqueio } from '@/lib/tickets/compras-server'
+import { avisarAutorizacao } from '@/lib/autorizacoes/avisar'
 import type { Autenticado } from '@/lib/auth/server'
 import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
 import { colunaDoTicket } from '@/lib/tickets/quadros'
 import { planejarTicket, ErroTrabalho, etapasDosTickets, hojeSP } from '@/lib/trabalho/cronograma-server'
 import { dataMinima, erroFimDeSemana } from '@/lib/trabalho/agenda'
 import { contagemPassos } from '@/lib/trabalho/tarefas-server'
+import { planoDeHoras } from '@/lib/trabalho/estimativa'
+import { CAPACIDADE_PADRAO } from '@/lib/trabalho/fila'
+import { colocarNoFimDaFila, avisarEmpurrados } from '@/lib/trabalho/fila-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,7 +54,8 @@ export async function GET(req: NextRequest) {
 
   // Contadores por aba (só tickets ativos), para os badges das visões.
   const contar = async (montar: () => PromiseLike<{ count: number | null }>) => (await montar()).count || 0
-  const base = () => supabaseAdmin.from('tickets').select('id', { count: 'exact', head: true }).not('status', 'in', finais)
+  // Reunião é evento, não pedido (melhorias 1.1, 24/11/2026): não conta nem aparece aqui; fica em /reunioes.
+  const base = () => supabaseAdmin.from('tickets').select('id', { count: 'exact', head: true }).not('status', 'in', finais).neq('tipo', 'reuniao')
   const [cFila, cPedidos, cAcompanhando, cGerencial] = await Promise.all([
     contar(() => base().eq('responsavel_id', auth.userId)),
     contar(() => base().eq('solicitante_id', auth.userId)),
@@ -91,6 +96,7 @@ export async function GET(req: NextRequest) {
 
   // A SC mostra também as etapas terminais (concluída/cancelada) no kanban.
   if (!incluirEncerrados && visao !== 'compras') query = query.not('status', 'in', finais)
+  if (visao !== 'compras') query = query.neq('tipo', 'reuniao')
 
   const { data: tickets, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -191,6 +197,10 @@ export async function POST(req: NextRequest) {
   if (erroFds) return NextResponse.json({ error: erroFds }, { status: 400 })
   const inicioTrabalho = /^\d{4}-\d{2}-\d{2}$/.test(String(body.inicio || '')) && (!prazo || String(body.inicio) <= prazo) ? String(body.inicio) : null
 
+  // Tempo escolhido no pedido (bloquinho de tamanho, 24/11/2026): vira dias × horas_dia, como a Fila lê.
+  const horasPedido = Number(body.horas)
+  const tempo = horasPedido >= 0.25 && horasPedido <= 600 ? planoDeHoras(horasPedido, CAPACIDADE_PADRAO) : null
+
   // O responsável precisa ser um usuário ativo do portal.
   const { data: resp } = await supabaseAdmin
     .from('financeiro_usu').select('id, nome, ativo').eq('id', responsavelId).maybeSingle()
@@ -214,7 +224,7 @@ export async function POST(req: NextRequest) {
     solicitante_id: auth.userId,
     responsavel_id: responsavelId,
     // payload.inicio = 1º dia do trabalho (o Cronograma mostra do início ao prazo)
-    ...(urgente || inicioTrabalho ? { payload: { ...(urgente ? { urgente: true } : {}), ...(inicioTrabalho ? { inicio: inicioTrabalho } : {}) } } : {}),
+    ...(urgente || inicioTrabalho || tempo ? { payload: { ...(urgente ? { urgente: true } : {}), ...(inicioTrabalho ? { inicio: inicioTrabalho } : {}), ...(tempo ? { dias: tempo.dias, horas_dia: tempo.horasDia } : {}) } } : {}),
     ...noQuadro,
   }
   // Quem recebe confirma (Central de Trabalho). Sem a coluna, cria como antes.
@@ -235,6 +245,14 @@ export async function POST(req: NextRequest) {
     `Novo ticket #${ticket.numero}: ${titulo}`,
     responsavelId === auth.userId ? 'Você é o responsável por este ticket.' : 'Você é o responsável. Confirme se consegue fazer.',
   )
+
+  // Pedido vai para o FIM da fila de quem faz (24/11/2026) — não fura a fila pelo prazo.
+  // Urgente continua no topo. Falhou: fica na ordem por prazo, como antes.
+  try { await colocarNoFimDaFila(responsavelId, ticket.id) } catch { /* segue */ }
+  // Urgente fura a fila (melhorias 3.1): quem pediu os pedidos que ficaram para depois é avisado.
+  if (urgente && responsavelId !== auth.userId) {
+    try { await avisarEmpurrados(responsavelId, ticket.id, auth.userId, resp.nome || '') } catch { /* segue */ }
+  }
 
   // Já entra no cronograma do quadro, na data escolhida (agenda do responsável).
   let avisoCronograma = ''
@@ -307,6 +325,14 @@ async function criarSC(auth: Autenticado, body: Record<string, unknown>) {
     `Nova Solicitação de Compras #${ticket.numero}: ${payload.produto}`,
     'Você é a Diretoria responsável por avaliar esta SC.',
   )
+  // e-mail + WhatsApp (Chatwoot) para a Diretoria (24/11/2026)
+  const { data: eu } = await supabaseAdmin.from('financeiro_usu').select('nome').eq('id', auth.userId).maybeSingle()
+  await avisarAutorizacao({
+    chave: `sc:${ticket.id}`, para: diretoria, autorId: auth.userId, quemPediu: eu?.nome || 'Alguém',
+    oque: 'uma solicitação de compra', titulo: `SC #${ticket.numero}: ${payload.produto || titulo}`,
+    valor: payload.valor_total != null ? Number(payload.valor_total) : null,
+    linhas: [payload.quantidade_solicitada ? `Quantidade: ${payload.quantidade_solicitada}` : ''], linkPedido: `/tickets/${ticket.id}`,
+  })
 
   return NextResponse.json({ ticket })
 }

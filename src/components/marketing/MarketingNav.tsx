@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { ABAS_MARKETING, GRUPOS_MKT, PAGINAS_MARKETING, slugDaPagina } from '@/app/(portal)/marketing/paginas';
+import '@/components/abas-modulo.css';
 import { podeTelaMarketing, slugDaRota } from '@/lib/permissoes/marketing';
 
 // Faixa de guias do Controle Marketing (Site + Marketing & Eventos juntos, 18/11/2026).
@@ -38,7 +39,7 @@ export default function MarketingNav() {
 
   return (
     <div
-      className="print:hidden"
+      className="print:hidden aba-faixa"
       style={{
         display: 'flex',
         alignItems: 'flex-end',
@@ -54,18 +55,31 @@ export default function MarketingNav() {
       {GRUPOS_MKT.map((grupo, i) => {
         const doGrupo = visiveis.filter((a) => a.grupo === grupo);
         if (doGrupo.length === 0) return null;
+        // 19/11/2026 (José: "melhora onde diz que é rede ou eventos"): o nome do grupo virou uma
+        // etiqueta escura com ícone, e uma linha branca separa os dois grupos.
         return [
+          i > 0 && (
+            <span key={`sep-${grupo}`} aria-hidden style={{ alignSelf: 'stretch', width: 2, margin: '2px 6px 8px 10px', borderRadius: 2, background: 'rgba(255,255,255,0.55)', flex: 'none' }} />
+          ),
           <span
             key={`g-${grupo}`}
             style={{
               alignSelf: 'center',
-              margin: i === 0 ? '0 6px 4px 0' : '0 6px 4px 14px',
-              fontSize: 12,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 7,
+              margin: '0 6px 6px 0',
+              padding: '6px 12px',
+              borderRadius: 999,
+              fontSize: 13,
+              fontWeight: 700,
               color: '#fefefe',
-              opacity: 0.85,
+              background: 'rgba(0,0,0,0.28)',
               whiteSpace: 'nowrap',
+              flex: 'none',
             }}
           >
+            <i className={grupo === 'Redes sociais' ? 'fa-solid fa-share-nodes' : 'fa-solid fa-calendar-check'} />
             {grupo}
           </span>,
           ...doGrupo.map((a) => {
@@ -74,6 +88,7 @@ export default function MarketingNav() {
               <Link
                 key={a.label}
                 href={a.href}
+                className={`aba-guia${ativo ? ' aba-ativa' : ''}`}
                 style={{
                   padding: '11px 20px',
                   fontSize: 14,

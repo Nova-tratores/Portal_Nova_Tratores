@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
+import '@/components/abas-modulo.css';
 import { PAGINAS_IV, podeTelaIV, slugDaPaginaIV, slugDaRotaIV } from '@/app/(portal)/inteligencia-vendas/paginas';
 
 // Guias estilo Chrome na faixa vermelha do Comercial (mesmo molde do Marketing/Frota).
@@ -16,7 +17,7 @@ export default function IVNav() {
 
   return (
     <div
-      className="print:hidden"
+      className="print:hidden aba-faixa"
       style={{
         display: 'flex', alignItems: 'flex-end', gap: 3, padding: '10px 24px 0',
         background: 'linear-gradient(135deg, #F87171, #991B1B)', overflowX: 'auto',
@@ -29,6 +30,7 @@ export default function IVNav() {
           <Link
             key={p.key}
             href={p.href}
+            className={`aba-guia${ativo ? ' aba-ativa' : ''}`}
             style={{
               padding: '11px 22px', fontSize: 15, fontWeight: ativo ? 700 : 500, color: '#111111',
               background: ativo ? '#fefefe' : 'rgba(255,255,255,0.30)', borderRadius: '11px 11px 0 0',

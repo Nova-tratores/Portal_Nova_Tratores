@@ -65,7 +65,7 @@ export const ESTILO_CELULAR_GESTAO = `
   body .s1c-com b, body .s1c-com b .odo, body .s1c-com b .odo span { font-size: 22px }
   body .s1c-nums { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; gap: 10px }
   body .s1c-nums b { font-size: 14.5px }
-  body .s1c-ver { justify-self: stretch; justify-content: center; min-height: 40px; border-radius: 99px; background: #eff6ff }
+  body .s1c-ver { justify-self: stretch; justify-content: center; min-height: 40px; border-radius: 99px; background: var(--mx-bg1, #eff6ff) }
   body .ca-pessoas { grid-template-columns: minmax(0, 1fr) }
   body .ca-conta > div { min-width: 0; flex: 1 1 140px }
 
@@ -180,4 +180,7 @@ export const ESTILO_CELULAR_GESTAO = `
   body .pa-fl > .pa-fl-b { display: none }
   body .pa-tecs, body .pa-placar, body .pc-placar { grid-template-columns: minmax(0, 1fr) }
 }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `

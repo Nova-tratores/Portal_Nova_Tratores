@@ -10,9 +10,33 @@
 //   })
 import { supabase } from '@/lib/supabase'
 
+// Token guardado pelo próprio Supabase no aparelho (chave sb-<projeto>-auth-token).
+function tokenGuardado(): string | null {
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!k || !/^sb-.+-auth-token$/.test(k)) continue
+      const v = JSON.parse(localStorage.getItem(k) || 'null')
+      const t = v?.access_token || v?.currentSession?.access_token
+      if (t) return t
+    }
+  } catch { /* sem acesso ao armazenamento */ }
+  return null
+}
+
+// iPhone, 25/11/2026 (Visão da empresa em "Carregando…" para sempre): o
+// getSession() pode ir à internet renovar o login SEM limite de tempo (Safari
+// voltando de segundo plano, 4G fraco) e prendia TODAS as buscas da tela.
+// Agora espera no máximo 6 s; depois disso usa o token guardado no aparelho
+// (se tiver vencido, o servidor recusa e a tela mostra o aviso, em vez de travar).
 export async function authHeaders(): Promise<Record<string, string>> {
-  const { data: { session } } = await supabase.auth.getSession()
-  return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
+  let relogio: ReturnType<typeof setTimeout> | undefined
+  const limite = new Promise<null>((ok) => { relogio = setTimeout(() => ok(null), 6000) })
+  const token = await Promise.race([
+    supabase.auth.getSession().then(({ data: { session } }) => session?.access_token || null).catch(() => null),
+    limite,
+  ]).finally(() => clearTimeout(relogio)) ?? tokenGuardado()
+  return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 // fetch com o token da sessão (atalho para quando a chamada só precisa do login)

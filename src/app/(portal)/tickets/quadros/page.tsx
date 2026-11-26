@@ -16,6 +16,7 @@ import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
 import FormQuadro from '@/components/tickets/quadros/FormQuadro'
 import StatusBadge from '@/components/tickets/StatusBadge'
 import TicketModal from '@/components/tickets/TicketModal'
+import SeloAtrasado from '@/components/tickets/SeloAtrasado'
 import OrganizarTicket, { type TicketParaOrganizar } from '@/components/trabalho/OrganizarTicket'
 
 type TicketC = Ticket & { aceite?: string | null; aceite_motivo?: string | null }
@@ -27,6 +28,9 @@ interface Central {
   usuarios: Record<string, { id: string; nome: string }>
   passos: Record<string, { feitas: number; total: number }>
 }
+
+/** true = volta "Pra organizar" e "Pedidos que fiz" nesta tela (desde 24/11/2026 ficam na Minha fila). */
+const SECOES_ANTIGAS = false
 
 const hojeISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
 const br = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
@@ -119,7 +123,7 @@ export default function QuadrosPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>
             {q.visibilidade === 'privado'
-              ? <><Lock size={12} /> Só quem está no bloco vê</>
+              ? <><Lock size={12} /> Só quem está no quadro vê</>
               : <><Globe size={12} /> Todos podem ver</>}
             {q.arquivado && <b> · arquivado</b>}
           </div>
@@ -144,7 +148,7 @@ export default function QuadrosPage() {
           </span>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={12} /> {pessoas.length} {pessoas.length === 1 ? 'pessoa' : 'pessoas'}</span>
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
-            {r.proximo ? <><Clock size={12} /> próximo {br(r.proximo)}</> : q.tickets_abertos === 0 ? 'vazio' : 'sem data'}
+            {r.proximo ? <><Clock size={12} /> próximo prazo {br(r.proximo)}</> : q.tickets_abertos === 0 ? 'vazio' : 'nenhum prazo'}
           </span>
         </div>
       </button>
@@ -153,6 +157,13 @@ export default function QuadrosPage() {
 
   return (
     <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 1200, margin: '0 auto' }}>
+      {/* 24/11/2026: o dia a dia (o que fazer hoje/na semana, pedidos que chegaram) mudou para a Minha fila. */}
+      <a href="/fila" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16, padding: '12px 16px', borderRadius: 12, textDecoration: 'none',
+        background: 'rgba(37,99,235,.08)', border: '1px solid rgba(37,99,235,.3)', color: 'var(--portal-text,#111)', fontSize: 14 }}>
+        <b style={{ color: '#1d4ed8' }}>Novo: Minha fila</b>
+        <span style={{ flex: '1 1 260px' }}>o que fazer hoje e na semana, os pedidos que chegaram, o que você pediu e a carga da equipe. Aqui ficam só os quadros.</span>
+        <span style={{ fontWeight: 700, color: '#1d4ed8' }}>Abrir minha fila →</span>
+      </a>
       {aviso && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600, marginTop: 12 }}>{aviso}</div>}
       {erro && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 600, marginTop: 12 }}>{erro}</div>}
       {erroCentral && !erro && (
@@ -166,8 +177,8 @@ export default function QuadrosPage() {
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando...</div>
       ) : (
         <>
-          {/* 1) Pra organizar */}
-          {central && central.praOrganizar.length > 0 && (
+          {/* 1) Pra organizar — desligado em 24/11/2026: com o quadro automático, pedido novo chega na Minha fila */}
+          {SECOES_ANTIGAS && central && central.praOrganizar.length > 0 && (
             <>
               {secao(<Inbox size={17} color="#dc2626" />, 'Pra organizar', contador(central.praOrganizar.length, true))}
               <div style={{ display: 'grid', gap: 8 }}>
@@ -180,13 +191,13 @@ export default function QuadrosPage() {
                         <div style={{ fontSize: 14.5, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>#{t.numero} {t.titulo}</div>
                         <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)', marginTop: 2 }}>
                           {t.solicitante_id === userProfile?.id ? 'você criou para você' : `de ${nome(t.solicitante_id)}`}
-                          {' · '}<span style={{ color: atrasado ? '#dc2626' : undefined, fontWeight: atrasado ? 700 : 400 }}>{t.prazo ? `até ${br(t.prazo)}` : 'sem data'}</span>
+                          {' · '}{atrasado ? <SeloAtrasado tamanho={12}>atrasado desde {br(t.prazo!)}</SeloAtrasado> : <span>{t.prazo ? `até ${br(t.prazo)}` : 'sem data'}</span>}
                           {pendente && <> · <b style={{ color: '#dc2626' }}>falta confirmar</b></>}
                         </div>
                       </button>
                       <button onClick={() => setOrganizando({ id: t.id, numero: t.numero, titulo: t.titulo, prazo: t.prazo, visibilidade: t.visibilidade, aceite: t.aceite, solicitante_nome: t.solicitante_id === userProfile?.id ? undefined : nome(t.solicitante_id) })}
                         style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: pendente ? '#059669' : '#dc2626', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
-                        <LayoutGrid size={14} /> {pendente ? 'Confirmar e organizar' : 'Pôr num bloco'}
+                        <LayoutGrid size={14} /> {pendente ? 'Confirmar e organizar' : 'Pôr num quadro'}
                       </button>
                     </div>
                   )
@@ -196,7 +207,7 @@ export default function QuadrosPage() {
           )}
 
           {/* 2) Meus blocos */}
-          {secao(<LayoutGrid size={17} color="#dc2626" />, 'Meus blocos', (
+          {secao(<LayoutGrid size={17} color="#dc2626" />, 'Meus quadros', (
             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-muted,#888)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} /> Mostrar arquivados
@@ -207,18 +218,18 @@ export default function QuadrosPage() {
               </button>
               <button onClick={() => setNovo(true)} disabled={!!aviso}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', minHeight: isMobile ? 36 : undefined, borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: aviso ? .5 : 1 }}>
-                <Plus size={15} /> Novo bloco
+                <Plus size={15} /> Novo quadro
               </button>
             </div>
           ))}
           {meus.length === 0 && !aviso ? (
             <div style={{ padding: '36px 20px', textAlign: 'center', borderRadius: 12, border: '1px dashed var(--portal-border,#ddd)', color: 'var(--portal-text-muted,#888)' }}>
               <LayoutGrid size={30} style={{ opacity: .35, marginBottom: 8 }} />
-              <div style={{ fontSize: 14, fontWeight: 600 }}>Você ainda não tem nenhum bloco.</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Você ainda não tem nenhum quadro.</div>
               <div style={{ fontSize: 13, marginTop: 6 }}>Crie um por assunto (ex.: Oficina, Compras, Loja) e escolha a cor. Os tickets que você recebe vão para eles.</div>
               <button onClick={() => setNovo(true)} disabled={!!aviso}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, padding: '9px 16px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                <Plus size={16} /> Criar meu primeiro bloco
+                <Plus size={16} /> Criar meu primeiro quadro
               </button>
             </div>
           ) : (
@@ -228,20 +239,20 @@ export default function QuadrosPage() {
           )}
           {outrosPublicos.length > 0 && (
             <details style={{ marginTop: 12 }}>
-              <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>Blocos públicos de outras pessoas ({outrosPublicos.length})</summary>
+              <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>Quadros públicos de outras pessoas ({outrosPublicos.length})</summary>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(230px, 100%), 1fr))', gap: 12, marginTop: 10 }}>
                 {outrosPublicos.map(cartaoBloco)}
               </div>
             </details>
           )}
 
-          {/* 3) Pedidos que fiz */}
-          {central && (
+          {/* 3) Pedidos que fiz — desligado em 24/11/2026: agora é o "Esperando outros" da Minha fila */}
+          {SECOES_ANTIGAS && central && (
             <>
               {secao(<Send size={17} color="#dc2626" />, 'Pedidos que fiz', contador(central.pedidos.length), 'pedidos')}
               {central.pedidos.length === 0 ? (
                 <div style={{ padding: '18px 16px', borderRadius: 12, border: '1px dashed var(--portal-border,#ddd)', fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>
-                  Nada pedido em aberto. Use <b>Novo ticket</b> lá em cima para pedir algo a alguém.
+                  Nada pedido em aberto. Use <b>Pedir para alguém</b> na Minha fila.
                 </div>
               ) : (
                 <div style={{ display: 'grid', gap: 8 }}>
@@ -267,9 +278,11 @@ export default function QuadrosPage() {
                           </span>
                           <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             {t.aceite === 'pendente' && <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>aguardando confirmar</span>}
-                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: atrasado ? '#dc2626' : 'var(--portal-text-secondary,#555)' }}>
-                              <Clock size={13} /> {t.prazo ? br(t.prazo) : 'sem data'}{atrasado ? ' · atrasado' : ''}
-                            </span>
+                            {atrasado
+                              ? <SeloAtrasado tamanho={12.5}>{br(t.prazo!)} · atrasado</SeloAtrasado>
+                              : <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text-secondary,#555)' }}>
+                                  <Clock size={13} /> {t.prazo ? br(t.prazo) : 'sem data'}
+                                </span>}
                             <StatusBadge status={t.status} />
                           </span>
                         </span>

@@ -9,6 +9,7 @@ import { alertaCepGeral } from "@/lib/clientes/novo-cliente";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import { supabase } from "@/lib/supabase";
+import { ESTILO_POS_ESCURO } from "./VisualNovoPOS";
 import {
   CODIGOS_INTERNOS, calcularParcelas, diasDoEspelho, codigoRevisao, dadosAdicionaisAuto, textoContatos, type OmieEspelho, type ServicoExtra, type ContatoOS,
 } from "@/lib/pos/omie-espelho";
@@ -23,7 +24,7 @@ export interface ListasOmie {
   servicos: ServicoCadastro[];
 }
 
-const TEAL = "#0F8B8D", TEAL_ESC = "#0B6E70", CINZA = "#6b7a89", BORDA = "var(--border, #cfd8de)";
+const TEAL = "#0F8B8D", TEAL_ESC = "var(--pos-c-teal, #0B6E70)", CINZA = "#6b7a89", BORDA = "var(--border, #cfd8de)";
 const brl = (v: number) => (v || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const rs = (v: number) => `R$ ${brl(v)}`;
 const br = (iso: string) => iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "";
@@ -76,7 +77,7 @@ const ESTILOS_OMIE = `
 .omie-lista-item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: none; background: transparent; text-align: left; cursor: pointer; font-family: inherit; font-size: 13px; color: var(--portal-text, #1f2d3d); }
 .omie-lista-item:hover, .omie-lista-item.ativo { background: color-mix(in srgb, #0F8B8D 9%, transparent); }
 `;
-export function EstilosOmie() { return <style>{ESTILOS_OMIE}</style>; }
+export function EstilosOmie() { return <style>{ESTILOS_OMIE + ESTILO_POS_ESCURO}</style>; }
 
 export function Campo({ titulo, children, span = 1, cinza = false, seta = false }: { titulo: string; children: React.ReactNode; span?: number; cinza?: boolean; seta?: boolean }) {
   return (
@@ -180,7 +181,7 @@ export function GradeServicosOmie(p: {
               return (
                 <tr key={l.id} onClick={() => setSel(l.id)} onDoubleClick={() => setAberto(l.id)} title="Dois cliques: abrir o item (códigos e impostos)"
                   style={{ background: sel === l.id ? "color-mix(in srgb, #0F8B8D 18%, transparent)" : "transparent", cursor: "default" }}>
-                  <td style={td}><span title={nomeCat(String(c?.cabecalho.cCodCateg || "1.01.02"))} style={{ display: "inline-block", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", verticalAlign: "middle", fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: "color-mix(in srgb, #0F8B8D 10%, transparent)", color: "#0B6E70" }}>{nomeCat(String(c?.cabecalho.cCodCateg || "1.01.02"))}</span></td>
+                  <td style={td}><span title={nomeCat(String(c?.cabecalho.cCodCateg || "1.01.02"))} style={{ display: "inline-block", maxWidth: 190, overflow: "hidden", textOverflow: "ellipsis", verticalAlign: "middle", fontSize: 11.5, fontWeight: 600, padding: "3px 10px", borderRadius: 999, background: "var(--pos-c-chip-teal-bg, color-mix(in srgb, #0F8B8D 10%, transparent))", color: "var(--pos-c-teal, #0B6E70)" }}>{nomeCat(String(c?.cabecalho.cCodCateg || "1.01.02"))}</span></td>
                   <td style={{ ...td, textAlign: "right", padding: "3px 8px" }} onDoubleClick={(e) => { if (l.tipo === "hora" || l.tipo === "km") e.stopPropagation(); }}>
                     {p.podeEditar && (l.tipo === "hora" || l.tipo === "km")
                       ? <input type="number" min={0} step={l.tipo === "km" ? 1 : 0.5} value={l.qtde} onChange={(e) => setQtd(l, Math.max(0, Number(e.target.value) || 0))} onClick={(e) => e.stopPropagation()} style={celInp} title="Digite a quantidade" />
@@ -460,7 +461,7 @@ export function AbaInfoAdicionais({ esp, setEsp, listas, interna, projeto, onTro
   const quando = CODIGOS_INTERNOS.find((c) => c.codigo === i.contrato)?.quando;
   const auto = dadosAdicionaisAuto({ ppv, projeto, oficina });
   const manual = !!i.dadosNF.trim();
-  const secao = (t: string) => <div style={{ gridColumn: "span 4", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: .6, color: "#0B6E70", marginTop: 4 }}>{t}</div>;
+  const secao = (t: string) => <div style={{ gridColumn: "span 4", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: .6, color: "var(--pos-c-teal, #0B6E70)", marginTop: 4 }}>{t}</div>;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: "14px 14px", paddingTop: 2, alignItems: "start" }}>
       <EstilosOmie />
@@ -491,9 +492,9 @@ export function AbaInfoAdicionais({ esp, setEsp, listas, interna, projeto, onTro
       {secao("Nota fiscal")}
       <div style={{ gridColumn: "span 4", border: "1px solid var(--border, #d7dee3)", borderRadius: 10, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: "var(--portal-bg-secondary, #f4f6f7)", borderBottom: "1px solid var(--border, #e6ebee)" }}>
-          <i className="fas fa-file-lines" style={{ color: "#0B6E70" }} />
+          <i className="fas fa-file-lines" style={{ color: "var(--pos-c-teal, #0B6E70)" }} />
           <b style={{ fontSize: 13, flex: 1 }}>Dados Adicionais para a Nota Fiscal</b>
-          <span style={{ fontSize: 11.5, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: manual ? "#fef3c7" : "#e0f2f1", color: manual ? "#92400e" : "#0B6E70" }}>{manual ? "escrito à mão" : "automático"}</span>
+          <span style={{ fontSize: 11.5, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: manual ? "var(--pos-c-chip-ambar-bg, #fef3c7)" : "var(--pos-c-chip-teal-bg, #e0f2f1)", color: manual ? "var(--pos-c-ambar, #92400e)" : "var(--pos-c-teal, #0B6E70)" }}>{manual ? "escrito à mão" : "automático"}</span>
           {podeEditar && (manual
             ? <button type="button" onClick={() => set({ dadosNF: "" })} style={{ ...linkBtn(true), fontWeight: 700 }}><i className="fas fa-rotate-left" /> Voltar ao automático</button>
             : <button type="button" onClick={() => set({ dadosNF: auto || " " })} style={{ ...linkBtn(true), fontWeight: 700 }}><i className="fas fa-pen" /> Escrever à mão</button>)}
@@ -972,7 +973,7 @@ export function SeletorUsuario({ atual, onChange, podeEditar = true, placeholder
   const avatar = (u: { nome: string; foto?: string }, tam: number) => u.foto
     // eslint-disable-next-line @next/next/no-img-element
     ? <img src={u.foto} alt="" style={{ width: tam, height: tam, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-    : <span style={{ width: tam, height: tam, borderRadius: "50%", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: tam * 0.4, fontWeight: 800, color: "#0B6E70", background: "color-mix(in srgb, #0F8B8D 14%, transparent)" }}>{ini(u.nome)}</span>;
+    : <span style={{ width: tam, height: tam, borderRadius: "50%", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: tam * 0.4, fontWeight: 800, color: "var(--pos-c-teal, #0B6E70)", background: "color-mix(in srgb, #0F8B8D 14%, transparent)" }}>{ini(u.nome)}</span>;
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button type="button" disabled={!podeEditar} onClick={abrir} title={atual || placeholder}

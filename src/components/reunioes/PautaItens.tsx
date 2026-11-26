@@ -198,7 +198,7 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
                   </div>
                 )}
                 {modo === 'conducao' && podeConduzir && r && onCriarAcao && item.resultado === 'decidido' && (
-                  <button onClick={() => onCriarAcao(item)} style={{ ...botao('#dc2626'), alignSelf: 'flex-start' }}><Plus size={14} /> Criar tarefa desta decisão</button>
+                  <button onClick={() => onCriarAcao(item)} style={{ ...botao('#dc2626'), alignSelf: 'flex-start' }}><Plus size={14} /> Criar ação desta decisão</button>
                 )}
               </div>
               {modo !== 'leitura' && podeEditar && !r && onRemover && (

@@ -23,7 +23,7 @@ const MODULOS = [
   { label: 'Clientes', href: '/clientes' },
   { label: 'Consulta Estoque', href: '/estoque' },
   { label: 'Visual Estoque', href: '/visual-estoque' },
-  { label: 'Central de Trabalho', href: '/tickets/quadros' },
+  { label: 'Central de Trabalho', href: '/fila' },
 ]
 
 export default function SplitPage() {

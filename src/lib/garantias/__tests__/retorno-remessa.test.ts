@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { itensDaEntrada, itemRemessa, valorItem, validarEscolha, disponivel, cfopRetorno, ehItemGarantia, textoRetorno, codIntRem, limparTexto, cBenefDoXml, situacaoNfe } from '../retorno-remessa';
+import { itensDaEntrada, itemRemessa, valorItem, validarEscolha, disponivel, cfopRetorno, ehItemGarantia, textoRetorno, codIntRem, limparTexto, cBenefDoXml, situacaoNfe, conferirFiscal, aplicarAjuste } from '../retorno-remessa';
 
 // Itens reais da NF 222028 da Kuhn (NOVA, recebimento 2526470642) — a Omie gerou a remessa 3749.
 const rec = {
@@ -98,5 +98,35 @@ describe('devolução em garantia (remessa de retorno)', () => {
     expect(textoRetorno({ numero: '000222028', emissao: '14/08/2026', chave: null })).toContain('NF 222028 de 14/08/2026');
     expect(codIntRem(2526470642, 1)).toBe('RG2526470642-1');
     expect(limparTexto('a <b> & "c"')).toBe("a b 'c'");
+  });
+});
+
+describe('conferência fiscal antes de emitir', () => {
+  const [m] = itensDaEntrada({ itensRecebimento: [{
+    itensCabec: { nSequencia: 1, nIdProduto: 9, cCFOP: '5.949', nQtdeNFe: 3, nPrecoUnit: 37.34, vTotalItem: 112.02 },
+    itensICMS: { cModBC: '3', cOrigem: '0', cSitTrib: '51', nRedBC: 100 },
+    itensIPI: { cEnqIPI: '999', cSitTribIPI: '50', cTpCalcIPI: 'B', nAliqIPI: 3.25, nBCIPI: 112.02, nValIPI: 3.64 },
+    itensPIS: { cSitTribPIS: '07' },
+  }] });
+
+  it('ICMS 51 sem cBenef trava (caso da NF 8577); com o código ou "não tem benefício" libera', () => {
+    expect(conferirFiscal(m).some((p) => p.nivel === 'erro' && p.campo === 'cBenef')).toBe(true);
+    expect(conferirFiscal(m, { cBenef: 'sp058811' }).filter((p) => p.nivel === 'erro')).toEqual([]);
+    expect(conferirFiscal(m, { semBenef: true }).filter((p) => p.nivel === 'erro')).toEqual([]);
+    expect(conferirFiscal(m, { cBenef: 'X1' }).some((p) => p.campo === 'cBenef' && p.nivel === 'erro')).toBe(true);
+  });
+
+  it('ajuste vai para a remessa: CST, cBenef em maiúsculas e IPI recalculado', () => {
+    const a = aplicarAjuste(m, { icmsCst: '00', cBenef: 'sp058811', ipiAliq: 5 });
+    const r = itemRemessa(a, 3) as any;
+    expect(r.ICMS.cSitTrib).toBe('00');
+    expect(r.infAdicItem.codigo_benef).toBe('SP058811');
+    expect(r.IPI).toMatchObject({ cSitTribIPI: '50', nAliqIPI: 5, nBCIPI: 112.02, nValIPI: 5.6 });
+    expect(m.icms?.cSitTrib).toBe('51'); // não altera o original
+  });
+
+  it('IPI tributado sem alíquota e não tributado com valor viram aviso, não erro', () => {
+    expect(conferirFiscal(m, { cBenef: 'SP058811', ipiAliq: 0 }).map((p) => p.nivel)).toEqual(['aviso']);
+    expect(conferirFiscal(m, { cBenef: 'SP058811', ipiCst: '55' }).map((p) => p.nivel)).toEqual(['aviso']);
   });
 });

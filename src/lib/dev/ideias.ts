@@ -15,6 +15,8 @@ export interface Ideia {
   arquivada: boolean
   created_at: string
   updated_at: string
+  /** Marcada para "Sugestões para a pauta" (sql/ideias-votos.sql). */
+  levar_reuniao?: boolean
 }
 
 export interface GrupoIdeias {
@@ -143,4 +145,41 @@ export function descricaoDoGrupo(
     partes.push(`Ideias agrupadas:\n${linhas.join('\n')}`)
   }
   return partes.join('\n\n')
+}
+
+// ------------------------------------------------------------ votos (melhorias 5.2)
+/** Captadas: mais votadas primeiro; empate = a mais nova primeiro. */
+export function ordenarPorVotos(lista: Ideia[], votos: Record<string, string[]>): Ideia[] {
+  return [...lista].sort((a, b) => (votos[b.id]?.length || 0) - (votos[a.id]?.length || 0) || ts(b.created_at) - ts(a.created_at))
+}
+
+// ------------------------------------------------- parecido com pedido aberto (melhorias 5.3)
+const PALAVRAS_VAZIAS = new Set(['para', 'pra', 'com', 'que', 'uma', 'umas', 'uns', 'dos', 'das', 'nos', 'nas', 'por', 'mais', 'como', 'sistema', 'fazer', 'ter', 'tem', 'ser', 'sobre', 'quando', 'onde', 'cada', 'todo', 'toda', 'todos', 'todas', 'isso', 'esse', 'essa', 'este', 'esta', 'seria', 'poder', 'pode', 'precisa', 'ideia'])
+/** Palavras que contam (4+ letras, sem acento, sem as vazias; plural simples vira singular). */
+export function palavrasChave(texto: string): Set<string> {
+  const out = new Set<string>()
+  for (const p of texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().split(/[^a-z0-9]+/)) {
+    if (p.length < 4 || PALAVRAS_VAZIAS.has(p)) continue
+    out.add(p.length > 4 && p.endsWith('s') ? p.slice(0, -1) : p)
+  }
+  return out
+}
+
+/**
+ * Pedidos abertos parecidos com a ideia, do mais parecido para o menos (até 3). Parecido = quantas
+ * palavras do TÍTULO do pedido aparecem na ideia (2+ palavras e metade do título, no mínimo).
+ * Sem IA: rápido, de graça e explica o porquê (as palavras em comum).
+ */
+export function parecidos<T extends { titulo: string }>(texto: string, pedidos: T[]): (T & { comuns: string[] })[] {
+  const ideia = palavrasChave(texto)
+  if (ideia.size < 2) return []
+  const out: (T & { comuns: string[]; nota: number })[] = []
+  for (const p of pedidos) {
+    const tit = palavrasChave(p.titulo)
+    if (tit.size < 2) continue
+    const comuns = [...tit].filter((w) => ideia.has(w))
+    const nota = comuns.length / tit.size
+    if (comuns.length >= 2 && nota >= 0.5) out.push({ ...p, comuns, nota })
+  }
+  return out.sort((a, b) => b.nota - a.nota || b.comuns.length - a.comuns.length).slice(0, 3).map((x) => { const { nota, ...resto } = x; void nota; return resto as T & { comuns: string[] } })
 }

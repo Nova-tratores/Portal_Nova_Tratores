@@ -15,7 +15,7 @@ import {
 import { ACAO_AVISO_PARADO, precisaAvisarParado, type GrupoParado } from './grupos-parados';
 
 const TBL = 'requisicao_lembretes';
-const COLS = 'id, titulo, tipo, status, origem, solicitante, fornecedor, valor_despeza, created_at, foto_nf, foto_nf2, foto_nf3, foto_nf4, foto_nf5, recibo_fornecedor';
+const COLS = 'id, titulo, tipo, status, origem, solicitante, fornecedor, valor_despeza, autorizacao_status, created_at, foto_nf, foto_nf2, foto_nf3, foto_nf4, foto_nf5, recibo_fornecedor';
 
 const semTabela = (m: string) => /requisicao_lembretes/i.test(m) && /(does not exist|could not find|schema cache)/i.test(m);
 
@@ -55,13 +55,17 @@ export async function vigiarRequisicoes(opts: { gravar?: boolean; agora?: Date }
     if (!gravar) { movidas++; continue; }
     const { data, error } = await sb.from('Requisicao')
       .update({ status: 'financeiro', enviado_financeiro_data: hojeBR(agora) })
-      .eq('id', r.id).in('status', [...STATUS_ABERTOS]).select('id');
+      .eq('id', r.id).in('status', [...STATUS_ABERTOS])
+      // sem autorização pendente (null = não precisa; autorizada = o Diretor liberou)
+      .or('autorizacao_status.is.null,autorizacao_status.eq.autorizada')
+      .select('id');
     if (error || !data?.length) continue;
     movidas++;
+    const de = r.status;
     r.status = 'financeiro';
     await sb.from('audit_log').insert({
-      user_nome: 'Robô das requisições', sistema: 'requisicoes', acao: 'editar', entidade: 'requisicao', entidade_id: String(r.id),
-      detalhes: { status: 'financeiro', motivo: 'comprovante, valor e fornecedor preenchidos: enviada ao financeiro automaticamente' },
+      user_nome: 'Robô das requisições', sistema: 'requisicoes', acao: 'mover_status', entidade: 'requisicao', entidade_id: String(r.id),
+      detalhes: { de, para: 'financeiro', motivo: 'automático: nota fiscal, valor e fornecedor preenchidos' },
     });
     const u = usuarioDoSolicitante(r.solicitante, usuarios);
     if (u) movidasPorPessoa.set(u.id, [...(movidasPorPessoa.get(u.id) || []), r.id]);
@@ -69,7 +73,7 @@ export async function vigiarRequisicoes(opts: { gravar?: boolean; agora?: Date }
   if (gravar) {
     for (const [uid, ids] of movidasPorPessoa) {
       await notificar(uid, ids.length === 1 ? `Requisição #${ids[0]} foi para o financeiro` : `${ids.length} requisições foram para o financeiro`,
-        `Com o comprovante anexado, ${ids.length === 1 ? 'ela foi enviada' : 'elas foram enviadas'} ao financeiro sozinha${ids.length === 1 ? '' : 's'}: ${ids.map((i) => `#${i}`).join(', ')}.`,
+        `Com a nota fiscal anexada, ${ids.length === 1 ? 'ela foi enviada' : 'elas foram enviadas'} ao financeiro sozinha${ids.length === 1 ? '' : 's'}: ${ids.map((i) => `#${i}`).join(', ')}.`,
         ids.length === 1 ? linkReq(ids[0]) : '/requisicoes');
     }
   }
@@ -126,7 +130,7 @@ export async function vigiarRequisicoes(opts: { gravar?: boolean; agora?: Date }
       if (gravar) {
         const { data } = await sb.from('portal_tarefas').insert({
           titulo: tituloTarefa(r, l.falta),
-          descricao: `A requisição #${r.id} (${r.titulo || r.tipo || ''}) está aberta há ${l.dias} dias. Falta ${juntarFalta(l.falta)}. Com a nota ou o recibo, o valor e o fornecedor preenchidos ela vai sozinha para o financeiro e esta tarefa se fecha. Abrir: ${linkReq(r.id)}`,
+          descricao: `A requisição #${r.id} (${r.titulo || r.tipo || ''}) está aberta há ${l.dias} dias. Falta ${juntarFalta(l.falta)}. Com a nota fiscal, o valor e o fornecedor preenchidos (e a autorização, se precisar) ela vai sozinha para o financeiro e esta tarefa se fecha. Abrir: ${linkReq(r.id)}`,
           prioridade: 2, criado_por: u.id, atribuido_a: u.id,
         }).select('id').single();
         tarefaId = (data as { id: number } | null)?.id ?? null;

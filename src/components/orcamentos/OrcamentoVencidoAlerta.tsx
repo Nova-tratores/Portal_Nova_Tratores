@@ -106,7 +106,7 @@ export default function OrcamentoVencidoAlerta({ userName }: { userName: string 
         {/* Content */}
         <div style={{ padding: '28px 32px' }}>
           <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)', margin: '0 0 4px' }}>
-            {alerta.numero} — {alerta.cliente_nome}
+            {alerta.numero} — {String(alerta.cliente_nome ?? '').replace(/&#39;|&apos;/g, "'").replace(/&quot;|&#34;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')}
           </h3>
           <p style={{ fontSize: '14px', color: 'var(--portal-text-secondary)', margin: '0 0 22px', lineHeight: '1.5' }}>
             Valor R$ {fmt(alerta.total)}. Este orçamento foi <strong>aprovado</strong> pelo cliente ou

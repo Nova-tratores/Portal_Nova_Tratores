@@ -44,7 +44,7 @@ export default function PapelMenu(p: Props) {
   return (
     <>
       <style>{ESTILO_PM}</style>
-      <button ref={btn} type="button" className="pm-btn" onClick={abrir} style={{ background: c.bg, color: c.fg, borderColor: c.bd }} aria-expanded={aberto}>
+      <button ref={btn} type="button" className={`pm-btn n-${p.nivel}`} onClick={abrir} style={{ background: c.bg, color: c.fg, borderColor: c.bd }} aria-expanded={aberto}>
         <span>{NIVEIS.find((n) => n.id === p.nivel)?.rot}</span>
         {extras.map((x) => <em key={x} className={x === 'Diretor' ? 'dir' : 'ven'}>{x}</em>)}
         <ChevronDown size={14} style={{ transition: 'transform .2s', transform: aberto ? 'rotate(180deg)' : 'none' }} />
@@ -93,4 +93,18 @@ const ESTILO_PM = `
 .pm-sw.on i { transform: translateX(14px) } .pm-sw.on.dir { background: #059669 } .pm-sw.on.ven { background: #dc2626 }
 .pm-sep { height: 1px; background: #f1f5f9; margin: 6px 4px }
 .pm-girando { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #e2e8f0; border-top-color: #dc2626; animation: pmGira .7s linear infinite }
+/* tema escuro: a cor do nível vem inline (clara); aqui vira pílula escura */
+[data-theme="dark"] .pm-btn.n-usuario { background: var(--portal-bg-secondary, #262626) !important; color: var(--portal-text, #f5f5f5) !important; border-color: var(--portal-border, #2a2a2a) !important }
+[data-theme="dark"] .pm-btn.n-admin { background: rgb(251 191 36 / .15) !important; color: var(--portal-amber-fg, #fbbf24) !important; border-color: rgb(251 191 36 / .35) !important }
+[data-theme="dark"] .pm-btn.n-dev { background: #f5f5f5 !important; color: #0f0f0f !important; border-color: #f5f5f5 !important }
+[data-theme="dark"] .pm-btn:hover { box-shadow: 0 4px 12px rgba(0,0,0,.4) }
+[data-theme="dark"] .pm-btn em.dir { background: rgb(52 211 153 / .15); color: var(--portal-green-fg, #34d399) }
+[data-theme="dark"] .pm-btn em.ven { background: rgb(248 113 113 / .15); color: var(--portal-red-fg, #f87171) }
+[data-theme="dark"] .pm-btn.n-dev em.dir { background: #047857; color: #fff } [data-theme="dark"] .pm-btn.n-dev em.ven { background: #b91c1c; color: #fff }
+[data-theme="dark"] .pm-pop { background: var(--portal-bg-card, #1a1a1a); border-color: var(--portal-border, #2a2a2a); color: var(--portal-text, #f5f5f5); box-shadow: 0 20px 50px rgba(0,0,0,.6) }
+[data-theme="dark"] .pm-rot, [data-theme="dark"] .pm-tx small { color: var(--portal-text-muted, #949494) }
+[data-theme="dark"] .pm-aviso { background: rgb(251 191 36 / .15); color: var(--portal-amber-fg, #fbbf24) }
+[data-theme="dark"] .pm-op:hover:not(:disabled), [data-theme="dark"] .pm-op.on { background: var(--portal-bg-secondary, #262626) }
+[data-theme="dark"] .pm-radio { border-color: #525252 } [data-theme="dark"] .pm-op.on .pm-radio { border-color: var(--portal-text, #f5f5f5) } [data-theme="dark"] .pm-radio i { background: var(--portal-text, #f5f5f5) }
+[data-theme="dark"] .pm-sw:not(.on) { background: #404040 } [data-theme="dark"] .pm-sep { background: var(--portal-border, #2a2a2a) }
 `;

@@ -181,42 +181,42 @@ export default function TesteControlePage() {
 
 const ESTILO = `
 .tc { padding: 20px; display: grid; gap: 14px; color: var(--portal-text, #0f172a) }
-.tc-cab h1 { margin: 0; font-size: 22px } .tc-cab p { margin: 4px 0 10px; color: #64748b; font-size: 13px }
+.tc-cab h1 { margin: 0; font-size: 22px } .tc-cab p { margin: 4px 0 10px; color: var(--mx-t3, #64748b); font-size: 13px }
 .tc-ops { display: flex; gap: 8px; flex-wrap: wrap }
-.tc-ops button, .tc-mes button { border: 1px solid #cbd5e1; background: var(--portal-bg-card, #fff); color: inherit; border-radius: 999px; padding: 7px 14px; font-size: 13px; cursor: pointer }
+.tc-ops button, .tc-mes button { border: 1px solid var(--mx-bd, #cbd5e1); background: var(--portal-bg-card, #fff); color: inherit; border-radius: 999px; padding: 7px 14px; font-size: 13px; cursor: pointer }
 .tc-ops button.on, .tc-mes button.on { background: #1d4ed8; border-color: #1d4ed8; color: #fff }
-.tc-ops em { font-style: normal; font-size: 10px; margin-left: 6px; background: #d1fae5; color: #047857; border-radius: 999px; padding: 1px 6px }
-.tc-card { background: var(--portal-bg-card, #fff); border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px; display: grid; gap: 12px }
-.tc-dica, .tc-mudo { margin: 0; color: #64748b; font-size: 13px } .tc-erro { color: #b91c1c; margin: 0 }
+.tc-ops em { font-style: normal; font-size: 10px; margin-left: 6px; background: var(--mx-p-green, #d1fae5); color: var(--mx-fg-green, #047857); border-radius: 999px; padding: 1px 6px }
+.tc-card { background: var(--portal-bg-card, #fff); border: 1px solid var(--mx-bd, #e2e8f0); border-radius: 14px; padding: 16px; display: grid; gap: 12px }
+.tc-dica, .tc-mudo { margin: 0; color: var(--mx-t3, #64748b); font-size: 13px } .tc-erro { color: var(--mx-fg-red, #b91c1c); margin: 0 }
 .tc-scroll { overflow-x: auto }
 .tc-grade { border-collapse: collapse; width: 100%; font-size: 13px }
-.tc-grade th { text-align: left; font-size: 11px; text-transform: uppercase; color: #64748b; padding: 6px; font-weight: 600 }
-.tc-grade td { padding: 4px 6px; border-top: 1px solid #f1f5f9; vertical-align: middle }
+.tc-grade th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--mx-t3, #64748b); padding: 6px; font-weight: 600 }
+.tc-grade td { padding: 4px 6px; border-top: 1px solid var(--mx-bd, #f1f5f9); vertical-align: middle }
 .tc-grade td:first-child { min-width: 150px } .tc-grade td:first-child small { display: block; color: #94a3b8; font-size: 11px }
 .tc-grade tr.saiu { opacity: .55 }
 .tc-cel { border: 0; background: none; padding: 4px; cursor: pointer; display: grid; gap: 2px; justify-items: start; color: inherit; font: inherit }
-.tc-cel small { font-size: 11px; color: #64748b }
+.tc-cel small { font-size: 11px; color: var(--mx-t3, #64748b) }
 .tc-pil { display: inline-flex; gap: 5px; align-items: center; border-radius: 999px; padding: 3px 9px; font-size: 12px; font-weight: 600; white-space: nowrap }
-.tc-legenda { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: #64748b }
+.tc-legenda { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--mx-t3, #64748b) }
 .tc-mes { display: flex; gap: 6px; flex-wrap: wrap }
-.tc-resumo { display: flex; gap: 8px 18px; flex-wrap: wrap; align-items: baseline; font-size: 13px; color: #64748b }
+.tc-resumo { display: flex; gap: 8px 18px; flex-wrap: wrap; align-items: baseline; font-size: 13px; color: var(--mx-t3, #64748b) }
 .tc-resumo > b { font-size: 17px; color: var(--portal-text, #0f172a); margin-right: 6px } .tc-resumo span b { color: var(--portal-text, #0f172a); font-size: 15px }
-.tc-resumo .falta b { color: #b91c1c }
+.tc-resumo .falta b { color: var(--mx-fg-red, #b91c1c) }
 .tc-lista { display: grid; gap: 10px }
-.tc-linha { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; display: grid; gap: 10px }
+.tc-linha { border: 1px solid var(--mx-bd, #e2e8f0); border-radius: 12px; padding: 12px; display: grid; gap: 10px }
 .tc-quem { display: flex; gap: 10px; align-items: center; flex-wrap: wrap } .tc-quem > b { font-size: 15px } .tc-v { margin-left: auto; font-weight: 700 }
 .tc-trilha { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px }
 .tc-trilha > div { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; color: #94a3b8 }
 .tc-trilha > div b { font-size: 12px } .tc-trilha > div small { grid-column: 2; font-size: 11px }
-.tc-trilha > div.ok { color: #047857 }
+.tc-trilha > div.ok { color: var(--mx-fg-green, #047857) }
 .tc-bola { grid-row: span 2; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; border: 2px solid currentColor }
 .tc-trilha > div.ok .tc-bola { background: #047857; color: #fff; border-color: #047857 }
-.tc-obs { margin: 0; font-size: 12px; color: #c2410c }
+.tc-obs { margin: 0; font-size: 12px; color: var(--mx-fg-orange, #c2410c) }
 .tc-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px }
-.tc-col { background: #f8fafc; border-radius: 12px; padding: 10px; display: grid; gap: 8px; align-content: start }
-.tc-col h3 { margin: 0; font-size: 13px; display: flex; justify-content: space-between } .tc-col h3 span { background: #e2e8f0; border-radius: 999px; padding: 0 8px }
-.tc-ficha { border: 1px solid #e2e8f0; background: var(--portal-bg-card, #fff); color: inherit; border-radius: 10px; padding: 10px; display: grid; gap: 6px; justify-items: start; text-align: left; cursor: pointer; font: inherit }
-.tc-ficha small { color: #64748b; font-size: 12px }
+.tc-col { background: var(--mx-bg1, #f8fafc); border-radius: 12px; padding: 10px; display: grid; gap: 8px; align-content: start }
+.tc-col h3 { margin: 0; font-size: 13px; display: flex; justify-content: space-between } .tc-col h3 span { background: var(--mx-bg2, #e2e8f0); border-radius: 999px; padding: 0 8px }
+.tc-ficha { border: 1px solid var(--mx-bd, #e2e8f0); background: var(--portal-bg-card, #fff); color: inherit; border-radius: 10px; padding: 10px; display: grid; gap: 6px; justify-items: start; text-align: left; cursor: pointer; font: inherit }
+.tc-ficha small { color: var(--mx-t3, #64748b); font-size: 12px }
 .tc-fundo { position: fixed; inset: 0; background: rgba(15,23,42,.45); display: grid; place-items: center; z-index: 100100; padding: 16px }
 .tc-modal { background: var(--portal-bg-card, #fff); border-radius: 14px; padding: 18px; width: min(640px, 100%); display: grid; gap: 12px; justify-items: start }
 .tc-modal .tc-trilha { width: 100% }
@@ -224,4 +224,7 @@ const ESTILO = `
 [data-theme="dark"] .tc-card, [data-theme="dark"] .tc-linha, [data-theme="dark"] .tc-ficha { border-color: #333 }
 [data-theme="dark"] .tc-col { background: #111 } [data-theme="dark"] .tc-grade td { border-color: #262626 }
 @media (max-width: 760px) { .tc-cols, .tc-trilha { grid-template-columns: 1fr 1fr } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `

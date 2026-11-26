@@ -46,6 +46,8 @@ const ESTILO_RN = `
 .rn-btn.suave:hover{background:color-mix(in srgb,var(--c) 13%,var(--portal-surface,#fefefe))}
 .rn-btn.suave.on{color:#fefefe;background:var(--c);border-color:var(--c)}
 .rn-btn.so-ic{width:40px;padding:0;justify-content:center}
+/* tema escuro (23/11/2026): o texto do botão suave (ex.: Histórico #475569) clareia para ler no fundo preto */
+[data-theme="dark"] .rn-btn.suave:not(.on){color:color-mix(in srgb,var(--c) 40%,#fefefe)}
 .rn-aviso{margin-bottom:12px;padding:10px 14px;border-radius:12px;font-size:13.5px}
 .rn-dia{display:grid;grid-template-columns:84px 1fr;gap:14px;padding:14px 0;border-top:1px solid var(--portal-border,#e2e8f0)}
 .rn-dia:first-of-type{border-top:none}
@@ -131,8 +133,11 @@ function ReunioesInner() {
   useEffect(() => { if (userProfile) carregar() }, [carregar, userProfile])
   useEffect(() => {
     const f = () => carregar()
-    window.addEventListener('central-trabalho-mudou', f); window.addEventListener('focus', f)
-    return () => { window.removeEventListener('central-trabalho-mudou', f); window.removeEventListener('focus', f) }
+    // Voltar para a janela recarrega no máximo a cada 1 min (antes era a cada Alt+Tab).
+    let ultima = Date.now()
+    const foco = () => { if (Date.now() - ultima > 60_000) { ultima = Date.now(); f() } }
+    window.addEventListener('central-trabalho-mudou', f); window.addEventListener('focus', foco)
+    return () => { window.removeEventListener('central-trabalho-mudou', f); window.removeEventListener('focus', foco) }
   }, [carregar])
 
   const nome = (id: string) => dados?.usuarios[id]?.nome || '—'
@@ -140,6 +145,8 @@ function ReunioesInner() {
   const abas: { id: Aba; label: string; icone: React.ReactNode; cor: string; n?: number }[] = [
     { id: 'proximas', label: 'Próximas', icone: <CalendarClock size={15} />, cor: '#dc2626', n: aba === 'proximas' ? dados?.reunioes.length : undefined },
     { id: 'series', label: 'Séries', icone: <Repeat size={15} />, cor: '#4f46e5', n: dados?.series.length },
+    // Histórico volta a ser aba, depois de Séries (Fase 0, 24/11/2026)
+    { id: 'historico', label: 'Histórico', icone: <History size={15} />, cor: '#475569' },
   ]
 
   return (
@@ -157,10 +164,8 @@ function ReunioesInner() {
           </span>
         ))}
         <span style={{ flex: 1 }} />
-        {/* Histórico fora das abas (José, 17/11/2026: "série depois de histórico confunde") */}
-        <button className={`rn-btn suave${aba === 'historico' ? ' on' : ''}`} style={{ ['--c' as string]: '#475569' }} onClick={() => router.push(aba === 'historico' ? '/reunioes' : '/reunioes?aba=historico')} title="Reuniões que já passaram"><History size={15} />{!isMobile && ' Histórico'}</button>
-        <button className="rn-btn so-ic" onClick={() => carregar()} title="Atualizar"><RefreshCw size={15} className={carregando ? 'fa-spin' : undefined} /></button>
-        <button className="rn-btn so-ic" onClick={() => setTutorial(true)} title="Como usar as Reuniões (tutorial)"><GraduationCap size={16} /></button>
+        <button className={`rn-btn${isMobile ? ' so-ic' : ''}`} onClick={() => carregar()} title="Atualizar a lista" aria-label="Atualizar a lista"><RefreshCw size={15} className={carregando ? 'fa-spin' : undefined} />{!isMobile && ' Atualizar'}</button>
+        <button className={`rn-btn${isMobile ? ' so-ic' : ''}`} onClick={() => setTutorial(true)} title="Como usar as Reuniões (tutorial)" aria-label="Como usar as Reuniões"><GraduationCap size={16} />{!isMobile && ' Como usar'}</button>
         <button className="rn-btn cheio" style={{ ['--c' as string]: '#4f46e5' }} onClick={() => setSerieForm(null)}><Repeat size={15} /> Nova série</button>
         <button className="rn-btn cheio" style={{ ['--c' as string]: '#dc2626' }} onClick={() => setNovaReuniao(null)}><Plus size={16} /> Nova reunião</button>
       </div>

@@ -231,6 +231,8 @@ export interface PPVDaOS {
   empresa: string;
   faturadoEm: string | null;
   valor: number;
+  /** quantas peças marcadas "não gerar cobrança" (com saldo) o pedido tem */
+  semCobranca?: number;
 }
 
 /** O PPV pode ser faturado junto? null = pode; senão o motivo. */
@@ -239,5 +241,6 @@ export function motivoPPVFora(p: PPVDaOS): string | null {
   if (p.faturadoEm) return 'já faturado';
   if (!p.pedidoOmie) return 'ainda não enviado ao Omie';
   if (/remessa/i.test(p.tipo)) return 'remessa não é faturada';
+  if (p.semCobranca) return 'tem peça marcada "não gerar cobrança" — desmarque ou separe em remessa no PPV';
   return null;
 }

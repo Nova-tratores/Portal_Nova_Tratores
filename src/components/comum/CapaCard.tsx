@@ -27,7 +27,7 @@ export function CapaFaseValor({ fase, rotulo, fases, rotuloDe, onChange, valor }
   const abrir = () => { if (!lista) setLista(true); };
   return (
     <div className="capa-fase" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-      <span onClick={(e) => e.stopPropagation()} onPointerEnter={abrir} style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: "color-mix(in srgb, #0369A1 11%, transparent)", color: "#0369A1", whiteSpace: "nowrap", maxWidth: 170, minWidth: 0 }}>
+      <span onClick={(e) => e.stopPropagation()} onPointerEnter={abrir} style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: "var(--pos-c-chip-azul-bg, color-mix(in srgb, #0369A1 11%, transparent))", color: "var(--pos-c-azul, #0369A1)", whiteSpace: "nowrap", maxWidth: 170, minWidth: 0 }}>
         <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{rotulo}</span>
         {onChange && <i className="fas fa-chevron-down" style={{ fontSize: 8 }} />}
         {onChange && (
@@ -132,7 +132,7 @@ export function CapaBotao({ tipo, onClick, disabled, children, title }: { tipo: 
     ? { border: "none", color: "#fefefe", background: disabled ? "#94A3B8" : "linear-gradient(135deg, #22d3ee, #0BB7CD 55%, #0891A8)" }
     : tipo === "cobrar"
       ? { border: "1px solid #16a34a", background: "transparent", color: "#15803d" }
-      : { border: "none", background: disabled ? "#94A3B8" : "#0BB7CD", color: "#fefefe" };
+      : { border: "none", background: disabled ? "#94A3B8" : "var(--pos-c-faturar, #0BB7CD)", color: "#fefefe" };
   return (
     <button type="button" title={title} disabled={disabled} onClick={(e) => { e.stopPropagation(); onClick(); }}
       style={{ ...BTN, ...est, cursor: disabled ? "default" : "pointer" }}>{children}</button>

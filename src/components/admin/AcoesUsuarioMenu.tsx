@@ -2,11 +2,11 @@
 // Ações da conta num menu "⋯" (José, 21/10/2026: "melhora esses botões") — resetar senha, trocar e-mail, inativar.
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreHorizontal, KeyRound, Mail, Ban, PenLine } from 'lucide-react';
+import { MoreHorizontal, KeyRound, Mail, Ban, PenLine, Smartphone } from 'lucide-react';
 
-interface Props { podeInativar: boolean; motivo?: string; onResetar: () => void; onEmail: () => void; onInativar: () => void; onAssinatura?: () => void }
+interface Props { podeInativar: boolean; motivo?: string; onResetar: () => void; onEmail: () => void; onInativar: () => void; onAssinatura?: () => void; onCelular?: () => void }
 
-export default function AcoesUsuarioMenu({ podeInativar, motivo, onResetar, onEmail, onInativar, onAssinatura }: Props) {
+export default function AcoesUsuarioMenu({ podeInativar, motivo, onResetar, onEmail, onInativar, onAssinatura, onCelular }: Props) {
   const [aberto, setAberto] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
@@ -30,6 +30,7 @@ export default function AcoesUsuarioMenu({ podeInativar, motivo, onResetar, onEm
           <style>{ESTILO_AUM}</style>
           {item(<KeyRound size={15} />, 'Enviar redefinição de senha', onResetar)}
           {item(<Mail size={15} />, 'Trocar e-mail de login', onEmail)}
+          {onCelular && item(<Smartphone size={15} />, 'Celular (WhatsApp)', onCelular)}
           {onAssinatura && item(<PenLine size={15} />, 'Assinatura (comissões)', onAssinatura)}
           <div className="aum-sep" />
           {item(<Ban size={15} />, 'Inativar conta', onInativar, true, !podeInativar, motivo)}
@@ -45,4 +46,12 @@ const ESTILO_AUM = `
 .aum-it { width: 100%; display: flex; align-items: center; gap: 10px; border: none; background: none; border-radius: 9px; padding: 9px 10px; font-family: inherit; font-size: 13.5px; color: #0f172a; cursor: pointer; text-align: left } .aum-it:hover:not(:disabled) { background: #f1f5f9 } .aum-it svg { color: #64748b }
 .aum-it.p, .aum-it.p svg { color: #dc2626 } .aum-it.p:hover:not(:disabled) { background: #fef2f2 } .aum-it:disabled { opacity: .45; cursor: not-allowed }
 .aum-sep { height: 1px; background: #f1f5f9; margin: 4px }
+/* tema escuro */
+[data-theme="dark"] .aum-btn { background: var(--portal-bg-card, #1a1a1a); border-color: var(--portal-border, #2a2a2a); color: var(--portal-text-secondary, #a3a3a3) }
+[data-theme="dark"] .aum-btn:hover, [data-theme="dark"] .aum-btn.on { border-color: var(--portal-text-secondary, #a3a3a3); color: var(--portal-text, #f5f5f5); box-shadow: 0 4px 12px rgba(0,0,0,.4) }
+[data-theme="dark"] .au-menu { background: var(--portal-bg-card, #1a1a1a); border-color: var(--portal-border, #2a2a2a); box-shadow: 0 20px 50px rgba(0,0,0,.6) }
+[data-theme="dark"] .aum-it { color: var(--portal-text, #f5f5f5) } [data-theme="dark"] .aum-it svg { color: var(--portal-text-muted, #949494) }
+[data-theme="dark"] .aum-it:hover:not(:disabled) { background: var(--portal-bg-secondary, #262626) }
+[data-theme="dark"] .aum-it.p, [data-theme="dark"] .aum-it.p svg { color: var(--portal-red-fg, #f87171) } [data-theme="dark"] .aum-it.p:hover:not(:disabled) { background: rgb(248 113 113 / .15) }
+[data-theme="dark"] .aum-sep { background: var(--portal-border, #2a2a2a) }
 `;

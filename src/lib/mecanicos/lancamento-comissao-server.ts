@@ -14,6 +14,7 @@ import { comValoresDasOS, type ValoresOS } from './valores-os-pedido'
 import { lerAssinatura } from '@/lib/assinaturas/server'
 import { aceitaCiencia, validarCiencia, type CienciaStatus, type CienciaForma } from './de-acordo'
 import { parcelasDoDesconto, qtdParcelas, caixinhaDe, type DescontoPedido } from './descontos-tecnico'
+import { avisarAutorizacao } from '@/lib/autorizacoes/avisar'
 export type { DescontoPedido } from './descontos-tecnico'
 
 type Rec = Record<string, unknown>
@@ -170,6 +171,12 @@ export async function pedirLancamento(
   await registrar(ped, 'pedido', autor, r2(p.valor), { calculado: r2(p.calculado), os: p.linhas.length, mexidas: mexidas.map((l) => ({ numero: l.numero, acao: l.divisao ? 'dividir' : l.acao, valor: l.valor, calculado: l.calculado, motivo: l.motivo })), descontos })
   const ds = await diretores()
   await avisar(ds, `Comissão para autorizar: ${p.tecnico}`, `${p.mes.slice(5)}/${p.mes.slice(0, 4)} · ${brl(p.valor)}${mexidas.length ? ` · ${mexidas.length} OS alteradas` : ''} — pedido de ${autor.nome}`, '/dashboard?comissoes=1')
+  // e-mail + WhatsApp (Chatwoot) para o Diretor (24/11/2026)
+  await avisarAutorizacao({
+    chave: `comissao:${ped.id}`, para: ds, autorId: autor.id, quemPediu: autor.nome,
+    oque: 'a comissão de um técnico', titulo: `Comissão de ${p.tecnico} — ${p.mes.slice(5)}/${p.mes.slice(0, 4)}`, valor: r2(p.valor),
+    linhas: [mexidas.length ? `${mexidas.length} OS alteradas no pedido` : ''], linkPedido: '/dashboard?comissoes=1',
+  })
   return { pedido: ped, semDiretor: ds.length === 0 }
 }
 

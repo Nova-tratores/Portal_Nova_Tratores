@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rota da Nova Tratores</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: rota principal em 9 estações (horizontal) com ramais pendurados → abaixo, à esquerda o detalhe da estação, à direita "Furos e ganhos". */
+:root {
+  --bg: #f2f4ee; --surface: #ffffff; --line: #dde2d6; --ink: #1e231b; --muted: #626d5b; --soft: #eef2e8;
+  --road: #3a3e44; --road-line: #f2c200;
+  --vendas: #2f6b2a; --posvendas: #b4670f; --garantia: #b4373f; --pecas: #2b6cb0; --financeiro: #5b4a9e;
+  --ok: #2f7d4a; --ok-soft: #e3f1e7; --back: #b5482f; --back-soft: #f9e4de; --wait: #8a6d00; --wait-soft: #f6eecb;
+  --area: #2b6cb0; --area-soft: #e0ebf8; --end: #626a75; --end-soft: #eaecef;
+  --hole: #c62f2f; --hole-soft: #fde5e3; --shade: rgba(25, 35, 20, .12);
+  --f-title: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --f-sign: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #131812; --surface: #1b2219; --line: #2e382b; --ink: #e6ebe1; --muted: #9aa692; --soft: #20291e;
+  --road: #4b5057; --road-line: #e0b400;
+  --vendas: #7cc36f; --posvendas: #e3a849; --garantia: #ef7d84; --pecas: #7fb0e8; --financeiro: #a99be6;
+  --ok: #6fc48a; --ok-soft: #1f3324; --back: #f08b6e; --back-soft: #3a231c; --wait: #d9bf4a; --wait-soft: #302b15;
+  --area: #7fb0e8; --area-soft: #1c2a3b; --end: #a3a9b3; --end-soft: #262a2f; --hole: #ff7b72; --hole-soft: #3d1f1d; --shade: rgba(0,0,0,.45);
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #131812; --surface: #1b2219; --line: #2e382b; --ink: #e6ebe1; --muted: #9aa692; --soft: #20291e;
+  --road: #4b5057; --road-line: #e0b400;
+  --vendas: #7cc36f; --posvendas: #e3a849; --garantia: #ef7d84; --pecas: #7fb0e8; --financeiro: #a99be6;
+  --ok: #6fc48a; --ok-soft: #1f3324; --back: #f08b6e; --back-soft: #3a231c; --wait: #d9bf4a; --wait-soft: #302b15;
+  --area: #7fb0e8; --area-soft: #1c2a3b; --end: #a3a9b3; --end-soft: #262a2f; --hole: #ff7b72; --hole-soft: #3d1f1d; --shade: rgba(0,0,0,.45);
+  color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.5 var(--f-body); }
+.wrap { max-width: 1480px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 18px 48px; }
+button { font: inherit; color: inherit; }
+button:focus-visible { outline: 2px solid var(--area); outline-offset: 2px; }
+
+header.top { display: flex; flex-wrap: wrap; gap: 10px 24px; align-items: end; justify-content: space-between; }
+h1 { margin: 0; font: 800 clamp(28px, 3.6vw, 40px)/1 var(--f-title); text-transform: uppercase; letter-spacing: .01em; }
+.lede { margin: 4px 0 0; color: var(--muted); max-width: 70ch; }
+.play { display: inline-flex; align-items: center; gap: 8px; background: var(--ink); color: var(--bg); border: 0; border-radius: 999px; padding: 10px 18px; font: 700 16px/1 var(--f-sign); cursor: pointer; }
+.play:hover { opacity: .9; }
+
+/* ---- rota ---- */
+.route-box { margin-top: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 14px 10px; overflow-x: auto; }
+.route { position: relative; display: grid; grid-template-columns: repeat(9, minmax(128px, 1fr)); grid-template-rows: auto 64px auto; min-width: 1180px; }
+.branches-up, .branches-down { display: flex; flex-direction: column; gap: 4px; align-items: center; padding: 0 4px; }
+.branches-up { grid-row: 1; justify-content: flex-end; padding-bottom: 6px; min-height: 64px; }
+.branches-down { grid-row: 3; justify-content: flex-start; padding-top: 6px; min-height: 64px; }
+.branch { position: relative; font: 600 12.5px/1.15 var(--f-sign); border: 1.5px solid; border-radius: 6px; padding: 4px 8px; background: var(--surface); cursor: pointer; text-align: center; }
+.branch::after { content: ""; position: absolute; left: 50%; width: 0; border-left: 2px dashed currentColor; opacity: .6; }
+.branches-up .branch:last-child::after { top: 100%; height: 10px; }
+.branches-down .branch:first-child::after { bottom: 100%; height: 10px; }
+.branch small { display: block; font: 500 10.5px/1.1 var(--f-sign); opacity: .8; }
+.road { grid-row: 2; grid-column: 1 / -1; align-self: center; height: 26px; background: var(--road); border-radius: 13px; position: relative; }
+.road::after { content: ""; position: absolute; left: 14px; right: 14px; top: 12px; border-top: 2px dashed var(--road-line); }
+.station { grid-row: 2; position: relative; z-index: 2; display: flex; justify-content: center; align-items: center; }
+.st-btn { display: grid; justify-items: center; gap: 2px; background: none; border: 0; cursor: pointer; padding: 0; }
+.dot { width: 44px; height: 44px; border-radius: 50%; background: var(--surface); border: 4px solid var(--c); display: grid; place-items: center; font: 800 18px/1 var(--f-title); color: var(--c); box-shadow: 0 2px 8px var(--shade); transition: transform .15s; position: relative; }
+.st-btn:hover .dot { transform: scale(1.08); }
+.station.on .dot { background: var(--c); color: var(--surface); transform: scale(1.12); }
+.station.flash .dot { animation: pulse 1s ease-out 2; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 var(--hole); } 100% { box-shadow: 0 0 0 16px transparent; } }
+.holes { position: absolute; top: -8px; right: -10px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--hole); color: #fff; font: 700 11.5px/20px var(--f-sign); text-align: center; }
+.names { display: contents; }
+.st-name { grid-row: 3; text-align: center; font: 700 15px/1.1 var(--f-sign); margin-top: 6px; pointer-events: none; }
+.label-row { display: grid; grid-template-columns: repeat(9, minmax(128px, 1fr)); min-width: 1180px; margin-top: 4px; }
+.label-row div { text-align: center; padding: 0 4px; }
+.label-row b { display: block; font: 700 15px/1.1 var(--f-sign); cursor: pointer; }
+.label-row span { display: block; font: 500 11.5px/1.2 var(--f-sign); color: var(--muted); }
+.label-row .area-dots { display: inline-flex; gap: 3px; margin-top: 3px; }
+.label-row .area-dots i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.loop { min-width: 1180px; margin: 8px 22px 0; height: 22px; border: 2px dashed var(--muted); border-top: 0; border-radius: 0 0 22px 22px; opacity: .5; position: relative; }
+.loop span { position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); background: var(--surface); padding: 0 8px; font: 600 12px/1 var(--f-sign); color: var(--muted); white-space: nowrap; }
+.tractor { position: absolute; z-index: 3; top: calc(50% - 40px); width: 46px; height: 34px; transition: left .9s cubic-bezier(.45,.05,.3,1); pointer-events: none; }
+.tractor[hidden] { display: none; }
+
+/* ---- corpo: detalhe + furos ---- */
+.body { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; margin-top: 18px; align-items: start; }
+@media (max-width: 980px) { .body { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; min-width: 0; }
+.eyebrow { font: 700 12px/1 var(--f-sign); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.card h2 { margin: 4px 0 6px; font: 800 28px/1.05 var(--f-title); text-transform: uppercase; text-wrap: balance; }
+.what { margin: 0 0 12px; font-size: 15.5px; max-width: 65ch; }
+.chips-areas { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.tag { font: 700 11px/1 var(--f-sign); text-transform: uppercase; letter-spacing: .06em; color: #fff; padding: 4px 7px; border-radius: 4px; }
+.steps { display: grid; gap: 10px; }
+.step { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--bg); }
+.step-h { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.step-h .kind { font: 700 11px/1 var(--f-sign); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.step-h b { font: 600 15.5px/1.3 var(--f-body); }
+.step-h .who { font-size: 12.5px; color: var(--muted); }
+.step p { margin: 4px 0 0; font-size: 13.5px; color: var(--muted); }
+.answers { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+.ans { font: 500 12.5px/1.2 var(--f-sign); padding: 4px 8px; border-radius: 999px; border: 1px solid transparent; }
+.ans b { font-weight: 700; }
+.k-s { background: var(--ok-soft); color: var(--ok); }
+.k-v { background: var(--back-soft); color: var(--back); border-color: currentColor; }
+.k-e { background: var(--wait-soft); color: var(--wait); }
+.k-a { background: var(--area-soft); color: var(--area); cursor: pointer; }
+.k-f { background: var(--end-soft); color: var(--end); }
+.hole-note { margin-top: 8px; font-size: 13px; color: var(--hole); background: var(--hole-soft); border-radius: 6px; padding: 6px 9px; }
+details.ramal { border: 1.5px solid; border-radius: 10px; margin-top: 10px; background: var(--surface); }
+details.ramal summary { cursor: pointer; padding: 9px 12px; font: 700 15px/1.2 var(--f-sign); list-style: none; display: flex; justify-content: space-between; gap: 10px; }
+details.ramal summary::-webkit-details-marker { display: none; }
+details.ramal summary::after { content: "abrir ▾"; font: 600 12px var(--f-sign); opacity: .7; }
+details.ramal[open] summary::after { content: "fechar ▴"; }
+details.ramal .steps { padding: 0 10px 10px; }
+.legend-mini { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 12px; font-size: 12px; color: var(--muted); align-items: center; }
+
+/* furos */
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+.fbtn { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 5px 11px; font: 600 13px/1 var(--f-sign); cursor: pointer; }
+.fbtn[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.holes-list { display: grid; gap: 10px; }
+.hole-card { border: 1px solid var(--line); border-left: 4px solid var(--hole); border-radius: 10px; padding: 10px 12px; background: var(--bg); }
+.hole-card.top { border-left-color: var(--ink); }
+.hc-head { display: flex; gap: 8px; align-items: baseline; justify-content: space-between; flex-wrap: wrap; }
+.hc-head b { font: 700 16px/1.25 var(--f-sign); }
+.prio { font: 800 12px/1 var(--f-sign); background: var(--ink); color: var(--surface); border-radius: 4px; padding: 3px 6px; white-space: nowrap; }
+.kinds { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+.kind-tag { font: 700 10.5px/1 var(--f-sign); text-transform: uppercase; letter-spacing: .06em; border-radius: 3px; padding: 3px 5px; }
+.kt-sistema { background: var(--area-soft); color: var(--area); }
+.kt-processo { background: var(--wait-soft); color: var(--wait); }
+.kt-esforco { background: var(--end-soft); color: var(--end); }
+.hc-rows { display: grid; gap: 4px; margin-top: 7px; font-size: 13.5px; }
+.hc-rows div { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 6px; }
+.hc-rows dt { font: 700 11.5px/1.6 var(--f-sign); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.hc-rows dd { margin: 0; }
+.hc-rows .gain dd { font-weight: 600; color: var(--ok); }
+.see { margin-top: 8px; display: flex; gap: 5px; flex-wrap: wrap; }
+.see button { font: 600 12px/1 var(--f-sign); border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 9px; cursor: pointer; }
+.see button:hover { border-color: var(--muted); }
+.note { margin-top: 12px; font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .tractor { transition: none; } .station.flash .dot { animation: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Rota da Nova Tratores</h1>
+      <p class="lede">O caminho que faz a loja girar, do primeiro contato até o cliente voltar a comprar. Clique numa estação para ver o que acontece ali. Os números vermelhos são furos.</p>
+    </div>
+    <button class="play" type="button" id="play">▶ Seguir o cliente</button>
+  </header>
+
+  <section class="route-box" aria-label="Rota principal">
+    <div class="route" id="route"></div>
+    <div class="label-row" id="labels"></div>
+    <div class="loop"><span>↺ cliente satisfeito volta para o começo</span></div>
+  </section>
+
+  <div class="body">
+    <section class="card" id="detail" aria-live="polite"></section>
+    <section class="card" id="furos"></section>
+  </div>
+</div>
+<script>
+const ROADS = [
+{ id: "main", code: "BR-NT", nome: "Rota do cliente", sub: "O caminho que faz a loja girar: do primeiro contato até o cliente voltar a comprar.",
+  stops: [
+  { id: "lead", area: "vendas", t: "p", h: "Lead chega", quem: "Vendedor · Marketing", mod: "/lead · app de vendas · Inteligência de Vendas",
+    sum: "Quatro portas: feira/estande, app de vendas externo, prospecção e indicações, recompra da base.",
+    det: ["Feira: só o texto é obrigatório; funciona sem internet.", "Propostas perdidas há 3 meses a 2 anos voltam como “reabordar”."] },
+  { area: "vendas", t: "d", h: "Lead qualificado?", quem: "Vendedor · Marketing", mod: "mkt_leads.qualificacao",
+    furo: "A passagem de lead para proposta é feita na mão. Nada liga os dois automaticamente.",
+    s: [["Em contato", "e", "continua tentando"], ["Qualificado", "s", "vira proposta (manual)"], ["Perdido / descartado", "f", ""]] },
+  { area: "vendas", t: "d", h: "Como o cliente vai pagar?", quem: "Vendedor", mod: "proposta_pagamento",
+    s: [["À vista", "s", ""], ["Parcelado direto", "s", "boleto, pix, cheque"], ["Financiado", "s", "banco + linha (FINAME, Moderfrota, Pronaf…)"], ["Misto", "s", "entrada + financiamento"]] },
+  { id: "prop", area: "vendas", t: "p", h: "Proposta e PDF", quem: "Vendedor", mod: "/propostas",
+    sum: "O PDF não sai sem vendedor, carimbo e dados da empresa. Assinatura no papel.", det: ["A proposta não guarda o chassi."] },
+  { area: "vendas", t: "d", h: "Cliente respondeu?", quem: "Cliente", mod: "Kanban de propostas",
+    furo: "A proposta pode pular de qualquer fase para qualquer outra, sem conferência.",
+    det: ["Motivos de perda (obrigatório): preço, concorrente (diz qual e o valor), prazo, crédito negado ou parcial, condição de pagamento, especificação técnica, desistiu, sumiu, adiou, outro."],
+    s: [["Ainda não", "e", "aguardando cliente"], ["Depende do banco", "e", "aguardando banco"], ["Vendeu", "s", ""], ["Não vendeu", "f", "motivo obrigatório"], ["Reabordar em 3 meses", "v", "Inteligência de Vendas", "lead"]] },
+  { id: "estq", area: "vendas", t: "d", h: "Tem a máquina em estoque?", quem: "Vendedor", mod: "produtos.estoque",
+    s: [["Sim", "s", "direto ao pedido"], ["Não", "a", "compra à fábrica", "compra-maq"]] },
+  { id: "pvm", area: "vendas", t: "p", h: "Pedido de Máquina (PVM)", quem: "Comercial · Faturamento", mod: "/propostas?aba=pedidos", sum: "Importa cliente, vendedor e parcelas da proposta." },
+  { area: "vendas", t: "d", h: "Pronto para o Omie?", quem: "Sistema", mod: "validarParaOmie",
+    s: [["Falta CPF/CNPJ, vendedor, preço ou parcelas", "v", "corrigir", "pvm"], ["Tudo certo", "s", "envia ao Omie"]] },
+  { area: "vendas", t: "d", h: "Faturar a máquina", quem: "Faturamento", mod: "pedidos-maquinas",
+    furo: "O faturamento de máquina pelo portal está desligado: é feito direto no Omie, e a venda não vira card de cobrança no Financeiro.",
+    s: [["Faturar", "s", "hoje direto no Omie"], ["Cancelar", "f", "exige motivo"], ["Já faturado", "v", "cancelar a NF-e no Omie antes", "pvm"]] },
+  { area: "vendas", t: "d", h: "Entrega técnica registrada na Mahindra?", quem: "Técnico · Pós-vendas", mod: "/revisoes/vendidos",
+    s: [["Sim", "s", "30/60/90 dias contam dela"], ["Não", "e", "contam da NF, com alerta"]] },
+  { id: "chamado", area: "posvendas", t: "p", h: "Cliente pede atendimento", quem: "Cliente", mod: "SAT · telefone · WhatsApp · revisões",
+    sum: "Revisões de 50h, 300h, 600h… contatos de 30/60/90 dias, quebra ou manutenção.",
+    furo: "Ligação com resultado “serviço agendado” não cria OS, e concluir um SAT também não. Alguém abre a OS na mão." },
+  { id: "orc", area: "posvendas", t: "d", h: "Aprovou o orçamento da OS?", quem: "Cliente · Atendente", mod: "/pos · Reservar/Agendar",
+    det: ["Tipos de OS: manutenção, revisão, entrega técnica, inspeção pré-entrega.", "OS interna: sem cobrança, peças como remessa e fatura com recibo."],
+    s: [["Ainda não", "e", "aguardando"], ["Sim", "a", "reserva as peças e agenda", "pecas"], ["Não", "f", "Cancelada"]] },
+  { id: "exec", area: "posvendas", t: "p", h: "Agenda e execução", quem: "Atendente · Técnico", mod: "agenda_tecnico · Lousa", sum: "Uma pessoa põe a OS em Execução (o robô não faz mais isso)." },
+  { area: "posvendas", t: "d", h: "Como está a execução?", quem: "Atendente", mod: "fases da OS",
+    furo: "“Aguardando peças” é marcado na mão. Nada liga essa fase à compra ou ao recebimento da peça.",
+    s: [["Normal", "s", ""], ["Precisa diagnóstico", "e", ""], ["Falta peça", "e", "aguardando peças"]] },
+  { area: "posvendas", t: "d", h: "Técnico concluiu?", quem: "Técnico (app)", mod: "Ordem_Servico_Tecnicos",
+    s: [["Relatório final", "s", "Tratorilson preenche a OS"], ["Paliativo", "v", "foi, mas não resolveu", "exec"], ["Prazo acabou sem relatório", "v", "aguardando ordem técnico + atraso", "exec"]] },
+  { id: "garant", area: "posvendas", t: "d", h: "É garantia?", quem: "Robô", mod: "tabela garantias",
+    s: [["Sim", "a", "fábrica paga o serviço", "garantia"], ["Não", "s", "enviar ao Omie"]] },
+  { id: "cobr", area: "posvendas", t: "d", h: "Envio ao Omie e cobrança", quem: "Atendente · Tratorilson", mod: "Enviar Omie · cobranca.ts",
+    sum: "Tratorilson manda orçamento, PDFs, link de assinatura e pergunta a forma de pagamento (à vista, 30, 30/60, 30/60/90, 30/60/90/120).",
+    s: [["Falta texto, CNPJ ou data", "v", "completar", "exec"], ["Enviou", "s", "Cobrando cliente"]] },
+  { id: "pode", area: "posvendas", t: "d", h: "Pode faturar?", quem: "Quem fatura", mod: "travas-faturar",
+    s: [["Previsão ≠ hoje, sem projeto, CEP ou local", "v", "corrigir", "cobr"], ["Garantia sem montadora", "v", "escolher montadora", "cobr"], ["Tudo certo", "s", ""]] },
+  { area: "posvendas", t: "d", h: "Omie confirmou e a NFS-e saiu?", quem: "Sistema · Omie", mod: "faturamento-fluxo",
+    s: [["Sim", "s", ""], ["Recusou ou NFS-e rejeitada", "v", "corrigir e reenviar", "pode"], ["Sem resposta", "e", "vai para conferência"], ["Disse que faturou e não", "v", "volta a Cobrando cliente", "cobr"]] },
+  { id: "fatok", area: "posvendas", t: "d", h: "OS e peças faturadas?", quem: "Sistema", mod: "faturamento.ts",
+    s: [["Sim", "s", "Concluída · nasce o card de cobrança"], ["Falta o pedido de peças", "e", "espera"]] },
+  { id: "paga", area: "financeiro", t: "d", h: "Como o cliente paga?", quem: "Financeiro", mod: "Chamado_NF",
+    furo: "Venda de máquina e garantia não viram card de cobrança. O Financeiro só vê pela cópia do Omie.",
+    s: [["Pix · cartão · cheque · dinheiro", "s", "validar comprovante"], ["Boleto", "a", "gerar e cobrar", "cobranca"]] },
+  { id: "din", area: "financeiro", t: "p", h: "Dinheiro entra", quem: "Omie · Robôs", mod: "contas a receber",
+    sum: "Recebido no Omie → card “pago” → concluído em 7 dias.", s: [["Bastidores", "a", "custos e alçadas", "custos"]] },
+  { area: "posvendas", t: "d", h: "Precisou voltar ao cliente?", quem: "Pós-vendas", mod: "resservico.ts",
+    sum: "Resserviço: OS nova, a original fica marcada e o técnico não ganha comissão.",
+    s: [["Não", "s", ""], ["Mal feito · peça mal montada · faltou item · diagnóstico errado · vazamento", "v", "nova OS", "exec"]] },
+  { id: "lig", area: "posvendas", t: "d", h: "Como foi a ligação de satisfação?", quem: "Pós-vendas", mod: "/feedbacks · crm-automatico",
+    sum: "Entre 3 e 15 dias depois do faturamento. Fica fora: ≤ R$ 1, cortesia, interna, ligado há menos de 30 dias, “não contatar”.",
+    furo: "Resultado “serviço agendado” não cria OS.",
+    s: [["Não atendeu", "v", "escolhe quando tentar de novo", "lig"], ["Retornar", "e", "data obrigatória"], ["Número errado", "e", "pendência de cadastro"], ["Falou", "s", ""]] },
+  { area: "posvendas", t: "d", h: "Cliente satisfeito?", quem: "Cliente", mod: "feedbacks",
+    s: [["Sim", "s", "nova oportunidade: revisão, peças, máquina", "chamado"], ["Pronto para outra máquina", "s", "volta ao começo", "lead"], ["Nota ≤ 6", "e", "alerta ao gerente"], ["Humor muito baixo", "e", "retorno em 90 dias"]] },
+  ]},
+
+{ id: "compra-maq", code: "NT-110", nome: "Compra da máquina", area: "vendas", lado: "up", de: "estq", volta: "pvm",
+  stops: [
+  { id: "dir", area: "vendas", t: "d", h: "Diretoria aprova a compra?", quem: "Diretoria", mod: "/tickets/compras",
+    s: [["Aprova", "s", "define a quantidade"], ["Devolve", "v", "ao vendedor (reenvia ou cancela)"]] },
+  { id: "finc", area: "vendas", t: "d", h: "Financeiro aprova?", quem: "Financeiro", mod: "/tickets/compras",
+    s: [["Aprova", "s", "com parecer"], ["Reprova", "v", "volta à Diretoria", "dir"]] },
+  { area: "vendas", t: "d", h: "Comprador emite o PC?", quem: "Comprador", mod: "/tickets/compras",
+    s: [["Emite", "s", "pedido à fábrica vira “Pedido feito”"], ["Devolve", "v", "ao Financeiro", "finc"], ["Cancelada", "f", "em qualquer etapa"]] },
+  { area: "vendas", t: "p", h: "Pedido à fábrica anda", quem: "Comercial", mod: "Proposta_Fabrica",
+    sum: "Solicitada → recebida → pedido feito → máquina recebida → aguardando faturamento da fábrica → faturado por nós.",
+    furo: "As fases mudam sem conferência. Campos planejados (NF da fábrica, data de recebimento) não têm tela." },
+  { area: "vendas", t: "d", h: "Chegou no prazo?", quem: "Comercial", mod: "eta_fabrica", s: [["Sim", "s", ""], ["Atrasou", "e", "“atrasada N dias”"]] },
+  ]},
+
+{ id: "garantia", code: "NT-300", nome: "Garantia", area: "garantia", lado: "up", de: "garant", volta: "din",
+  stops: [
+  { id: "an", area: "garantia", t: "p", h: "Garantista assume", quem: "Garantista", mod: "/garantias",
+    sum: "Nasce pelo app do técnico, relatório marcado, varredura de 14 dias ou manual. Uma ativa por OS." },
+  { area: "garantia", t: "d", h: "Falta informação do técnico?", quem: "Garantista", mod: "pendências", s: [["Não", "s", ""], ["Sim", "v", "B.O. ao técnico", "an"]] },
+  { area: "garantia", t: "d", h: "Cabe garantia?", quem: "Garantista", mod: "finalizar.ts",
+    s: [["Sim", "s", "envia à fábrica (montadora + checklist)"], ["Não", "s", "recusa interna", "cob"], ["Recusa reaberta", "v", "se a cobrança não foi paga", "an"]] },
+  { area: "garantia", t: "d", h: "Fábrica pediu mais informação?", quem: "Fábrica", mod: "info_pendente", s: [["Não", "s", ""], ["Sim", "v", "responde e volta", "an"]] },
+  { area: "garantia", t: "d", h: "O que a fábrica aprovou?", quem: "Fábrica", mod: "aprovação por item (peças, M.O., deslocamento)",
+    det: ["Montadoras de duas etapas exigem o retorno das peças antes."],
+    s: [["Tudo", "s", "reembolso", "reemb"], ["Parte", "s", "o resto vira cobrança", "cob"], ["Nada", "s", "rejeitada", "cob"]] },
+  { area: "garantia", t: "d", h: "Devolver as peças à fábrica?", quem: "Garantista · Peças", mod: "devolucao_status",
+    s: [["Sim", "s", "remessa de garantia, 30 dias"], ["Não", "e", "guarda 90 dias e descarta"]] },
+  { id: "cob", area: "garantia", t: "d", h: "E o que a fábrica não pagou?", quem: "Garantista · Gerência", mod: "cobranca_status",
+    furo: "Não existe card de cobrança no Financeiro para isso; fica só no módulo de garantias.",
+    s: [["Cortesia", "f", "não cobra"], ["Cobrar o cliente", "e", "cobrada"], ["Desistir", "f", "prejuízo"]] },
+  { id: "reemb", area: "garantia", t: "p", h: "Reembolso da fábrica", quem: "Financeiro", mod: "DRVG (Mahindra) · SG (Kuhn)",
+    sum: "NFS-e contra a montadora: horas × taxa + km × taxa + peças aprovadas. Padrão R$ 193/h e R$ 2,80/km." },
+  ]},
+
+{ id: "pecas", code: "NT-400", nome: "Peças", area: "pecas", lado: "down", de: "orc", volta: "fatok",
+  stops: [
+  { area: "pecas", t: "p", h: "Pedido de peças nasce", quem: "Balcão · Pós-vendas", mod: "/ppv",
+    sum: "Pela OS, tela de PPV, orçamento, catálogo, Tratorilson ou liberação por QR. Também atende a venda de balcão." },
+  { area: "pecas", t: "d", h: "Para que é a peça?", quem: "Balcão", mod: "motivo de saída",
+    s: [["Técnico com OS", "s", "segue a OS"], ["Venda balcão", "s", "vira card de cobrança próprio"], ["Técnico sem OS", "s", "uso interno"]] },
+  { id: "tem", area: "pecas", t: "d", h: "Tem a peça?", quem: "Sistema", mod: "estoque-reserva",
+    furo: "Sem estoque, o sistema não bloqueia e não abre compra. Só avisa no sininho.",
+    s: [["Tem", "s", "reserva"], ["Fica com 2 ou menos", "e", "só avisa"], ["Falta", "a", "alguém precisa comprar", "compras"]] },
+  { id: "lib", area: "pecas", t: "d", h: "Peça liberada no balcão?", quem: "Depto. de peças", mod: "rastreio por QR", s: [["Libera", "s", ""], ["Recusa", "v", "volta ao estoque", "lib"]] },
+  { area: "pecas", t: "d", h: "Técnico usou a peça?", quem: "Robô (lê o relatório)", mod: "abate",
+    s: [["Usou", "s", "aplicada"], ["Não usou", "v", "devolução ao estoque", "lib"], ["Faturou sem liberar", "e", "alerta"]] },
+  { area: "pecas", t: "d", h: "Venda ou remessa? É garantia?", quem: "Sistema", mod: "enviarPPVParaOmie",
+    s: [["Venda", "s", "CFOP 5.910"], ["Remessa interna", "s", "OS interna"], ["Remessa de garantia", "s", "CFOP 5.949 / 6.949"]] },
+  { id: "fatp", area: "pecas", t: "d", h: "NOVA ou CASTRO?", quem: "Sistema", mod: "omie.ts",
+    s: [["Uma só", "s", ""], ["Peças das duas", "v", "separar em dois pedidos", "fatp"], ["Só existe na outra", "s", "vai pela outra"]] },
+  { area: "pecas", t: "d", h: "Faturamento confirmado?", quem: "Sistema · Omie", mod: "faturarPPVNoOmie",
+    s: [["Sim", "s", ""], ["Omie diverge do portal", "v", "aceitar ou corrigir", "fatp"], ["Sem resposta", "e", "pendente"]] },
+  ]},
+
+{ id: "compras", code: "NT-410", nome: "Compras e contas a pagar", area: "pecas", lado: "down", de: "tem",
+  stops: [
+  { area: "pecas", t: "d", h: "Qual caminho de compra?", quem: "Quem precisa", mod: "3 módulos separados",
+    furo: "Os três caminhos não se falam nem com o pedido de peças. O pedido de compra e o PC não vão ao Omie pelo portal.",
+    s: [["Requisição", "s", "compra avulsa"], ["Sugestão de compra", "e", "45 dias de demanda + mínimo"], ["Solicitação de Compras", "a", "mesma cadeia das máquinas", "compra-maq"]] },
+  { id: "req", area: "pecas", t: "d", h: "Requisição de R$ 200 ou mais?", quem: "Diretor", mod: "autorizações",
+    s: [["Não", "s", ""], ["Autorizada", "s", "selo “Aprovada”"], ["Recusada", "f", "motivo obrigatório"], ["Valor subiu > 10%", "v", "pede de novo", "req"]] },
+  { area: "pecas", t: "d", h: "Chegou a nota?", quem: "Estoque · Recebimento", mod: "/estoque/recebimentos",
+    s: [["Peças", "s", "preço = custo × 2 (só sobe)"], ["Máquinas", "s", "preço = custo × 1,2"], ["Sem lugar na prateleira", "e", "pendência de alocação"], ["Ainda não", "e", "aguardando nota"]] },
+  { id: "rasc", area: "financeiro", t: "p", h: "Vira conta a pagar", quem: "Financeiro", mod: "finan_pagar", sum: "Com nota, valor e fornecedor, a requisição vai sozinha. Nasce como rascunho." },
+  { area: "financeiro", t: "d", h: "Checklist completo?", quem: "Financeiro", mod: "omie-contapagar",
+    sum: "NF, boleto, empresa, categoria, conta, parcelas = total, fornecedor com CNPJ.",
+    s: [["Sim", "s", "validado"], ["Não", "v", "volta a rascunho", "rasc"]] },
+  { area: "financeiro", t: "d", h: "Envio ao Omie deu certo?", quem: "Financeiro", mod: "contas-pagar/omie",
+    s: [["Enviado", "s", "pago no Omie → concluído"], ["Erro", "v", "corrigir", "rasc"], ["Sem código Omie", "e", "pós-vendas lança"]] },
+  ]},
+
+{ id: "cobranca", code: "NT-500", nome: "Cobrança", area: "financeiro", lado: "down", de: "paga", volta: "din",
+  stops: [
+  { area: "financeiro", t: "d", h: "O card pode nascer?", quem: "Robô", mod: "sync-os", s: [["Sim", "s", ""], ["Sem NFS-e ou PDF", "e", "avisa o pós-vendas"], ["Peças sem faturar", "e", "espera"]] },
+  { area: "financeiro", t: "p", h: "Boleto gerado", quem: "Financeiro", mod: "Chamado_NF", sum: "Com o boleto anexado, a tarefa “Enviar para o cliente” passa ao pós-vendas." },
+  { area: "financeiro", t: "d", h: "Boleto chegou ao cliente?", quem: "Pós-vendas", mod: "home-posvendas", s: [["Enviado", "e", "aguardando vencimento"], ["Sem boleto", "e", ""], ["Já pagou", "s", "pago"]] },
+  { id: "venc", area: "financeiro", t: "d", h: "Venceu: o que o Omie diz?", quem: "Robô", mod: "decidirFase",
+    det: ["E-mail de lembrete de 0 a 5 dias antes; cobrança em D+1 e D+7.", "Vigia das 8h avisa card parado."],
+    s: [["Recebido", "s", "pago"], ["Atrasado", "s", "vencido"], ["Em aberto", "e", ""]] },
+  { area: "financeiro", t: "d", h: "Dá para recobrar?", quem: "Pós-vendas", mod: "recobranca",
+    s: [["Sim (boleto, até 180 dias)", "v", "ticket em 2 dias úteis", "venc"], ["Pix · cartão · cheque", "f", ""], ["Mais de 180 dias", "f", "sem recobrança"]] },
+  ]},
+
+{ id: "custos", code: "NT-590", nome: "Bastidores: custos e alçadas", area: "financeiro", lado: "up", de: "din",
+  stops: [
+  { area: "financeiro", t: "d", h: "Quem precisa aprovar?", quem: "Diretoria", mod: "autorizações",
+    s: [["Requisição ≥ R$ 200", "e", "Diretor"], ["Trava antiga > R$ 500", "e", "Dev"], ["Comissão dos técnicos", "e", "Diretor assina"], ["Solicitação de Compras", "e", "Diretoria → Financeiro → Comprador"]] },
+  { area: "vendas", t: "d", h: "Margem da venda saudável?", quem: "Gestor comercial", mod: "gestao-vendas/calculos.ts",
+    furo: "Conferir: no código, CMC/Venda abaixo de 0,80 fica vermelho e 0,90 ou mais fica verde. Parece invertido.",
+    sum: "Comissão = venda × %. Margem da loja = venda − comissão − (CMC + extras + desconto). Paga no dia 20 do mês seguinte.",
+    s: [["Vermelho", "e", "CMC/Venda < 0,80"], ["Amarelo", "e", "0,80 a 0,89"], ["Verde", "s", "≥ 0,90"]] },
+  { area: "financeiro", t: "p", h: "DRE do mês", quem: "Diretoria", mod: "/dre-financeiro",
+    sum: "Receita − devoluções − CMV = lucro bruto; − despesas fixas (pessoal, administrativas, bancos, vendas e marketing, impostos) = resultado.",
+    furo: "As despesas da DRE não separam o que é entre NOVA e CASTRO." },
+  { area: "financeiro", t: "p", h: "Caixa e frota", quem: "Financeiro", mod: "modulosContas · /frota",
+    sum: "Blocos: pessoas, contas do mês, banco, compras. Frota: combustível + manutenção + multas + requisições, em R$/km." },
+  { area: "financeiro", t: "p", h: "War Room", quem: "Diretoria", mod: "/war-room",
+    sum: "Margem semanal, giro (2+ tratores/semana), caixa e meta de R$ 2 mi até 31/12/2026.", furo: "O caixa de 30/60/90 dias é digitado à mão." },
+  ]},
+];
+
+
+/* ============================================================================
+   ESTAÇÕES — a rota principal resumida. `de`/`ate` = índices das paradas da avenida (ROADS[0]).
+   ========================================================================== */
+const AREAS = { vendas: "Vendas", posvendas: "Pós-vendas", garantia: "Garantia", pecas: "Peças", financeiro: "Financeiro" };
+const STATIONS = [
+  { id: "atrair",   nome: "Atrair",          sub: "o cliente aparece",          de: 0,  ate: 1,  ramais: [],
+    what: "O cliente aparece pela feira, pelo app de vendas, por indicação ou porque já é cliente e vai recomprar." },
+  { id: "negociar", nome: "Negociar",        sub: "proposta e pagamento",       de: 2,  ate: 4,  ramais: [],
+    what: "O vendedor monta a proposta, combina como o cliente vai pagar e espera a resposta (dele ou do banco)." },
+  { id: "maquina",  nome: "Ter a máquina",   sub: "pátio ou fábrica",           de: 5,  ate: 5,  ramais: [["compra-maq", "up"]],
+    what: "Se a máquina está no pátio, segue. Se não, compra da fábrica, com aprovação da Diretoria, do Financeiro e do Comprador." },
+  { id: "entregar", nome: "Faturar e entregar", sub: "pedido, nota, entrega técnica", de: 6, ate: 9, ramais: [],
+    what: "Monta o pedido de máquina, fatura no Omie e faz a entrega técnica. A partir daqui o cliente passa para o pós-vendas." },
+  { id: "atender",  nome: "Atender",         sub: "pedido de serviço e orçamento", de: 10, ate: 11, ramais: [["pecas", "down"], ["compras", "down"]],
+    what: "O cliente pede serviço (revisão, quebra, manutenção). A oficina orça, o cliente aprova e as peças são reservadas." },
+  { id: "executar", nome: "Executar",        sub: "técnico no serviço",         de: 12, ate: 15, ramais: [["garantia", "up"]],
+    what: "O técnico faz o serviço e manda o relatório. Se for garantia, o conserto vai para a fábrica pagar." },
+  { id: "faturar",  nome: "Faturar o serviço", sub: "Omie e nota",              de: 16, ate: 19, ramais: [],
+    what: "A OS vai ao Omie, o cliente é cobrado pelo WhatsApp e sai a nota de serviço e de peças." },
+  { id: "receber",  nome: "Receber",         sub: "o dinheiro entra",           de: 20, ate: 21, ramais: [["cobranca", "down"], ["custos", "up"]],
+    what: "Nasce o card de cobrança: pix, cartão ou boleto, até o dinheiro entrar no Omie." },
+  { id: "manter",   nome: "Manter o cliente", sub: "satisfação e retorno",      de: 22, ate: 24, ramais: [],
+    what: "Ligação de satisfação, resserviço se precisar, e as novas oportunidades. O cliente satisfeito volta ao começo." },
+];
+
+/* ============================================================================
+   FUROS E GANHOS — a análise. `onde` = estações ligadas.
+   ========================================================================== */
+const FUROS = [
+  { n: 1, top: true, titulo: "Regra da margem parece invertida", tipos: ["sistema"], esforco: "minutos", onde: ["entregar", "receber"],
+    hoje: "No código, venda com custo de 90% aparece verde e com custo de 70% aparece vermelha.",
+    fazer: "Confirmar a regra com quem usa a tela de gestão de vendas e corrigir.",
+    ganho: "Avaliar vendedor, preço e comissão com informação certa." },
+  { n: 2, top: true, titulo: "Máquina vendida sem cobrança no Financeiro", tipos: ["sistema", "processo"], esforco: "dias", onde: ["entregar", "receber"],
+    hoje: "A máquina é faturada direto no Omie e não vira card. A maior venda da loja é a única sem acompanhamento.",
+    fazer: "Criar o card automático com as parcelas do pedido e definir um dono para a cobrança de máquina.",
+    ganho: "Caixa previsível e nenhuma parcela de trator esquecida." },
+  { n: 3, top: true, titulo: "Garantia: o que a fábrica não paga se perde", tipos: ["sistema", "processo"], esforco: "dias", onde: ["executar", "receber"],
+    hoje: "A parte recusada fica “pendente” no módulo de garantias, sem card, sem prazo e sem dono. O reembolso da fábrica também não é acompanhado.",
+    fazer: "Card para cobrar o cliente e card “a receber da fábrica”. Prazo para decidir: cobrar, cortesia ou prejuízo.",
+    ganho: "Recuperar dinheiro que hoje vira prejuízo sem ninguém decidir." },
+  { n: 4, top: true, titulo: "Resserviço sem rotina de análise", tipos: ["processo", "sistema"], esforco: "horas", onde: ["manter", "executar"],
+    hoje: "O motivo do retorno é registrado, mas ninguém olha. Cada resserviço paga técnico, km e peça duas vezes.",
+    fazer: "Reunião mensal com ranking por motivo e por técnico + checklist de saída do serviço. Painel simples com custo.",
+    ganho: "Cada resserviço evitado é uma OS inteira de custo que não acontece." },
+  { n: 5, top: true, titulo: "Falta peça e ninguém sabe quando chega", tipos: ["sistema", "processo"], esforco: "semanas", onde: ["atender", "executar"],
+    hoje: "Sem estoque, o sistema só avisa no sininho. A OS vai para “aguardando peças” na mão e a compra corre por 3 caminhos separados.",
+    fazer: "Faltou peça na OS aprovada → abre requisição ligada à OS, mostra a previsão e avisa quando a nota chegar. Uma pessoa dona da fila.",
+    ganho: "Menos trator do cliente parado, menos ligação de “cadê minha peça”, técnico menos ocioso." },
+  { n: 6, titulo: "Oportunidades que caem no chão", tipos: ["sistema", "processo"], esforco: "dias", onde: ["atrair", "atender", "manter"],
+    hoje: "Lead → proposta, ligação “serviço agendado” → OS e SAT → OS dependem de alguém lembrar.",
+    fazer: "Botão “gerar proposta” / “gerar OS” direto dessas telas. Prazo de primeiro contato com o lead (ex.: 24 h).",
+    ganho: "Mais conversão. Hoje nem dá para medir quanto se perde." },
+  { n: 7, titulo: "Orçamento de oficina sem resposta", tipos: ["processo"], esforco: "horas", onde: ["atender"],
+    hoje: "O orçamento expira sozinho e acabou.",
+    fazer: "Antes de expirar, ligar para o cliente (o Tratorilson pode lembrar).",
+    ganho: "Serviço que já estava quase vendido." },
+  { n: 8, titulo: "Venda perdida sem análise", tipos: ["processo"], esforco: "horas", onde: ["negociar"],
+    hoje: "O motivo da perda é obrigatório e fica registrado, mas ninguém analisa.",
+    fazer: "Reunião mensal: perdemos para quem, por quê e por quanto.",
+    ganho: "Ajustar preço, prazo e crédito com base em fato." },
+  { n: 9, titulo: "Máquina parada no pátio", tipos: ["processo"], esforco: "horas", onde: ["maquina"],
+    hoje: "O sistema já marca máquina com 60 e 120+ dias de pátio, mas não existe rotina de ação.",
+    fazer: "Revisão mensal das paradas: demonstração, condição especial, troca.",
+    ganho: "Capital parado custa juro todo mês." },
+  { n: 10, titulo: "Fases sem trava", tipos: ["sistema", "processo"], esforco: "dias", onde: ["negociar", "maquina", "atender"],
+    hoje: "Proposta, pedido à fábrica e OS podem pular de qualquer fase para qualquer outra.",
+    fazer: "Combinar o que precisa estar pronto para avançar e travar no sistema.",
+    ganho: "Funil e previsão de vendas em que dá para confiar." },
+  { n: 11, titulo: "Caixa futuro digitado à mão", tipos: ["sistema"], esforco: "dias", onde: ["receber"],
+    hoje: "O caixa de 30/60/90 dias do War Room é digitado.",
+    fazer: "Montar automático a partir do a receber e a pagar do Omie.",
+    ganho: "Previsão de caixa confiável sem trabalho manual." },
+  { n: 12, titulo: "Compra digitada duas vezes", tipos: ["sistema"], esforco: "semanas", onde: ["atender"],
+    hoje: "O pedido de compra da sugestão e o PC da Solicitação de Compras não vão ao Omie pelo portal.",
+    fazer: "Integrar com o Omie ou eliminar um dos lançamentos.",
+    ganho: "Menos erro de compra e menos retrabalho." },
+  { n: 13, titulo: "Lucro por empresa misturado", tipos: ["processo"], esforco: "dias", onde: ["receber"],
+    hoje: "A DRE não separa as despesas entre NOVA e CASTRO.",
+    fazer: "Definir uma regra de rateio entre as empresas.",
+    ganho: "Saber qual empresa dá lucro de verdade." },
+];
+
+/* ============================================================================
+   TELA
+   ========================================================================== */
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const roadById = Object.fromEntries(ROADS.map(r => [r.id, r]));
+const MAIN = roadById.main;
+const KIND = { s: "→", v: "↩", e: "⏸", a: "⇢", f: "■" };
+const stStops = st => MAIN.stops.slice(st.de, st.ate + 1);
+const stAreas = st => [...new Set(stStops(st).map(p => p.area).concat(st.ramais.map(([r]) => roadById[r].area)))];
+const furosDe = st => FUROS.filter(f => f.onde.includes(st.id));
+let atual = null, tour = null;
+
+const TRACTOR = `<svg class="tractor" id="tractor" viewBox="0 0 46 34" hidden aria-hidden="true">
+  <rect x="14" y="4" width="14" height="13" rx="2" style="fill:var(--vendas)"/><rect x="17" y="7" width="8" height="6" style="fill:var(--surface)"/>
+  <rect x="6" y="15" width="34" height="8" rx="2" style="fill:var(--vendas)"/><rect x="36" y="10" width="3" height="6" style="fill:var(--road)"/>
+  <circle cx="14" cy="25" r="8" style="fill:var(--road)"/><circle cx="14" cy="25" r="3" style="fill:var(--road-line)"/>
+  <circle cx="36" cy="28" r="5" style="fill:var(--road)"/><circle cx="36" cy="28" r="2" style="fill:var(--road-line)"/></svg>`;
+
+function renderRoute() {
+  let h = `<div class="road"></div>`;
+  STATIONS.forEach((st, i) => {
+    const col = i + 1;
+    const up = st.ramais.filter(r => r[1] === "up"), down = st.ramais.filter(r => r[1] === "down");
+    const br = ([id]) => { const r = roadById[id]; return `<button type="button" class="branch" data-st="${st.id}" data-ramal="${id}" style="color:var(--${r.area});border-color:var(--${r.area})">${esc(r.nome.replace("Bastidores: ", ""))}<small>${r.stops.length} etapas</small></button>`; };
+    h += `<div class="branches-up" style="grid-column:${col}">${up.map(br).join("")}</div>`;
+    const area = stStops(st)[0].area, nf = furosDe(st).length;
+    h += `<div class="station" style="grid-column:${col};--c:var(--${area})" data-station="${st.id}"><button type="button" class="st-btn" data-st="${st.id}" aria-label="${esc(st.nome)}"><span class="dot">${i + 1}${nf ? `<span class="holes" title="${nf} furos">${nf}</span>` : ""}</span></button></div>`;
+    h += `<div class="branches-down" style="grid-column:${col}">${down.map(br).join("")}</div>`;
+  });
+  document.getElementById("route").innerHTML = h + TRACTOR;
+  document.getElementById("labels").innerHTML = STATIONS.map(st => `<div><b data-st="${st.id}">${esc(st.nome)}</b><span>${esc(st.sub)}</span><span class="area-dots">${stAreas(st).map(a => `<i style="background:var(--${a})" title="${AREAS[a]}"></i>`).join("")}</span></div>`).join("");
+}
+
+function stepHTML(p) {
+  const ans = (p.s || []).map(([a, k, to, alvo]) => {
+    const r = k === "a" && roadById[alvo];
+    return `<span class="ans k-${k}" ${r ? `data-goto="${alvo}"` : ""}>${KIND[k]} <b>${esc(a)}</b>${to ? " · " + esc(to) : ""}${r ? ` <u>${esc(r.nome.replace("Bastidores: ", ""))}</u>` : ""}</span>`;
+  }).join("");
+  return `<div class="step"><div class="step-h"><span class="kind">${p.t === "d" ? "Decisão" : "Etapa"}</span><b>${esc(p.h)}</b><span class="who">· ${esc(p.quem || "")}</span></div>
+    ${p.sum ? `<p>${esc(p.sum)}</p>` : ""}${ans ? `<div class="answers">${ans}</div>` : ""}${p.furo ? `<div class="hole-note">⚠ ${esc(p.furo)}</div>` : ""}</div>`;
+}
+
+function showStation(id, opts = {}) {
+  const st = STATIONS.find(s => s.id === id); if (!st) return;
+  atual = id;
+  document.querySelectorAll(".station").forEach(s => s.classList.toggle("on", s.dataset.station === id));
+  const i = STATIONS.indexOf(st);
+  const ramais = st.ramais.map(([rid]) => { const r = roadById[rid];
+    return `<details class="ramal" data-ramal="${rid}" style="border-color:var(--${r.area})" ${opts.open === rid ? "open" : ""}><summary style="color:var(--${r.area})">Ramal: ${esc(r.nome)} · ${r.stops.length} etapas</summary><div class="steps">${r.stops.map(stepHTML).join("")}</div></details>`; }).join("");
+  const nf = furosDe(st);
+  document.getElementById("detail").innerHTML = `
+    <div class="eyebrow">Estação ${i + 1} de ${STATIONS.length}</div>
+    <h2>${esc(st.nome)}</h2>
+    <p class="what">${esc(st.what)}</p>
+    <div class="chips-areas">${stAreas(st).map(a => `<span class="tag" style="background:var(--${a})">${AREAS[a]}</span>`).join("")}${nf.length ? `<span class="tag" style="background:var(--hole)">${nf.length} furo${nf.length > 1 ? "s" : ""} aqui</span>` : ""}</div>
+    <div class="legend-mini">Respostas: <span class="ans k-s">→ segue</span><span class="ans k-v">↩ volta (retrabalho)</span><span class="ans k-e">⏸ espera</span><span class="ans k-a">⇢ ramal</span><span class="ans k-f">■ fim</span></div>
+    <div class="steps">${stStops(st).map(stepHTML).join("")}</div>${ramais}`;
+  if (opts.open) { const d = document.querySelector(`details[data-ramal="${opts.open}"]`); if (d) d.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+  moveTractor(i);
+  if (!opts.keepFilter) renderFuros(id);
+}
+
+function moveTractor(i) {
+  const t = document.getElementById("tractor"), route = document.getElementById("route");
+  const dot = route.querySelectorAll(".station")[i]; if (!dot) return;
+  t.hidden = false;
+  t.style.left = (dot.offsetLeft + dot.offsetWidth / 2 - 23) + "px";
+}
+
+let filtro = "todos";
+function renderFuros(stationId) {
+  const st = stationId && STATIONS.find(s => s.id === stationId);
+  let lista = FUROS.filter(f => filtro === "todos" || (filtro === "top" ? f.top : f.tipos.includes(filtro)));
+  if (st && filtro === "aqui") lista = furosDe(st);
+  const btn = (k, t) => `<button type="button" class="fbtn" data-f="${k}" aria-pressed="${filtro === k}">${t}</button>`;
+  document.getElementById("furos").innerHTML = `
+    <div class="eyebrow">O que dá para ganhar</div><h2>Furos e ganhos</h2>
+    <div class="filters">${btn("todos", `Todos (${FUROS.length})`)}${btn("top", "Começar por aqui")}${btn("sistema", "Sistema")}${btn("processo", "Processo")}${st ? btn("aqui", `Só em “${esc(st.nome)}”`) : ""}</div>
+    <div class="holes-list">${lista.map(f => `
+      <article class="hole-card ${f.top ? "top" : ""}">
+        <div class="hc-head"><b>${f.n}. ${esc(f.titulo)}</b>${f.top ? `<span class="prio">Prioridade ${f.n}</span>` : ""}</div>
+        <div class="kinds">${f.tipos.map(t => `<span class="kind-tag kt-${t}">${t}</span>`).join("")}<span class="kind-tag kt-esforco">esforço: ${f.esforco}</span></div>
+        <dl class="hc-rows"><div><dt>Hoje</dt><dd>${esc(f.hoje)}</dd></div><div><dt>Fazer</dt><dd>${esc(f.fazer)}</dd></div><div class="gain"><dt>Ganho</dt><dd>${esc(f.ganho)}</dd></div></dl>
+        <div class="see">${f.onde.map(o => `<button type="button" data-ver="${o}">ver em “${esc(STATIONS.find(s => s.id === o).nome)}”</button>`).join("")}</div>
+      </article>`).join("") || `<p class="note">Nenhum furo marcado nesta estação.</p>`}</div>
+    <p class="note">Os furos saíram da leitura do código: mostram onde está o problema, não quanto custa. O próximo passo é medir cada um com os números do banco.</p>`;
+}
+
+function flash(id) {
+  const s = document.querySelector(`.station[data-station="${id}"]`); if (!s) return;
+  s.classList.remove("flash"); void s.offsetWidth; s.classList.add("flash");
+  document.querySelector(".route-box").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+/* tour */
+function stopTour() { clearInterval(tour); tour = null; document.getElementById("play").textContent = "▶ Seguir o cliente"; }
+document.getElementById("play").addEventListener("click", () => {
+  if (tour) { stopTour(); return; }
+  let i = 0; showStation(STATIONS[0].id);
+  document.getElementById("play").textContent = "❚❚ Pausar";
+  tour = setInterval(() => { i++; if (i >= STATIONS.length) { stopTour(); return; } showStation(STATIONS[i].id); }, 4500);
+});
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-ramal].branch"); if (b) { stopTour(); showStation(b.dataset.st, { open: b.dataset.ramal }); return; }
+  const s = e.target.closest("[data-st]"); if (s) { stopTour(); showStation(s.dataset.st); return; }
+  const g = e.target.closest("[data-goto]"); if (g) {
+    const st = STATIONS.find(x => x.ramais.some(([r]) => r === g.dataset.goto)); if (st) { stopTour(); showStation(st.id, { open: g.dataset.goto }); } return; }
+  const f = e.target.closest("[data-f]"); if (f) { filtro = f.dataset.f; renderFuros(atual); return; }
+  const v = e.target.closest("[data-ver]"); if (v) { stopTour(); showStation(v.dataset.ver, { keepFilter: true }); flash(v.dataset.ver); return; }
+});
+window.addEventListener("resize", () => { if (atual) moveTractor(STATIONS.findIndex(s => s.id === atual)); });
+
+renderRoute();
+showStation("atrair");
+</script>
+</body>
+</html>

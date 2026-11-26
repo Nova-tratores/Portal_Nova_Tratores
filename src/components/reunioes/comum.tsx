@@ -15,8 +15,8 @@ export async function chamar<T = Record<string, unknown>>(url: string, init?: { 
   })
   const j = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const e = new Error(j.error || `Falha (${res.status})`) as Error & { status?: number; pendentes?: string[] }
-    e.status = res.status; e.pendentes = j.pendentes
+    const e = new Error(j.error || `Falha (${res.status})`) as Error & { status?: number; pendentes?: string[]; dados?: Record<string, unknown> }
+    e.status = res.status; e.pendentes = j.pendentes; e.dados = j
     throw e
   }
   return j as T
@@ -72,6 +72,36 @@ export function Modal({ titulo, onFechar, children, largura = 560 }: { titulo: s
 export function Timer({ limiteMin, ativo, chave }: { limiteMin: number; ativo: boolean; chave: string }) {
   return <TimerInner key={chave} limiteMin={limiteMin} ativo={ativo} />
 }
+/**
+ * Cronômetro da reunião toda (José, 23/11/2026): conta a partir de quando ela começou de verdade
+ * (payload.iniciada_em; sem ele, a hora marcada) e compara com a duração prevista.
+ * Laranja nos últimos 20%, vermelho quando passa. Com `fim` (encerrada) mostra quanto durou, parado.
+ */
+export function CronometroReuniao({ inicio, fim, duracaoMin }: { inicio: string; fim?: string | null; duracaoMin: number }) {
+  const [agora, setAgora] = useState(() => Date.now())
+  useEffect(() => {
+    if (fim) return
+    const t = setInterval(() => setAgora(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [fim])
+  const seg = Math.max(0, Math.floor(((fim ? new Date(fim).getTime() : agora) - new Date(inicio).getTime()) / 1000))
+  const lim = duracaoMin * 60
+  const cor = fim ? '#475569' : seg > lim ? '#dc2626' : seg > lim * 0.8 ? '#d97706' : '#059669'
+  const h = Math.floor(seg / 3600); const m = Math.floor((seg % 3600) / 60); const s = seg % 60
+  const relogio = `${h ? `${h}:` : ''}${String(m).padStart(h ? 2 : 1, '0')}:${String(s).padStart(2, '0')}`
+  const extra = fim ? `durou · previsto ${duracaoMin} min`
+    : seg > lim ? `passou ${Math.ceil((seg - lim) / 60)} min do previsto (${duracaoMin} min)`
+    : `de ${duracaoMin} min · faltam ${Math.ceil((lim - seg) / 60)} min`
+  return (
+    <span title={fim ? 'Tempo total da reunião' : 'Tempo desde que a reunião começou'}
+      style={{ display: 'inline-flex', alignItems: 'baseline', gap: 8, padding: '6px 14px', borderRadius: 12, color: cor, background: `color-mix(in srgb,${cor} 10%,transparent)`, border: `1px solid color-mix(in srgb,${cor} 30%,transparent)` }}>
+      <Relogio size={16} style={{ alignSelf: 'center' }} />
+      <span style={{ fontSize: 22, fontWeight: 500, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>{relogio}</span>
+      <span style={{ fontSize: 12.5 }}>{extra}</span>
+    </span>
+  )
+}
+
 function TimerInner({ limiteMin, ativo }: { limiteMin: number; ativo: boolean }) {
   const [seg, setSeg] = useState(0)
   useEffect(() => {

@@ -83,8 +83,8 @@ export default function OrganizarTicket({ ticket, onFechar, onFeito }: {
           {!pendente ? (
             <>
               <button style={btn()} onClick={onFechar}>Cancelar</button>
-              <button style={btn('#dc2626')} disabled={salvando || !valor.quadroId} title={!valor.quadroId ? 'Escolha um bloco' : undefined}
-                onClick={() => enviar({ acao: 'organizar', ...organizacao })}><LayoutGrid size={15} /> Pôr no bloco</button>
+              <button style={btn('#dc2626')} disabled={salvando || !valor.quadroId} title={!valor.quadroId ? 'Escolha um quadro' : undefined}
+                onClick={() => enviar({ acao: 'organizar', ...organizacao })}><LayoutGrid size={15} /> Pôr no quadro</button>
             </>
           ) : modo === null ? (
             <>
@@ -92,7 +92,7 @@ export default function OrganizarTicket({ ticket, onFechar, onFeito }: {
                 <button style={btn()} onClick={() => setModo('recusar')}><CircleX size={15} /> Recusar</button>
                 <button style={btn()} onClick={() => setModo('data')}><CalendarClock size={15} /> Outra data</button>
               </span>
-              <button style={btn('#059669')} disabled={salvando || !valor.quadroId} title={!valor.quadroId ? 'Escolha um bloco' : undefined} onClick={() => enviar({ acao: 'aceite', decisao: 'confirmar', ...organizacao })}><Check size={15} /> Confirmar</button>
+              <button style={btn('#059669')} disabled={salvando || !valor.quadroId} title={!valor.quadroId ? 'Escolha um quadro' : undefined} onClick={() => enviar({ acao: 'aceite', decisao: 'confirmar', ...organizacao })}><Check size={15} /> Confirmar</button>
             </>
           ) : (
             <>

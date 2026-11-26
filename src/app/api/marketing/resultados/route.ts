@@ -6,7 +6,7 @@
 // manual ao SQL Editor de produção.
 import { NextResponse } from 'next/server';
 import { guardar, erroResposta, num } from '@/lib/marketing/rota';
-import { db, listarAcoes, propostasDaAcao } from '@/lib/marketing/db';
+import { db, listarAcoes, propostasDaAcao, obterRegrasRetorno } from '@/lib/marketing/db';
 import { calcularROI } from '@/lib/marketing/roi';
 import type { Acao, Apoio, Custo, Lead } from '@/lib/marketing/tipos';
 
@@ -44,6 +44,7 @@ export async function GET(req: Request) {
     const porLead = agrupar<Lead & { acao_id: string }>(leads.data as any);
 
     const resultados = [];
+    const regras = await obterRegrasRetorno();
     for (const acao of acoes as Acao[]) {
       resultados.push({
         acao,
@@ -53,6 +54,7 @@ export async function GET(req: Request) {
           apoios: porApoio[acao.id] ?? [],
           leads: porLead[acao.id] ?? [],
           propostas: await propostasDaAcao(acao.id),
+          regras,
         }),
       });
     }

@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import ModalNovoPop from '@/components/pops/ModalNovoPop'
 import { ChipEtiqueta } from '@/components/pops/EtiquetasPop'
 import {
-  COR_POPS, EstadoChip, areasQuePossoCriar, botao, br, campo, cartao, chamar, chip, pagina, primeiroNome, vazio,
+  COR_POPS, TEXTO_POPS, EstadoChip, areasQuePossoCriar, botao, br, campo, cartao, chamar, chip, pagina, primeiroNome, vazio,
   type AreasResp, type PopLista, type UsuarioMapa,
 } from '@/components/pops/comum'
 
@@ -118,7 +118,7 @@ export default function PopsLista() {
         <div style={{ ...cartao, marginBottom: 14, borderLeft: '4px solid #0f766e', display: 'grid', gap: 6 }}>
           <strong>Você precisa ler {paraLer.length === 1 ? 'este procedimento' : `estes ${paraLer.length} procedimentos`} e dar ciência</strong>
           {paraLer.map((x) => x.pop && (
-            <Link key={x.versao_id} href={`/pops/${x.pop.id}`} style={{ color: COR_POPS, fontWeight: 700, textDecoration: 'none' }}>
+            <Link key={x.versao_id} href={`/pops/${x.pop.id}`} style={{ color: TEXTO_POPS, fontWeight: 700, textDecoration: 'none' }}>
               {x.pop.codigo} v{x.numero} · {x.pop.titulo} →
             </Link>
           ))}
@@ -129,7 +129,7 @@ export default function PopsLista() {
         : !porArea.length ? (
           <div style={vazio}>
             {pops.length ? 'Nenhum POP com esses filtros.' : 'Ainda não há POP publicado.'}
-            {posso.length > 0 && !pops.length && <> Comece por <Link href="/pops/modelos" style={{ color: COR_POPS, fontWeight: 700 }}>um modelo</Link> ou crie do zero.</>}
+            {posso.length > 0 && !pops.length && <> Comece por <Link href="/pops/modelos" style={{ color: TEXTO_POPS, fontWeight: 700 }}>um modelo</Link> ou crie do zero.</>}
           </div>
         ) : porArea.map(({ area: a, pops: lista }) => (
           <section key={a.id} style={{ marginBottom: 22 }}>
@@ -143,7 +143,7 @@ export default function PopsLista() {
                   padding: '11px 14px', textDecoration: 'none', color: 'inherit',
                   borderTop: i ? '1px solid var(--portal-border,#e5e7eb)' : 'none', opacity: p.arquivado ? .55 : 1,
                 }}>
-                  <span style={{ fontFamily: 'ui-monospace,monospace', fontWeight: 800, color: COR_POPS, fontSize: 13 }}>{p.codigo}</span>
+                  <span style={{ fontFamily: 'ui-monospace,monospace', fontWeight: 800, color: TEXTO_POPS, fontSize: 13 }}>{p.codigo}</span>
                   <span style={{ minWidth: 0 }}>
                     <span style={{ display: 'block', fontWeight: 700, color: 'var(--portal-text,#111)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.titulo}</span>
                     <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>

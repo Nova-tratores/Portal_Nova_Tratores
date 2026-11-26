@@ -98,7 +98,9 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
     // Lousa abre na SEMANA: na vista de um dia só, um dia sem OS parecia "não aparece nada" (16/10/2026)
     setVistaS(v && VISTAS.some((x) => x.id === v) ? v : window.innerWidth < 900 ? 'dia' : 'semana')
     setOcultos(new Set(ler<string[]>(chave('ocultos'), [])))
-    setFontesOff(new Set(ler<Fonte[]>(chave('fontes-off'), [])))
+    // Prazos de tickets começam DESLIGADOS (Fase 0, 24/11/2026: os "contínuos" poluíam).
+    // Chave nova (v2) para valer também para quem já tinha escolha salva; liga quem quiser.
+    setFontesOff(new Set(ler<Fonte[] | null>(chave('fontes-off-v2'), null) ?? [...new Set<Fonte>([...ler<Fonte[]>(chave('fontes-off'), []), 'ticket'])]))
     setSetoresFechados(new Set(ler<string[]>(chave('setores-fechados'), [])))
     setMostrarFds(ler<boolean>('agenda-fds', true))
     setLateral(window.innerWidth >= 900)
@@ -117,7 +119,7 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
   }
   const setVista = (v: Vista) => { setVistaS(v); gravar(chave('vista'), v) }
   const trocarOcultos = (s: Set<string>) => { setOcultos(s); gravar(chave('ocultos'), [...s]) }
-  const trocarFontes = (s: Set<Fonte>) => { setFontesOff(s); gravar(chave('fontes-off'), [...s]) }
+  const trocarFontes = (s: Set<Fonte>) => { setFontesOff(s); gravar(chave('fontes-off-v2'), [...s]) }
 
   // ---------- faixa de datas da vista
   const faixa = useMemo(() => {

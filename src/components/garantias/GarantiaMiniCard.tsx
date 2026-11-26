@@ -47,7 +47,7 @@ export default function GarantiaMiniCard({ garantia: g, onClick, cor, extra }: P
             fontSize: 10.5,
             fontWeight: 700,
             textTransform: 'uppercase',
-            color: STATUS_COR[g.status],
+            color: `color-mix(in srgb, ${STATUS_COR[g.status]} var(--mx-mix, 100%), #fff)`,
             background: STATUS_COR[g.status] + '1c',
             padding: '3px 7px',
             borderRadius: 6,
@@ -63,7 +63,7 @@ export default function GarantiaMiniCard({ garantia: g, onClick, cor, extra }: P
       </div>
 
       <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', display: 'flex', flexWrap: 'wrap', gap: '2px 8px' }}>
-        <span>OS {g.id_ordem}</span>
+        <span>{g.id_ordem ? `OS ${g.id_ordem}` : 'Só peças (sem OS)'}</span>
         {g.chassis && <span>· {g.chassis}</span>}
       </div>
 
@@ -79,7 +79,7 @@ export default function GarantiaMiniCard({ garantia: g, onClick, cor, extra }: P
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--portal-text-faint)' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--mx-t3, var(--portal-text-faint))' }}>
           <Clock size={11} />
           {naFabrica && diasFabrica != null
             ? `${diasFabrica}d na fábrica`
@@ -95,7 +95,7 @@ export default function GarantiaMiniCard({ garantia: g, onClick, cor, extra }: P
             style={{
               display: 'flex', alignItems: 'center', gap: 3,
               fontSize: 11, fontWeight: 700,
-              color: diasDevolucao != null && diasDevolucao < 0 ? '#dc2626' : '#b45309',
+              color: diasDevolucao != null && diasDevolucao < 0 ? 'var(--mx-fg-red, #dc2626)' : 'var(--mx-fg-orange, #b45309)',
             }}
           >
             <AlertTriangle size={11} />
@@ -113,7 +113,7 @@ export default function GarantiaMiniCard({ garantia: g, onClick, cor, extra }: P
             style={{
               display: 'flex', alignItems: 'center', gap: 3,
               fontSize: 11, fontWeight: 700,
-              color: diasGuarda != null && diasGuarda <= 0 ? '#16a34a' : '#0e7490',
+              color: diasGuarda != null && diasGuarda <= 0 ? 'var(--mx-fg-green, #16a34a)' : 'var(--mx-fg-teal, #0e7490)',
             }}
           >
             <Archive size={11} />

@@ -103,7 +103,7 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
     const linhas = filtrada.map((g) => `
       <tr>
         <td><b>${esc(g.numero)}</b></td>
-        <td>${esc(g.id_ordem)}</td>
+        <td>${esc(g.id_ordem || 'Só peças')}</td>
         <td>${esc(g.cliente || '—')}</td>
         <td>${esc(g.chassis || '—')}</td>
         <td>${esc(g.montadora?.nome || '—')}</td>
@@ -317,7 +317,7 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
                   style={{ cursor: 'pointer' }}
                 >
                   <td style={{ ...td, fontWeight: 700 }}>{g.numero}</td>
-                  <td style={td}>{g.id_ordem}</td>
+                  <td style={td}>{g.id_ordem || 'Só peças'}</td>
                   <td style={td}>{g.cliente || '—'}</td>
                   <td style={td}>{g.chassis || '—'}</td>
                   <td style={td}>{g.montadora?.nome || '—'}</td>

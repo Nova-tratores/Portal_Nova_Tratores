@@ -13,13 +13,39 @@ import { ArtesDasRedes, EscolherRedes, IconeRede, LegendaRedes } from '@/compone
 import { REDE, STATUS_POST, faltas, type Arte, type Midia, type RedeId, type StatusPost } from '@/lib/marketing/redes/redes';
 import { COR_PRIOR, NOME_PRIOR, DATAS_AGRO, datasDoDia, guiaDe, temporadasDoMes, type DataAgro } from '@/lib/marketing/redes/datasAgro';
 import { AZUL, Campo, Secao, T1, T2, T3, Voltar, bt, campoNP, cartaoNP, grade, ic } from '@/components/marketing/redes/np';
+import { TIPOS_POST, FORMATOS_POST, GANCHOS, linkWhatsDoPost, linkSiteDoPost } from '@/lib/marketing/redes/etiquetas';
+import { LogoRede } from '@/components/marketing/redes/LogoRede';
+
+// 25/11/2026 (José: "quero que fique tudo o mais dinâmico, moderno, prático, fácil de entender"):
+// dia vazio mostra "+ criar post" no mouse, o dia que recebe o post arrastado acende, "hoje" pulsa.
+const ESTILO_CAL = `
+.cal-dia { transition: background .15s ease, box-shadow .15s ease; }
+.cal-dia.cal-pode:hover { background: color-mix(in srgb, #d97706 6%, var(--portal-bg-secondary, #ffffff)) !important; }
+.cal-dia .cal-mais { opacity: 0; transition: opacity .15s ease; }
+.cal-dia:hover .cal-mais { opacity: 1; }
+@media (hover: none) { .cal-dia .cal-mais { opacity: .8; } }
+.cal-alvo { background: color-mix(in srgb, #16a34a 12%, var(--portal-bg-secondary, #ffffff)) !important; box-shadow: inset 0 0 0 2px #16a34a !important; }
+@keyframes calPulsa { 0%, 100% { box-shadow: 0 0 0 0 rgba(217,119,6,.45); } 50% { box-shadow: 0 0 0 6px rgba(217,119,6,0); } }
+.cal-hoje { animation: calPulsa 2s ease-in-out infinite; }
+.cal-chip[draggable="true"] { cursor: grab; }
+.cal-chip[draggable="true"]:active { cursor: grabbing; }
+@media (prefers-reduced-motion: reduce) { .cal-hoje { animation: none; } }
+`;
+const ehVideo = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
+const NOME_SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 type Resultado = Partial<Record<RedeId, { ok: boolean; link?: string | null; em?: string; manual?: boolean; erro?: string | null }>>;
 type Post = {
   id: string; titulo: string; legenda: string | null; redes: RedeId[]; formato: string; midia: Midia; quando: string | null
   status: StatusPost; promocao_id: string | null; resultado: Resultado; notas: string | null; criado_por: string | null; atualizado_por: string | null
-};
-type Rascunho = { id?: string; titulo: string; legenda: string; redes: RedeId[]; formato: string; midia: Midia; data: string; hora: string; notas: string; promocao_id: string | null; status: StatusPost; resultado: Resultado; chave: string };
+} & Etq & { codigo?: string | null; contatos?: number };
+/** Fase 4 (23/11/2026): etiquetas de seleção rápida (lib/marketing/redes/etiquetas.ts) */
+type Etq = { etiqueta_tipo?: string | null; gente_real?: boolean | null; maquina?: string | null; gancho?: string | null;
+  /** Fase 3.2: texto por rede (vazio = o texto único), primeiro comentário, hashtags, título do YouTube */
+  textos?: Partial<Record<RedeId, string>>; primeiro_comentario?: string | null; hashtags?: string | null; titulo_youtube?: string | null;
+  /** Fase 3.5: aprovação de post de preço */
+  aprovado_por?: string | null; aprovado_em?: string | null };
+type Rascunho = { id?: string; titulo: string; legenda: string; redes: RedeId[]; formato: string; midia: Midia; data: string; hora: string; notas: string; promocao_id: string | null; status: StatusPost; resultado: Resultado; chave: string } & Etq & { codigo?: string | null; contatos?: number };
 type Conta = { rede: RedeId; nome: string | null };
 
 const SOCIAIS: RedeId[] = ['instagram', 'facebook', 'tiktok', 'youtube'];
@@ -48,6 +74,12 @@ function useLargo(min: number) {
 }
 
 /** Situação calculada: sem data = ideia; com data e arte para tudo = pronto; o que já saiu manda. */
+/** Fase 3.2: o texto que vai para a rede — o ajustado dela, senão o texto único — com as hashtags no fim. */
+function textoDaRede(r: Pick<Rascunho, 'legenda' | 'textos' | 'hashtags'>, rede: RedeId): string {
+  const base = (r.textos?.[rede] || r.legenda || '').trim();
+  return r.hashtags ? base + String.fromCharCode(10, 10) + r.hashtags : base;
+}
+
 function statusDe(r: Pick<Rascunho, 'data' | 'redes' | 'midia' | 'resultado'>): StatusPost {
   const saiu = r.redes.filter((x) => r.resultado[x]?.ok).length;
   if (saiu && saiu === r.redes.length) return 'publicado';
@@ -94,9 +126,23 @@ export default function CalendarioRedes() {
       return u;
     });
   }, []);
-  const abrirPost = (p: Post) => { abriuAqui.current = true; ir({ post: p.id, novo: null, promo: null }); window.scrollTo({ top: 0 }); };
+  // 19/11/2026 (José): a tela abre na SEMANA; o mês inteiro abre num modal, se a pessoa quiser.
+  const segundaDe = (d: string) => somaDias(d, -((new Date(`${d}T12:00:00Z`).getUTCDay() + 6) % 7));
+  const [semana, setSemana] = useState(() => segundaDe(hoje()));
+  const [mesAberto, setMesAberto] = useState(false);
+  const [podeAprovar, setPodeAprovar] = useState(false);   // Fase 3.5
+  const [ajustar, setAjustar] = useState<RedeId | null>(null);   // Fase 3.2: rede com texto próprio aberta
+  const [whats, setWhats] = useState<string | null>(null);   // WhatsApp da empresa (link do post)
+  const [siteUrl, setSiteUrl] = useState('');
+  const [linkPara, setLinkPara] = useState<RedeId | null>(null);   // 'Já postei' pedindo o link do post
+  const [linkPost, setLinkPost] = useState('');
+  // o mês da tela acompanha a semana (pela quinta-feira, que decide de que mês a semana "é") —
+  // é ele que define o que o carregar() busca e as temporadas mostradas
+  const irSemana = (seg: string) => { setSemana(seg); ir({ mes: somaDias(seg, 3).slice(0, 7) }, true); };
+  const fecharMes = () => { setMesAberto(false); ir({ mes: somaDias(semana, 3).slice(0, 7) }, true); };
+  const abrirPost = (p: Post) => { setMesAberto(false); abriuAqui.current = true; ir({ post: p.id, novo: null, promo: null }); window.scrollTo({ top: 0 }); };
   const tema = useRef<DataAgro | null>(null);
-  const novoPost = (dia: string, t: DataAgro | null = null) => { tema.current = t; abriuAqui.current = true; ir({ post: null, novo: dia || 'sem-data', promo: null }); window.scrollTo({ top: 0 }); };
+  const novoPost = (dia: string, t: DataAgro | null = null) => { setMesAberto(false); tema.current = t; abriuAqui.current = true; ir({ post: null, novo: dia || 'sem-data', promo: null }); window.scrollTo({ top: 0 }); };
   const fechar = () => { if (abriuAqui.current) { abriuAqui.current = false; window.history.back(); } else ir({ post: null, novo: null, promo: null }, true); };
 
   // ---- dados: o mês da tela + os próximos 31 dias (para a conta do "1 mês adiantado")
@@ -108,9 +154,41 @@ export default function CalendarioRedes() {
     const j = await res.json().catch(() => ({}));
     if (!res.ok || !j.ok) { setErro(j.erro || 'Não consegui carregar o calendário.'); setPosts([]); return; }
     setErro(''); setPosts(j.posts); setIdeias(j.ideias); setContas(j.contas || []); setPodeEditar(!!j.podeEditar);
+    setWhats(j.whatsapp || null); setSiteUrl(j.siteUrl || ''); setPodeAprovar(!!j.podeAprovar);
   }, [inicioGrade, rota.ano]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { carregar(); }, [carregar]);
+
+  // Melhor dia da semana para postar: média de pessoas alcançadas por dia da semana (todas as redes, robô da Meta).
+  // Quem não tem acesso à aba Acessos simplesmente não vê esse cartão.
+  const [melhorDia, setMelhorDia] = useState<{ nome: string; media: number } | null>(null);
+  useEffect(() => {
+    fetchAuth('/api/marketing/redes?rede=todas').then(async (res) => {
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j.ok) return;
+      const porDia = new Map<string, number>();
+      for (const m of (j.metricas || []) as { dia: string; alcance: number | null }[]) porDia.set(m.dia, (porDia.get(m.dia) || 0) + (Number(m.alcance) || 0));
+      const s = Array.from({ length: 7 }, () => ({ soma: 0, n: 0 }));
+      for (const [d, v] of porDia) { const w = new Date(`${d}T12:00:00Z`).getUTCDay(); s[w].soma += v; s[w].n++; }
+      const medias = s.map((x, w) => ({ w, media: x.n ? x.soma / x.n : 0 }));
+      const top = medias.reduce((a, b) => (b.media > a.media ? b : a), medias[0]);
+      if (top.media > 0) setMelhorDia({ nome: NOME_SEMANA[top.w], media: Math.round(top.media) });
+    }).catch(() => {});
+  }, []);
+
+  // Arrastar um post para outro dia (mantém a hora). Post que já saiu não se arrasta.
+  const [arrastando, setArrastando] = useState<string | null>(null);
+  const [alvo, setAlvo] = useState<string | null>(null);
+  async function mover(id: string, dia: string) {
+    const p = (posts || []).find((x) => x.id === id);
+    if (!p?.quando || diaDe(p.quando) === dia || dia < hoje()) return;
+    const quando = `${dia}T${horaDe(p.quando)}:00-03:00`;
+    setPosts((l) => (l || []).map((x) => (x.id === id ? { ...x, quando: new Date(quando).toISOString() } : x)));   // já mostra no dia novo
+    const res = await fetchAuth('/api/marketing/posts', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, quando }) });
+    const j = await res.json().catch(() => ({}));
+    await carregar();   // volta o post para onde ele está de verdade (o carregar limpa o aviso; por isso o aviso vem depois)
+    if (!res.ok || !j.ok) setErro(`Não consegui mudar o dia de "${p.titulo}": ${j.erro || 'erro ao gravar'}. Abra o post e mude a data por lá.`);
+  }
 
   // ---- editor segue o endereço
   const chave = rota.post || (rota.novo ? `novo:${rota.novo}` : rota.promo ? `promo:${rota.promo}` : null);
@@ -151,7 +229,10 @@ export default function CalendarioRedes() {
 
   function rascunhoDe(p: Post, k: string): Rascunho {
     return { id: p.id, chave: k, titulo: p.titulo, legenda: p.legenda || '', redes: p.redes || [], formato: p.formato, midia: p.midia || {}, data: p.quando ? diaDe(p.quando) : '',
-      hora: p.quando ? horaDe(p.quando) : '09:00', notas: p.notas || '', promocao_id: p.promocao_id, status: p.status, resultado: p.resultado || {} };
+      hora: p.quando ? horaDe(p.quando) : '09:00', notas: p.notas || '', promocao_id: p.promocao_id, status: p.status, resultado: p.resultado || {},
+      etiqueta_tipo: p.etiqueta_tipo ?? null, gente_real: p.gente_real ?? null, maquina: p.maquina ?? null, gancho: p.gancho ?? null, codigo: p.codigo ?? null, contatos: p.contatos,
+      textos: p.textos || {}, primeiro_comentario: p.primeiro_comentario ?? null, hashtags: p.hashtags ?? null, titulo_youtube: p.titulo_youtube ?? null,
+      aprovado_por: p.aprovado_por ?? null, aprovado_em: p.aprovado_em ?? null };
   }
 
   async function chamar(metodo: string, corpo?: unknown, q = '') {
@@ -164,7 +245,9 @@ export default function CalendarioRedes() {
   }
   function corpoDe(x: Rascunho) {
     return { id: x.id, titulo: x.titulo, legenda: x.legenda, redes: x.redes, formato: x.formato, midia: x.midia, notas: x.notas, promocao_id: x.promocao_id,
-      quando: x.data ? `${x.data}T${x.hora || '09:00'}:00-03:00` : null, status: statusDe(x), resultado: x.resultado };
+      quando: x.data ? `${x.data}T${x.hora || '09:00'}:00-03:00` : null, status: statusDe(x), resultado: x.resultado,
+      etiqueta_tipo: x.etiqueta_tipo ?? null, gente_real: x.gente_real ?? null, maquina: x.maquina ?? null, gancho: x.gancho ?? null,
+      textos: x.textos || {}, primeiro_comentario: x.primeiro_comentario ?? null, hashtags: x.hashtags ?? null, titulo_youtube: x.titulo_youtube ?? null };
   }
   async function salvar(fecharDepois = true) {
     if (!r) return null;
@@ -180,10 +263,19 @@ export default function CalendarioRedes() {
     if (!r?.id || !confirm('Apagar este post do calendário? (O que já saiu nas redes continua lá.)')) return;
     if (await chamar('DELETE', undefined, `?id=${r.id}`)) { carregar(); fechar(); }
   }
-  async function marcar(rede: RedeId, ok: boolean) {
+  /** Fase 3.5: aprovar (ou desfazer) post de preço/condição. */
+  async function aprovar(sim: boolean) {
+    if (!r?.id) return;
+    const j = await chamar('PATCH', { id: r.id, aprovar: sim });
+    if (j?.post) { setR({ ...r, aprovado_por: j.post.aprovado_por ?? null, aprovado_em: j.post.aprovado_em ?? null }); carregar(); }
+  }
+
+  async function marcar(rede: RedeId, ok: boolean, link?: string) {
     if (!r) return;
     const resultado = { ...r.resultado };
-    if (ok) resultado[rede] = { ok: true, manual: true, em: new Date().toISOString() }; else delete resultado[rede];
+    // Fase 3.1: guarda o link do post (com ele dá para puxar as métricas quando a Meta for ligada)
+    if (ok) resultado[rede] = { ok: true, manual: true, em: new Date().toISOString(), link: (link || '').startsWith('https://') ? link : null }; else delete resultado[rede];
+    setLinkPara(null); setLinkPost('');
     const novo = { ...r, resultado };
     setR(novo);
     if (novo.id) { await chamar('PATCH', corpoDe(novo)); carregar(); }
@@ -194,12 +286,13 @@ export default function CalendarioRedes() {
     if (!r) return;
     const url = REDE[rede].artes.map((a) => r.midia[a]).find(Boolean);
     if (!url) return;
-    try { await navigator.clipboard.writeText(r.legenda); setCopiado(rede); } catch { /* sem permissão de copiar */ }
+    const texto = textoDaRede(r, rede);   // Fase 3.2: o texto daquela rede + hashtags
+    try { await navigator.clipboard.writeText(texto); setCopiado(rede); } catch { /* sem permissão de copiar */ }
     try {
       const blob = await (await fetch(url)).blob();
       const nome = `nova-tratores-${rede}.${blob.type.includes('mp4') ? 'mp4' : blob.type.includes('quicktime') ? 'mov' : blob.type.includes('png') ? 'png' : 'jpg'}`;
       const arq = new File([blob], nome, { type: blob.type });
-      if (navigator.canShare?.({ files: [arq] })) { await navigator.share({ files: [arq], text: r.legenda }); return; }
+      if (navigator.canShare?.({ files: [arq] })) { await navigator.share({ files: [arq], text: texto }); return; }
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; a.click();
     } catch { /* cancelou */ }
   }
@@ -214,8 +307,7 @@ export default function CalendarioRedes() {
   const prox30 = useMemo(() => Array.from({ length: 30 }, (_, i) => somaDias(hoje(), i)), []);
   const vazios = prox30.filter((d) => !porDia.get(d)?.length);
 
-  // datas do agro: as importantes (obrigatória e boa) dos próximos 30 dias que ainda estão sem post no dia
-  const agroSemPost = DATAS_AGRO.filter((x) => x.prior >= 2 && x.d >= hoje() && x.d <= prox30[29] && !porDia.get(x.d)?.length);
+  // datas do agro importantes (obrigatória e boa) dos próximos 60 dias (as sem post viram o cartão "Próxima data do agro")
   const proximasAgro = DATAS_AGRO.filter((x) => x.prior >= 2 && (x.ate || x.d) >= hoje() && x.d <= somaDias(hoje(), 60));
 
   // ---------------------------------------------------------------- peças
@@ -252,29 +344,48 @@ export default function CalendarioRedes() {
       </button>
     );
   };
+  // 25/11/2026: o post mostra a miniatura da arte e as logos das redes; dá para arrastar para outro dia
   const chipPost = (p: Post, compacto: boolean) => {
     const s = STATUS_POST[p.status] || STATUS_POST.ideia;
     const falta = faltas(p.redes, p.midia).length > 0;
+    const arte = [p.midia?.feed, p.midia?.vertical, p.midia?.site, p.midia?.video].find(Boolean) || null;
+    const arrasta = podeEditar && !!p.quando && !['publicado', 'parcial'].includes(p.status);
+    const lado = compacto ? 38 : 52;
     return (
-      <button key={p.id} type="button" onClick={(e) => { e.stopPropagation(); abrirPost(p); }} title={`${p.titulo} · ${s.nome}`}
-        style={{ display: 'grid', gap: 2, width: '100%', textAlign: 'left', font: 'inherit', cursor: 'pointer', padding: compacto ? '4px 6px' : '8px 10px', borderRadius: 8,
-          border: `1px solid color-mix(in srgb, ${s.cor} 35%, transparent)`, background: `color-mix(in srgb, ${s.cor} 9%, var(--surface))`, color: T1, minWidth: 0 }}>
-        <span style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: compacto ? 11 : 12, color: s.cor }}>
-          {ic(s.icone)}{p.quando ? horaDe(p.quando) : 'sem data'}
-          <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 3 }}>{p.redes.map((id) => <IconeRede key={id} id={id} tam={compacto ? 10 : 12} />)}</span>
+      <button key={p.id} type="button" className="cal-chip np-sobe" draggable={arrasta}
+        onDragStart={(e) => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; setArrastando(p.id); }}
+        onDragEnd={() => { setArrastando(null); setAlvo(null); }}
+        onClick={(e) => { e.stopPropagation(); abrirPost(p); }} title={`${p.titulo} · ${s.nome}${arrasta ? ' · arraste para mudar o dia' : ''}`}
+        style={{ display: 'grid', gridTemplateColumns: `${lado}px minmax(0, 1fr)`, gap: 8, alignItems: 'center', width: '100%', textAlign: 'left', font: 'inherit', cursor: 'pointer',
+          padding: 4, paddingRight: 8, borderRadius: 10, minWidth: 0, color: T1, opacity: arrastando === p.id ? 0.4 : 1,
+          border: `1px solid color-mix(in srgb, ${s.cor} 35%, transparent)`, borderLeft: `3px solid ${s.cor}`, background: `color-mix(in srgb, ${s.cor} 7%, var(--surface))` }}>
+        <span style={{ width: lado, height: lado, borderRadius: 7, overflow: 'hidden', display: 'grid', placeItems: 'center', background: `color-mix(in srgb, ${s.cor} 14%, transparent)`, color: s.cor }}>
+          {arte && !ehVideo(arte)
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={arte} alt="" loading="lazy" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            : ic(arte ? 'fa-film' : 'fa-image')}
         </span>
-        <span style={{ fontSize: compacto ? 12 : 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: compacto ? 'nowrap' : 'normal' }}>{p.titulo}</span>
-        {falta && <span style={{ fontSize: 11, color: '#b45309' }}>{ic('fa-triangle-exclamation')} falta arte</span>}
+        <span style={{ display: 'grid', gap: 3, minWidth: 0 }}>
+          <span style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 11.5, color: s.cor, minWidth: 0 }}>
+            {ic(s.icone)}<span style={{ color: T2 }}>{p.quando ? horaDe(p.quando) : 'sem data'}</span>
+            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 2 }}>{p.redes.map((id) => <LogoRede key={id} id={id} tam={compacto ? 14 : 16} />)}</span>
+          </span>
+          <span style={{ fontSize: compacto ? 12.5 : 14, lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.titulo}</span>
+          {falta && <span style={{ fontSize: 11, color: '#b45309' }}>{ic('fa-triangle-exclamation')} falta arte</span>}
+        </span>
       </button>
     );
   };
 
-  function grade7() {
-    const dias = Array.from({ length: 42 }, (_, i) => somaDias(inicioGrade, i));
+  /** Sem argumento: o mês da tela. Com a segunda-feira: só aquela semana, com os dias mais altos. */
+  function grade7(seg?: string) {
+    const dias = seg
+      ? Array.from({ length: 7 }, (_, i) => somaDias(seg, i))
+      : Array.from({ length: 42 }, (_, i) => somaDias(inicioGrade, i));
     const h = hoje();
     // só o mês da tela: dias de outro mês viram espaço vazio e a última semana sem dia do mês sai
     const ultimo = dias.map((d) => d.startsWith(rota.mes)).lastIndexOf(true);
-    const visiveis = dias.slice(0, Math.ceil((ultimo + 1) / 7) * 7);
+    const visiveis = seg ? dias : dias.slice(0, Math.ceil((ultimo + 1) / 7) * 7);
     // grade de calendário de parede: linhas finas entre os dias (o fundo do quadro aparece no vão de 1px)
     const LINHA = 'color-mix(in srgb, var(--portal-text, #0f172a) 16%, transparent)';
     const FUNDO = 'var(--portal-bg-secondary, #ffffff)';
@@ -282,23 +393,37 @@ export default function CalendarioRedes() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 1, background: LINHA, border: `1px solid ${LINHA}`, borderRadius: 14, overflow: 'hidden' }}>
         {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => <span key={d} style={{ fontSize: 13, color: T2, padding: '8px 10px', background: 'color-mix(in srgb, var(--portal-text, #0f172a) 5%, var(--portal-bg, #f8fafc))' }}>{d}</span>)}
         {visiveis.map((d) => {
-          if (!d.startsWith(rota.mes)) return <div key={d} style={{ background: 'color-mix(in srgb, var(--portal-text, #0f172a) 3%, var(--portal-bg, #f8fafc))' }} />;
+          if (!seg && !d.startsWith(rota.mes)) return <div key={d} style={{ background: 'color-mix(in srgb, var(--portal-text, #0f172a) 3%, var(--portal-bg, #f8fafc))' }} />;
           const lista = porDia.get(d) || [];
           const passado = d < h;
           const vazioFuturo = !lista.length && !passado && d <= prox30[29];
           const fimDeSemana = [5, 6].includes(visiveis.indexOf(d) % 7);
+          const pode = podeEditar && !passado;
           return (
-            <div key={d} onClick={() => podeEditar && !passado && novoPost(d)}
-              style={{ minHeight: 118, padding: '8px 10px', display: 'grid', alignContent: 'start', gap: 6, cursor: podeEditar && !passado ? 'pointer' : 'default', minWidth: 0,
+            <div key={d} onClick={() => pode && novoPost(d)}
+              className={`cal-dia${pode ? ' cal-pode' : ''}${alvo === d ? ' cal-alvo' : ''}`}
+              onDragOver={(e) => { if (!pode || !arrastando) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (alvo !== d) setAlvo(d); }}
+              onDragLeave={() => { if (alvo === d) setAlvo(null); }}
+              onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); setAlvo(null); setArrastando(null); if (pode && id) mover(id, d); }}
+              style={{ minHeight: seg ? 260 : 118, padding: '8px 10px', display: 'grid', alignContent: 'start', gap: 6, cursor: pode ? 'pointer' : 'default', minWidth: 0,
                 boxShadow: d === h ? 'inset 0 0 0 2px #d97706' : 'none',
                 background: passado ? 'color-mix(in srgb, var(--portal-text, #0f172a) 3%, var(--portal-bg, #f8fafc))' : fimDeSemana ? 'color-mix(in srgb, var(--portal-text, #0f172a) 1.5%, ' + FUNDO + ')' : FUNDO }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 15, color: d === h ? '#d97706' : passado ? T3 : T1 }}>{Number(d.slice(8))}</span>
-                {d === h && <span style={{ fontSize: 12, color: '#d97706' }}>hoje</span>}
-                {vazioFuturo && <span style={{ marginLeft: 'auto', fontSize: 11, color: T3 }}>sem post</span>}
+                {d === h
+                  ? <span className="cal-hoje" style={{ minWidth: 28, height: 28, padding: '0 6px', borderRadius: 999, display: 'grid', placeItems: 'center', background: '#d97706', color: '#fefefe', fontSize: 14, fontWeight: 500 }}>{Number(d.slice(8))}</span>
+                  : <span style={{ fontSize: 15, fontWeight: 500, color: passado ? T3 : T1 }}>{Number(d.slice(8))}{seg && d.slice(8) === '01' ? ` ${nomeDia(d, { month: 'short' })}` : ''}</span>}
+                {d === h && <span style={{ fontSize: 12.5, color: '#d97706', fontWeight: 500 }}>hoje</span>}
+                {vazioFuturo && <span style={{ marginLeft: 'auto', width: 7, height: 7, borderRadius: 99, background: 'color-mix(in srgb, #d97706 55%, transparent)' }} title="Dia sem post" />}
               </span>
-              {datasDoDia(d).map((x) => chipAgro(x, d, true))}
-              {lista.map((p) => chipPost(p, true))}
+              <div style={{ display: 'grid', gap: 6, opacity: passado ? 0.75 : 1 }}>
+                {datasDoDia(d).map((x) => chipAgro(x, d, true))}
+                {lista.map((p) => chipPost(p, true))}
+              </div>
+              {pode && (
+                <span className="cal-mais" style={{ fontSize: 12.5, color: '#d97706', display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', padding: '6px 0', borderRadius: 8, border: '1px dashed color-mix(in srgb, #d97706 50%, transparent)' }}>
+                  {ic('fa-plus')}criar post
+                </span>
+              )}
             </div>
           );
         })}
@@ -320,7 +445,7 @@ export default function CalendarioRedes() {
           const datas = DATAS_AGRO.filter((x) => x.prior >= 2 && x.d.startsWith(m));
           const temp = temporadasDoMes(m);
           return (
-            <section key={m} onClick={() => ir({ mes: m, ano: false })} style={{ ...cartaoNP, display: 'grid', gap: 10, alignContent: 'start', cursor: 'pointer' }}>
+            <section key={m} onClick={() => { ir({ mes: m, ano: false }); setMesAberto(true); }} style={{ ...cartaoNP, display: 'grid', gap: 10, alignContent: 'start', cursor: 'pointer' }}>
               <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
                 <span style={{ fontSize: 16, textTransform: 'capitalize', color: m === h.slice(0, 7) ? '#d97706' : T1 }}>{nomeMes(m)}</span>
                 <span style={{ marginLeft: 'auto', fontSize: 12.5, color: nPosts ? '#16a34a' : T3 }}>{nPosts ? `${nPosts} post${nPosts > 1 ? 's' : ''}` : 'sem posts'}</span>
@@ -415,6 +540,37 @@ export default function CalendarioRedes() {
           <Campo rotulo="Texto do post" ajuda="O mesmo texto vai para todas as redes escolhidas. O contador fica vermelho quando passa do limite da rede.">
             <LegendaRedes valor={r.legenda} onChange={(v) => setR({ ...r, legenda: v })} redes={r.redes} />
           </Campo>
+          {/* Fase 3.2 (23/11/2026): texto único é o padrão; cada rede pode ter o seu */}
+          {r.redes.length > 1 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 12.5, color: T3 }}>Ajustar o texto para uma rede:</span>
+              {r.redes.map((id) => (
+                <button key={id} type="button" onClick={() => setAjustar(ajustar === id ? null : id)}
+                  style={{ ...bt(r.textos?.[id] ? REDE[id].cor : '#64748b', ajustar === id), minHeight: 32, fontSize: 12.5 }}>
+                  <IconeRede id={id} tam={13} /> {REDE[id].nome}{r.textos?.[id] ? ' · ajustado' : ''}
+                </button>
+              ))}
+            </div>
+          )}
+          {ajustar && r.redes.includes(ajustar) && (
+            <Campo rotulo={`Texto só para o ${REDE[ajustar].nome}`} ajuda="Vazio = usa o texto de cima.">
+              <textarea style={{ ...campoNP, minHeight: 90, resize: 'vertical' }} maxLength={5000} value={r.textos?.[ajustar] || ''}
+                placeholder={r.legenda} onChange={(e) => setR({ ...r, textos: { ...(r.textos || {}), [ajustar]: e.target.value } })} />
+            </Campo>
+          )}
+          <div style={grade(260)}>
+            <Campo rotulo="Hashtags" ajuda="Vão no fim do texto, em todas as redes. Ex.: #mahindra #agro #piraju">
+              <input style={campoNP} maxLength={500} value={r.hashtags || ''} onChange={(e) => setR({ ...r, hashtags: e.target.value })} />
+            </Campo>
+            {r.redes.includes('youtube') && (
+              <Campo rotulo="Título no YouTube" ajuda="Até 100 letras. Sem ele, o YouTube usa o começo do texto.">
+                <input style={campoNP} maxLength={100} value={r.titulo_youtube || ''} onChange={(e) => setR({ ...r, titulo_youtube: e.target.value })} />
+              </Campo>
+            )}
+          </div>
+          <Campo rotulo="Primeiro comentário (opcional)" ajuda="Postar logo depois, como comentário: link, mais hashtags ou o WhatsApp.">
+            <textarea style={{ ...campoNP, minHeight: 54, resize: 'vertical' }} maxLength={2200} value={r.primeiro_comentario || ''} onChange={(e) => setR({ ...r, primeiro_comentario: e.target.value })} />
+          </Campo>
           <Campo rotulo="Anotações (não vai para as redes)" ajuda="Ideia do post, quem gravar, material que falta.">
             <textarea style={{ ...campoNP, minHeight: 64, resize: 'vertical' }} maxLength={1000} value={r.notas} onChange={(e) => setR({ ...r, notas: e.target.value })} />
           </Campo>
@@ -432,29 +588,98 @@ export default function CalendarioRedes() {
           <div style={grade(180)}>
             <Campo rotulo="Dia"><input type="date" style={campoNP} value={r.data} onChange={(e) => setR({ ...r, data: e.target.value })} /></Campo>
             <Campo rotulo="Hora" ajuda="Melhores horários no agro: 7h, 12h e 19h."><input type="time" style={campoNP} value={r.hora} onChange={(e) => setR({ ...r, hora: e.target.value })} /></Campo>
-            <Campo rotulo="Formato no Insta e no Face">
-              <select style={campoNP} value={r.formato} onChange={(e) => setR({ ...r, formato: e.target.value })}>
-                <option value="feed">Post no feed (arte do feed)</option>
-                <option value="reels">Reels (vídeo em pé)</option>
-                <option value="story">Story (arte em pé)</option>
-              </select>
+          </div>
+        </Secao>
+
+        {/* Fase 4 (23/11/2026): etiquetas de seleção rápida — obrigatórias para o post sair; é com elas que
+            depois dá para ver "que tipo de post traz contato" */}
+        <Secao icone="fa-tags" cor="#0891b2" titulo="Etiquetas" sub="Obrigatórias para o post sair. Servem para descobrir que tipo de post traz cliente">
+          {([
+            ['Tipo do post', TIPOS_POST, r.etiqueta_tipo, (v: string) => setR({ ...r, etiqueta_tipo: v })],
+            ['Formato', FORMATOS_POST, r.formato, (v: string) => setR({ ...r, formato: v })],
+            ['Gancho (o começo do post)', GANCHOS, r.gancho, (v: string) => setR({ ...r, gancho: v })],
+          ] as const).map(([rot, ops, val, muda]) => (
+            <Campo key={rot} rotulo={rot}>
+              <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {ops.map((o) => (
+                  <button key={o.id} type="button" onClick={() => muda(o.id)}
+                    style={{ ...bt(val === o.id ? '#0891b2' : '#64748b', val === o.id), minHeight: 36, fontSize: 13 }}>{o.label}</button>
+                ))}
+              </span>
+            </Campo>
+          ))}
+          <div style={grade(220)}>
+            <Campo rotulo="Tem gente real? (cliente, técnico, operador)">
+              <span style={{ display: 'flex', gap: 6 }}>
+                {([[true, 'Sim'], [false, 'Não']] as const).map(([v, t]) => (
+                  <button key={t} type="button" onClick={() => setR({ ...r, gente_real: v })} style={{ ...bt(r.gente_real === v ? '#0891b2' : '#64748b', r.gente_real === v), minHeight: 36 }}>{t}</button>
+                ))}
+              </span>
+            </Campo>
+            <Campo rotulo="Máquina (opcional)" ajuda="Ex.: Mahindra 6075. Também vira o começo do código do post.">
+              <input style={campoNP} maxLength={120} value={r.maquina || ''} onChange={(e) => setR({ ...r, maquina: e.target.value })} />
             </Campo>
           </div>
         </Secao>
 
+        {/* Fase 4.3: código do post + links que contam quem veio dele */}
+        {r.codigo && (
+          <Secao icone="fa-link" cor="#16a34a" titulo={`Código do post: ${r.codigo}${typeof r.contatos === "number" ? ` · ${r.contatos} ${r.contatos === 1 ? "contato" : "contatos"} pelo WhatsApp` : ""}`} sub="Use estes links no post: quem chamar por eles conta como contato deste post">
+            {(() => {
+              const zap = whats ? linkWhatsDoPost(whats, r.codigo!, r.titulo) : null;
+              const site = siteUrl ? linkSiteDoPost(siteUrl, r.redes[0] || 'instagram', r.codigo!) : null;
+              const linha = (rot: string, url: string | null, falta: string) => (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, color: T2, minWidth: 120 }}>{rot}</span>
+                  {url ? <>
+                    <code style={{ flex: '1 1 240px', fontSize: 12, padding: '6px 8px', borderRadius: 8, background: 'var(--surface-2, rgba(100,116,139,.08))', overflowWrap: 'anywhere' }}>{url}</code>
+                    <button type="button" style={bt('#16a34a')} onClick={() => navigator.clipboard.writeText(url).catch(() => {})}>{ic('fa-copy')}Copiar</button>
+                  </> : <span style={{ fontSize: 12.5, color: T3 }}>{falta}</span>}
+                </div>
+              );
+              return <div style={{ display: 'grid', gap: 8 }}>
+                {linha('WhatsApp', zap, 'Falta o WhatsApp da empresa em Textos do site.')}
+                {linha(`Site (${r.redes[0] ? REDE[r.redes[0]].nome : 'Instagram'})`, site, 'Endereço do site não configurado.')}
+                <span style={{ fontSize: 12, color: T3 }}>No texto do post: “Chama no WhatsApp e fala o código {r.codigo}”. O link do site leva a etiqueta do post para a tela Acessos.</span>
+              </div>;
+            })()}
+          </Secao>
+        )}
+
         {r.redes.length > 0 && (
           <Secao icone="fa-paper-plane" cor="#16a34a" titulo="Postar" sub="Por enquanto pelo celular em 1 toque. Instagram e Facebook vão sair sozinhos quando a conta for ligada">
             <div style={{ display: 'grid', gap: 8 }}>
+              {/* Fase 3.5: post de preço/condição só sai depois de aprovado */}
+              {r.etiqueta_tipo === 'promocao' && (
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px', borderRadius: 12,
+                  background: r.aprovado_em ? 'color-mix(in srgb, #16a34a 8%, var(--surface))' : 'color-mix(in srgb, #d97706 10%, var(--surface))' }}>
+                  <span style={{ flex: '1 1 240px', fontSize: 13.5 }}>
+                    {r.aprovado_em
+                      ? <>{ic('fa-circle-check')} Aprovado por {r.aprovado_por} em {new Date(r.aprovado_em).toLocaleString('pt-BR', { timeZone: FUSO, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</>
+                      : <>{ic('fa-hourglass-half')} <b style={{ fontWeight: 500 }}>Aguardando aprovação</b>: post de preço ou condição só sai depois de alguém aprovar.{!r.id && ' Grave o post primeiro.'}</>}
+                  </span>
+                  {podeAprovar && r.id && (r.aprovado_em
+                    ? <button type="button" style={bt('#64748b')} onClick={() => aprovar(false)}>Desfazer aprovação</button>
+                    : <button type="button" style={bt('#16a34a', true)} onClick={() => aprovar(true)}>{ic('fa-check')}Aprovar</button>)}
+                </div>
+              )}
+              {r.primeiro_comentario && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
+                  <span style={{ color: T2 }}>Depois de postar, cole o primeiro comentário:</span>
+                  <button type="button" style={bt('#0891b2')} onClick={() => navigator.clipboard.writeText(r.primeiro_comentario || '').catch(() => {})}>{ic('fa-copy')}Copiar comentário</button>
+                </div>
+              )}
               {r.redes.map((id) => {
                 const rs = r.resultado[id];
-                const semArte = f.some((x) => x.rede === id);
+                // sem arte, ou post de preço ainda não aprovado: não dá para marcar que saiu
+                const semArte = f.some((x) => x.rede === id) || (r.etiqueta_tipo === 'promocao' && !r.aprovado_em);
                 const ligada = !!conta(id);
                 return (
                   <div key={id} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)', background: rs?.ok ? 'color-mix(in srgb, #16a34a 6%, var(--surface))' : 'var(--surface)' }}>
                     <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', minWidth: 150 }}><IconeRede id={id} tam={18} />{REDE[id].nome}</span>
                     <span style={{ fontSize: 12.5, color: rs?.ok ? '#16a34a' : semArte ? '#b45309' : T3, flex: '1 1 160px' }}>
                       {rs?.ok ? `Postado ${rs.manual ? 'pelo celular' : 'sozinho'} em ${new Date(rs.em || '').toLocaleString('pt-BR', { timeZone: FUSO, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
-                        : semArte ? 'Falta a arte desta rede' : REDE[id].envio === 'automatico' && ligada ? 'Sai sozinho no dia e hora marcados' : 'Pelo celular: toque em Postar, escolha o app e cole o texto'}
+                        : semArte ? (r.etiqueta_tipo === 'promocao' && !r.aprovado_em ? 'Espera a aprovação' : 'Falta a arte desta rede') : REDE[id].envio === 'automatico' && ligada ? 'Sai sozinho no dia e hora marcados' : 'Pelo celular: toque em Postar, escolha o app e cole o texto'}
                     </span>
                     {!rs?.ok && !semArte && (
                       <button type="button" style={bt(REDE[id].cor)} onClick={() => compartilhar(id)} title="Abre o compartilhar do celular com o arquivo; o texto já fica copiado">
@@ -462,8 +687,23 @@ export default function CalendarioRedes() {
                       </button>
                     )}
                     {podeEditar && (rs?.ok
-                      ? <button type="button" style={bt('#64748b')} onClick={() => marcar(id, false)}>{ic('fa-rotate-left')}Desmarcar</button>
-                      : <button type="button" style={bt('#16a34a')} disabled={semArte} onClick={() => marcar(id, true)}>{ic('fa-check')}Já postei</button>)}
+                      ? <>
+                          {rs.link ? <a href={rs.link} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: '#16a34a' }}>{ic('fa-arrow-up-right-from-square')}Ver o post</a> : <span style={{ fontSize: 12, color: '#b45309' }}>sem link</span>}
+                          <button type="button" style={bt('#64748b')} onClick={() => marcar(id, false)}>{ic('fa-rotate-left')}Desmarcar</button>
+                        </>
+                      : <button type="button" style={bt('#16a34a')} disabled={semArte} onClick={() => { setLinkPara(id); setLinkPost(''); }}>{ic('fa-check')}Já postei</button>)}
+                    {/* Fase 3.1: pede o link do post (opcional, mas destacado) — sem ele o histórico manual vira dado morto */}
+                    {linkPara === id && !rs?.ok && (
+                      <div style={{ flexBasis: '100%', display: 'grid', gap: 6, padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, #16a34a 7%, var(--surface))' }}>
+                        <span style={{ fontSize: 13 }}>Cole o <b style={{ fontWeight: 500 }}>link do post</b> no {REDE[id].nome}. Com ele, o portal puxa os números do post quando a conta for ligada.</span>
+                        <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <input autoFocus style={{ ...campoNP, flex: '1 1 260px' }} placeholder="https://www.instagram.com/p/…" value={linkPost} onChange={(e) => setLinkPost(e.target.value.trim())}
+                            onKeyDown={(e) => { if (e.key === 'Enter') marcar(id, true, linkPost); }} />
+                          <button type="button" style={bt('#16a34a', true)} disabled={!linkPost.startsWith('https://')} onClick={() => marcar(id, true, linkPost)}>Gravar com o link</button>
+                          <button type="button" style={bt('#64748b')} onClick={() => marcar(id, true)}>Sem link</button>
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -485,22 +725,79 @@ export default function CalendarioRedes() {
   const mesAnt = () => { const d = new Date(`${rota.mes}-15T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() - 1); ir({ mes: d.toISOString().slice(0, 7) }); };
   const mesProx = () => { const d = new Date(`${rota.mes}-15T12:00:00Z`); d.setUTCMonth(d.getUTCMonth() + 1); ir({ mes: d.toISOString().slice(0, 7) }); };
 
+  // ---- resumo do topo (semana da tela)
+  const diasSemana = Array.from({ length: 7 }, (_, i) => somaDias(semana, i));
+  const postsSemana = diasSemana.flatMap((d) => porDia.get(d) || []);
+  const prontosSemana = postsSemana.filter((p) => p.status !== 'ideia').length;
+  const vaziosSemana = diasSemana.filter((d) => d >= hoje() && !porDia.get(d)?.length);
+  const faltamDias = (d: string) => Math.round((new Date(`${d}T12:00:00Z`).getTime() - new Date(`${hoje()}T12:00:00Z`).getTime()) / 864e5);
+  const quandoFalta = (d: string) => { const f = faltamDias(d); return f <= 0 ? 'é hoje' : f === 1 ? 'amanhã' : `em ${f} dias`; };
+  const proxAgro = proximasAgro.find((x) => !porDia.get(x.d)?.length) || null;
+  const resumoCartao = (i: number, icone: string, cor: string, rotulo: string, valor: React.ReactNode, sub: React.ReactNode, acao?: () => void, dica?: string) => {
+    const Tag = acao ? 'button' : 'div';
+    return (
+      <Tag type={acao ? 'button' : undefined} onClick={acao} title={dica} className={`np-entra${acao ? ' np-sobe' : ''}`}
+        style={{ ...cartaoNP, display: 'grid', gap: 6, alignContent: 'start', textAlign: 'left', font: 'inherit', color: T1, cursor: acao ? 'pointer' : 'default', animationDelay: `${i * 80}ms`,
+          background: `linear-gradient(135deg, color-mix(in srgb, ${cor} 9%, var(--surface)), var(--surface) 65%)` }}>
+        <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: T2 }}>
+          <span style={{ width: 30, height: 30, borderRadius: 9, display: 'grid', placeItems: 'center', color: cor, background: `color-mix(in srgb, ${cor} 15%, transparent)` }}>{ic(icone)}</span>
+          {rotulo}
+          {acao && <span style={{ marginLeft: 'auto', color: cor, fontSize: 12 }}>{ic('fa-arrow-right')}</span>}
+        </span>
+        <span style={{ fontSize: 24, fontWeight: 500, lineHeight: 1.15 }}>{valor}</span>
+        <span style={{ fontSize: 13, color: T2, lineHeight: 1.35 }}>{sub}</span>
+      </Tag>
+    );
+  };
+
   return (
     <div style={{ ...tela, color: T1 }}>
+      <style>{ESTILO_CAL}</style>
       <SubAbas abas={ABAS_CONTEUDO} />
       {erro && <Aviso>{erro}</Aviso>}
       {r ? editor() : (
         <>
+          {/* resumo da semana em cartões (25/11/2026) */}
+          {!rota.ano && posts && (
+            <div style={grade(220)}>
+              {resumoCartao(0, 'fa-calendar-week', '#d97706', largo ? 'Esta semana' : 'Semana de hoje',
+                <>{postsSemana.length} post{postsSemana.length === 1 ? '' : 's'}</>,
+                postsSemana.length ? `${prontosSemana} pronto${prontosSemana === 1 ? '' : 's'} · ${postsSemana.length - prontosSemana} ainda em ideia` : 'Nenhum post marcado nesta semana')}
+              {resumoCartao(1, 'fa-calendar-xmark', vaziosSemana.length ? '#dc2626' : '#16a34a', 'Dias sem post',
+                vaziosSemana.length ? <>{vaziosSemana.length} dia{vaziosSemana.length === 1 ? '' : 's'}</> : <>Nenhum {ic('fa-circle-check')}</>,
+                vaziosSemana.length ? `Próximo vazio: ${nomeDia(vaziosSemana[0], { weekday: 'long', day: '2-digit', month: '2-digit' })}` : 'Semana toda coberta',
+                podeEditar && vaziosSemana.length ? () => novoPost(vaziosSemana[0]) : undefined, 'Criar um post no próximo dia vazio')}
+              {proxAgro && resumoCartao(2, 'fa-wheat-awn', COR_PRIOR[proxAgro.prior], 'Próxima data do agro',
+                <>{proxAgro.nome}</>,
+                <><b style={{ fontWeight: 500, color: COR_PRIOR[proxAgro.prior] }}>{quandoFalta(proxAgro.d)}</b> ({nomeDia(proxAgro.d, { day: '2-digit', month: '2-digit' })}) · ainda sem post</>,
+                podeEditar ? () => novoPost(proxAgro.d, proxAgro) : undefined, 'Criar o post já com a ideia da data')}
+              {melhorDia && resumoCartao(3, 'fa-chart-line', '#7c3aed', 'Melhor dia para postar',
+                <>{melhorDia.nome}</>,
+                <>Em média {melhorDia.media.toLocaleString('pt-BR')} pessoas alcançadas nesse dia (números reais das redes)</>,
+                () => { window.location.href = '/marketing/acessos/todas'; }, 'Ver os números em Acessos')}
+            </div>
+          )}
+
           <section style={{ ...cartaoNP, display: 'grid', gap: 12 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ display: 'inline-flex', padding: 3, borderRadius: 10, border: '1px solid var(--border)', gap: 2 }}>
-                {([[false, 'Mês', 'fa-calendar'], [true, 'Ano todo', 'fa-calendar-days']] as const).map(([v, nome, icone]) => (
+                {([[false, largo ? 'Semana' : 'Mês', largo ? 'fa-calendar-week' : 'fa-calendar'], [true, 'Ano todo', 'fa-calendar-days']] as const).map(([v, nome, icone]) => (
                   <button key={nome} type="button" onClick={() => ir({ ano: v })}
                     style={{ font: 'inherit', fontSize: 13, padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', display: 'inline-flex', gap: 6, alignItems: 'center',
                       background: rota.ano === v ? '#d97706' : 'transparent', color: rota.ano === v ? '#fefefe' : T2 }}>{ic(icone)}{nome}</button>
                 ))}
               </span>
-              {rota.ano ? <span style={{ fontSize: 17 }}>Próximos 12 meses</span> : (
+              {rota.ano ? <span style={{ fontSize: 17 }}>Próximos 12 meses</span> : largo ? (
+                <>
+                  <button style={bt('#64748b')} onClick={() => irSemana(somaDias(semana, -7))} aria-label="Semana anterior">{ic('fa-chevron-left')}</button>
+                  <span style={{ fontSize: 17, minWidth: 210, textAlign: 'center' }}>
+                    {nomeDia(semana, { day: 'numeric', month: 'short' })} a {nomeDia(somaDias(semana, 6), { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                  <button style={bt('#64748b')} onClick={() => irSemana(somaDias(semana, 7))} aria-label="Próxima semana">{ic('fa-chevron-right')}</button>
+                  {semana !== segundaDe(hoje()) && <button style={bt(AZUL)} onClick={() => irSemana(segundaDe(hoje()))}>Hoje</button>}
+                  <button style={bt('#d97706')} onClick={() => setMesAberto(true)}>{ic('fa-calendar')}Ver o mês</button>
+                </>
+              ) : (
                 <>
                   <button style={bt('#64748b')} onClick={mesAnt} aria-label="Mês anterior">{ic('fa-chevron-left')}</button>
                   <span style={{ fontSize: 17, minWidth: 170, textAlign: 'center', textTransform: 'capitalize' }}>{nomeMes(rota.mes)}</span>
@@ -513,9 +810,6 @@ export default function CalendarioRedes() {
               </span>
               {podeEditar && <button style={bt('#d97706', true)} onClick={() => novoPost(vazios[0] || '')}>{ic('fa-plus')}Novo post</button>}
             </div>
-            {agroSemPost.length > 0 && (
-              <span style={{ fontSize: 13, color: '#dc2626' }}>{ic('fa-wheat-awn')} Sem post ainda: {agroSemPost.map((x) => `${x.nome} (${nomeDia(x.d, { day: '2-digit', month: '2-digit' })})`).join(', ')}</span>
-            )}
             {!rota.ano && temporadasDoMes(rota.mes).length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {temporadasDoMes(rota.mes).map((t) => (
@@ -525,35 +819,73 @@ export default function CalendarioRedes() {
                 ))}
               </div>
             )}
-            {posts === null ? <p>Carregando…</p> : rota.ano ? anoTodo() : largo ? grade7() : agenda()}
+            {posts === null ? <p>Carregando…</p> : rota.ano ? anoTodo() : largo ? grade7(semana) : agenda()}
             {rota.ano && <span style={{ fontSize: 12, color: T3 }}><span style={{ color: '#16a34a' }}>●</span> dia com post · <span style={{ color: '#dc2626' }}>○</span> data obrigatória · <span style={{ color: '#2563eb' }}>○</span> data boa. Toque num mês para abrir.</span>}
-            {!rota.ano && largo && podeEditar && <span style={{ fontSize: 12, color: T3 }}>Toque num dia para criar um post nele. {ic('fa-wheat-awn')} = data do agro: tocar cria o post já com a ideia.</span>}
+            {!rota.ano && largo && podeEditar && (
+              <span style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: T2 }}>
+                <span>{ic('fa-hand-pointer')} Toque num dia para criar um post</span>
+                <span>{ic('fa-up-down-left-right')} Arraste um post para mudar o dia</span>
+                <span style={{ color: '#dc2626' }}>{ic('fa-wheat-awn')} Data do agro: tocar cria o post já com a ideia</span>
+              </span>
+            )}
           </section>
+
+          {/* O mês inteiro, num modal por cima da semana */}
+          {mesAberto && largo && !rota.ano && (
+            <div onClick={fecharMes} onKeyDown={(e) => e.key === 'Escape' && fecharMes()} tabIndex={-1}
+              style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15, 23, 42, .45)', display: 'grid', placeItems: 'center', padding: 16 }}>
+              <div onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Calendário do mês"
+                style={{ ...cartaoNP, width: 'min(1200px, 100%)', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', display: 'grid', gap: 12 }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button style={bt('#64748b')} onClick={mesAnt} aria-label="Mês anterior">{ic('fa-chevron-left')}</button>
+                  <span style={{ fontSize: 17, minWidth: 170, textAlign: 'center', textTransform: 'capitalize' }}>{nomeMes(rota.mes)}</span>
+                  <button style={bt('#64748b')} onClick={mesProx} aria-label="Próximo mês">{ic('fa-chevron-right')}</button>
+                  <button style={{ ...bt('#64748b'), marginLeft: 'auto' }} onClick={fecharMes} aria-label="Fechar">{ic('fa-xmark')}Fechar</button>
+                </div>
+                {grade7()}
+              </div>
+            </div>
+          )}
 
           <Secao icone="fa-wheat-awn" cor="#dc2626" titulo={proximasAgro.length ? `${proximasAgro.filter((x) => !porDia.get(x.d)?.length).length} das ${proximasAgro.length} datas do agro dos próximos 60 dias ainda sem post` : 'Nenhuma data importante nos próximos 60 dias'}
             sub="Obrigatórias: planejar 2 a 3 semanas antes, de preferência com vídeo ou foto própria">
-            <div style={{ display: 'grid', gap: 8 }}>
-              {proximasAgro.map((x) => {
+            {/* 25/11/2026: cada data vira um cartão com contagem regressiva, lado a lado */}
+            <div style={grade(260)}>
+              {proximasAgro.map((x, i) => {
                 const tem = porDia.get(x.d) || [];
-                const faltam = Math.round((new Date(`${x.d}T12:00:00Z`).getTime() - new Date(`${hoje()}T12:00:00Z`).getTime()) / 864e5);
+                const faltam = faltamDias(x.d);
+                const cor = COR_PRIOR[x.prior];
                 return (
-                  <div key={x.d + x.nome} style={{ display: 'grid', gridTemplateColumns: '54px 1fr', gap: 10, alignItems: 'start' }}>
-                    <span style={{ display: 'grid', justifyItems: 'center', padding: '6px 0', borderRadius: 10, border: `1px solid color-mix(in srgb, ${COR_PRIOR[x.prior]} 35%, transparent)`, color: COR_PRIOR[x.prior] }}>
-                      <span style={{ fontSize: 16 }}>{nomeDia(x.d, { day: '2-digit', month: '2-digit' })}</span>
-                      <span style={{ fontSize: 11, color: T3 }}>{faltam <= 0 ? 'agora' : `${faltam} dia${faltam > 1 ? 's' : ''}`}</span>
-                    </span>
-                    <span style={{ display: 'grid', gap: 4 }}>
-                      <span style={{ fontSize: 14 }}>{x.nome}{x.ate ? ` (até ${nomeDia(x.ate, { day: '2-digit', month: '2-digit' })})` : ''} <span style={{ fontSize: 12, color: COR_PRIOR[x.prior] }}>{NOME_PRIOR[x.prior]}{x.confirmar ? ' · confirmar a data' : ''}</span></span>
-                      <span style={{ fontSize: 13, color: T2 }}>{x.ideia}</span>
-                      {guiaDe(x) && (
-                        <details>
-                          <summary style={{ fontSize: 13, color: AZUL, cursor: 'pointer', width: 'fit-content' }}>Ver ideias de post e o que preparar</summary>
-                          <div style={{ paddingTop: 6 }}>{guia(x)}</div>
-                        </details>
-                      )}
-                      {tem.length ? tem.map((p) => chipPost(p, false))
-                        : podeEditar && <button type="button" style={{ ...bt(COR_PRIOR[x.prior]), width: 'fit-content' }} onClick={() => novoPost(x.d, x)}>{ic('fa-plus')}Criar o post</button>}
-                    </span>
+                  <div key={x.d + x.nome} className="np-entra np-sobe"
+                    style={{ ...cartaoNP, display: 'grid', gap: 10, alignContent: 'start', animationDelay: `${Math.min(i, 8) * 60}ms`,
+                      borderColor: `color-mix(in srgb, ${cor} ${tem.length ? 20 : 40}%, transparent)`, borderTop: `4px solid ${tem.length ? '#16a34a' : cor}` }}>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                      <span style={{ width: 62, height: 62, flex: 'none', borderRadius: 16, display: 'grid', placeItems: 'center', alignContent: 'center', color: '#fefefe',
+                        background: tem.length ? '#16a34a' : `linear-gradient(145deg, ${cor}, color-mix(in srgb, ${cor} 70%, #000))` }}>
+                        <span style={{ fontSize: faltam > 0 ? 22 : 15, fontWeight: 600, lineHeight: 1 }}>{faltam > 0 ? faltam : 'hoje'}</span>
+                        {faltam > 0 && <span style={{ fontSize: 10.5, opacity: 0.9 }}>{faltam === 1 ? 'dia' : 'dias'}</span>}
+                      </span>
+                      <span style={{ display: 'grid', gap: 3, minWidth: 0 }}>
+                        <span style={{ fontSize: 15.5, fontWeight: 500, lineHeight: 1.25 }}>{x.nome}</span>
+                        <span style={{ fontSize: 12.5, color: T2 }}>
+                          {nomeDia(x.d, { weekday: 'short', day: '2-digit', month: '2-digit' })}{x.ate ? ` até ${nomeDia(x.ate, { day: '2-digit', month: '2-digit' })}` : ''}
+                        </span>
+                        <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 999, color: cor, background: `color-mix(in srgb, ${cor} 12%, transparent)` }}>{NOME_PRIOR[x.prior]}</span>
+                          {x.confirmar && <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 999, color: '#b45309', background: 'color-mix(in srgb, #b45309 12%, transparent)' }}>confirmar a data</span>}
+                          {tem.length > 0 && <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 999, color: '#16a34a', background: 'color-mix(in srgb, #16a34a 12%, transparent)' }}>{ic('fa-check')} tem post</span>}
+                        </span>
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 13.5, color: T1, lineHeight: 1.45 }}>{x.ideia}</span>
+                    {guiaDe(x) && (
+                      <details>
+                        <summary style={{ fontSize: 13, color: AZUL, cursor: 'pointer', width: 'fit-content' }}>{ic('fa-lightbulb')} Ideias de post e o que preparar</summary>
+                        <div style={{ paddingTop: 6 }}>{guia(x)}</div>
+                      </details>
+                    )}
+                    {tem.length ? tem.map((p) => chipPost(p, false))
+                      : podeEditar && <button type="button" style={{ ...bt(cor, true), justifyContent: 'center' }} onClick={() => novoPost(x.d, x)}>{ic('fa-plus')}Criar o post</button>}
                   </div>
                 );
               })}

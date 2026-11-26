@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Furos e Ganhos — Nova Tratores</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+@page { size: A4; margin: 16mm 15mm 16mm 15mm; }
+:root { --ink: #1e231b; --muted: #5d6857; --line: #d9ded2; --soft: #f3f5ef; --green: #2f6b2a; --red: #b8322d; --blue: #2b6cb0; --amber: #8a6d00; }
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); font: 10.5pt/1.5 "IBM Plex Sans", "Segoe UI", sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.cover { border-bottom: 3px solid var(--ink); padding-bottom: 10px; margin-bottom: 14px; }
+.cover .kicker { font: 700 9pt "Barlow Semi Condensed", sans-serif; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+h1 { font: 800 30pt/1 "Barlow Condensed", sans-serif; text-transform: uppercase; margin: 4px 0 6px; }
+.cover p { margin: 0; color: var(--muted); max-width: 150mm; }
+h2 { font: 800 16pt/1.1 "Barlow Condensed", sans-serif; text-transform: uppercase; margin: 18px 0 8px; padding-top: 4px; border-top: 1px solid var(--line); }
+h2 span { color: var(--muted); font-weight: 700; }
+.item { border: 1px solid var(--line); border-left: 4px solid var(--red); border-radius: 6px; padding: 8px 11px; margin: 0 0 8px; break-inside: avoid; }
+.item h3 { margin: 0 0 4px; font: 700 12.5pt/1.25 "Barlow Semi Condensed", sans-serif; }
+.tags { margin: 0 0 4px; }
+.tag { display: inline-block; font: 700 7.5pt/1 "Barlow Semi Condensed", sans-serif; text-transform: uppercase; letter-spacing: .06em; padding: 3px 5px; border-radius: 3px; margin-right: 3px; }
+.t-sis { background: #e0ebf8; color: var(--blue); } .t-pro { background: #f6eecb; color: var(--amber); } .t-esf { background: #eceef0; color: #555; }
+.row { display: grid; grid-template-columns: 17mm 1fr; gap: 6px; margin-top: 2px; }
+.row b { font: 700 8pt/1.9 "Barlow Semi Condensed", sans-serif; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.row.gain span { color: var(--green); font-weight: 600; }
+table { width: 100%; border-collapse: collapse; font-size: 9.5pt; break-inside: auto; }
+th { text-align: left; font: 700 8.5pt "Barlow Semi Condensed", sans-serif; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border-bottom: 2px solid var(--ink); padding: 5px 6px; }
+td { border-bottom: 1px solid var(--line); padding: 6px; vertical-align: top; }
+tr { break-inside: avoid; }
+td:last-child { color: var(--green); font-weight: 600; }
+ol.prio { margin: 0; padding: 0; list-style: none; counter-reset: p; display: grid; gap: 6px; }
+ol.prio li { counter-increment: p; display: grid; grid-template-columns: 9mm 1fr; gap: 6px; align-items: start; break-inside: avoid; }
+ol.prio li::before { content: counter(p); font: 800 15pt/1 "Barlow Condensed", sans-serif; background: var(--ink); color: #fff; border-radius: 4px; text-align: center; padding: 4px 0; }
+ol.prio b { display: block; }
+ol.prio span { color: var(--muted); }
+.box { background: var(--soft); border-radius: 6px; padding: 9px 12px; margin-top: 8px; break-inside: avoid; }
+.box b { display: block; font: 700 11pt "Barlow Semi Condensed", sans-serif; margin-bottom: 2px; }
+.box p { margin: 3px 0; }
+.foot { margin-top: 14px; font-size: 8.5pt; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="kicker">Nova Tratores · análise de processos · 23/11/2026</div>
+  <h1>Furos e ganhos</h1>
+  <p>Onde a empresa perde dinheiro, tempo e oportunidade, e o que dá para ganhar melhorando o sistema, os processos ou os dois. Levantado a partir do portal da empresa (vendas, pós-vendas, garantia, peças e financeiro).</p>
+</div>
+
+<h2>1. Dinheiro que escapa <span>· prioridade máxima</span></h2>
+
+<div class="item"><h3>1.1 Máquina vendida sem cobrança no Financeiro</h3>
+  <div class="tags"><span class="tag t-sis">Sistema</span><span class="tag t-pro">Processo</span></div>
+  <div class="row"><b>Hoje</b><span>A máquina é faturada direto no Omie e não vira card de cobrança. A maior venda da loja é a única que ninguém acompanha no kanban.</span></div>
+  <div class="row"><b>Fazer</b><span>Quando o pedido de máquina for faturado, criar o card automático com as parcelas do pedido (os dados já existem). Definir um dono para a cobrança de máquina financiada e parcelada.</span></div>
+  <div class="row gain"><b>Ganho</b><span>Caixa mais previsível e menos parcela esquecida. Uma parcela de trator vale mais que dezenas de OS.</span></div></div>
+
+<div class="item"><h3>1.2 Garantia: o que a fábrica não paga fica perdido</h3>
+  <div class="tags"><span class="tag t-sis">Sistema</span><span class="tag t-pro">Processo</span></div>
+  <div class="row"><b>Hoje</b><span>A parte recusada vira “cobrar o cliente”, mas só dentro do módulo de garantias, sem card, sem prazo e sem dono. O reembolso da fábrica (DRVG) também não tem acompanhamento de recebimento.</span></div>
+  <div class="row"><b>Fazer</b><span>Card de cobrança para a cobrança ao cliente e card “a receber da fábrica” para cada reembolso. Prazo para decidir: cobrar, cortesia ou prejuízo.</span></div>
+  <div class="row gain"><b>Ganho</b><span>Recuperar dinheiro que hoje vira prejuízo sem ninguém decidir.</span></div></div>
+
+<div class="item"><h3>1.3 Resserviço (voltar ao cliente para refazer)</h3>
+  <div class="tags"><span class="tag t-pro">Processo</span><span class="tag t-sis">Sistema</span></div>
+  <div class="row"><b>Hoje</b><span>O motivo é registrado, mas não existe rotina que olhe isso. Cada resserviço paga técnico, km e peça duas vezes, e ainda desgasta o cliente.</span></div>
+  <div class="row"><b>Fazer</b><span>Reunião mensal com ranking por motivo e por técnico, e checklist de saída do serviço (teste, vazamento, aperto). Um painel simples com quantidade, custo e motivo.</span></div>
+  <div class="row gain"><b>Ganho</b><span>Cada resserviço evitado é uma OS inteira de custo que não acontece.</span></div></div>
+
+<div class="item"><h3>1.4 Regra da margem que parece invertida</h3>
+  <div class="tags"><span class="tag t-sis">Sistema</span><span class="tag t-esf">Esforço: minutos</span></div>
+  <div class="row"><b>Hoje</b><span>Se estiver mesmo errada, a venda boa aparece vermelha e a ruim aparece verde. Isso afeta como se avalia vendedor e preço.</span></div>
+  <div class="row"><b>Fazer</b><span>Confirmar a regra com quem usa e corrigir.</span></div>
+  <div class="row gain"><b>Ganho</b><span>Decisão de preço e de comissão em cima de informação certa.</span></div></div>
+
+<h2>2. Tempo parado <span>· cliente esperando é cliente insatisfeito</span></h2>
+
+<div class="item"><h3>2.1 Falta peça e ninguém fica sabendo direito</h3>
+  <div class="tags"><span class="tag t-sis">Sistema</span><span class="tag t-pro">Processo</span></div>
+  <div class="row"><b>Hoje</b><span>Sem estoque, o sistema só manda um aviso no sininho. A OS vai para “aguardando peças” na mão e a compra corre por 3 caminhos separados. Ninguém sabe dizer ao cliente quando a peça chega.</span></div>
+  <div class="row"><b>Fazer</b><span>Faltou peça numa OS aprovada: abrir a requisição já ligada à OS, mostrar a previsão de chegada na OS e avisar sozinho quando a nota chegar. Uma pessoa responsável pela fila “OS esperando peça”.</span></div>
+  <div class="row gain"><b>Ganho</b><span>Menos trator do cliente parado, menos ligação de “cadê minha peça” e técnico menos ocioso.</span></div></div>
+
+<div class="item"><h3>2.2 Oportunidades que caem no chão</h3>
+  <div class="tags"><span class="tag t-sis">Sistema</span><span class="tag t-pro">Processo</span></div>
+  <div class="row"><b>Hoje</b><span>Três passagens dependem de alguém lembrar: lead qualificado → proposta; ligação com “serviço agendado” → OS; SAT concluído → OS.</span></div>
+  <div class="row"><b>Fazer</b><span>Botão “gerar proposta” ou “gerar OS” direto dessas telas, já preenchido. Prazo de primeiro contato com o lead (ex.: 24 h).</span></div>
+  <div class="row gain"><b>Ganho</b><span>Mais conversão. Hoje não dá nem para medir quantas se perdem, e isso já é um sinal.</span></div></div>
+
+<div class="item"><h3>2.3 Orçamento de oficina que o cliente não respondeu</h3>
+  <div class="tags"><span class="tag t-pro">Processo</span><span class="tag t-sis">Sistema</span></div>
+  <div class="row"><b>Hoje</b><span>O orçamento expira sozinho e acabou.</span></div>
+  <div class="row"><b>Fazer</b><span>Antes de expirar, ligar para o cliente (o Tratorilson pode lembrar).</span></div>
+  <div class="row gain"><b>Ganho</b><span>Serviço que já estava quase vendido.</span></div></div>
+
+<h2>3. Processos que não existem <span>· independem de sistema</span></h2>
+<table>
+  <thead><tr><th style="width:34%">Furo</th><th style="width:36%">Processo sugerido</th><th>Ganho</th></tr></thead>
+  <tbody>
+    <tr><td>Motivos de venda perdida são registrados, mas ninguém analisa</td><td>Reunião mensal: perdemos para quem, por quê, por quanto</td><td>Ajustar preço, prazo e crédito com base em fato</td></tr>
+    <tr><td>Máquina parada no pátio (o sistema já marca 60/120+ dias)</td><td>Rotina mensal de “máquina parada”: demonstração, condição especial, troca</td><td>Capital parado custa juro todo mês</td></tr>
+    <tr><td>Caixa de 30/60/90 dias digitado à mão no War Room</td><td>Montar automático a partir do a receber e a pagar do Omie</td><td>Previsão de caixa confiável sem trabalho manual</td></tr>
+    <tr><td>Proposta e OS pulam de fase livremente</td><td>Combinar o que precisa estar pronto para avançar (e travar no sistema)</td><td>Funil e previsão em que dá para confiar</td></tr>
+    <tr><td>Sugestão de compra e PC não vão ao Omie</td><td>Integrar ou eliminar a digitação dupla</td><td>Menos erro de compra e menos retrabalho</td></tr>
+    <tr><td>DRE não separa despesas entre NOVA e CASTRO</td><td>Regra de rateio entre as empresas</td><td>Saber qual empresa dá lucro de verdade</td></tr>
+  </tbody>
+</table>
+
+<h2>Por onde começar <span>· mais retorno com menos esforço</span></h2>
+<ol class="prio">
+  <li><div><b>Confirmar a regra da margem.</b><span>Custa minutos.</span></div></li>
+  <li><div><b>Card de cobrança para máquina e garantia.</b><span>É dinheiro grande sem dono.</span></div></li>
+  <li><div><b>Rotina mensal de resserviço e de venda perdida.</b><span>Só processo, custo zero de sistema.</span></div></li>
+  <li><div><b>Peça faltando ligada à OS.</b><span>É o maior gerador de cliente insatisfeito.</span></div></li>
+  <li><div><b>Botões “gerar proposta / gerar OS”.</b><span>Fecha os vazamentos de oportunidade.</span></div></li>
+</ol>
+
+<div class="box"><b>O padrão por trás dos furos</b>
+  <p>Quase todo furo fica onde uma área entrega para outra: venda → financeiro, garantia → cobrança, peça → compra. Dentro de cada área o sistema é bem cuidado; o que falta são as pontes.</p>
+  <p>Furo de processo e furo de sistema andam juntos: muitas vezes o sistema já tem o dado (motivo de perda, dias de pátio, motivo de resserviço), mas ninguém tem a rotina de olhar. Esses são os ganhos mais baratos.</p></div>
+
+<div class="box"><b>Limite desta análise</b>
+  <p>Ela mostra onde está cada furo, mas não quanto ele custa. O próximo passo é medir com os números do banco: quantos resserviços por mês e quanto custaram, quanto de garantia ficou pendente, quantos leads nunca viraram proposta e quanto de máquina está parado no pátio. Assim a prioridade passa a seguir o dinheiro de verdade.</p></div>
+
+<p class="foot">Documento interno · levantado a partir do código do portal em 23/11/2026.</p>
+</body>
+</html>

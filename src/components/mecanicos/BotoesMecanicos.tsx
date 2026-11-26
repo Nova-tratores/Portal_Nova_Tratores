@@ -98,13 +98,17 @@ export function MenuRadialMec({ onAbrir, podio, onPodio, onTratorilson }: { onAb
 
 const ESTILO_MR = `
 .mi { display: inline-flex; gap: 2px; align-items: center; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 999px; padding: 4px }
-.mi-b { position: relative; width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; color: #64748b; font-size: 16px; cursor: pointer; display: grid; place-items: center; transition: background .15s, color .15s }
+.mi-b { position: relative; width: 40px; height: 40px; border-radius: 50%; border: 0; background: transparent; color: var(--mx-t3, #64748b); font-size: 16px; cursor: pointer; display: grid; place-items: center; transition: background .15s, color .15s }
 .mi-b:hover, .mi-b:focus-visible { background: color-mix(in srgb, var(--c) 10%, transparent); color: var(--c); outline: none }
 .mi-b.on { background: var(--c); color: #fefefe }
 .mi-b em { position: absolute; top: -3px; right: -3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; display: grid; place-items: center; font-style: normal; font-size: 11px; font-weight: 600; color: #fefefe; background: #f59e0b; box-shadow: 0 0 0 2px var(--portal-bg-card, #fefefe) }
 .mi-dica { position: absolute; top: calc(100% + 8px); left: 50%; transform: translate(-50%, -4px); z-index: 50; display: grid; gap: 1px; padding: 7px 11px; border-radius: 10px; background: #0f172a; color: #fefefe; white-space: nowrap; text-align: center; pointer-events: none; opacity: 0; transition: opacity .15s, transform .15s }
 .mi-dica b { font-size: 13px; font-weight: 600 } .mi-dica small { font-size: 11.5px; color: #cbd5e1 }
 .mi-b:hover .mi-dica, .mi-b:focus-visible .mi-dica { opacity: 1; transform: translate(-50%, 0) }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.mi-b:hover, .mi-b:focus-visible) { color: color-mix(in srgb, var(--c) 60%, #fff) }
+
 `
 
 const ESTILO_BM = `
@@ -113,9 +117,12 @@ const ESTILO_BM = `
 .bm-b.trib { --cc: #92400e } .bm-b.liga { --cc: #475569 } .bm-b.com { --cc: #047857 } .bm-b.aut { --cc: #1d4ed8 } .bm-b.pod { --cc: #b45309 } .bm-b.pod.on { box-shadow: 0 6px 18px rgba(180,83,9,.18) }
 .bm-sep { width: 1px; align-self: stretch; margin: 8px 2px; background: var(--portal-border, #e2e8f0) }
 .bm-b:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--cc) 40%, transparent); box-shadow: 0 8px 20px rgba(15,23,42,.09) }
-.bm-b.on { background: color-mix(in srgb, var(--cc) 8%, #fefefe); border-color: color-mix(in srgb, var(--cc) 45%, transparent) }
+.bm-b.on { background: color-mix(in srgb, var(--cc) 8%, var(--mx-bg0, #fefefe)); border-color: color-mix(in srgb, var(--cc) 45%, transparent) }
 .bm-ic { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; color: var(--cc); background: color-mix(in srgb, var(--cc) 11%, transparent); transition: all .2s } .bm-b:hover .bm-ic, .bm-b.on .bm-ic { background: var(--cc); color: #fefefe }
 .bm-t { display: grid; line-height: 1.15 } .bm-t b { font-size: 14.5px; font-weight: 900 } .bm-t small { font-size: 11.5px; font-weight: 600; color: var(--portal-text-muted, #64748b); white-space: nowrap }
 .bm-n { position: absolute; top: -7px; right: -7px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 99px; display: grid; place-items: center; font-size: 12px; font-weight: 900; color: #fefefe; background: #f59e0b; box-shadow: 0 0 0 3px var(--portal-bg, #f8fafc) }
 @media (max-width: 900px) { .bm-t small { display: none } .bm-b { padding-right: 12px } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `

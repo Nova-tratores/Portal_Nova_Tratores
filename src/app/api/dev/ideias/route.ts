@@ -1,14 +1,15 @@
 // IDEIAS DOS DEVS — só quem tem papel Dev (auth.isDev).
-// GET   /api/dev/ideias[?arquivadas=1] -> { ideias, grupos, usuarios, tickets }
+// GET   /api/dev/ideias[?arquivadas=1] -> { ideias, grupos, usuarios, tickets, votos, ia }
+//        votos: { [ideia]: ids de quem votou } | null (sem sql/ideias-votos.sql); ia: "Sugerir grupos" ligado (IDEIAS_IA=1)
 // POST  /api/dev/ideias { texto, grupo_id? } -> { ideia }
-// PATCH /api/dev/ideias { id, texto? | grupo_id? | arquivada? | posicao? }
+// PATCH /api/dev/ideias { id, texto? | grupo_id? | arquivada? | posicao? | levar_reuniao? }
 //                        ou { ids: uuid[], grupo_id: uuid|null } (mover várias)
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { registrarAuditLog } from '@/lib/server/audit-notify'
 import { validarIdeia } from '@/lib/dev/ideias'
 import {
-  listarTudo, criarIdeia, editarIdeia, moverIdeias, carregarGrupo, resumoTickets,
+  listarTudo, criarIdeia, editarIdeia, moverIdeias, carregarGrupo, resumoTickets, votosDasIdeias,
   uuidValido, migrationFaltou, MSG_MIGRATION_IDEIAS,
 } from '@/lib/dev/ideias-server'
 
@@ -26,9 +27,9 @@ export async function GET(req: NextRequest) {
   const g = await guardar(req)
   if (g.erro) return g.erro
   try {
-    const dados = await listarTudo(req.nextUrl.searchParams.get('arquivadas') === '1')
+    const [dados, votos] = await Promise.all([listarTudo(req.nextUrl.searchParams.get('arquivadas') === '1'), votosDasIdeias()])
     const tickets = await resumoTickets(dados.grupos.map((x) => x.ticket_id).filter((x): x is string => !!x))
-    return NextResponse.json({ ...dados, tickets })
+    return NextResponse.json({ ...dados, tickets, votos, ia: process.env.IDEIAS_IA === '1' })
   } catch (e) {
     if (migrationFaltou(e)) return NextResponse.json({ ideias: [], grupos: [], usuarios: {}, tickets: {}, migracaoFaltando: true, error: MSG_MIGRATION_IDEIAS })
     console.error('[dev/ideias] GET', e)
@@ -99,6 +100,8 @@ export async function PATCH(req: NextRequest) {
     }
     if (body.arquivada !== undefined) campos.arquivada = !!body.arquivada
     if (body.posicao !== undefined) campos.posicao = Math.max(0, Math.trunc(Number(body.posicao) || 0))
+    // "levar para reunião" (melhorias 4.1/5): a ideia aparece nas Sugestões para a pauta
+    if (body.levar_reuniao !== undefined) campos.levar_reuniao = body.levar_reuniao === true
     if (!Object.keys(campos).length) return NextResponse.json({ error: 'Nada para alterar' }, { status: 400 })
     const ideia = await editarIdeia(body.id, campos)
     if (!ideia) return NextResponse.json({ error: 'Ideia não encontrada' }, { status: 404 })
@@ -109,7 +112,7 @@ export async function PATCH(req: NextRequest) {
     })
     return NextResponse.json({ ideia })
   } catch (e) {
-    if (migrationFaltou(e)) return NextResponse.json({ error: MSG_MIGRATION_IDEIAS }, { status: 503 })
+    if (migrationFaltou(e)) return NextResponse.json({ error: body.levar_reuniao !== undefined ? 'Rode sql/ideias-votos.sql no Supabase (marca "levar para reunião").' : MSG_MIGRATION_IDEIAS }, { status: 503 })
     console.error('[dev/ideias] PATCH', e)
     return NextResponse.json({ error: 'Falha ao alterar a ideia' }, { status: 500 })
   }

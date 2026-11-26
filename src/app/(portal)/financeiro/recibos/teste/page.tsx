@@ -5,6 +5,9 @@ import { useEffect, useState } from 'react';
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav';
 import { fetchAuth } from '@/lib/auth/client';
 import { MODELOS } from '@/lib/recibos/tipos';
+import { useAuth } from '@/hooks/useAuth';
+import { usePermissoes } from '@/hooks/usePermissoes';
+import SemPermissao from '@/components/SemPermissao';
 
 const EXEMPLO = {
   empresa: 'Nova Tratores', tipo: 'recebemos', pessoa_nome: 'João da Silva Exemplo', pessoa_doc: '12345678909', valor: 1234.5,
@@ -12,7 +15,16 @@ const EXEMPLO = {
   data_pagto: new Date().toISOString().slice(0, 10), cidade: 'Piraju - SP', com_assinatura: true, mostrar_qr: true,
 };
 
+// Mesma trava da tela de Recibos (Financeiro, POS ou PPV).
 export default function TesteRecibos() {
+  const { userProfile } = useAuth();
+  const { temAcesso, isAdmin, loading } = usePermissoes(userProfile?.id);
+  if (!loading && userProfile && !isAdmin && !['financeiro', 'pos', 'ppv'].some((m) => temAcesso(m))) return <SemPermissao />;
+  if (loading || !userProfile) return null;
+  return <TesteRecibosConteudo />;
+}
+
+function TesteRecibosConteudo() {
   const [tipo, setTipo] = useState<'recebemos' | 'pagamos'>('recebemos');
   const [urls, setUrls] = useState<Record<number, string>>({});
   const [erro, setErro] = useState('');

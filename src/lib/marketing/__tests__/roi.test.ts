@@ -273,7 +273,11 @@ describe('IRRIGASHOW 2026 — conferência número a número', () => {
 
   it('indicadores', () => {
     expect(r.receitaAtribuida).toBe(1_200_000);
-    expect(r.roi).toBeCloseTo(120, 6);
+    // 23/11/2026: Retorno = MARGEM / custo líquido. Sem tipo nem custo na proposta → 12% ("outro"):
+    // 1.200.000 × 12% = 144.000 / 10.000 = 14,4 (antes, com a receita bruta, dava 120).
+    expect(r.margemAtribuida).toBeCloseTo(144_000, 2);
+    expect(r.margemEstimada).toBe(true);
+    expect(r.roi).toBeCloseTo(14.4, 6);
     expect(r.custoPorLead).toBeCloseTo(750, 6);
     expect(r.cac).toBeCloseTo(10_000, 6);
     expect(r.taxaConversaoLead).toBeCloseTo(0.075, 6);
@@ -292,5 +296,78 @@ describe('ação encerrada sem custo', () => {
   it('avisa que o ROI seria fantasia', () => {
     const r = calcularROI(base({ acao: acao({ data_fim: '2026-07-10' }) }));
     expect(r.alertas.map((a) => a.tipo)).toContain('sem_custo_lancado');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fase 2 (23/11/2026): margem, lixeira e janela de atribuição.
+// Números reais do IRRIGASHOW 2026 (feira de 26 a 28/08, custo R$ 38.534,72, apoio de R$ 20 mil não recebido).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Retorno pela margem — IRRIGASHOW 2026 real', () => {
+  const irriga = (over: Partial<EntradaROI> = {}) => base({
+    acao: acao({ tipo: 'feira', data_inicio: '2026-08-26', data_fim: '2026-08-28' }),
+    custos: [custo({ valor: 38_534.72 })],
+    propostas: [
+      prop({ proposta_id: 128, valor_total: '44000', tipo: 'implemento', fechado_em: '2026-08-31T16:31:53Z' }),
+      prop({ proposta_id: 136, valor_total: '43.000,00', tipo: 'implemento', fechado_em: '2026-09-02T13:37:44Z', na_lixeira: true }),
+      prop({ proposta_id: 137, valor_total: '315.000,00', tipo: 'implemento', fechado_em: '2026-09-02T13:48:18Z' }),
+      prop({ proposta_id: 139, valor_total: '42000', tipo: 'implemento', fechado_em: '2026-09-02T13:57:35Z' }),
+      prop({ proposta_id: 140, valor_total: '59.500,00', tipo: 'implemento', fechado_em: '2026-09-02T13:57:37Z' }),
+    ],
+    ...over,
+  });
+
+  it('a proposta na lixeira (#136) não conta', () => {
+    const r = calcularROI(irriga());
+    expect(r.vendasN).toBe(4);
+    expect(r.propostasN).toBe(4);
+    expect(r.receitaAtribuida).toBe(460_500);
+  });
+
+  it('implemento a 15%: margem 69.075 → retorno ≈ 1,79x (antes 13,1x)', () => {
+    const r = calcularROI(irriga());
+    expect(r.margemAtribuida).toBeCloseTo(69_075, 2);
+    expect(r.margemEstimada).toBe(true);
+    expect(r.roi).toBeCloseTo(69_075 / 38_534.72, 6);
+  });
+
+  it('com o apoio de R$ 20 mil recebido o custo líquido cai e o retorno sobe', () => {
+    const r = calcularROI(irriga({ apoios: [apoio({ valor_aprovado: 20_000, valor_recebido: 20_000, status: 'recebido' })] }));
+    expect(r.custoLiquido).toBeCloseTo(18_534.72, 2);
+    expect(r.roi).toBeCloseTo(69_075 / 18_534.72, 6);
+  });
+
+  it('todas fecharam depois do fim da feira, dentro da janela de 90 dias', () => {
+    const r = calcularROI(irriga());
+    expect(r.janelaDias).toBe(90);
+    expect(r.vendasNaAcao).toBe(0);
+    expect(r.vendasDepois).toBe(4);
+    expect(r.vendasForaJanela).toBe(0);
+  });
+
+  it('venda fora da janela não entra na receita nem na margem', () => {
+    const r = calcularROI(irriga({
+      propostas: [prop({ valor_total: 100_000, tipo: 'trator', fechado_em: '2026-12-30' })],
+    }));
+    expect(r.vendasN).toBe(0);
+    expect(r.vendasForaJanela).toBe(1);
+    expect(r.receitaForaJanela).toBe(100_000);
+    expect(r.margemAtribuida).toBe(0);
+  });
+
+  it('margem real da proposta vence o % padrão', () => {
+    const r = calcularROI(irriga({
+      propostas: [prop({ valor_total: 100_000, tipo: 'trator', margem_prevista: 7_000, fechado_em: '2026-08-27' })],
+    }));
+    expect(r.margemAtribuida).toBe(7_000);
+    expect(r.margemEstimada).toBe(false);
+    expect(r.vendasNaAcao).toBe(1);
+  });
+
+  it('regras da empresa substituem o padrão', () => {
+    const r = calcularROI(irriga({ regras: { margemPadraoPct: { implemento: 12, outro: 12 }, janelaDias: { feira: 3 } } }));
+    // janela de 3 dias: só a #128 (31/08) entra; 02/09 passou de 28/08 + 3 = 31/08
+    expect(r.vendasN).toBe(1);
+    expect(r.margemAtribuida).toBeCloseTo(44_000 * 0.12, 2);
   });
 });

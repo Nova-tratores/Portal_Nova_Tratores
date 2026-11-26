@@ -107,6 +107,24 @@ export function dataDiasAtras(dias: number, agora: Date = new Date()): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+/**
+ * Todos os boletos do card, sem repetir. Na prática ficam em `anexo_boleto`, separados por vírgula
+ * (17 cards com 2 ou 3 em 11/2026); as colunas `anexo_boleto2` e `anexo_boleto_p1..p5` existem e
+ * também são lidas. As telas antigas liam `anexo_boleto_2`/`_3`, que não existem.
+ */
+export function boletosDoCard(c: Record<string, unknown> | null | undefined): string[] {
+  if (!c) return [];
+  const campos = ['anexo_boleto', 'anexo_boleto2', 'anexo_boleto_p1', 'anexo_boleto_p2', 'anexo_boleto_p3', 'anexo_boleto_p4', 'anexo_boleto_p5'];
+  const urls: string[] = [];
+  for (const k of campos) {
+    for (const u of String(c[k] || '').split(',')) {
+      const t = u.trim();
+      if (t && !urls.includes(t)) urls.push(t);
+    }
+  }
+  return urls;
+}
+
 /** Contagens do dashboard: 'excluido' (apagado) não conta em nada. */
 export function resumoDashboard<T extends { status?: string | null; grupo_pai_id?: unknown; valor_servico?: unknown }>(linhas: T[]) {
   const validos = linhas.filter(b => !b.grupo_pai_id && b.status !== 'excluido');
@@ -116,7 +134,8 @@ export function resumoDashboard<T extends { status?: string | null; grupo_pai_id
   return {
     validos,
     totalBoletos: validos.length,
-    boletosEmAberto: validos.filter(b => b.status !== 'concluido').length,
+    // Em aberto = ainda não pago (pago e concluído ficam de fora; antes o pago contava aqui)
+    boletosEmAberto: validos.filter(b => b.status !== 'concluido' && b.status !== 'pago').length,
     boletosAtrasados: validos.filter(b => b.status === 'vencido').length,
     boletosConfirmados: pagos.length,
     totalFaturado: pagos.reduce((acc, b) => acc + (parseFloat(String(b.valor_servico)) || 0), 0),

@@ -174,13 +174,13 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
         <ArrowLeft size={15} /> Quadros
       </button>
 
-      {quadro.arquivado && <div style={{ marginBottom: 10, fontSize: 12.5, fontWeight: 700, color: '#b45309' }}>Este bloco está arquivado.</div>}
+      {quadro.arquivado && <div style={{ marginBottom: 10, fontSize: 12.5, fontWeight: 700, color: '#b45309' }}>Este quadro está arquivado.</div>}
 
       {/* Filtros */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, flex: '1 1 220px', maxWidth: 340, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)' }}>
           <Search size={14} style={{ opacity: .5, flexShrink: 0 }} />
-          <input id="busca-quadro" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar no bloco..."
+          <input id="busca-quadro" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar no quadro..."
             style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, width: '100%', color: 'var(--portal-text,#111)' }} />
         </div>
         {([['tudo', 'Tudo'], ['faco', 'Que eu faço'], ['pedi', 'Que eu pedi']] as const).map(([v, l]) => (
@@ -209,7 +209,7 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
           )}
         </span>
         {!dados.pode_trabalhar && !quadro.arquivado && (
-          <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>Você vê este bloco, mas só integrantes mexem nos tickets.</span>
+          <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>Você vê este quadro, mas só integrantes mexem nos tickets.</span>
         )}
       </div>
 

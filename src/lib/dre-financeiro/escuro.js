@@ -36,4 +36,6 @@ ${E} .dre-barra { background: var(--portal-bg-card) !important; border-bottom-co
 ${E} .dre-titulo { color: var(--portal-text) !important }
 ${E} .dre-aba:not(.on) { background: color-mix(in srgb, var(--dc) 22%, var(--portal-bg-card)) !important; color: color-mix(in srgb, var(--dc) 40%, #fefefe) !important }
 ${E} .dre-conta:not(.on) { background: var(--portal-bg-card) !important; color: #6ee7b7 !important }
+/* conta escolhida: #fff sobre #10b981 dava 2,5:1; #047857 dá 5,5:1 */
+${E} .dre-conta.on { background: #047857 !important; color: #fff !important }
 `

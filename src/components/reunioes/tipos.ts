@@ -2,7 +2,12 @@
 import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
 import type { ItemPauta, Serie, ReuniaoEtapa, PapelReuniao, Pendencia, ReuniaoRef } from '@/lib/reunioes/regras'
 
-export interface PresencaUI { reuniao_id: string; usuario_id: string; papel: PapelReuniao; presente: boolean | null; marcado_em: string | null }
+export interface PresencaUI {
+  reuniao_id: string; usuario_id: string; papel: PapelReuniao; presente: boolean | null; marcado_em: string | null
+  /** convite (sql/reunioes-convite.sql): null/ausente = ainda não respondeu */
+  resposta?: 'aceito' | 'recusado' | null
+  respondido_em?: string | null
+}
 export interface AtaUI { reuniao_id: string; publicada_em: string; publicada_por: string; snapshot: Record<string, unknown>; texto_whatsapp: string }
 export interface AcaoUI { id: string; numero: number; titulo: string; status: string; prazo: string | null; responsavel_id: string; aceite: string | null; origem_reuniao_item_id: string | null; prazo_reprogramacoes: number }
 
@@ -19,12 +24,18 @@ export interface ReuniaoUI {
   usuarios: Record<string, UsuarioMin>
   condutor_id: string
   secretario_id: string | null
+  /** só para quem conduz/criou: celular de cada pessoa (null = sem cadastro) e o texto pronto do convite no WhatsApp */
+  convite?: { celulares: Record<string, string | null>; textos: Record<string, string> } | null
   meu_papel: PapelReuniao | null
   posso_conduzir: boolean
   criador_id?: string | null
   posso_reabrir?: boolean
   /** muda dia/hora/duração antes de começar (quem conduz, quem criou ou admin) */
   posso_remarcar?: boolean
+  /** muda título e descrição até publicar a ata (quem conduz, quem criou ou admin) */
+  posso_editar?: boolean
+  /** admin ou quem marcou, e reunião vazia (sem ata, tarefas nem gravação; não começou ou cancelada) */
+  posso_excluir?: boolean
   /** reunião avulsa → série (quem conduz, quem criou ou admin) */
   posso_virar_serie?: boolean
   /** marcar reunião seguinte (ramificação) a partir desta */

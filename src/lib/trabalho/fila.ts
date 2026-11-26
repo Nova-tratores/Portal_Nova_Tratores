@@ -4,17 +4,20 @@
 //  1. ordem = urgentes primeiro · depois a ordem manual (tickets_plano) ·
 //     depois o prazo mais próximo · depois o número;
 //  2. cada ticket tem DIAS de trabalho e HORAS POR DIA (payload.dias /
-//     payload.horas_dia); a pessoa tem uma CAPACIDADE por dia (padrão = o
-//     horário da empresa, 9 h);
+//     payload.horas_dia); a pessoa tem uma CAPACIDADE por dia para a fila
+//     (6 h − 1,5 h de rotina = 4,5 h; ver lib/trabalho/capacidade.ts);
 //  3. o planejador percorre a fila a partir de hoje e encaixa cada ticket nos
 //     dias úteis com capacidade sobrando (pula fim de semana e feriado). Dá
 //     PREVISÃO de início e fim — o PRAZO (promessa a quem pediu) não muda.
 //     Previsão depois do prazo = "vai atrasar".
-//  4. ticket CONTÍNUO (prazo indeterminado) não termina: reserva as horas por
-//     dia dele em TODO dia útil, antes dos outros, até alguém concluir.
+//  4. ticket CONTÍNUO (prazo indeterminado) não termina e NÃO come a fila:
+//     fica dentro da reserva de rotina (Fase 0 · I, 24/11/2026). Antes cada
+//     contínuo reservava 1 h/dia para sempre.
 
-/** Horário da empresa: 07:30–11:30 + 12:30–17:30 = 9 h (lib/assistente/horario). */
-export const CAPACIDADE_PADRAO = 9
+import { CAPACIDADE_FILA } from './capacidade'
+
+/** Horas por dia que a fila usa (6 h − 1,5 h de rotina). Era 9 h, o horário cheio da empresa. */
+export const CAPACIDADE_PADRAO = CAPACIDADE_FILA
 
 export interface ItemFila {
   id: string
@@ -28,7 +31,7 @@ export interface ItemFila {
   inicio?: string
 }
 
-/** Contínuo sem horas informadas usa 1 h por dia (não trava a fila). */
+/** Horas/dia exibidas no contínuo sem horas informadas (só informativo: a fila não desconta). */
 export const HORAS_CONTINUO_PADRAO = 1
 
 /** fim = '' no contínuo (vai até concluir). */
@@ -76,17 +79,15 @@ export function ordenarFila<T extends { id: string; numero: number; prazo: strin
  */
 export function planejarFila(
   fila: ItemFila[], hoje: string, feriados: Set<string>, capacidade = CAPACIDADE_PADRAO,
+  /** Opcional: recebe, por dia, quanto de cada item cai nele (o "plano da semana" desenha isso). */
+  alocacao?: Map<string, { id: string; horas: number }[]>,
 ): Map<string, Previsao> {
   const uso = new Map<string, number>()
   const out = new Map<string, Previsao>()
-  // 1º os contínuos: reservam a fatia diária deles no horizonte inteiro.
+  // Contínuos: ficam na reserva de rotina, não descontam da capacidade da fila.
   for (const t of fila.filter((x) => x.continuo)) {
-    const porDia = Math.max(0.5, Math.min(capacidade, t.horasDia || HORAS_CONTINUO_PADRAO))
     const desde = t.inicio && t.inicio > hoje ? t.inicio : hoje
-    for (let d = desde, i = 0; i < 730; d = soma(d, 1), i++) {
-      if (ehDiaUtil(d, feriados)) uso.set(d, (uso.get(d) || 0) + porDia)
-    }
-    out.set(t.id, { inicio: desde, fim: '', horas: porDia })
+    out.set(t.id, { inicio: desde, fim: '', horas: 0 })
   }
   for (const t of fila) {
     if (t.continuo) continue
@@ -101,6 +102,7 @@ export function planejarFila(
       if (livre <= 0.001) continue
       const h = Math.min(porDia, livre, restante)
       uso.set(d, (uso.get(d) || 0) + h)
+      alocacao?.set(d, [...(alocacao.get(d) || []), { id: t.id, horas: h }])
       restante -= h
       if (!inicio) inicio = d
       fim = d
@@ -114,4 +116,32 @@ export function planejarFila(
 export function atrasoPrevisto(prazo: string | null, previsao: Previsao | undefined): number {
   if (!prazo || !previsao || previsao.fim <= prazo) return 0
   return difDias(prazo, previsao.fim)
+}
+
+/** Campos do ticket que a fila usa (payload.dias / horas_dia / inicio / urgente). */
+export interface TicketDaFila { id: string; numero: number; prazo: string | null; payload?: unknown }
+
+/**
+ * Ticket → item da fila. Uma regra só para a tela da Fila, a Minha fila, a carga da
+ * Equipe e o lembrete do dia (24/11/2026). Sem horas informadas usa o dia cheio da
+ * fila e marca semEstimativa (aparece "estimar"); sem prazo = contínuo (na rotina).
+ */
+export function itemDoTicket(t: TicketDaFila, capacidade: number, feriados: Set<string>): ItemFila & { semEstimativa: boolean } {
+  const p = (t.payload || {}) as { dias?: number; horas_dia?: number; inicio?: string; urgente?: boolean }
+  // Sem estimativa (sem horas_dia), NÃO conta o intervalo início→prazo: um pedido parado desde
+  // agosto com prazo em novembro virava ~60 dias de fila (melhorias 2.1, 24/11/2026). Vale 1 dia
+  // (ou a mediana da categoria, em fila-server). O intervalo só vale quando alguém deu as horas/dia.
+  const dias = p.dias || (p.horas_dia && p.inicio && t.prazo && p.inicio <= t.prazo ? diasUteisEntre(p.inicio, t.prazo, feriados) : 1)
+  const continuo = !t.prazo
+  return {
+    id: t.id, numero: t.numero, prazo: t.prazo, urgente: p.urgente === true, dias, continuo, inicio: p.inicio,
+    horasDia: p.horas_dia || (continuo ? HORAS_CONTINUO_PADRAO : capacidade),
+    semEstimativa: !continuo && !p.horas_dia,
+  }
+}
+
+/** Sexta-feira da semana de `hoje` (YYYY-MM-DD). Sábado/domingo: a sexta seguinte. */
+export function sextaDaSemana(hoje: string): string {
+  const w = new Date(hoje + 'T12:00:00Z').getUTCDay()
+  return soma(hoje, w === 6 ? 6 : w === 0 ? 5 : 5 - w)
 }

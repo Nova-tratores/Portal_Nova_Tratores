@@ -211,7 +211,7 @@ export default function RadarOcorrencias() {
       {/* 28/10/2026: a barra de assuntos saiu (José: "pode remover esse") */}
       </div>
 
-      {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
+      {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--mx-p-red, #fef2f2)', color: 'var(--mx-fg-red, #b91c1c)', marginBottom: 12 }}>{erro}</div>}
 
       {d && (
         <div className="pt-amb" style={{ display: 'grid', gap: 14 }}>
@@ -325,7 +325,7 @@ export default function RadarOcorrencias() {
                       <div key={m.rotulo + i}>
                         <div style={{ display: 'flex', fontSize: 12.5, marginBottom: 4, color: TXT }}>
                           <span style={{ flex: 1, fontWeight: 700 }}>{m.rotulo}</span>
-                          <span style={{ color: MUDO }}>{m.qtd}× · <b style={{ color: '#dc2626' }}>−{m.pontos}</b></span>
+                          <span style={{ color: MUDO }}>{m.qtd}× · <b style={{ color: 'var(--mx-fg-red, #dc2626)' }}>−{m.pontos}</b></span>
                         </div>
                         <div style={{ height: 8, background: 'var(--portal-bg-secondary, #f1f5f9)', borderRadius: 99, overflow: 'hidden' }}>
                           <div className="rdr-barra" style={{ width: `${(m.pontos / max) * 100}%`, background: m.cor, animationDelay: `${i * 80}ms` }} />
@@ -414,8 +414,8 @@ function Comparacao({ h, meses, valorPonto, onValor, onFoco, foco }: { h: Histor
                   </td>
                   <td>{x.mediaQtdAntes.toLocaleString('pt-BR')} <span style={{ color: MUDO, fontSize: 11 }}>(−{x.mediaPontosAntes.toLocaleString('pt-BR')} pts)</span></td>
                   <td style={{ fontWeight: 900 }}>{atual}</td>
-                  <td><span className="rdr-var" style={{ color: dif > 0 ? '#dc2626' : dif < 0 ? '#059669' : MUDO, background: dif > 0 ? '#fef2f2' : dif < 0 ? '#ecfdf5' : 'var(--portal-bg-secondary, #f1f5f9)' }}>{dif > 0 ? '▲' : dif < 0 ? '▼' : '='} {Math.abs(Math.round(dif * 10) / 10).toLocaleString('pt-BR')}</span></td>
-                  <td style={{ color: ptsAtual ? '#dc2626' : MUDO, fontWeight: 800 }}>{ptsAtual ? `−${ptsAtual}` : '0'}</td>
+                  <td><span className="rdr-var" style={{ color: dif > 0 ? 'var(--mx-fg-red, #dc2626)' : dif < 0 ? '#059669' : MUDO, background: dif > 0 ? 'var(--mx-p-red, #fef2f2)' : dif < 0 ? 'var(--mx-p-green, #ecfdf5)' : 'var(--portal-bg-secondary, #f1f5f9)' }}>{dif > 0 ? '▲' : dif < 0 ? '▼' : '='} {Math.abs(Math.round(dif * 10) / 10).toLocaleString('pt-BR')}</span></td>
+                  <td style={{ color: ptsAtual ? 'var(--mx-fg-red, #dc2626)' : MUDO, fontWeight: 800 }}>{ptsAtual ? `−${ptsAtual}` : '0'}</td>
                   {valorPonto > 0 && <td style={{ fontWeight: 800 }}>{brl(ptsAtual * valorPonto)}</td>}
                   {valorPonto > 0 && <td style={{ color: MUDO }}>{brl(x.mediaPontosAntes * valorPonto)}</td>}
                 </tr>
@@ -540,7 +540,7 @@ function Dica({ o, x, y }: { o: OcorrenciaPainel; x: number; y: number }) {
     <div style={{ position: 'fixed', left: Math.min(x + 14, (typeof window !== 'undefined' ? window.innerWidth : 1200) - 280), top: y + 12, zIndex: 9500, pointerEvents: 'none', width: 260, background: 'var(--portal-bg-card, #fefefe)', border: `1px solid ${BORDA}`, borderTop: `3px solid ${cor}`, borderRadius: 12, padding: '10px 12px', boxShadow: '0 12px 30px rgba(15,23,42,.18)', color: TXT }}>
       <div style={{ fontSize: 11, color: cor, fontWeight: 800, letterSpacing: .6 }}>{NOME_CAT[o.categoria].toUpperCase()} · {br(o.data)}</div>
       <div style={{ fontWeight: 800, fontSize: 13.5, marginTop: 2 }}>{o.rotulo}</div>
-      <div style={{ fontSize: 12, color: MUDO }}>{o.tecnico} · {o.vale ? <b style={{ color: '#dc2626' }}>−{o.pontos} pts</b> : 'anulada'}</div>
+      <div style={{ fontSize: 12, color: MUDO }}>{o.tecnico} · {o.vale ? <b style={{ color: 'var(--mx-fg-red, #dc2626)' }}>−{o.pontos} pts</b> : 'anulada'}</div>
       {o.descricao && <div style={{ fontSize: 12, marginTop: 6, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{o.descricao}</div>}
     </div>
   )
@@ -582,10 +582,10 @@ function Detalhe({ o, podeJulgar, julgando, onJulgar, onFechar }: { o: Ocorrenci
         {o.defesas.length === 0 ? <div style={{ fontSize: 13, color: MUDO }}>O técnico não mandou defesa.</div> : o.defesas.map((j) => (
           <div key={j.id} className="rdr-fala" style={{ marginBottom: 8 }}>
             “{j.texto}”
-            <span style={{ display: 'block', fontSize: 11.5, marginTop: 6, fontStyle: 'normal', fontWeight: 700, color: j.status === 'aprovada' ? '#059669' : j.status === 'recusada' ? '#dc2626' : '#d97706' }}>
+            <span style={{ display: 'block', fontSize: 11.5, marginTop: 6, fontStyle: 'normal', fontWeight: 700, color: j.status === 'aprovada' ? '#059669' : j.status === 'recusada' ? 'var(--mx-fg-red, #dc2626)' : '#d97706' }}>
               {j.status === 'pendente' ? `aguardando julgamento · enviada ${haQuanto(j.criadaEm)}` : `${j.status === 'aprovada' ? 'aceita' : 'recusada'}${j.avaliadoPor ? ` por ${j.avaliadoPor}` : ''}${j.dataAvaliacao ? ` em ${br(j.dataAvaliacao.slice(0, 10))}` : ''}`}
             </span>
-            {j.anexos.length > 0 && <span style={{ display: 'flex', gap: 6, marginTop: 6, fontStyle: 'normal' }}>{j.anexos.map((a, i) => <a key={i} href={a.url} target="_blank" rel="noreferrer" style={{ color: '#0369a1', fontSize: 12 }}>📎 {a.nome || 'anexo'}</a>)}</span>}
+            {j.anexos.length > 0 && <span style={{ display: 'flex', gap: 6, marginTop: 6, fontStyle: 'normal' }}>{j.anexos.map((a, i) => <a key={i} href={a.url} target="_blank" rel="noreferrer" style={{ color: 'var(--mx-fg-blue, #0369a1)', fontSize: 12 }}>📎 {a.nome || 'anexo'}</a>)}</span>}
           </div>
         ))}
         {pend && podeJulgar && (
@@ -605,15 +605,15 @@ function EstilosRadar() {
       .rdr-topo { position: relative; z-index: 30; display: flex; gap: 10px; align-items: stretch; margin-bottom: 14px } .rdr-topo .pt-atalhos { position: static; margin: 0; flex: 1; min-width: 0 }
       .rdr-tb { flex: none; display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 99px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05) }
       .rdr-mes { display: inline-flex; align-items: center; gap: 2px; background: transparent; border-radius: 99px; padding: 0 }
-      .rdr-mes button { width: 30px; height: 30px; border-radius: 50%; border: none; background: transparent; color: #334155; cursor: pointer; transition: all .2s } .rdr-mes button:hover:not(:disabled) { background: #fefefe; color: #6d28d9; box-shadow: 0 1px 4px rgba(15,23,42,.1) } .rdr-mes button:disabled { opacity: .3; cursor: default }
-      .rdr-mes span { min-width: 140px; text-align: center; font-size: 14px; font-weight: 600; color: var(--portal-text, #0f172a) } .rdr-mes span i { color: #6d28d9; font-size: 12.5px; margin-right: 4px }
-      .rdr-hoje { border: 1px solid var(--portal-border, #e2e8f0); background: #fefefe; border-radius: 99px; padding: 5px 10px; font-family: inherit; font-size: 12.5px; font-weight: 800; color: #6d28d9; cursor: pointer }
+      .rdr-mes button { width: 30px; height: 30px; border-radius: 50%; border: none; background: transparent; color: var(--mx-t2, #334155); cursor: pointer; transition: all .2s } .rdr-mes button:hover:not(:disabled) { background: var(--mx-bg0, #fefefe); color: var(--mx-fg-violet, #6d28d9); box-shadow: 0 1px 4px rgba(15,23,42,.1) } .rdr-mes button:disabled { opacity: .3; cursor: default }
+      .rdr-mes span { min-width: 140px; text-align: center; font-size: 14px; font-weight: 600; color: var(--portal-text, #0f172a) } .rdr-mes span i { color: var(--mx-fg-violet, #6d28d9); font-size: 12.5px; margin-right: 4px }
+      .rdr-hoje { border: 1px solid var(--portal-border, #e2e8f0); background: var(--mx-bg0, #fefefe); border-radius: 99px; padding: 5px 10px; font-family: inherit; font-size: 12.5px; font-weight: 800; color: var(--mx-fg-violet, #6d28d9); cursor: pointer }
       .rdr-div { width: 1px; height: 30px; background: var(--portal-border, #e2e8f0) }
       .rdr-abre { display: inline-flex; gap: 8px; flex-wrap: wrap }
-      .rdr-abre button { --cc: #6d28d9; display: inline-flex; gap: 10px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: #fefefe; color: var(--portal-text, #0f172a); border-radius: 12px; padding: 6px 12px 6px 6px; font-family: inherit; text-align: left; cursor: pointer; transition: border-color .2s, box-shadow .2s, background .2s }
+      .rdr-abre button { --cc: #6d28d9; display: inline-flex; gap: 10px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: var(--mx-bg0, #fefefe); color: var(--portal-text, #0f172a); border-radius: 12px; padding: 6px 12px 6px 6px; font-family: inherit; text-align: left; cursor: pointer; transition: border-color .2s, box-shadow .2s, background .2s }
       .rdr-abre button.trib { --cc: #b45309 }
       .rdr-abre button:hover { border-color: color-mix(in srgb, var(--cc) 40%, transparent); box-shadow: 0 4px 12px rgba(15,23,42,.07) }
-      .rdr-abre button.on { background: color-mix(in srgb, var(--cc) 8%, #fefefe); border-color: color-mix(in srgb, var(--cc) 45%, transparent); box-shadow: inset 0 -3px 0 var(--cc) }
+      .rdr-abre button.on { background: color-mix(in srgb, var(--cc) 8%, var(--mx-bg0, #fefefe)); border-color: color-mix(in srgb, var(--cc) 45%, transparent); box-shadow: inset 0 -3px 0 var(--cc) }
       .rdr-abre-ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: color-mix(in srgb, var(--cc) 12%, transparent); color: var(--cc); font-size: 14px; transition: all .2s } .rdr-abre button.on .rdr-abre-ic { background: var(--cc); color: #fefefe }
       .rdr-abre-t { display: grid; line-height: 1.15 } .rdr-abre-t b { font-size: 13.5px; font-weight: 900 } .rdr-abre-t small { font-size: 11.5px; font-weight: 600; color: ${MUDO} }
       .rdr-abre-n { min-width: 22px; height: 22px; border-radius: 99px; display: grid; place-items: center; padding: 0 6px; font-size: 12px; font-weight: 900; color: #fefefe; background: #f59e0b; box-shadow: 0 0 0 3px #fef3c7 }
@@ -629,12 +629,12 @@ function EstilosRadar() {
       .rdr-btn:active:not(:disabled) { transform: scale(.97) }
       .rdr-btn:disabled { opacity: .4; cursor: default }
       .rdr-seta { width: 34px; height: 34px; padding: 0; justify-content: center }
-      .rdr-ok { border-color: #a7f3d0; color: #047857; background: #ecfdf5 } .rdr-ok:hover:not(:disabled) { border-color: #10b981; box-shadow: 0 2px 10px rgba(16,185,129,.25) }
-      .rdr-nao { border-color: #fecaca; color: #b91c1c; background: #fef2f2 } .rdr-nao:hover:not(:disabled) { border-color: #ef4444; box-shadow: 0 2px 10px rgba(239,68,68,.22) }
-      .rdr-chip { border: 1px solid #bae6fd; background: #f0f9ff; color: #0369a1; border-radius: 99px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; font-family: inherit; font-weight: 700 }
+      .rdr-ok { border-color: var(--mx-pb-green, #a7f3d0); color: var(--mx-fg-green, #047857); background: var(--mx-p-green, #ecfdf5) } .rdr-ok:hover:not(:disabled) { border-color: #10b981; box-shadow: 0 2px 10px rgba(16,185,129,.25) }
+      .rdr-nao { border-color: var(--mx-pb-red, #fecaca); color: var(--mx-fg-red, #b91c1c); background: var(--mx-p-red, #fef2f2) } .rdr-nao:hover:not(:disabled) { border-color: #ef4444; box-shadow: 0 2px 10px rgba(239,68,68,.22) }
+      .rdr-chip { border: 1px solid var(--mx-pb-blue, #bae6fd); background: var(--mx-bg1, #f0f9ff); color: var(--mx-fg-blue, #0369a1); border-radius: 99px; padding: 3px 10px; font-size: 11.5px; cursor: pointer; font-family: inherit; font-weight: 700 }
       .rdr-badge { display: inline-flex; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 99px; align-items: center; justify-content: center; background: #f59e0b; color: #fefefe; font-weight: 900; font-size: 11px; vertical-align: middle; animation: rdrPisca 1.8s ease-in-out infinite }
       @keyframes rdrPisca { 50% { box-shadow: 0 0 0 5px rgba(245,158,11,.18) } }
-      .rdr-pts { font-weight: 900; color: #dc2626; font-variant-numeric: tabular-nums; white-space: nowrap }
+      .rdr-pts { font-weight: 900; color: var(--mx-fg-red, #dc2626); font-variant-numeric: tabular-nums; white-space: nowrap }
       .rdr-varre { animation-name: rdrGira; animation-timing-function: linear; animation-iteration-count: infinite }
       @keyframes rdrGira { to { transform: rotate(360deg) } }
       .rdr-blip { animation-name: rdrBlip; animation-timing-function: ease-out; animation-iteration-count: infinite }
@@ -662,7 +662,7 @@ function EstilosRadar() {
       .rdr-mini span { width: 10px; border-radius: 3px 3px 1px 1px; animation: rdrBarraV .6s cubic-bezier(.2,.8,.2,1) both; transform-origin: bottom }
       @keyframes rdrBarraV { from { transform: scaleY(0) } to { transform: scaleY(1) } }
       .rdr-var { display: inline-block; border-radius: 99px; padding: 2px 9px; font-weight: 900; font-size: 12px }
-      .rdr-efeito { position: absolute; right: 14px; top: 8px; z-index: 3; font-weight: 900; font-size: 18px; color: #dc2626; pointer-events: none; animation: rdrSobe 1.6s cubic-bezier(.2,.8,.2,1) both; white-space: nowrap; background: var(--portal-bg-card, #fefefe); padding: 2px 8px; border-radius: 8px; box-shadow: 0 4px 14px rgba(15,23,42,.12) }
+      .rdr-efeito { position: absolute; right: 14px; top: 8px; z-index: 3; font-weight: 900; font-size: 18px; color: var(--mx-fg-red, #dc2626); pointer-events: none; animation: rdrSobe 1.6s cubic-bezier(.2,.8,.2,1) both; white-space: nowrap; background: var(--portal-bg-card, #fefefe); padding: 2px 8px; border-radius: 8px; box-shadow: 0 4px 14px rgba(15,23,42,.12) }
       .rdr-efeito-ok { color: #059669 }
       @keyframes rdrSobe { 0% { opacity: 0; transform: translateY(14px) scale(.7) } 20% { opacity: 1; transform: translateY(0) scale(1.15) } 70% { opacity: 1; transform: translateY(-10px) scale(1) } 100% { opacity: 0; transform: translateY(-30px) } }
       .rdr-treme { animation: rdrTreme .5s ease-in-out 3 !important; border-color: #fca5a5 !important }
@@ -670,6 +670,9 @@ function EstilosRadar() {
       .rdr-abre { animation: rdrAbre .3s cubic-bezier(.2,.8,.2,1) both }
       @keyframes rdrAbre { from { opacity: 0; transform: scale(.94) } to { opacity: 1; transform: none } }
       @media (prefers-reduced-motion: reduce) { .rdr-varre, .rdr-blip, .rdr-alerta, .rdr-badge { animation: none !important } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
     `}</style>
   )
 }
@@ -686,38 +689,42 @@ function JanelaMec({ titulo, sub, ic, cor, children }: { titulo: string; sub: st
   )
 }
 const ESTILO_JM = `
-.oc-nada { margin: 0; padding: 10px 14px; border-radius: 12px; background: #f0fdf4; color: #166534; font-size: 13.5px } .oc-nada i { margin-right: 6px }
+.oc-nada { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--mx-p-green, #f0fdf4); color: var(--mx-fg-green, #166534); font-size: 13.5px } .oc-nada i { margin-right: 6px }
 .oc-sec { display: grid; gap: 12px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 16px; padding: 14px 16px }
 .oc-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center }
-.oc-busca { flex: 1 1 260px; display: flex; align-items: center; gap: 8px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; background: #fefefe } .oc-busca i { color: #94a3b8 }
-.oc-busca input { flex: 1; border: 0; outline: 0; padding: 10px 0; font: inherit; font-size: 14px; background: transparent; color: #0f172a }
-.oc-filtros select { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; background: #fefefe; color: #0f172a }
-.oc-pilulas { display: inline-flex; gap: 2px; padding: 3px; border-radius: 99px; background: #f1f5f9 }
-.oc-pilulas button, .oc-cats button { border: 0; background: transparent; font: inherit; font-size: 13px; padding: 7px 13px; border-radius: 99px; cursor: pointer; color: #475569 }
-.oc-pilulas button.on { background: #fefefe; color: #0f172a; font-weight: 600; box-shadow: 0 1px 3px rgba(15,23,42,.14) }
+.oc-busca { flex: 1 1 260px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--mx-bd, #cbd5e1); border-radius: 10px; padding: 0 12px; background: var(--mx-bg0, #fefefe) } .oc-busca i { color: #94a3b8 }
+.oc-busca input { flex: 1; border: 0; outline: 0; padding: 10px 0; font: inherit; font-size: 14px; background: transparent; color: var(--mx-t, #0f172a) }
+.oc-filtros select { border: 1px solid var(--mx-bd, #cbd5e1); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; background: var(--mx-bg0, #fefefe); color: var(--mx-t, #0f172a) }
+.oc-pilulas { display: inline-flex; gap: 2px; padding: 3px; border-radius: 99px; background: var(--mx-bg1, #f1f5f9) }
+.oc-pilulas button, .oc-cats button { border: 0; background: transparent; font: inherit; font-size: 13px; padding: 7px 13px; border-radius: 99px; cursor: pointer; color: var(--mx-t2, #475569) }
+.oc-pilulas button.on { background: var(--mx-bg0, #fefefe); color: var(--mx-t, #0f172a); font-weight: 600; box-shadow: 0 1px 3px rgba(15,23,42,.14) }
 .oc-cats { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
 .oc-cats button { border: 1px solid var(--portal-border, #e2e8f0); display: inline-flex; gap: 6px; align-items: center } .oc-cats button i { width: 9px; height: 9px; border-radius: 50%; background: var(--c) }
-.oc-cats button.on { border-color: var(--c, #0f172a); background: color-mix(in srgb, var(--c, #0f172a) 10%, #fefefe); color: var(--c, #0f172a); font-weight: 600 }
-.oc-conta { margin-left: auto; font-size: 13px; color: #64748b } .oc-conta b { color: #dc2626 }
-.oc-limpa { margin-left: 8px; border: 0 !important; color: #dc2626 !important; padding: 4px 8px !important }
+.oc-cats button.on { border-color: var(--c, #0f172a); background: color-mix(in srgb, var(--c, #0f172a) 10%, var(--mx-bg0, #fefefe)); color: var(--c, #0f172a); font-weight: 600 }
+.oc-conta { margin-left: auto; font-size: 13px; color: var(--mx-t3, #64748b) } .oc-conta b { color: var(--mx-fg-red, #dc2626) }
+.oc-limpa { margin-left: 8px; border: 0 !important; color: var(--mx-fg-red, #dc2626) !important; padding: 4px 8px !important }
 .oc-tab { display: grid }
-.oc-l { display: grid; grid-template-columns: 60px minmax(160px, 1.1fr) minmax(220px, 2fr) 110px 120px 70px; gap: 12px; align-items: center; padding: 10px 8px; border: 0; border-top: 1px solid #f1f5f9; background: transparent; font: inherit; font-size: 13.5px; text-align: left; color: #0f172a; cursor: pointer; border-radius: 8px }
-.oc-l:hover { background: #f8fafc } .oc-l.cab { cursor: default; font-size: 12px; color: #64748b; border-top: 0 } .oc-l.cab:hover { background: transparent }
-.oc-l .n { text-align: right } .oc-l .n b { color: #dc2626 } .oc-l.anulada .n b { color: #94a3b8 } .oc-l.anulada .oc-o b { text-decoration: line-through; color: #64748b }
+.oc-l { display: grid; grid-template-columns: 60px minmax(160px, 1.1fr) minmax(220px, 2fr) 110px 120px 70px; gap: 12px; align-items: center; padding: 10px 8px; border: 0; border-top: 1px solid var(--mx-bd, #f1f5f9); background: transparent; font: inherit; font-size: 13.5px; text-align: left; color: var(--mx-t, #0f172a); cursor: pointer; border-radius: 8px }
+.oc-l:hover { background: var(--mx-bg1, #f8fafc) } .oc-l.cab { cursor: default; font-size: 12px; color: var(--mx-t3, #64748b); border-top: 0 } .oc-l.cab:hover { background: transparent }
+.oc-l .n { text-align: right } .oc-l .n b { color: var(--mx-fg-red, #dc2626) } .oc-l.anulada .n b { color: #94a3b8 } .oc-l.anulada .oc-o b { text-decoration: line-through; color: var(--mx-t3, #64748b) }
 .oc-tec { display: flex; gap: 8px; align-items: center; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.oc-o { display: grid; min-width: 0 } .oc-o b { font-weight: 600 } .oc-o small { font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.oc-o { display: grid; min-width: 0 } .oc-o b { font-weight: 600 } .oc-o small { font-size: 12px; color: var(--mx-t3, #64748b); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .oc-cat, .oc-st { font-style: normal; font-size: 12px; padding: 3px 9px; border-radius: 99px; white-space: nowrap }
-.oc-cat { background: color-mix(in srgb, var(--c) 12%, #fefefe); color: var(--c) }
-.oc-st.vale { background: #fee2e2; color: #b91c1c } .oc-st.julg { background: #fef3c7; color: #92400e } .oc-st.anul { background: #f1f5f9; color: #64748b }
+.oc-cat { background: color-mix(in srgb, var(--c) 12%, var(--mx-bg0, #fefefe)); color: var(--c) }
+.oc-st.vale { background: var(--mx-p-red, #fee2e2); color: var(--mx-fg-red, #b91c1c) } .oc-st.julg { background: var(--mx-p-amber, #fef3c7); color: var(--mx-fg-orange, #92400e) } .oc-st.anul { background: var(--mx-bg1, #f1f5f9); color: var(--mx-t3, #64748b) }
 @media (max-width: 900px) { .oc-l { grid-template-columns: 50px 1fr 70px } .oc-l > :nth-child(2), .oc-l > :nth-child(4), .oc-l > :nth-child(5) { display: none } .oc-conta { margin-left: 0; width: 100% } }
 
 @keyframes jmFade { from { opacity: 0 } } @keyframes jmSobe { from { opacity: 0; transform: translateY(24px) scale(.97) } }
 .jm-fundo { position: fixed; inset: 0; z-index: 9300; background: rgba(15,23,42,.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: jmFade .2s both }
 .jm { width: min(1180px, 100%); max-height: 92vh; display: flex; flex-direction: column; background: var(--portal-bg, #f8fafc); border-radius: 22px; overflow: hidden; box-shadow: 0 30px 80px rgba(15,23,42,.35); animation: jmSobe .4s cubic-bezier(.2,1.1,.3,1) both }
 .jm.jm-emb { width: 100%; max-height: none; box-shadow: none; border: 1px solid var(--portal-border, #e2e8f0); animation: none } .jm-emb .jm-corpo { overflow: visible }
-.jm-cab { display: flex; gap: 14px; align-items: center; padding: 16px 20px; background: linear-gradient(120deg, color-mix(in srgb, var(--jc) 10%, #fefefe), #fefefe); border-bottom: 1px solid var(--portal-border, #e2e8f0) }
+.jm-cab { display: flex; gap: 14px; align-items: center; padding: 16px 20px; background: linear-gradient(120deg, color-mix(in srgb, var(--jc) 10%, var(--mx-bg0, #fefefe)), var(--mx-bg0, #fefefe)); border-bottom: 1px solid var(--portal-border, #e2e8f0) }
 .jm-ic { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; font-size: 19px; color: #fefefe; background: var(--jc); box-shadow: 0 6px 16px color-mix(in srgb, var(--jc) 35%, transparent) }
 .jm-cab > div { flex: 1; display: grid } .jm-cab b { font-size: 19px; font-weight: 900; color: var(--portal-text, #0f172a) } .jm-cab small { font-size: 13px; color: var(--portal-text-muted, #64748b) }
-.jm-cab button { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--portal-bg, #f1f5f9); color: #334155; font-size: 16px; cursor: pointer } .jm-cab button:hover { background: #fee2e2; color: #dc2626 }
+.jm-cab button { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--portal-bg, #f1f5f9); color: var(--mx-t2, #334155); font-size: 16px; cursor: pointer } .jm-cab button:hover { background: var(--mx-p-red, #fee2e2); color: var(--mx-fg-red, #dc2626) }
 .jm-corpo { flex: 1; overflow: auto; padding: 18px 20px 22px; display: grid; gap: 14px; align-content: start }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.oc-cat) { color: color-mix(in srgb, var(--c) 60%, #fff) }
+
 `

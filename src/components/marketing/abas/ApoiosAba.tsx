@@ -19,7 +19,7 @@ import {
 import Modal from '../Modal';
 import {
   apiEnviar, brl, dataBR, diasAte, Painel, Titulo, Selo, Campo, estiloInput,
-  BotaoRosa, Vazio, Erro,
+  BotaoRosa, Vazio, Erro, CampoReais, MaisDetalhes,
 } from '../ui';
 
 const VAZIO = {
@@ -185,14 +185,10 @@ export default function ApoiosAba({
 
       <Modal titulo={editando ? 'Editar apoio de fábrica' : 'Novo apoio de fábrica'} aberto={aberto} onFechar={() => setAberto(false)}>
         <form onSubmit={salvar} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* O essencial em cima; o resto em "Mais detalhes" (24/11/2026: "muitas informações que podem ser puladas") */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <Campo label="Apoiador *"><input style={estiloInput} value={f.apoiador} onChange={(e) => set('apoiador', e.target.value)} required /></Campo>
-            <Campo label="Tipo">
-              <select style={estiloInput} value={f.tipo} onChange={(e) => set('tipo', e.target.value)}>
-                {TIPOS_APOIO.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-              </select>
-            </Campo>
-            <Campo label="Etapa do processo" ajuda="Onde o dinheiro está parado agora.">
+            <Campo label="Quem apoia *"><input style={estiloInput} value={f.apoiador} onChange={(e) => set('apoiador', e.target.value)} required /></Campo>
+            <Campo label="Etapa" ajuda="Onde o dinheiro está agora.">
               <select style={estiloInput} value={f.status} onChange={(e) => set('status', e.target.value)}>
                 {STATUS_APOIO.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
@@ -200,46 +196,63 @@ export default function ApoiosAba({
           </div>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <Campo label="Valor pedido (R$)"><input type="number" step="0.01" style={estiloInput} value={f.valor_previsto ?? ''} onChange={(e) => set('valor_previsto', e.target.value)} /></Campo>
-            <Campo label="Valor aprovado (R$)"><input type="number" step="0.01" style={estiloInput} value={f.valor_aprovado ?? ''} onChange={(e) => set('valor_aprovado', e.target.value)} /></Campo>
-            <Campo label="Valor recebido (R$)" ajuda="Só o que entrou de fato. É isto que abate o custo."><input type="number" step="0.01" style={estiloInput} value={f.valor_recebido ?? ''} onChange={(e) => set('valor_recebido', e.target.value)} /></Campo>
-          </div>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <Campo label="Nº do processo / co-op"><input style={estiloInput} value={f.processo_numero ?? ''} onChange={(e) => set('processo_numero', e.target.value)} /></Campo>
-            <Campo label="Documento" largura="0 1 120px">
-              <select style={estiloInput} value={f.documento_tipo ?? ''} onChange={(e) => set('documento_tipo', e.target.value)}>
-                <option value="">—</option>
-                {DOCUMENTOS_APOIO.map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
+            <Campo label="Pedido"><CampoReais value={f.valor_previsto} onChange={(v) => set('valor_previsto', v)} /></Campo>
+            <Campo label="Aprovado"><CampoReais value={f.valor_aprovado} onChange={(v) => set('valor_aprovado', v)} /></Campo>
+            <Campo label="Recebido" ajuda="Só o que já caiu na conta.">
+              <CampoReais value={f.valor_recebido} onChange={(v) => {
+                set('valor_recebido', v);
+                // entrou dinheiro e ainda não tinha data → hoje; etapa vira "Recebido" quando cobre o aprovado
+                if (v && !f.credito_em) set('credito_em', new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10));
+                if (v && Number(v) >= Number(f.valor_aprovado || 0) && Number(f.valor_aprovado || 0) > 0) set('status', 'recebido');
+              }} />
             </Campo>
-            <Campo label="Nº do documento"><input style={estiloInput} value={f.documento_numero ?? ''} onChange={(e) => set('documento_numero', e.target.value)} /></Campo>
-            <Campo label="Emitido em"><input type="date" style={estiloInput} value={f.documento_emitido_em ?? ''} onChange={(e) => set('documento_emitido_em', e.target.value)} /></Campo>
           </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <Campo label="Forma do crédito" ajuda="Depósito, desconto em duplicata…"><input style={estiloInput} value={f.forma_credito ?? ''} onChange={(e) => set('forma_credito', e.target.value)} /></Campo>
-            <Campo label="Previsão do crédito"><input type="date" style={estiloInput} value={f.previsao_credito ?? ''} onChange={(e) => set('previsao_credito', e.target.value)} /></Campo>
-            <Campo label="Crédito em"><input type="date" style={estiloInput} value={f.credito_em ?? ''} onChange={(e) => set('credito_em', e.target.value)} /></Campo>
-          </div>
-
-          <Campo label="Contrapartida acordada" ajuda="O que a fábrica exige em troca — vai no relatório." largura="1 1 100%">
+          <Campo label="O que a fábrica pede em troca" ajuda="Vai no relatório de contrapartida." largura="1 1 100%">
             <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f.contrapartida_texto ?? ''} onChange={(e) => set('contrapartida_texto', e.target.value)} />
           </Campo>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <Campo label="Prazo da contrapartida" ajuda="É o que dispara o aviso semanal."><input type="date" style={estiloInput} value={f.contrapartida_prazo ?? ''} onChange={(e) => set('contrapartida_prazo', e.target.value)} /></Campo>
-            <Campo label="Situação do relatório">
+            <Campo label="Prazo do relatório" ajuda="Dispara o aviso semanal."><input type="date" style={estiloInput} value={f.contrapartida_prazo ?? ''} onChange={(e) => set('contrapartida_prazo', e.target.value)} /></Campo>
+            <Campo label="Relatório">
               <select style={estiloInput} value={f.relatorio_status} onChange={(e) => set('relatorio_status', e.target.value)}>
                 {STATUS_RELATORIO.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
               </select>
             </Campo>
-            <Campo label="Responsável pelo apoio"><input style={estiloInput} value={f.responsavel_nome ?? ''} onChange={(e) => set('responsavel_nome', e.target.value)} /></Campo>
           </div>
 
-          <Campo label="Observações" largura="1 1 100%">
-            <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f.observacoes ?? ''} onChange={(e) => set('observacoes', e.target.value)} />
-          </Campo>
+          <MaisDetalhes
+            resumo="tipo, documento, crédito, responsável, observações"
+            abertoInicial={!!(f.processo_numero || f.documento_tipo || f.documento_numero || f.forma_credito || f.previsao_credito || f.observacoes)}
+          >
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              <Campo label="Tipo">
+                <select style={estiloInput} value={f.tipo} onChange={(e) => set('tipo', e.target.value)}>
+                  {TIPOS_APOIO.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                </select>
+              </Campo>
+              <Campo label="Responsável pelo apoio"><input style={estiloInput} value={f.responsavel_nome ?? ''} onChange={(e) => set('responsavel_nome', e.target.value)} /></Campo>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              <Campo label="Nº do processo / co-op"><input style={estiloInput} value={f.processo_numero ?? ''} onChange={(e) => set('processo_numero', e.target.value)} /></Campo>
+              <Campo label="Documento" largura="0 1 120px">
+                <select style={estiloInput} value={f.documento_tipo ?? ''} onChange={(e) => set('documento_tipo', e.target.value)}>
+                  <option value="">—</option>
+                  {DOCUMENTOS_APOIO.map((d) => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </Campo>
+              <Campo label="Nº do documento"><input style={estiloInput} value={f.documento_numero ?? ''} onChange={(e) => set('documento_numero', e.target.value)} /></Campo>
+              <Campo label="Emitido em"><input type="date" style={estiloInput} value={f.documento_emitido_em ?? ''} onChange={(e) => set('documento_emitido_em', e.target.value)} /></Campo>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+              <Campo label="Forma do crédito" ajuda="Depósito, desconto em duplicata…"><input style={estiloInput} value={f.forma_credito ?? ''} onChange={(e) => set('forma_credito', e.target.value)} /></Campo>
+              <Campo label="Previsão do crédito"><input type="date" style={estiloInput} value={f.previsao_credito ?? ''} onChange={(e) => set('previsao_credito', e.target.value)} /></Campo>
+              <Campo label="Caiu em"><input type="date" style={estiloInput} value={f.credito_em ?? ''} onChange={(e) => set('credito_em', e.target.value)} /></Campo>
+            </div>
+            <Campo label="Observações" largura="1 1 100%">
+              <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f.observacoes ?? ''} onChange={(e) => set('observacoes', e.target.value)} />
+            </Campo>
+          </MaisDetalhes>
 
           {erro && <Erro>{erro}</Erro>}
 

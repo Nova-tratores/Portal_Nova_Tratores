@@ -1,0 +1,50 @@
+/* Faixas de guias estilo Chrome dos módulos (Serviços, Frota, Marketing, Treinamento,
+   CRM/Leads, Inteligência de Vendas, OPA, Dashboard Agro...) — TEMA ESCURO.
+   No claro nada muda: as guias usam estilo inline (faixa colorida, guia ativa #fefefe,
+   texto #111). No escuro a faixa vira cinza escuro, a guia fechada fica com texto
+   secundário e a ativa vira "cartão" escuro com realce vermelho em cima.
+   Os !important são para vencer o estilo inline dos componentes.
+   Classes: .aba-faixa (a barra) · .aba-guia (cada guia) · .aba-ativa (a guia aberta)
+            .aba-n (contador dentro da guia) · .aba-faixa--tom (Serviços: ativa no tom do módulo) */
+
+[data-theme="dark"] .aba-faixa {
+  background: #262626 !important; /* = --portal-bg-secondary (dentro de Serviços o token é trocado pelo tom do módulo) */
+  box-shadow: 0 1px 0 var(--portal-border, #2a2a2a) !important;
+}
+[data-theme="dark"] .aba-faixa .aba-guia {
+  color: var(--portal-text-secondary, #a3a3a3) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  box-shadow: none !important;
+}
+[data-theme="dark"] .aba-faixa .aba-guia:hover {
+  color: var(--portal-text, #f5f5f5) !important;
+  background: rgba(255, 255, 255, 0.10) !important;
+}
+[data-theme="dark"] .aba-faixa .aba-guia.aba-ativa {
+  color: var(--portal-text, #f5f5f5) !important;
+  background: var(--portal-bg-card, #1a1a1a) !important;
+  box-shadow: inset 0 2px 0 #f87171 !important;
+}
+/* Serviços/Peças: a guia ativa continua na mesma cor do conteúdo (sem divisão) */
+[data-theme="dark"] .aba-faixa--tom .aba-guia.aba-ativa {
+  background: var(--tom-modulo, #10101a) !important;
+}
+[data-theme="dark"] .aba-faixa .aba-guia:not(.aba-ativa) .aba-n {
+  color: var(--portal-text, #f5f5f5) !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+/* ícone da guia fechada (OPA) segue o texto */
+[data-theme="dark"] .aba-faixa .aba-guia:not(.aba-ativa) .aba-ico {
+  color: inherit !important;
+}
+/* botões brancos "de destaque" dentro da faixa (Novo produto, etapa atual…) */
+[data-theme="dark"] .aba-faixa .aba-btn-claro {
+  background: var(--portal-bg-card, #1a1a1a) !important;
+  color: var(--portal-text, #f5f5f5) !important;
+  border-color: var(--portal-border, #2a2a2a) !important;
+}
+/* selo pequeno dentro da guia (Dashboard Agro: "NOVO"…) */
+[data-theme="dark"] .aba-faixa .aba-guia .aba-selo {
+  color: var(--portal-green-fg, #34d399) !important;
+  background: rgba(52, 211, 153, 0.15) !important;
+}

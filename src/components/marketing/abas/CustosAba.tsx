@@ -13,16 +13,18 @@
 // quando alguém editasse uma requisição antiga meses depois.
 // =============================================================================
 import { useState } from 'react';
-import { Link2, Plus, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
+import { Link2, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
+import RequisicaoDoCusto from '../RequisicaoDoCusto';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui';
 import { CATEGORIAS_CUSTO, ORIGENS_CUSTO, STATUS_CUSTO, rotulo, cor } from '@/lib/marketing/tipos';
 import { totaisCusto, divergente, parseValorMisto, rankingCategorias } from '@/lib/marketing/custos';
+import { sugerirCategoria } from '@/lib/marketing/categorizar';
 import Modal from '../Modal';
 import {
   apiGet, apiEnviar, brl, dataBR, Painel, Titulo, Selo, Kpi, Campo, estiloInput,
-  BotaoRosa, Vazio, Erro,
+  BotaoRosa, Vazio, Erro, CampoReais,
 } from '../ui';
 
 const VAZIO = {
@@ -51,11 +53,33 @@ export default function CustosAba({
   const [sincronizando, setSinc] = useState(false);
   const [avisoSinc, setAvisoSinc] = useState<string | null>(null);
 
+  const [reqAberta, setReqAberta] = useState<string | null>(null);
+  // busca de QUALQUER requisição pelo nº, título ou fornecedor (além das sugeridas pelo projeto/grupo)
+  const [busca, setBusca] = useState('');
+  const [achadas, setAchadas] = useState<any[] | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  const buscar = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!busca.trim()) { setAchadas(null); return; }
+    setBuscando(true);
+    try { setAchadas((await apiGet<any>(`/api/marketing/custos/requisicao?busca=${encodeURIComponent(busca.trim())}`)).requisicoes ?? []); }
+    catch (e2: any) { setErro(e2?.message || 'Não foi possível buscar.'); }
+    finally { setBuscando(false); }
+  };
+  const ligarRequisicao = async (reqId: number) => {
+    try {
+      await apiEnviar('/api/marketing/custos/requisicao', 'POST', { req_id: reqId, acao_id: acaoId });
+      setAchadas((s) => (s ?? []).filter((r) => r.id !== reqId));
+      setSug((s: any) => (s ? { ...s, requisicoes: (s.requisicoes ?? []).filter((r: any) => r.ref !== String(reqId)) } : s));
+      onMudou();
+    } catch (e: any) { setErro(e?.message || 'Não foi possível ligar.'); }
+  };
+  const jaLigadas = new Set(custos.filter((c) => c.vinculo_tipo === 'requisicao').map((c) => String(c.vinculo_ref)));
+
   const t = totaisCusto(custos as any);
   const categorias = rankingCategorias(t.porCategoria);
   const set = (k: string, v: any) => setF((s: any) => ({ ...s, [k]: v }));
 
-  const abrirNovo = () => { setEditando(null); setF(VAZIO); setErro(null); setAberto(true); };
   const abrirEdicao = (c: any) => {
     setEditando(c);
     setF({ ...VAZIO, ...c, data: (c.data ?? '').slice(0, 10) });
@@ -68,7 +92,8 @@ export default function CustosAba({
     setSalvando(true);
     setErro(null);
     try {
-      if (editando) await apiEnviar('/api/marketing/custos', 'PATCH', { ...f, id: editando.id });
+      // editou e salvou = viu a categoria: deixa de ser "sugerida"
+      if (editando) await apiEnviar('/api/marketing/custos', 'PATCH', { ...f, id: editando.id, categoria_sugerida: false });
       else await apiEnviar('/api/marketing/custos', 'POST', { ...f, acao_id: acaoId });
       setAberto(false);
       onMudou();
@@ -77,6 +102,11 @@ export default function CustosAba({
     } finally {
       setSalvando(false);
     }
+  };
+
+  const confirmarCategoria = async (c: any) => {
+    try { await apiEnviar('/api/marketing/custos', 'PATCH', { id: c.id, categoria_sugerida: false }); onMudou(); }
+    catch (e: any) { setErro(e?.message || 'Não foi possível confirmar.'); }
   };
 
   const excluir = async (c: any) => {
@@ -99,7 +129,9 @@ export default function CustosAba({
       await apiEnviar('/api/marketing/custos', 'POST', {
         acao_id: acaoId,
         descricao: doc.titulo,
-        categoria: 'outro',
+        // sugerida pela descrição / tipo da requisição / fornecedor; fica marcada até alguém confirmar (23/11/2026)
+        categoria: sugerirCategoria({ descricao: doc.titulo, tipoRequisicao: doc.tipoRequisicao, fornecedor: doc.fornecedor }),
+        categoria_sugerida: true,
         fornecedor: doc.fornecedor || null,
         data: doc.data ? String(doc.data).slice(0, 10) : null,
         valor: parseValorMisto(doc.valorCru),
@@ -156,16 +188,14 @@ export default function CustosAba({
         >
           <RefreshCw size={15} /> {sincronizando ? 'Conferindo…' : 'Conferir com a origem'}
         </button>
-        <button
-          onClick={abrirSugestoes}
-          {...gateBtn(podeVincular)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', fontSize: 13, borderRadius: 3, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', cursor: 'pointer', ...estiloSemPermissao(podeVincular) }}
-        >
-          <Link2 size={15} /> Buscar documentos
-        </button>
-        <BotaoRosa onClick={abrirNovo} {...gateBtn(podeEditar)} style={{ display: 'flex', alignItems: 'center', gap: 6, ...estiloSemPermissao(podeEditar) }}>
-          <Plus size={16} /> Novo custo
+        {/* 24/11/2026 (José): "o custo não se cria aqui, apenas em Requisições" — sem "Novo custo" digitado.
+            Aqui só se LIGA uma requisição que já existe; o normal é lançar de dentro da própria requisição. */}
+        <BotaoRosa onClick={abrirSugestoes} {...gateBtn(podeVincular)} style={{ display: 'flex', alignItems: 'center', gap: 6, ...estiloSemPermissao(podeVincular) }}>
+          <Link2 size={16} /> Ligar requisição
         </BotaoRosa>
+      </div>
+      <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted, #64748b)', textAlign: 'right', marginTop: -4 }}>
+        Custo nasce na Requisição: lá, em “É custo de evento?”, escolha esta campanha.
       </div>
 
       {avisoSinc && (
@@ -176,13 +206,13 @@ export default function CustosAba({
       {erro && <Erro>{erro}</Erro>}
 
       {custos.length === 0 ? (
-        <Vazio>Nenhum custo lançado. Digite na mão ou traga de uma requisição pelo botão acima.</Vazio>
+        <Vazio>Nenhum custo ainda. Lance pela Requisição (“É custo de evento?”) ou ligue uma requisição já feita pelo botão acima.</Vazio>
       ) : (
         <Painel style={{ padding: 0, overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 760 }}>
             <thead>
               <tr style={{ background: 'var(--portal-bg)' }}>
-                {['Descrição', 'Categoria', 'Fornecedor', 'Data', 'Origem', 'Valor', ''].map((h) => (
+                {['Descrição', 'Categoria', 'Fornecedor', 'Pedida por', 'Data', 'Origem', 'Valor', ''].map((h) => (
                   <th key={h} style={{ textAlign: h === 'Valor' ? 'right' : 'left', padding: '9px 10px', fontWeight: 700, color: 'var(--portal-text)', borderBottom: '1px solid var(--portal-border)', whiteSpace: 'nowrap' }}>
                     {h}
                   </th>
@@ -212,12 +242,28 @@ export default function CustosAba({
                         </span>
                       )}
                     </td>
-                    <td style={{ padding: '8px 10px', color: 'var(--portal-text)' }}>{rotulo(CATEGORIAS_CUSTO, c.categoria)}</td>
+                    <td style={{ padding: '8px 10px', color: 'var(--portal-text)' }}>
+                      {rotulo(CATEGORIAS_CUSTO, c.categoria)}
+                      {c.categoria_sugerida && (
+                        <button type="button" disabled={!podeEditar} onClick={() => confirmarCategoria(c)}
+                          title="O portal adivinhou pela descrição. Clique para confirmar (ou edite a linha para trocar)."
+                          style={{ marginLeft: 6, fontSize: 11.5, padding: '1px 8px', borderRadius: 999, border: '1px dashed #d97706', background: 'transparent', color: '#b45309', cursor: podeEditar ? 'pointer' : 'default' }}>
+                          sugerida · confirmar
+                        </button>
+                      )}
+                    </td>
                     <td style={{ padding: '8px 10px', color: 'var(--portal-text)' }}>{c.fornecedor || '—'}</td>
+                    <td style={{ padding: '8px 10px', color: 'var(--portal-text)' }}>{c.req_solicitante || '—'}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{dataBR(c.data)}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>
-                      {rotulo(ORIGENS_CUSTO, c.origem)}
-                      {c.vinculo_ref ? ` #${c.vinculo_ref}` : ''}
+                      {c.vinculo_tipo === 'requisicao' ? (
+                        <button type="button" onClick={() => setReqAberta(c.vinculo_ref)} title="Ver notas, produtos e o PDF da requisição"
+                          style={{ padding: 0, border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer', font: 'inherit', fontWeight: 600 }}>
+                          Requisição #{c.vinculo_ref}
+                        </button>
+                      ) : (
+                        <>{rotulo(ORIGENS_CUSTO, c.origem)}{c.vinculo_ref ? ` #${c.vinculo_ref}` : ''}</>
+                      )}
                       {div && (
                         <span title={`O documento de origem está em ${brl(c.valor_fonte)} — o lançado continua valendo.`} style={{ marginLeft: 6, color: '#dc2626', display: 'inline-flex', verticalAlign: 'middle' }}>
                           <TriangleAlert size={14} />
@@ -274,7 +320,7 @@ export default function CustosAba({
             <Campo label="Data"><input type="date" style={estiloInput} value={f.data ?? ''} onChange={(e) => set('data', e.target.value)} /></Campo>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-            <Campo label="Valor (R$) *"><input type="number" step="0.01" style={estiloInput} value={f.valor ?? ''} onChange={(e) => set('valor', e.target.value)} required /></Campo>
+            <Campo label="Valor *"><CampoReais value={f.valor} onChange={(v) => set('valor', v)} required /></Campo>
             <Campo label="Rateio (%)" ajuda="Menos de 100 quando a nota cobre mais de uma ação.">
               <input type="number" min={1} max={100} step="0.001" style={estiloInput} value={f.rateio_percent ?? 100} onChange={(e) => set('rateio_percent', e.target.value)} />
             </Campo>
@@ -288,6 +334,12 @@ export default function CustosAba({
             <div style={{ padding: 10, borderRadius: 3, border: '1px solid var(--portal-border)', fontSize: 13, color: 'var(--portal-text)' }}>
               Vinculado a <b>{rotulo(ORIGENS_CUSTO, f.vinculo_tipo)} #{f.vinculo_ref}</b>
               {f.vinculo_label ? ` — ${f.vinculo_label}` : ''}.
+              {f.vinculo_tipo === 'requisicao' && (
+                <button type="button" onClick={() => setReqAberta(f.vinculo_ref)}
+                  style={{ marginLeft: 8, padding: 0, border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer', font: 'inherit', fontWeight: 600 }}>
+                  Ver notas, produtos e PDF
+                </button>
+              )}
               <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)', marginTop: 3 }}>
                 O valor acima é o que vale para o retorno, mesmo que o documento mude depois.
               </div>
@@ -305,7 +357,36 @@ export default function CustosAba({
       </Modal>
 
       {/* Sugestões vindas do Projeto do Omie */}
-      <Modal titulo="Documentos que podem ser desta ação" aberto={sugestoesAberto} onFechar={() => setSugestoes(false)} largura={860}>
+      <Modal titulo="Ligar requisição a esta campanha" aberto={sugestoesAberto} onFechar={() => setSugestoes(false)} largura={860}>
+        <form onSubmit={buscar} style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+          <input style={estiloInput} value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nº da requisição, título ou fornecedor" autoFocus />
+          <BotaoRosa tipo="submit" disabled={buscando}>{buscando ? 'Buscando…' : 'Buscar'}</BotaoRosa>
+        </form>
+        {achadas !== null && (
+          <div style={{ marginBottom: 16 }}>
+            <Titulo>Encontradas ({achadas.length})</Titulo>
+            {achadas.length === 0 ? <Vazio>Nenhuma requisição com esse número ou nome.</Vazio> : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                {achadas.map((r) => (
+                  <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1px solid var(--portal-border)', borderRadius: 3 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: 'var(--portal-text)' }}>
+                        <button type="button" onClick={() => setReqAberta(String(r.id))} style={{ padding: 0, border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer', font: 'inherit', fontWeight: 600 }}>#{r.id}</button> · {r.titulo}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>
+                        {[r.solicitante ? `pedida por ${r.solicitante}` : null, r.fornecedor, dataBR(r.data), r.status].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{brl(r.valor)}</div>
+                    {jaLigadas.has(String(r.id))
+                      ? <span style={{ fontSize: 12, color: '#16a34a' }}>já ligada</span>
+                      : <BotaoRosa onClick={() => ligarRequisicao(r.id)} style={{ padding: '6px 11px', fontSize: 12 }}>Ligar</BotaoRosa>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {carregandoSug ? (
           <Vazio>Procurando…</Vazio>
         ) : !sug ? (
@@ -339,8 +420,11 @@ export default function CustosAba({
                           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>
                             {brl(parseValorMisto(d.valorCru))}
                           </div>
+                          {tipo === 'requisicao' && (
+                            <button type="button" onClick={() => setReqAberta(d.ref)} style={{ padding: '6px 9px', fontSize: 12, borderRadius: 3, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', cursor: 'pointer' }}>Ver</button>
+                          )}
                           <BotaoRosa onClick={() => lancarDoDocumento(tipo, d)} style={{ padding: '6px 11px', fontSize: 12 }}>
-                            Lançar
+                            Ligar
                           </BotaoRosa>
                         </div>
                       ))}
@@ -352,6 +436,8 @@ export default function CustosAba({
           </div>
         )}
       </Modal>
+
+      <RequisicaoDoCusto reqId={reqAberta} onFechar={() => setReqAberta(null)} />
     </div>
   );
 }

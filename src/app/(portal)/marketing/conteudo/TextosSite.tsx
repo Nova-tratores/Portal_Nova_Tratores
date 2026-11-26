@@ -4,11 +4,12 @@
 // onde aparece e o que está lá hoje; ao tocar, abre o editor com a explicação de cada campo e a prévia de computador e
 // celular daquele pedaço. Gravar → Publicar site (barra no alto, igual Catálogo e Promoções).
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { fetchAuth } from '@/lib/auth/client';
 import { SECOES, type Campo as CampoDef, type GrupoConteudo } from '@/lib/marketing/redes/conteudo';
-import { Aviso, ComoLer, quando, tela } from '@/components/marketing/redes/ui';
+import { Aviso, quando, tela } from '@/components/marketing/redes/ui';
 import PublicarBarra from '@/components/marketing/redes/PublicarBarra';
-import SubAbas from '@/components/marketing/redes/SubAbas';
+import SubAbas, { type SubAba } from '@/components/marketing/redes/SubAbas';
 import { ABAS_CONTEUDO } from '@/components/marketing/redes/abasConteudo';
 import { PreviaConteudo } from '@/components/marketing/redes/Previa';
 import { Campo, Quadradinho, Secao, T1, T2, T3, bt, campoNP, cartaoNP, grade, ic } from '@/components/marketing/redes/np';
@@ -25,7 +26,8 @@ const PARTES: Record<GrupoConteudo, { onde: string; cor: string }> = {
 };
 const ORDEM: GrupoConteudo[] = ['aviso', 'home', 'banners', 'contato', 'horario'];
 
-export default function TextosSite() {
+// 25/11/2026 (José): mora em Acessos → Site (engrenagem "Textos do site"), não mais em Conteúdo e publicar.
+export default function TextosSite({ abas = ABAS_CONTEUDO, voltar }: { abas?: SubAba[]; voltar?: string }) {
   const [padrao, setPadrao] = useState<Valores>({});
   const [salvo, setSalvo] = useState<Record<string, { valor: Record<string, unknown>; atualizado_em: string; atualizado_por: string | null }>>({});
   const [edit, setEdit] = useState<Valores>({});
@@ -64,6 +66,8 @@ export default function TextosSite() {
     const v = valoresDe(g);
     if (g === 'aviso') return v.ligado === true && String(v.texto || '').trim() ? `Ligada: “${v.texto}”` : 'Desligada: não aparece no site';
     if (g === 'home') return `“${v.titulo}”`;
+    // Sem o texto do site (SITE_URL não respondeu) e nada gravado aqui, a prévia virava "WhatsApp · , /" (23/11/2026)
+    if ((g === 'contato' || g === 'horario') && !Object.values(v).some((x) => String(x ?? '').trim())) return erroSite ? 'Sem prévia: o portal não conseguiu ler o site (aviso acima)' : 'Nada preenchido ainda';
     if (g === 'contato') return `WhatsApp ${v.whatsapp} · ${v.endereco}, ${v.cidade}/${v.uf}`;
     if (g === 'horario') return `Seg a sex ${String(v.manha).replace('-', '–')} e ${String(v.tarde).replace('-', '–')} · sábado ${v.sabado ? String(v.sabado).replace('-', '–') : 'fechado'}`;
     return '5 páginas: Crédito, Pós-venda, Peças, Contato, Implementos';
@@ -90,7 +94,12 @@ export default function TextosSite() {
 
   return (
     <div style={{ ...tela, color: T1 }}>
-      <SubAbas abas={ABAS_CONTEUDO} />
+      <SubAbas abas={abas} />
+      {voltar && (
+        <Link href={voltar} style={{ display: 'inline-flex', gap: 8, alignItems: 'center', width: 'fit-content', fontSize: 14, color: T2, textDecoration: 'none' }}>
+          {ic('fa-arrow-left')} Voltar para os acessos do site <span style={{ color: T3 }}>›</span> <span style={{ color: T1 }}>{ic('fa-gear')} Textos do site</span>
+        </Link>
+      )}
       {erro && <Aviso>{erro}</Aviso>}
       {erroSite && <Aviso>{erroSite} Os campos aparecem vazios até o portal conseguir ler o site (variável SITE_URL).</Aviso>}
       <PublicarBarra versao={versao} />
@@ -177,12 +186,6 @@ export default function TextosSite() {
         </div>
       )}
 
-      <ComoLer>
-        Cada cartão é uma parte do site, na ordem em que aparecem de cima para baixo. Toque em <b>Mudar</b>, troque o texto (embaixo de
-        cada campo diz para que serve e o que está no site hoje), confira na <b>prévia</b> e toque em <b>Gravar</b>. As mudanças só vão
-        para o site quando alguém toca em <b>Publicar site</b>, no alto da tela; leva uns 2 minutos. Campo vazio volta ao texto original.
-        Máquinas, preços e fotos ficam na aba <b>Catálogo do site</b>; o carrossel de ofertas, na aba <b>Promoções</b>.
-      </ComoLer>
     </div>
   );
 }

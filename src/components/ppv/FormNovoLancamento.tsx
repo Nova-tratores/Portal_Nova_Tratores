@@ -263,6 +263,28 @@ export default function FormNovoLancamento({
 
           <div className="ppv-form-divider" />
 
+          {/* ── Tipo: Pedido de venda ou Remessa (sai com nota de remessa, sem cobrar) ── */}
+          <div className="ppv-form-field">
+            <span className="ppv-form-label">Tipo</span>
+            <div role="radiogroup" aria-label="Tipo do lançamento" style={{ display: "inline-flex", padding: 3, gap: 2, borderRadius: 10, background: "var(--portal-bg-secondary, #f1f5f9)", border: "1px solid var(--portal-border, #e2e8f0)" }}>
+              {TIPOS_PEDIDO.map((t) => {
+                const on = tipoPedido === t.value;
+                return (
+                  <button key={t.value} type="button" role="radio" aria-checked={on} onClick={() => setTipoPedido(t.value)}
+                    style={{ height: 34, padding: "0 14px", border: "none", borderRadius: 7, cursor: "pointer", fontFamily: "inherit", fontSize: 13.5,
+                      background: on ? "var(--ppv-primary, #E8730C)" : "transparent", color: on ? "#fefefe" : "var(--portal-text-secondary, #475569)" }}>
+                    <i className={`fas ${t.value === "Remessa" ? "fa-truck-ramp-box" : "fa-file-invoice-dollar"}`} style={{ marginRight: 7 }} />{t.label}
+                  </button>
+                );
+              })}
+            </div>
+            {tipoPedido === "Remessa" && (
+              <div style={{ marginTop: 6, fontSize: 12.5, color: "var(--portal-text-secondary, #475569)" }}>
+                Remessa sai com <b>nota de remessa</b> e não gera conta a receber. Depois de salvar: <b>Enviar para o Omie</b> → <b>Faturar remessa</b>.
+              </div>
+            )}
+          </div>
+
           {/* ── Cliente (topo, em destaque — o pedido começa por ele) ── */}
           <div className="ppv-form-field">
             <span className="ppv-form-label">

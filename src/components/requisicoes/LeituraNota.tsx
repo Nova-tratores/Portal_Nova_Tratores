@@ -124,9 +124,9 @@ export default function LeituraNota({ reqId, campos, urlDe, gatilho, valorReq, f
           {res.avisos.map((a) => <div key={a} style={{ fontSize: 13, color: '#B45309', marginTop: 4 }}>{a}</div>)}
           <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             {jaIgual ? (
-              <span style={{ fontSize: 13, color: '#15803d' }}><i className="fa-solid fa-check" /> O nº da nota já está certo na requisição.</span>
+              <span style={{ fontSize: 13, color: 'var(--portal-green-fg, #15803d)' }}><i className="fa-solid fa-check" /> O nº da nota já está certo na requisição.</span>
             ) : aplicado ? (
-              <span style={{ fontSize: 13, color: '#15803d' }}><i className="fa-solid fa-check" /> Dados gravados na requisição.</span>
+              <span style={{ fontSize: 13, color: 'var(--portal-green-fg, #15803d)' }}><i className="fa-solid fa-check" /> Dados gravados na requisição.</span>
             ) : (d.numero || d.cnpj) ? (
               <button type="button" onClick={aplicar} className="text-[13.5px] px-3.5 py-2 rounded-[10px] text-white" style={{ background: confirmada ? '#16A34A' : '#D97706' }}>
                 <i className="fa-solid fa-check" /> Usar estes dados

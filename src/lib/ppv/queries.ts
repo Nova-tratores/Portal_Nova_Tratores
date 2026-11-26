@@ -126,6 +126,14 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
     });
     const empresaMajoritaria = Object.entries(contEmpresa).sort((a, b) => b[1] - a[1])[0]?.[0] || "Nova Tratores";
 
+    // Peças marcadas "não gerar cobrança" (preço já está 0 nas movimentações; aqui vem o motivo e o preço de antes).
+    // Lido direto (sem importar lib/ppv/sem-cobranca, que importa este arquivo).
+    const semCob: Record<string, { motivo: string; precoOriginal: number; por?: string; em?: string }> = {};
+    try {
+      const marcas = await supabaseFetch<Record<string, unknown>[]>(`ppv_itens_sem_cobranca?id_ppv=eq.${encodeURIComponent(id)}&select=*`);
+      for (const m of marcas || []) semCob[String(m.cod_produto)] = { motivo: String(m.motivo || ""), precoOriginal: Number(m.preco_original) || 0, por: String(m.por || ""), em: String(m.em || "") };
+    } catch { /* tabela ainda não criada */ }
+
     detalhes.produtos = Object.values(itensMap).map((p) => {
       const emps = empresaMap[p.codigo];
       let empresa: string | undefined;
@@ -134,7 +142,7 @@ export async function buscarPPVPorId(id: string): Promise<PPVDetalhes | null> {
       } else if (emps && emps.length > 1) {
         empresa = empresaMajoritaria; // existe em ambas, usa a majoritária
       }
-      return { ...p, empresa };
+      return { ...p, empresa, semCobranca: semCob[p.codigo] || null };
     });
   }
 
@@ -442,10 +450,11 @@ export function montarDadosParaImpressao(detalhes: PPVDetalhes) {
   const fmt = (v: number) => v.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
   let totalDev = 0;
   let totalBruto = 0;
+  let totalNaoCobrado = 0;
 
-  const itensMap: Record<string, { codigo: string; descricao: string; saida: number; dev: number; preco: number }> = {};
+  const itensMap: Record<string, { codigo: string; descricao: string; saida: number; dev: number; preco: number; semCob: { motivo: string; precoOriginal: number } | null }> = {};
   detalhes.produtos.forEach((p) => {
-    itensMap[p.codigo] = { codigo: p.codigo, descricao: p.descricao, saida: p.quantidade, dev: 0, preco: p.preco };
+    itensMap[p.codigo] = { codigo: p.codigo, descricao: p.descricao, saida: p.quantidade, dev: 0, preco: p.preco, semCob: p.semCobranca || null };
   });
   detalhes.devolucoes.forEach((d) => {
     if (itensMap[d.codigo]) itensMap[d.codigo].dev += d.quantidade;
@@ -454,6 +463,7 @@ export function montarDadosParaImpressao(detalhes: PPVDetalhes) {
   const itens = Object.values(itensMap).map((item) => {
     const ficou = item.saida - item.dev;
     const total = ficou * item.preco;
+    if (item.semCob) totalNaoCobrado += ficou * item.semCob.precoOriginal;
     totalDev += item.dev * item.preco;
     totalBruto += total;
     return {
@@ -462,8 +472,11 @@ export function montarDadosParaImpressao(detalhes: PPVDetalhes) {
       saida: item.saida,
       devStr: item.dev > 0 ? `(-${item.dev})` : "",
       ficou,
-      unit: fmt(item.preco),
-      total: fmt(total),
+      unit: fmt(item.semCob ? item.semCob.precoOriginal : item.preco),
+      total: fmt(item.semCob ? ficou * item.semCob.precoOriginal : total),
+      // "não gerar cobrança": o PDF mostra o valor riscado + "não cobrado" (fora da soma)
+      naoCobrado: !!item.semCob,
+      motivoNaoCobrado: item.semCob?.motivo || "",
     };
   });
 
@@ -486,6 +499,7 @@ export function montarDadosParaImpressao(detalhes: PPVDetalhes) {
     obs: detalhes.observacao || "",
     itens,
     totalDev: fmt(totalDev),
+    totalNaoCobrado: fmt(totalNaoCobrado),
     totalBruto: fmt(totalBruto),
     desconto,
     valorDesconto: fmt(valorDesconto),

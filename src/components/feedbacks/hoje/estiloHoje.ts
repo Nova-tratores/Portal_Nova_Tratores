@@ -14,6 +14,12 @@ export const ESTILO_HOJE = `
 .fbh-guia.on { background: #fefefe; box-shadow: 0 -2px 6px rgba(0,0,0,0.15) }
 .fbh-guia .so { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: rgba(17,17,17,.10); color: #111111 }
 .fbh-guia i { font-size: 13px }
+/* tema escuro (23/11/2026): faixa cinza escuro, guia fechada com texto secundário, aberta = cartão escuro com realce vermelho */
+[data-theme="dark"] .fbh-faixa { background: var(--portal-bg-secondary, #262626) }
+[data-theme="dark"] .fbh-guia { color: var(--portal-text-secondary, #a3a3a3); background: rgba(255,255,255,0.05) }
+[data-theme="dark"] .fbh-guia:hover { color: var(--portal-text, #f5f5f5); background: rgba(255,255,255,0.10) }
+[data-theme="dark"] .fbh-guia.on { background: var(--portal-bg-card, #1a1a1a); color: var(--portal-text, #f5f5f5); box-shadow: inset 0 2px 0 #f87171 }
+[data-theme="dark"] .fbh-guia .so { background: rgba(255,255,255,.12); color: var(--portal-text, #f5f5f5) }
 
 .fbh-linha-topo { display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
 .fbh-opcoes { display: flex; gap: 2px; border-bottom: 1px solid var(--b); overflow-x: auto }
@@ -116,7 +122,7 @@ export const ESTILO_HOJE = `
 .fbh-motivo.clica:hover { border-color: color-mix(in srgb, var(--k) 45%, var(--b)); box-shadow: 0 10px 22px -18px rgba(15,23,42,.55) }
 .fbh-motivo .mq { font-size: 12.5px; color: var(--t); margin-bottom: 2px; line-height: 1.45 }
 .fbh-motivo .mq .ver { margin-left: 6px }
-.fbh-motivo .mq > i { color: #0f766e; font-size: 11.5px }
+.fbh-motivo .mq > i { color: var(--portal-teal-fg, #0f766e); font-size: 11.5px }
 .fbh-motivo .mq .ver { color: #0369a1; white-space: nowrap } .fbh-motivo .mq .ver i { font-size: 9px }
 .fbh-passos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(102px, 100%), 1fr)); gap: 8px }
 .fbh-passo { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--b); background: var(--s); font: inherit; color: var(--t);
@@ -228,8 +234,8 @@ export const ESTILO_HOJE = `
 .fbh-bloco .n { font-size: 12px; padding: 1px 9px; border-radius: 99px; color: #fefefe; background: var(--k) }
 .fbh-bloco small { font-size: 12.5px; color: var(--t2) }
 .fbh-maq-cab .alvo { display: flex; gap: 10px; align-items: center; flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 12px }
-.fbh-maq-cab .alvo:hover .t { color: #0f766e; text-decoration: underline; text-underline-offset: 3px }
-.fbh-maq-cab .alvo .dica { font-size: 12px; color: #0f766e }
+.fbh-maq-cab .alvo:hover .t { color: var(--portal-teal-fg, #0f766e); text-decoration: underline; text-underline-offset: 3px }
+.fbh-maq-cab .alvo .dica { font-size: 12px; color: var(--portal-teal-fg, #0f766e) }
 @media (max-width: 860px) {
   .fbh-jan-fundo { padding: 0; align-items: stretch }
   .fbh-jan { width: 100%; height: 100vh; max-height: 100vh; border-radius: 0 }
@@ -272,6 +278,7 @@ export const ESTILO_HOJE = `
 .fbh-rev .tx .r { font-size: 16px; font-weight: 500 }
 .fbh-rev .tx small { grid-column: 1 / -1; font-size: 13px; color: var(--t2); line-height: 1.4; margin-top: 2px }
 .fbh-rev .acao { flex: none; font-size: 13.5px; color: var(--k); white-space: nowrap }
+[data-theme="dark"] .fbh-rev .acao { color: color-mix(in srgb, var(--k) 40%, #fefefe) }
 .fbh-outros { font-size: 13px; color: var(--t2) }
 .fbh-outros summary { list-style: none; cursor: pointer; display: inline-flex; gap: 8px; align-items: center; padding: 4px 2px; flex-wrap: wrap }
 .fbh-outros summary::-webkit-details-marker { display: none }
@@ -307,7 +314,7 @@ export const ESTILO_HOJE = `
 .fbp-eq .feitos .trilho, .fbp-mot .trilho { display: block; height: 8px; border-radius: 99px; background: var(--soft); overflow: hidden }
 .fbp-eq .feitos .enche { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #4ade80, #16a34a); animation: fbhCresce .8s cubic-bezier(.2,.8,.2,1) both }
 .fbp-eq .feitos .n { font-size: 14px; font-variant-numeric: tabular-nums; min-width: 22px; text-align: right }
-.fbp-eq .semana { font-size: 12.5px; color: var(--t2); white-space: nowrap } .fbp-eq .conv { color: #0f766e }
+.fbp-eq .semana { font-size: 12.5px; color: var(--t2); white-space: nowrap } .fbp-eq .conv { color: var(--portal-teal-fg, #0f766e) }
 .fbp-desf { display: grid; gap: 6px; font-size: 12.5px; color: var(--t2); padding-top: 8px; border-top: 1px dashed var(--b) }
 .fbp-lista { display: grid; gap: 2px }
 .fbp-li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px; border-radius: 12px; background: transparent; border: 0; font: inherit; color: var(--t); text-align: left; width: 100% }

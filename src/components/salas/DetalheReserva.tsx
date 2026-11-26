@@ -46,7 +46,7 @@ export default function DetalheReserva({ reserva, podeMexer, onFechar, onEditar,
           {!reserva.reuniao_id && podeMexer && (
             <>
               <button onClick={cancelar} disabled={cancelando} style={botaoClaro()}><Ban size={14} /> {cancelando ? 'Cancelando…' : 'Cancelar reserva'}</button>
-              <button onClick={onEditar} style={botao('#0891b2')}><Pencil size={14} /> Alterar</button>
+              <button onClick={onEditar} style={botao('var(--sala-cheio, #0891b2)')}><Pencil size={14} /> Alterar</button>
             </>
           )}
           {!reserva.reuniao_id && !podeMexer && <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>Só quem reservou (ou um admin) altera ou cancela.</span>}

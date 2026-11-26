@@ -17,7 +17,7 @@ import { Plus, Search, AlertTriangle, UserX, Trash2, RotateCcw, CalendarDays, Us
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui';
-import { STATUS_ACAO, TIPOS_ACAO, rotulo, cor } from '@/lib/marketing/tipos';
+import { STATUS_ACAO, TIPOS_ACAO, rotulo, cor, ehEventoInterno } from '@/lib/marketing/tipos';
 import type { Acao, RoletaLigada } from '@/lib/marketing/tipos';
 import CapaCampanha from '@/components/marketing/CapaCampanha';
 import AcaoForm from '@/components/marketing/AcaoForm';
@@ -211,8 +211,31 @@ export default function MarketingPage() {
             : 'Nenhuma campanha cadastrada ainda. Comece pela feira que está devendo relatório.'}
         </Vazio>
       ) : (
+        // 19/11/2026 (José): as que ainda estão rolando vêm primeiro; realizada e cancelada vão
+        // para "Encerradas", embaixo. Dentro de cada grupo continua da mais antiga para a mais nova.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+        {([
+          ['Abertas', acoes.filter((a) => a.status !== 'realizada' && a.status !== 'cancelada')],
+          ['Encerradas', acoes.filter((a) => a.status === 'realizada' || a.status === 'cancelada')],
+        ] as const).filter(([, lista]) => lista.length > 0).map(([titulo, lista]) => (
+        <section key={titulo}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>
+          {titulo}
+          <span style={{ fontSize: 12, padding: '1px 8px', borderRadius: 999, color: 'var(--portal-text-muted, #64748b)', border: '1px solid var(--portal-border)' }}>{lista.length}</span>
+        </div>
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(min(330px, 100%), 1fr))' }}>
-          {acoes.map((a) => {
+          {lista.map((a) => {
+            // 25/11/2026 (José): privada sem acesso → mostra que existe uma campanha, mas não qual é.
+            // O servidor já manda só isto (sem nome, sem capa, sem id de verdade).
+            if ((a as any).privada_oculta) {
+              return (
+                <div key={a.id} className="mkt-card" style={{ background: 'var(--portal-bg-card)', border: '1px dashed var(--portal-border)', borderRadius: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 180, color: 'var(--portal-text-muted, #64748b)', textAlign: 'center', padding: 18 }}>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--portal-text)' }}>Campanha privada</div>
+                  <div style={{ fontSize: 12.5 }}>Só os responsáveis dela têm acesso.</div>
+                </div>
+              );
+            }
             const r = resumos[a.id];
             const dias = diasAte(r?.prazoMaisProximo);
             const semDono = !!a.responsavel_id && inativos.has(a.responsavel_id);
@@ -283,6 +306,12 @@ export default function MarketingPage() {
                         {brl(r?.custo ?? 0)}
                       </div>
                     </div>
+                    {ehEventoInterno(a.tipo) ? (
+                      // evento interno: não tem apoio/leads/propostas — mostra convidados (publico_total_evento)
+                      <div style={{ fontSize: 13, color: 'var(--portal-text-muted, #475569)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                        <span style={{ display: 'block', fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{(a as { publico_total_evento?: number | null }).publico_total_evento ?? '—'}</span>convidados
+                      </div>
+                    ) : (
                     <div style={{ display: 'flex', gap: 14, fontSize: 13, color: 'var(--portal-text-muted, #475569)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                       <span title="Apoio de fábrica recebido">
                         <span style={{ display: 'block', fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{brl(r?.apoioRecebido ?? 0)}</span>apoio
@@ -294,6 +323,7 @@ export default function MarketingPage() {
                         <span style={{ display: 'block', fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{r?.propostas ?? 0}</span>propostas
                       </span>
                     </div>
+                    )}
                   </div>
                 </Link>
 
@@ -311,6 +341,9 @@ export default function MarketingPage() {
               </div>
             );
           })}
+        </div>
+        </section>
+        ))}
         </div>
       )}
 

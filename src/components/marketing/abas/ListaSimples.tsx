@@ -8,8 +8,8 @@
 // diferença cabe numa especificação de campos. Cinco componentes quase iguais
 // só criariam cinco lugares pro gate de permissão divergir.
 // =============================================================================
-import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight, ExternalLink, Plus, Trash2, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -18,7 +18,7 @@ import {
   DESTINOS_ITEM, PAPEIS_EQUIPE, TIPOS_ITEM, TIPOS_MIDIA, TIPOS_REALIZADA, rotulo,
 } from '@/lib/marketing/tipos';
 import Modal from '../Modal';
-import { apiEnviar, dataBR, Painel, Campo, estiloInput, BotaoRosa, Vazio, Erro, ROSA } from '../ui';
+import { apiEnviar, apiGet, brl, dataBR, Painel, Campo, estiloInput, BotaoRosa, Vazio, Erro, ROSA, CampoReais } from '../ui';
 
 type TipoCampo = 'texto' | 'area' | 'numero' | 'data' | 'select' | 'bool' | 'foto' | 'apoio';
 
@@ -31,6 +31,8 @@ export interface CampoSpec {
   obrigatorio?: boolean;
   /** Tipos aceitos no campo de arquivo. Padrão: só imagem. */
   aceita?: string;
+  /** Campo de arquivo aceita VÁRIOS de uma vez; cada arquivo vira um registro (23/11/2026: "precisa ser ilimitado"). */
+  varios?: boolean;
   /** Aparece na linha da lista (além do título). */
   naLista?: boolean;
 }
@@ -72,7 +74,7 @@ export const SPEC_ITENS: Spec = {
     { k: 'tipo', label: 'Tipo', tipo: 'select', opcoes: TIPOS_ITEM, naLista: true },
     { k: 'destino', label: 'Finalidade', tipo: 'select', opcoes: DESTINOS_ITEM, naLista: true },
     { k: 'quantidade', label: 'Quantidade', tipo: 'numero', naLista: true },
-    { k: 'chassi', label: 'Chassi', tipo: 'texto' },
+    { k: 'chassi', label: 'Chassi', tipo: 'texto', naLista: true, ajuda: 'Use "Puxar do estoque" acima: vem o chassi certo e dá pra saber se a máquina foi vendida.' },
     { k: 'valor_unitario', label: 'Valor unitário (R$)', tipo: 'numero' },
     { k: 'vendido', label: 'Foi vendido no evento', tipo: 'bool', naLista: true },
     { k: 'foto_url', label: 'Foto', tipo: 'foto' },
@@ -122,9 +124,9 @@ export const SPEC_MIDIAS: Spec = {
   pastaFoto: 'marketing/midias',
   campos: [
     {
-      k: 'url', label: 'Arquivo ou link', tipo: 'foto', obrigatorio: true,
-      aceita: 'image/*,video/*',
-      ajuda: 'Foto ou vídeo. Vídeo grande demora pra subir — se falhar, mande o link do Drive ou do post.',
+      k: 'url', label: 'Arquivos ou link', tipo: 'foto', obrigatorio: true, varios: true,
+      aceita: 'image/*,video/*,audio/*,application/pdf',
+      ajuda: 'Fotos, vídeos, áudios ou PDF — quantos quiser de uma vez; cada um vira um registro com os dados abaixo. Vídeo grande demora pra subir: se falhar, mande o link do Drive ou do post.',
     },
     { k: 'tipo', label: 'Tipo', tipo: 'select', opcoes: TIPOS_MIDIA, naLista: true },
     { k: 'legenda', label: 'Legenda', tipo: 'texto' },
@@ -159,7 +161,7 @@ export default function ListaSimples({
     for (const c of spec.campos) {
       base[c.k] = c.tipo === 'bool' ? (c.k === 'planejado') : c.tipo === 'select' ? (c.opcoes?.[0]?.id ?? '') : '';
     }
-    setEditando(null); setF(base); setErro(null); setAberto(true);
+    setEditando(null); setF(base); setErro(null); setEnviados([]); setAberto(true);
   };
 
   const abrirEdicao = (it: any) => {
@@ -170,18 +172,42 @@ export default function ListaSimples({
     setEditando(it); setF(base); setErro(null); setAberto(true);
   };
 
+  // Vários arquivos (campo com `varios`): cada um enviado vira um registro ao salvar
+  const [enviados, setEnviados] = useState<{ url: string; nome: string; tipo: string | null }[]>([]);
+  const [progresso, setProgresso] = useState('');
+  /** tipo pelo arquivo: vídeo/áudio/PDF se impõem; foto segue o tipo escolhido (pode ser "Post em rede") */
+  const tipoDoArquivo = (a: File) => (a.type.startsWith('video/') ? 'video' : a.type.startsWith('audio/') ? 'audio' : a.type === 'application/pdf' ? 'documento' : null);
+
+  const subir = async (arquivo: File): Promise<string> => {
+    const ehVideo = arquivo.type.startsWith('video/');
+    const nome = `${spec.pastaFoto || 'marketing/anexos'}/${Date.now()}-${Math.random().toString(36).slice(2, 6)}-${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_') || (ehVideo ? 'video.mp4' : 'foto.jpg')}`;
+    const { error } = await supabase.storage.from('anexos').upload(nome, arquivo, { contentType: arquivo.type || undefined });
+    if (error) throw error;
+    return supabase.storage.from('anexos').getPublicUrl(nome).data.publicUrl;
+  };
+
+  const enviarVarios = async (arquivos: File[]) => {
+    setEnviandoFoto(true); setErro(null);
+    const falhas: string[] = [];
+    for (let i = 0; i < arquivos.length; i++) {
+      const a = arquivos[i];
+      setProgresso(`Enviando ${i + 1} de ${arquivos.length}…`);
+      try {
+        const url = await subir(a);
+        setEnviados((s) => [...s, { url, nome: a.name, tipo: tipoDoArquivo(a) }]);
+      } catch (e: any) { falhas.push(`${a.name} (${(a.size / 1024 / 1024).toFixed(0)} MB): ${e?.message || 'erro'}`); }
+    }
+    setProgresso(''); setEnviandoFoto(false);
+    if (falhas.length) setErro(`Não subiram: ${falhas.join(' · ')}. Vídeo muito grande costuma ser recusado — publique no Drive e cole o link.`);
+  };
+
   // Upload direto pro bucket público `anexos`, como no /pendencias.
   const enviarArquivo = async (campo: string, arquivo: File) => {
     setEnviandoFoto(true);
     setErro(null);
     const ehVideo = arquivo.type.startsWith('video/');
     try {
-      const nome = `${spec.pastaFoto || 'marketing/anexos'}/${Date.now()}-${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_') || (ehVideo ? 'video.mp4' : 'foto.jpg')}`;
-      const { error } = await supabase.storage.from('anexos').upload(nome, arquivo, {
-        contentType: arquivo.type || undefined,
-      });
-      if (error) throw error;
-      set(campo, supabase.storage.from('anexos').getPublicUrl(nome).data.publicUrl);
+      set(campo, await subir(arquivo));
       // Mandou vídeo mas o tipo ficou em "foto": corrige sozinho, senão o
       // registro sai classificado errado e o PDF tenta desenhar um .mp4.
       if (ehVideo && spec.campos.some((c) => c.k === 'tipo' && c.opcoes?.some((o) => o.id === 'video'))) {
@@ -205,8 +231,19 @@ export default function ListaSimples({
     try {
       const corpo: any = { ...f };
       for (const c of spec.campos) if (c.tipo === 'apoio' && !corpo[c.k]) corpo[c.k] = null;
+      const campoVarios = spec.campos.find((c) => c.varios);
       if (editando) await apiEnviar(`/api/marketing/${spec.rota}`, 'PATCH', { ...corpo, id: editando.id });
+      else if (campoVarios && enviados.length) {
+        // um registro por arquivo enviado (+ o link colado, se houver), todos com os mesmos dados do formulário
+        const lista = [...enviados];
+        const link = String(corpo[campoVarios.k] || '').trim();
+        if (link && !lista.some((x) => x.url === link)) lista.unshift({ url: link, nome: link, tipo: null });
+        for (const x of lista) {
+          await apiEnviar(`/api/marketing/${spec.rota}`, 'POST', { ...corpo, [campoVarios.k]: x.url, ...(x.tipo ? { tipo: x.tipo } : {}), acao_id: acaoId });
+        }
+      }
       else await apiEnviar(`/api/marketing/${spec.rota}`, 'POST', { ...corpo, acao_id: acaoId });
+      setEnviados([]);
       setAberto(false);
       onMudou();
     } catch (e2: any) {
@@ -221,6 +258,51 @@ export default function ListaSimples({
     try { await apiEnviar(`/api/marketing/${spec.rota}?id=${it.id}`, 'DELETE'); onMudou(); }
     catch (e: any) { setErro(e?.message || 'Não foi possível excluir.'); }
   };
+
+  // Foto em tela cheia (24/11/2026: "nas fotos eu não consigo abrir elas"). Setas/teclado passam entre as imagens da lista.
+  const anexoDe = (it: any) => it.foto_url || it.evidencia_url || (spec.rota === 'midias' ? it.url : null);
+  const ehImagemUrl = (a: any) => typeof a === 'string' && /^https?:/.test(a) && !/\.(mp4|mov|webm|m4v|mp3|m4a|ogg|opus|wav|aac|pdf|docx?|xlsx?)(\?|$)/i.test(a);
+  const imagens = itens.filter((it) => ehImagemUrl(anexoDe(it)) && it.tipo !== 'video' && it.tipo !== 'audio');
+  const [fotoAberta, setFotoAberta] = useState<number | null>(null);
+  useEffect(() => {
+    if (fotoAberta === null) return;
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFotoAberta(null);
+      if (e.key === 'ArrowRight') setFotoAberta((i) => (i === null ? i : (i + 1) % imagens.length));
+      if (e.key === 'ArrowLeft') setFotoAberta((i) => (i === null ? i : (i - 1 + imagens.length) % imagens.length));
+    };
+    window.addEventListener('keydown', tecla);
+    return () => window.removeEventListener('keydown', tecla);
+  }, [fotoAberta, imagens.length]);
+  const fotoAtual = fotoAberta !== null ? imagens[fotoAberta] : null;
+
+  // ── Itens expostos ↔ estoque e venda pelo chassi (24/11/2026) ──
+  const ehItens = spec.rota === 'itens';
+  const [buscaEst, setBuscaEst] = useState('');
+  const [estoque, setEstoque] = useState<any[] | null>(null);
+  const [buscandoEst, setBuscandoEst] = useState(false);
+  const buscarEstoque = async () => {
+    setBuscandoEst(true);
+    try { setEstoque((await apiGet<any>(`/api/marketing/itens/estoque?q=${encodeURIComponent(buscaEst.trim())}`)).maquinas ?? []); }
+    catch (e: any) { setErro(e?.message || 'Não foi possível buscar no estoque.'); }
+    finally { setBuscandoEst(false); }
+  };
+  const usarDoEstoque = (m: any) => {
+    setF((s: any) => ({
+      ...s, modelo: m.modelo || s.modelo, chassi: m.chassi || s.chassi, codigo_produto: m.codigo_produto ?? null,
+      valor_unitario: m.valor ?? s.valor_unitario, foto_url: m.foto || s.foto_url,
+      ...(spec.campos.some((c) => c.k === 'tipo' && c.opcoes?.some((o) => o.id === m.tipo)) ? { tipo: m.tipo } : {}),
+    }));
+    setEstoque(null); setBuscaEst('');
+  };
+  const chassisDaLista = ehItens ? itens.map((it) => String(it.chassi || '').trim()).filter(Boolean) : [];
+  const chaveChassis = chassisDaLista.join(',');
+  const [vendas, setVendas] = useState<Record<string, any>>({});
+  useEffect(() => {
+    if (!ehItens || !chaveChassis) return;
+    apiGet<any>(`/api/marketing/itens/estoque?chassis=${encodeURIComponent(chaveChassis)}`)
+      .then((r) => setVendas(r.vendas || {})).catch(() => setVendas({}));
+  }, [ehItens, chaveChassis]);
 
   const resumo = (it: any) =>
     spec.campos
@@ -256,7 +338,8 @@ export default function ListaSimples({
             // Classifica pela EXTENSÃO do arquivo, não pelo campo `tipo`: o
             // registro pode ter vindo com o tipo errado, e aí o <img> some.
             const ehVideo = ehLink && (/\.(mp4|mov|webm|m4v)(\?|$)/i.test(anexo) || it.tipo === 'video');
-            const ehImagem = ehLink && !ehVideo && !/\.(pdf|docx?|xlsx?)(\?|$)/i.test(anexo);
+            const ehAudio = ehLink && !ehVideo && (/\.(mp3|m4a|ogg|opus|wav|aac)(\?|$)/i.test(anexo) || it.tipo === 'audio');
+            const ehImagem = ehLink && !ehVideo && !ehAudio && !/\.(pdf|docx?|xlsx?)(\?|$)/i.test(anexo);
             return (
               <Painel key={it.id} style={{ borderLeft: `3px solid ${ROSA}` }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
@@ -278,6 +361,29 @@ export default function ListaSimples({
                 {resumo(it) && (
                   <div style={{ marginTop: 5, fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>{resumo(it)}</div>
                 )}
+                {ehItens && it.chassi && (() => {
+                  const v = vendas[String(it.chassi).trim()];
+                  if (v === undefined) return null;
+                  return v ? (
+                    <div style={{ marginTop: 6, padding: '6px 9px', borderRadius: 8, background: 'color-mix(in srgb, #16a34a 10%, transparent)', fontSize: 12.5, color: '#15803d' }}>
+                      <b>Vendido</b>{v.cliente ? ` para ${v.cliente}` : ''}{v.data ? ` em ${dataBR(v.data)}` : ''}{v.valor ? ` · ${brl(v.valor)}` : ''}
+                      <div style={{ fontSize: 11.5, opacity: 0.85 }}>
+                        {[v.origem === 'pedido' ? `Pedido ${v.pedido}` : v.pedido ? `Pedido Omie ${v.pedido}` : null, v.nota ? `NF ${v.nota}` : null,
+                          v.proposta_id ? `Proposta #${v.proposta_id}` : null, v.vendedor ? `vendedor ${v.vendedor}` : null].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ marginTop: 6, fontSize: 12, color: 'var(--portal-text-muted, #94a3b8)' }}>Chassi ainda sem venda registrada.</div>
+                  );
+                })()}
+                {/* quem colocou e quando (23/11/2026) */}
+                {(it.criado_em || it.criado_por_nome) && (
+                  <div style={{ marginTop: 3, fontSize: 11.5, color: 'var(--portal-text-muted, #94a3b8)' }}>
+                    {it.criado_por_nome ? `Colocado por ${it.criado_por_nome}` : 'Colocado'}
+                    {it.criado_em ? ` em ${new Date(it.criado_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}` : ''}
+                  </div>
+                )}
+                {ehAudio && <audio src={anexo} controls preload="none" style={{ marginTop: 8, width: '100%' }} />}
                 {ehVideo && (
                   <video
                     src={anexo}
@@ -288,7 +394,9 @@ export default function ListaSimples({
                 )}
                 {ehImagem && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={anexo} alt="" style={{ marginTop: 8, width: '100%', maxHeight: 150, objectFit: 'cover', borderRadius: 3 }} />
+                  <img src={anexo} alt={it[spec.campoTitulo] || ''} title="Clique para ver grande"
+                    onClick={() => { const i = imagens.findIndex((x) => x.id === it.id); if (i >= 0) setFotoAberta(i); else window.open(anexo, '_blank', 'noopener'); }}
+                    style={{ marginTop: 8, width: '100%', maxHeight: 150, objectFit: 'cover', borderRadius: 3, cursor: 'zoom-in' }} />
                 )}
                 {ehLink && !ehVideo && !ehImagem && (
                   <a
@@ -306,8 +414,76 @@ export default function ListaSimples({
         </div>
       )}
 
+      {fotoAtual && (
+        <div role="dialog" aria-label="Foto" onClick={() => setFotoAberta(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.88)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 8 }}>
+            <a href={anexoDe(fotoAtual)} target="_blank" rel="noopener noreferrer" title="Abrir em outra aba (para baixar)"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 4, background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 13, textDecoration: 'none' }}>
+              <ExternalLink size={15} /> Abrir original
+            </a>
+            <button onClick={() => setFotoAberta(null)} title="Fechar (Esc)"
+              style={{ display: 'flex', padding: 8, borderRadius: 4, border: 'none', background: 'rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer' }}>
+              <X size={18} />
+            </button>
+          </div>
+          {imagens.length > 1 && (
+            <>
+              <button onClick={(e) => { e.stopPropagation(); setFotoAberta((fotoAberta! - 1 + imagens.length) % imagens.length); }} title="Anterior"
+                style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', padding: 10, borderRadius: 999, border: 'none', background: 'rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer' }}>
+                <ChevronLeft size={26} />
+              </button>
+              <button onClick={(e) => { e.stopPropagation(); setFotoAberta((fotoAberta! + 1) % imagens.length); }} title="Próxima"
+                style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', padding: 10, borderRadius: 999, border: 'none', background: 'rgba(255,255,255,0.15)', color: '#fff', cursor: 'pointer' }}>
+                <ChevronRight size={26} />
+              </button>
+            </>
+          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={anexoDe(fotoAtual)} alt="" onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '100%', maxHeight: 'calc(100vh - 110px)', objectFit: 'contain', borderRadius: 3 }} />
+          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 10, color: '#fff', fontSize: 14, textAlign: 'center' }}>
+            {fotoAtual[spec.campoTitulo] || ''}
+            {imagens.length > 1 && <span style={{ opacity: 0.6 }}> · {fotoAberta! + 1} de {imagens.length}</span>}
+          </div>
+        </div>
+      )}
+
       <Modal titulo={`${editando ? 'Editar' : 'Novo'} — ${spec.titulo}`} aberto={aberto} onFechar={() => setAberto(false)} largura={640}>
         <form onSubmit={salvar} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {ehItens && (
+            <div style={{ padding: 12, borderRadius: 10, border: `1px solid ${ROSA}55`, background: 'color-mix(in srgb, #DB2777 5%, transparent)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--portal-text)' }}>Puxar do estoque</div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input style={estiloInput} value={buscaEst} onChange={(e) => setBuscaEst(e.target.value)} placeholder="Modelo ou chassi (ex.: 6075, 2025, final do chassi)"
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); buscarEstoque(); } }} />
+                <BotaoRosa onClick={buscarEstoque} disabled={buscandoEst}>{buscandoEst ? 'Buscando…' : 'Buscar'}</BotaoRosa>
+              </div>
+              {estoque !== null && (estoque.length === 0 ? (
+                <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted, #64748b)' }}>Nada no estoque com esse nome ou chassi.</span>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto' }}>
+                  {estoque.map((m) => (
+                    <button key={`${m.chassi}-${m.codigo_produto}`} type="button" onClick={() => usarDoEstoque(m)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 9px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', cursor: 'pointer', textAlign: 'left', font: 'inherit' }}>
+                      {m.foto
+                        // eslint-disable-next-line @next/next/no-img-element
+                        ? <img src={m.foto} alt="" style={{ width: 44, height: 34, objectFit: 'cover', borderRadius: 4, flex: 'none' }} />
+                        : <div style={{ width: 44, height: 34, borderRadius: 4, background: 'var(--portal-bg)', flex: 'none' }} />}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--portal-text)' }}>{m.modelo}</div>
+                        <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          Chassi {m.chassi}{m.familia ? ` · ${m.familia}` : ''}{m.empresa ? ` · ${String(m.empresa).toUpperCase()}` : ''}
+                          {!m.noEstoque && <span style={{ color: '#b45309' }}> · fora do estoque</span>}
+                        </div>
+                      </div>
+                      {m.valor ? <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{brl(m.valor)}</div> : null}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
           {spec.campos.map((c) => {
             if (c.tipo === 'bool') {
               return (
@@ -340,10 +516,27 @@ export default function ListaSimples({
                     <input
                       type="file"
                       accept={c.aceita ?? 'image/*'}
-                      onChange={(e) => { const a = e.target.files?.[0]; if (a) enviarArquivo(c.k, a); }}
+                      multiple={!!c.varios && !editando}
+                      onChange={(e) => {
+                        const fs = Array.from(e.target.files || []);
+                        e.target.value = '';   // deixa escolher de novo (mais arquivos)
+                        if (!fs.length) return;
+                        if (c.varios && !editando) enviarVarios(fs); else enviarArquivo(c.k, fs[0]);
+                      }}
                       style={{ fontSize: 13, color: 'var(--portal-text)' }}
                     />
-                    {enviandoFoto && <span style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>Enviando…</span>}
+                    {enviandoFoto && <span style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>{progresso || 'Enviando…'}</span>}
+                    {c.varios && !editando && enviados.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{enviados.length} arquivo(s) prontos — ao salvar, cada um vira um registro. Pode escolher mais.</span>
+                        {enviados.map((x, i) => (
+                          <span key={x.url} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>
+                            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{x.nome}{x.tipo ? ` · ${x.tipo === 'video' ? 'vídeo' : x.tipo === 'audio' ? 'áudio' : 'PDF'}` : ''}</span>
+                            <button type="button" onClick={() => setEnviados((s) => s.filter((_, j) => j !== i))} title="Tirar" style={{ border: 'none', background: 'none', color: '#dc2626', cursor: 'pointer' }}>✕</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </Campo>
               );
@@ -352,6 +545,8 @@ export default function ListaSimples({
               <Campo key={c.k} label={c.label + (c.obrigatorio ? ' *' : '')} ajuda={c.ajuda} largura="1 1 100%">
                 {c.tipo === 'area' ? (
                   <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f[c.k] ?? ''} onChange={(e) => set(c.k, e.target.value)} />
+                ) : c.tipo === 'numero' && /^(valor|custo|preco)/.test(c.k) ? (
+                  <CampoReais value={f[c.k]} onChange={(v) => set(c.k, v)} required={c.obrigatorio} />
                 ) : c.tipo === 'select' ? (
                   <select style={estiloInput} value={f[c.k] ?? ''} onChange={(e) => set(c.k, e.target.value)}>
                     {c.opcoes?.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}

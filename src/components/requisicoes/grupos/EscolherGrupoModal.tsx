@@ -6,6 +6,7 @@
 import { useMemo, useState } from 'react';
 import { Check, FolderPlus, Search, X } from 'lucide-react';
 import { fetchAuth } from '@/lib/auth/client';
+import EventoDoGrupo, { ligarGrupoAoEvento, escolhaIncompleta, type EscolhaEvento } from './EventoDoGrupo';
 
 type Grupo = { id: number; nome: string; criado_por?: string | null; fecha_sozinho?: boolean; membros?: unknown[] };
 
@@ -23,6 +24,7 @@ export default function EscolherGrupoModal({ grupos, selecionados, onConfirmar, 
   const [fecha, setFecha] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+  const [evento, setEvento] = useState<EscolhaEvento>({ modo: 'nao' });
 
   const todos = useMemo(() => [...criados, ...grupos], [criados, grupos]);
   const lista = useMemo(() => {
@@ -39,9 +41,11 @@ export default function EscolherGrupoModal({ grupos, selecionados, onConfirmar, 
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || `erro ${r.status}`);
       if (j.aviso) alert(j.aviso);
+      const avisoEvento = await ligarGrupoAoEvento(j.id, nome.trim(), evento);
+      if (avisoEvento) alert(avisoEvento);
       setCriados((c) => [{ ...j, membros: [] }, ...c]);
       setSel((s) => [...s, j.id]);
-      setNome(''); setFecha(false); setCriando(false); setBusca('');
+      setNome(''); setFecha(false); setCriando(false); setBusca(''); setEvento({ modo: 'nao' });
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
     finally { setSalvando(false); }
   };
@@ -82,10 +86,11 @@ export default function EscolherGrupoModal({ grupos, selecionados, onConfirmar, 
                   ))}
                 </div>
               </div>
+              <EventoDoGrupo valor={evento} onChange={setEvento} />
               {erro && <div className="text-[13px] text-red-600">{erro}</div>}
               <div className="flex gap-2 justify-end">
                 {todos.length > 0 && <button type="button" onClick={() => { setCriando(false); setErro(''); }} className="h-10 px-3 rounded-lg border border-zinc-200 text-[14px]">Cancelar</button>}
-                <button type="button" disabled={!nome.trim() || nomeRepetido || salvando} onClick={criar}
+                <button type="button" disabled={!nome.trim() || nomeRepetido || salvando || escolhaIncompleta(evento)} onClick={criar}
                   className="h-10 px-4 rounded-lg bg-orange-600 text-white text-[14px] font-medium disabled:opacity-50">{salvando ? 'Criando…' : 'Criar e marcar'}</button>
               </div>
             </div>

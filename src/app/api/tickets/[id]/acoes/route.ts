@@ -24,6 +24,10 @@ import { sincronizarEtapaDoTicket, moverEtapaDoTicket, hojeSP } from '@/lib/trab
 import { erroFimDeSemana } from '@/lib/trabalho/agenda'
 import { contaReprogramacao } from '@/lib/reunioes/regras'
 import { aoConcluirExecucao } from '@/lib/pops/roteiros-server'
+import { quadroPadraoDe } from '@/lib/tickets/quadro-padrao'
+import { colocarNoTopoDaFila } from '@/lib/trabalho/fila-server'
+import { LIMITE_FAZENDO, LIMITE_FAZENDO_POR_SETOR } from '@/lib/trabalho/capacidade'
+import { setorDe } from '@/lib/agenda/regras'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -87,11 +91,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const nomeAntes = ticket.quadro_id ? (await carregarQuadro(ticket.quadro_id))?.quadro.nome ?? null : null
       if (quadroId === null) {
         // Todo ticket fica num bloco (Central de Trabalho): não dá para tirar.
-        return 'Todo ticket precisa ficar num bloco — escolha outro bloco em vez de tirar.'
+        return 'Todo ticket precisa ficar num quadro — escolha outro quadro em vez de tirar.'
       } else {
         const destino = await carregarQuadro(quadroId)
-        if (!destino || destino.quadro.arquivado) return 'Bloco não encontrado.'
-        if (!papeis(destino, auth).trabalhar) return 'Você não participa deste bloco.'
+        if (!destino || destino.quadro.arquivado) return 'Quadro não encontrado.'
+        if (!papeis(destino, auth).trabalhar) return 'Você não participa deste quadro.'
         patch.quadro_id = quadroId
         patch.quadro_coluna_id = colunaDoTicket(null, destino.colunas)
         evento.quadro = { de: nomeAntes, para: destino.quadro.nome }
@@ -210,8 +214,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // Quem recebeu já escolhe o bloco e se fica privado (antes de gravar o
       // aceite: bloco inválido não pode deixar o ticket confirmado pela metade).
       // Todo ticket precisa estar num bloco: sem bloco não confirma.
-      if (!ticket.quadro_id && !quadroDoCorpo()) return erro('Escolha em qual bloco este ticket vai ficar.')
-      const errOrg = await organizar(quadroDoCorpo(), body.visibilidade)
+      // Sem quadro escolhido: vai sozinho para o quadro de quem recebeu (24/11/2026, sem
+      // a etapa "escolha o quadro"). Quem não é o responsável continua tendo que escolher.
+      let qAceite = quadroDoCorpo()
+      if (!ticket.quadro_id && !qAceite) {
+        if (!souResponsavel) return erro('Escolha em qual quadro este ticket vai ficar.')
+        qAceite = await quadroPadraoDe(auth)
+      }
+      const errOrg = await organizar(qAceite, body.visibilidade)
       if (errOrg) return erro(errOrg)
       const { error } = await supabaseAdmin.from('tickets').update(patch).eq('id', id)
       if (error) return erro(error.code === '42703' ? 'A confirmação ainda não foi ativada no banco (rode sql/central-trabalho.sql).' : error.message, error.code === '42703' ? 503 : 500)
@@ -243,6 +253,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!STATUS_INFO[para]) return erro('Status inválido')
     const invalida = validarTransicao(ticket, para, auth)
     if (invalida) return erro(invalida, 403)
+    // Limite de "fazendo" (melhorias 2.3): o 3º pede para pausar um. Devolve os atuais para a
+    // tela perguntar "Pausar qual?".
+    if (para === 'em_andamento' && ticket.tipo !== 'pop') {
+      const { data: fazendo } = await supabaseAdmin.from('tickets').select('id, numero, titulo')
+        .eq('responsavel_id', ticket.responsavel_id).eq('status', 'em_andamento').neq('id', id).not('tipo', 'in', '(compras,reuniao,pop)')
+      const { data: dono } = await supabaseAdmin.from('financeiro_usu').select('funcao').eq('id', ticket.responsavel_id).maybeSingle()
+      const limite = LIMITE_FAZENDO_POR_SETOR[setorDe((dono?.funcao as string) || '', false) || ''] ?? LIMITE_FAZENDO
+      if ((fazendo || []).length >= limite) {
+        return NextResponse.json({
+          error: `Já tem ${(fazendo || []).length} pedidos em andamento (o limite é ${limite}). Pause um para começar este.`,
+          limite, emAndamento: fazendo,
+        }, { status: 409 })
+      }
+    }
     // Execução de POP: obrigatórios completos antes de resolver (o trigger do banco também barra).
     if (ticket.tipo === 'pop' && para === 'resolvido') {
       const { data: falta, error: errFalta } = await supabaseAdmin.rpc('pops_execucao_pendentes', { p_ticket: id })
@@ -253,7 +277,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // confirma/contesta/cancela sempre (ticket antigo sem bloco não trava).
     const andamento = !['cancelado', 'fechado'].includes(para) && !(souSolicitante && ticket.status === 'resolvido')
     // Execução de POP não pede bloco (nasce confirmada; o lugar dela é o módulo de POPs).
-    if (!ticket.quadro_id && andamento && ticket.tipo !== 'pop') return erro('Ponha este ticket num bloco antes de trabalhar nele.')
+    if (!ticket.quadro_id && andamento && ticket.tipo !== 'pop') {
+      // Quem faz começa a trabalhar sem escolher quadro: entra no quadro dele sozinho (24/11/2026).
+      if (!souResponsavel) return erro('Ponha este ticket num quadro antes de trabalhar nele.')
+      const qid = await quadroPadraoDe(auth)
+      const errQ = await organizar(qid, undefined)
+      if (errQ) return erro(errQ)
+      ticket.quadro_id = qid
+    }
     const motivo = String(body.motivo || '').trim()
 
     // Coluna do bloco acompanha a fase (resolvido → "Feito", voltou → volta).
@@ -292,21 +323,70 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: true })
   }
 
-  // --------------------------------------------------- pedir atualização
+  // --------------------------------------------------- pedir atualização = CUTUCAR (melhorias 3.2)
+  // Limite: 1 por pessoa a cada 24 h em cada pedido (vale para o botão da janela e para o
+  // "Cutucar" da Minha fila). Evento continua 'pedido_atualizacao' (o CHECK do banco não tem
+  // 'cutucada'); payload.cutucada marca quando veio da Minha fila.
   if (acao === 'pedir_atualizacao') {
     if (encerrado) return erro('Ticket encerrado.')
     if (souResponsavel) return erro('Você já é o responsável — a bola está com você.')
     if (!ehEnvolvido(ticket, participantes, auth) && !auth.isAdmin) {
       return erro('Só envolvidos podem pedir atualização.', 403)
     }
+    const { data: ultima } = await supabaseAdmin.from('tickets_eventos').select('created_at')
+      .eq('ticket_id', id).eq('autor_id', auth.userId).eq('tipo', 'pedido_atualizacao')
+      .gte('created_at', new Date(Date.now() - 86400000).toISOString()).order('created_at', { ascending: false }).limit(1).maybeSingle()
+    if (ultima?.created_at) {
+      const proxima = new Date(Date.parse(ultima.created_at as string) + 86400000)
+      const hora = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(proxima)
+      const amanha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(proxima) !== new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+      return NextResponse.json({ error: `Você já cutucou hoje — próxima ${amanha ? 'amanhã ' : ''}às ${hora}.`, proxima: proxima.toISOString() }, { status: 429 })
+    }
     const texto = String(body.texto || '').trim()
-    const err = await registrarEvento(id, auth.userId, 'pedido_atualizacao', texto ? { texto } : {})
+    const err = await registrarEvento(id, auth.userId, 'pedido_atualizacao', { ...(texto ? { texto } : {}), ...(body.cutucada === true ? { cutucada: true } : {}) })
     if (err) return erro(err, 500)
     const autor = await nomeDe(auth.userId)
     await notificarTicket(ticket, [ticket.responsavel_id], auth.userId,
-      `${autor} pediu atualização no ticket #${ticket.numero}`,
+      body.cutucada === true ? `${autor} cutucou: como está o pedido #${ticket.numero}?` : `${autor} pediu atualização no ticket #${ticket.numero}`,
       texto || ticket.titulo)
     return NextResponse.json({ ok: true })
+  }
+
+  // ------------------------------------------------------ prioridade (melhorias 2.2)
+  // { acao:'prioridade', decisao:'pedir', motivo? }  — quem pediu, quando o prazo ficou impossível
+  // { acao:'prioridade', decisao:'aceitar'|'recusar' } — quem faz; aceitar = topo da fila dele.
+  // Pedir NÃO reordena sozinho. Fica em payload.prioridade e cai na timeline (edicao/prioridade).
+  if (acao === 'prioridade') {
+    if (encerrado) return erro('Pedido encerrado.')
+    const decisao = String(body.decisao || '')
+    const pAtual = (ticket.payload || {}) as Record<string, unknown>
+    const prio = (pAtual.prioridade || {}) as { estado?: string; por?: string }
+    const autor = await nomeDe(auth.userId)
+    if (decisao === 'pedir') {
+      if (!souSolicitante && !auth.isAdmin) return erro('Só quem pediu pode pedir prioridade.', 403)
+      if (souResponsavel) return erro('O pedido é seu: mude a ordem na sua fila.')
+      if (prio.estado === 'pedida') return erro('Já existe um pedido de prioridade esperando resposta.')
+      const motivo = String(body.motivo || '').trim().slice(0, 300)
+      const { error } = await supabaseAdmin.from('tickets').update({ payload: { ...pAtual, prioridade: { estado: 'pedida', por: auth.userId, em: new Date().toISOString(), ...(motivo ? { motivo } : {}) } } }).eq('id', id)
+      if (error) return erro(error.message, 500)
+      await registrarEvento(id, auth.userId, 'edicao', { campo: 'prioridade', para: 'pedida', ...(motivo ? { motivo } : {}) })
+      await notificarTicket(ticket, [ticket.responsavel_id], auth.userId, `${autor} pede prioridade no pedido #${ticket.numero}`, motivo || ticket.titulo)
+      return NextResponse.json({ ok: true })
+    }
+    if (decisao === 'aceitar' || decisao === 'recusar') {
+      if (!souResponsavel && !auth.isAdmin) return erro('Só quem faz decide a prioridade.', 403)
+      if (prio.estado !== 'pedida') return erro('Não há pedido de prioridade esperando resposta.')
+      const estado = decisao === 'aceitar' ? 'aceita' : 'recusada'
+      const { error } = await supabaseAdmin.from('tickets').update({ payload: { ...pAtual, prioridade: { ...prio, estado, decidido_em: new Date().toISOString() } } }).eq('id', id)
+      if (error) return erro(error.message, 500)
+      if (decisao === 'aceitar') await colocarNoTopoDaFila(ticket.responsavel_id, id)
+      await registrarEvento(id, auth.userId, 'edicao', { campo: 'prioridade', para: estado })
+      if (prio.por) await notificarTicket(ticket, [prio.por], auth.userId,
+        decisao === 'aceitar' ? `${autor} aceitou a prioridade do #${ticket.numero}` : `${autor} recusou a prioridade do #${ticket.numero}`,
+        decisao === 'aceitar' ? 'Foi para o topo da fila.' : ticket.titulo)
+      return NextResponse.json({ ok: true })
+    }
+    return erro('Decisão inválida')
   }
 
   // ------------------------------------------------------ participantes
@@ -407,8 +487,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (n !== payloadAtual.dias) { novoPayload.dias = n; mudancas.dias = { de: payloadAtual.dias ?? null, para: n } }
     }
     if ('horas_dia' in body) {
-      const h = Math.round(Number(body.horas_dia) * 2) / 2
-      if (!(h >= 0.5 && h <= 12)) return erro('Horas por dia: de 0,5 a 12')
+      // de 15 em 15 min (melhorias 2.1: chip "15 min")
+      const h = Math.round(Number(body.horas_dia) * 4) / 4
+      if (!(h >= 0.25 && h <= 12)) return erro('Horas por dia: de 15 min a 12 h')
       if (h !== payloadAtual.horas_dia) { novoPayload.horas_dia = h; mudancas.horas_dia = { de: payloadAtual.horas_dia ?? null, para: h } }
     }
     if (['inicio', 'dias', 'horas_dia'].some((k) => k in mudancas)) patch.payload = novoPayload
@@ -491,7 +572,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (destinoId === (ticket.quadro_id || null)) return erro('O ticket já está neste quadro.')
     const nomeAntes = ticket.quadro_id ? (await carregarQuadro(ticket.quadro_id))?.quadro.nome ?? null : null
     // Todo ticket fica num bloco: dá para trocar, não para tirar.
-    if (!destinoId) return erro('Todo ticket precisa ficar num bloco — escolha outro bloco.')
+    if (!destinoId) return erro('Todo ticket precisa ficar num quadro — escolha outro quadro.')
     const destino = await carregarQuadro(destinoId)
     if (!destino || destino.quadro.arquivado) return erro('Quadro não encontrado', 404)
     if (!papeis(destino, auth).trabalhar) return erro('Você não é integrante deste quadro.', 403)

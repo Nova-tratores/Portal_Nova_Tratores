@@ -42,11 +42,18 @@ const COR_GASTO = '#ea580c'
 const COR_RESULT = '#0f766e'
 const ESTILO_SECAO = `.pt-secao { display: flex; gap: 12px; align-items: center; margin: 34px 0 14px; scroll-margin-top: 150px; animation: cpvEntra .45s both } .pt-secao.primeira { margin-top: 6px }
 .pt-secao-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; background: color-mix(in srgb, var(--c) 12%, var(--portal-bg-card, #fefefe)); color: var(--c); font-size: 15px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 22%, transparent) }
-.pt-secao > div { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; flex-shrink: 0 } .pt-secao em { font-style: normal; font-size: 11px; font-weight: 900; color: var(--c); letter-spacing: .06em } .pt-secao small { grid-column: 2 } .pt-secao b { font-size: 20px; font-weight: 400; color: var(--portal-text, #0f172a); letter-spacing: -.01em } .pt-secao small { font-size: 14.5px; color: #334155 }
-.pt-secao-linha { flex: 1; height: 2px; border-radius: 99px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, transparent), transparent 70%); align-self: center; margin-left: 6px; transform-origin: left; animation: ptLinha .8s .15s cubic-bezier(.2,.8,.2,1) both } @keyframes ptLinha { from { transform: scaleX(0) } }`
+.pt-secao > div { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; flex-shrink: 0 } .pt-secao em { font-style: normal; font-size: 11px; font-weight: 900; color: var(--c); letter-spacing: .06em } .pt-secao small { grid-column: 2 } .pt-secao b { font-size: 20px; font-weight: 400; color: var(--portal-text, #0f172a); letter-spacing: -.01em } .pt-secao small { font-size: 14.5px; color: var(--mx-t2, #334155) }
+.pt-secao-linha { flex: 1; height: 2px; border-radius: 99px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, transparent), transparent 70%); align-self: center; margin-left: 6px; transform-origin: left; animation: ptLinha .8s .15s cubic-bezier(.2,.8,.2,1) both } @keyframes ptLinha { from { transform: scaleX(0) } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(.pt-secao-ic, .pt-secao em) { color: color-mix(in srgb, var(--c) 60%, #fff) }
+`
 const ESTILO_SIM = `.pt-horas2 { display: flex; gap: 6px 8px; align-items: center; flex-wrap: wrap; margin: 12px 0; padding: 8px 12px; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; background: var(--portal-bg-card, #fefefe) } .pt-horas2 > b { font-size: 14px; color: var(--portal-text, #0f172a); margin-right: 4px } .pt-horas2 > b i { color: #0891b2 } .pt-horas2 > span, .pt-horas2 > button { display: inline-flex; gap: 6px; align-items: center; font-family: inherit; font-size: 13px; color: var(--portal-text-muted, #64748b); background: var(--portal-bg-secondary, #f8fafc); border: 1px solid transparent; border-radius: 99px; padding: 4px 11px } .pt-horas2 > button { cursor: pointer } .pt-horas2 > button:hover { border-color: #8b5cf6 } .pt-horas2 i { width: 9px; height: 9px; border-radius: 3px; display: inline-block } .pt-horas2 span b, .pt-horas2 button b { color: var(--portal-text, #0f172a); font-size: 13.5px } .pt-horas2 em { font-style: normal; font-size: 11.5px; font-weight: 800; color: #0891b2 } .pt-horas2 > small { margin-left: auto; font-size: 12px; color: var(--portal-text-muted, #64748b) }
 .pt-sim-claro { margin: 10px 0 18px }
-.pt-sim { margin: 14px 0; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; background: var(--portal-bg-card, #fefefe); overflow: hidden } .pt-sim > summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 14px 18px; font-size: 16px; font-weight: 900; color: var(--portal-text, #0f172a) } .pt-sim > summary::-webkit-details-marker { display: none } .pt-sim > summary i { color: #7c3aed } .pt-sim > summary small { font-size: 12.5px; font-weight: 600; color: var(--portal-text-muted, #64748b) } .pt-sim > summary::after { content: "▸"; margin-left: auto; transition: transform .25s } .pt-sim[open] > summary::after { transform: rotate(90deg) } .pt-sim > .dx-caixa { border: none; border-top: 1px dashed var(--portal-border, #e5e7eb); border-radius: 0; animation: dxEntra .35s both }`
+.pt-sim { margin: 14px 0; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; background: var(--portal-bg-card, #fefefe); overflow: hidden } .pt-sim > summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 14px 18px; font-size: 16px; font-weight: 900; color: var(--portal-text, #0f172a) } .pt-sim > summary::-webkit-details-marker { display: none } .pt-sim > summary i { color: var(--mx-fg-violet, #7c3aed) } .pt-sim > summary small { font-size: 12.5px; font-weight: 600; color: var(--portal-text-muted, #64748b) } .pt-sim > summary::after { content: "▸"; margin-left: auto; transition: transform .25s } .pt-sim[open] > summary::after { transform: rotate(90deg) } .pt-sim > .dx-caixa { border: none; border-top: 1px dashed var(--portal-border, #e5e7eb); border-radius: 0; animation: dxEntra .35s both }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+`
 const ROTULO_HIST: Record<Escala, string> = { dia: 'últimos 14 dias', semana: 'últimas 8 semanas', mes: 'últimos 6 meses', ano: 'últimos 3 anos' }
 
 export default function PainelTecnicos() {
@@ -222,7 +229,7 @@ export default function PainelTecnicos() {
       {/* José, 21/10/2026: "já pode colocar no portal, no lugar desse" — os 4 cartões (dia, semana, mês, ano), metas,
           "o que entra na conta" e a comparação lado a lado; a antiga (SeletorCartoes) ficou no código */}
       {assunto === 'fat' && base && <div id="sec-1" className="aa-conteudo" style={{ marginBottom: 14 }}><FaturamentoPeriodo base={base} hoje={hojeSP()} forma="escada" escala={tipo} refDia={ref} onMudar={(e, r) => { setTipo(e); setRef(r) }} semNavegacao /></div>}
-      {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
+      {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: 'var(--mx-p-red, #fef2f2)', color: 'var(--mx-fg-red, #b91c1c)', marginBottom: 12 }}>{erro}</div>}
       {!d && carregando && <div style={{ padding: 40, textAlign: 'center', color: MUDO }}><i className="fas fa-circle-notch fa-spin" /> carregando o histórico…</div>}
 
       {t && g && (
@@ -385,7 +392,7 @@ const ESTILO_TRILHO = `
 /* 27/10/2026 (José: "tira essa faixona branca, algo mais simples e bonito"): sem faixa — pílulas soltas sobre o fundo */
 .pt-atalhos { position: relative; z-index: 30; box-sizing: border-box; display: flex; align-items: center; gap: 6px; min-height: 40px; margin: 0 0 14px; padding: 6px 8px; border-radius: 99px; background: color-mix(in srgb, var(--portal-bg, #eef0ec) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); overflow-x: auto; overflow-y: hidden; scrollbar-width: none }
 .pt-atalhos::-webkit-scrollbar { display: none }
-.pt-atalhos button { flex: none; display: inline-flex; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: 99px; background: transparent; padding: 6px 13px; font-family: inherit; font-size: 14px; font-weight: 500; color: #334155; cursor: pointer; white-space: nowrap; transition: color .15s, background .15s, border-color .15s }
+.pt-atalhos button { flex: none; display: inline-flex; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: 99px; background: transparent; padding: 6px 13px; font-family: inherit; font-size: 14px; font-weight: 500; color: var(--mx-t2, #334155); cursor: pointer; white-space: nowrap; transition: color .15s, background .15s, border-color .15s }
 .pt-atalhos button i { font-size: 13px; color: var(--c); opacity: 1; transition: opacity .15s }
 .pt-atalhos button:hover { color: var(--portal-text, #0f172a); background: color-mix(in srgb, var(--c) 6%, transparent) } .pt-atalhos button:hover i { opacity: 1 }
 .pt-atalhos button.on { color: var(--portal-text, #0f172a); font-weight: 500; background: var(--portal-bg-card, #fefefe); border-color: color-mix(in srgb, var(--c) 30%, transparent); box-shadow: 0 1px 3px rgba(15,23,42,.06) } .pt-atalhos button.on i { opacity: 1 }
@@ -412,6 +419,10 @@ const ESTILO_TRILHO = `
 .pt-secao > div { transition: transform .5s cubic-bezier(.2,.8,.2,1), opacity .5s } .pt-secao:not(.pt-visto) > div { transform: translateX(-12px); opacity: 0 }
 .pt-secao:not(.pt-visto) .pt-secao-linha { animation: none; transform: scaleX(0) } .pt-secao.pt-visto .pt-secao-linha { animation: ptLinha .9s .15s cubic-bezier(.2,.8,.2,1) both }
 @media (prefers-reduced-motion: reduce) { .pt-trilho-lista button, .pt-trilho-lista button.on span::after { animation: none } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+[data-theme="dark"] :is(/* 27/10/2026: número da seção discreto (sem o círculo grande) */ .pt-amb .pt-secao em, .pt-atalhos button i, .pt-trilho-lista button:hover span, .pt-trilho-lista button.feito span) { color: color-mix(in srgb, var(--c) 60%, #fff) }
+
 `
 
 /** Título de seção: deixa claro que começa "outro assunto" (José 19/10: "visível, clean, moderno e profissional"). */
@@ -449,7 +460,7 @@ function Medidor({ pct, anterior }: { pct: number; anterior: number | null }) {
       <div className="dm-med-txt">
         <b style={{ color: cor }}>R$ {Math.round(v)}</b>
         <small>de cada R$ 100 ficaram</small>
-        {dif != null && <span style={{ color: dif > 0 ? '#047857' : dif < 0 ? '#b91c1c' : MUDO }}>{dif > 0 ? '▲' : dif < 0 ? '▼' : '='} {Math.abs(dif)} vs período anterior (R$ {Math.round(anterior!)})</span>}
+        {dif != null && <span style={{ color: dif > 0 ? 'var(--mx-fg-green, #047857)' : dif < 0 ? 'var(--mx-fg-red, #b91c1c)' : MUDO }}>{dif > 0 ? '▲' : dif < 0 ? '▼' : '='} {Math.abs(dif)} vs período anterior (R$ {Math.round(anterior!)})</span>}
       </div>
     </div>
   )
@@ -527,14 +538,14 @@ function Dinheiro({ t, g, salarios, eq, notas, resultado, nOS, nReqs, anterior, 
           <div className="dn-frase">
             De cada <b>R$ 100</b> faturados, {resultado >= 0
               ? <>ficaram <b style={{ color: COR_RESULT }}>R$ {Math.round(por100)}</b> para a empresa</>
-              : <>faltaram <b style={{ color: '#b91c1c' }}>R$ {Math.abs(Math.round(por100))}</b> — o pós-vendas não se pagou</>}
+              : <>faltaram <b style={{ color: 'var(--mx-fg-red, #b91c1c)' }}>R$ {Math.abs(Math.round(por100))}</b> — o pós-vendas não se pagou</>}
           </div>
           <div className="dm-resumo">
-            <span><small>Entrou</small><b style={{ color: '#0369a1' }}><Numero valor={t.bruto} formato={brl} /></b><em title="Com NFS-e = o número do Dashboard de Vendas (serviços); recibo = faturada sem nota">{nOS} OS · com nota {brl(notas.comNota)} · recibo {brl(notas.recibo)}</em></span>
+            <span><small>Entrou</small><b style={{ color: 'var(--mx-fg-blue, #0369a1)' }}><Numero valor={t.bruto} formato={brl} /></b><em title="Com NFS-e = o número do Dashboard de Vendas (serviços); recibo = faturada sem nota">{nOS} OS · com nota {brl(notas.comNota)} · recibo {brl(notas.recibo)}</em></span>
             <i className="fas fa-minus" />
-            <span><small>Saiu</small><b style={{ color: '#be123c' }}><Numero valor={custos} formato={brl} /></b><em>terceiros + gastos + pessoal</em></span>
+            <span><small>Saiu</small><b style={{ color: 'var(--mx-fg-red, #be123c)' }}><Numero valor={custos} formato={brl} /></b><em>terceiros + gastos + pessoal</em></span>
             <i className="fas fa-equals" />
-            <span><small>Resultado</small><b style={{ color: resultado >= 0 ? COR_RESULT : '#b91c1c' }}><Numero valor={resultado} formato={brl} /></b><em>passe o mouse nas barras</em></span>
+            <span><small>Resultado</small><b style={{ color: resultado >= 0 ? COR_RESULT : 'var(--mx-fg-red, #b91c1c)' }}><Numero valor={resultado} formato={brl} /></b><em>passe o mouse nas barras</em></span>
           </div>
         </div>
         <Medidor pct={por100} anterior={anterior} />
@@ -652,9 +663,9 @@ function CartaoTecnico({ l, gasto, salario, pontos, historico, rotuloHist, i, on
             {grupo ? <span className="ct-grupo"><i className={`fas ${l.tecnico === GRUPO_GARANTIA ? 'fa-shield-heart' : 'fa-users'}`} /></span> : <Anel pct={pct} />}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="ct-nome">{l.tecnico}</div>
-              <div className="ct-sub">{grupo && <b style={{ color: '#7c3aed' }}>grupo · </b>}{horas(l.faturadas)} faturadas{l.aguardando ? ` · ${horas(l.aguardando)} aguardando faturar` : ''}{l.internas ? ` · ${horas(l.internas)} internas` : ''} · {grupo ? 'sem meta de horas' : `${horas(l.ociosas)} paradas`}</div>
+              <div className="ct-sub">{grupo && <b style={{ color: 'var(--mx-fg-violet, #7c3aed)' }}>grupo · </b>}{horas(l.faturadas)} faturadas{l.aguardando ? ` · ${horas(l.aguardando)} aguardando faturar` : ''}{l.internas ? ` · ${horas(l.internas)} internas` : ''} · {grupo ? 'sem meta de horas' : `${horas(l.ociosas)} paradas`}</div>
             </div>
-            {fx && <span className="ct-pts" title="Pontos de ocorrência no mês (começa com 100)" style={{ color: { ok: '#047857', atencao: '#b45309', critico: '#b91c1c' }[fx], background: { ok: '#ecfdf5', atencao: '#fffbeb', critico: '#fef2f2' }[fx] }}><i className="fas fa-shield-halved" /> {pontos}</span>}
+            {fx && <span className="ct-pts" title="Pontos de ocorrência no mês (começa com 100)" style={{ color: { ok: 'var(--mx-fg-green, #047857)', atencao: '#b45309', critico: '#b91c1c' }[fx], background: { ok: 'var(--mx-p-green, #ecfdf5)', atencao: '#fffbeb', critico: '#fef2f2' }[fx] }}><i className="fas fa-shield-halved" /> {pontos}</span>}
           </div>
           <div className="ct-rende">
             <div>
@@ -669,12 +680,12 @@ function CartaoTecnico({ l, gasto, salario, pontos, historico, rotuloHist, i, on
           </div>
           <div className="ct-dinheiro" title={`faturou ${brl(l.bruto)} · custou ${brl(custo)} (pessoal ${brl(salario)} + gastos ${brl(gasto)} + terceiros ${brl(l.custo)})`}>
             <i style={{ width: `${l.bruto ? Math.min(100, (custo / Math.max(l.bruto, custo)) * 100) : 100}%`, background: '#fda4af' }} />
-            <i style={{ flex: 1, background: resultado >= 0 ? '#5eead4' : 'transparent' }} />
+            <i style={{ flex: 1, background: resultado >= 0 ? 'var(--mx-p-teal, #5eead4)' : 'transparent' }} />
           </div>
           <div className="ct-nums">
-            <span><small>Faturou</small><b style={{ color: '#0369a1' }}>{brl(l.bruto)}</b></span>
-            <span><small>Custou</small><b style={{ color: '#be123c' }}>{brl(custo)}</b></span>
-            <span><small>Sobrou</small><b style={{ color: resultado >= 0 ? COR_RESULT : '#b91c1c' }}>{brl(resultado)}</b></span>
+            <span><small>Faturou</small><b style={{ color: 'var(--mx-fg-blue, #0369a1)' }}>{brl(l.bruto)}</b></span>
+            <span><small>Custou</small><b style={{ color: 'var(--mx-fg-red, #be123c)' }}>{brl(custo)}</b></span>
+            <span><small>Sobrou</small><b style={{ color: resultado >= 0 ? COR_RESULT : 'var(--mx-fg-red, #b91c1c)' }}>{brl(resultado)}</b></span>
           </div>
           <div className="ct-acoes" onClick={(e) => e.stopPropagation()}>
             <button type="button" onClick={onDetalhes} title="Abrir a carta do técnico"><i className="fas fa-id-badge" /> detalhes</button>
@@ -717,9 +728,9 @@ function Apoio({ linhas, salarios, gastoDe, pendencias, garantias, onOS, onGaran
                   {garantia
                     ? <button type="button" onClick={onGarantias} disabled={!garantias.length}><small>Garantias faturadas</small><b>{garantias.length} OS · {brl(brutoGar)}</b></button>
                     : <button type="button" onClick={() => onOS(l.tecnico)} disabled={!l.os}><small>OS faturadas</small><b>{Math.round(l.os)} OS · {brl(l.bruto)}</b></button>}
-                  {garantia && <span><small>Aguardando faturar</small><b style={{ color: aguardando.length ? '#b45309' : undefined }}>{aguardando.length} OS · {brl(valorAguardando)}</b></span>}
+                  {garantia && <span><small>Aguardando faturar</small><b style={{ color: aguardando.length ? 'var(--mx-fg-orange, #b45309)' : undefined }}>{aguardando.length} OS · {brl(valorAguardando)}</b></span>}
                   {garantia && l.os > 0 && <button type="button" onClick={() => onOS(l.tecnico)}><small>Faturadas pelo Vinicius</small><b>{Math.round(l.os)} OS · {brl(l.bruto)}</b></button>}
-                  <span title={`pessoal ${brl(salarios[l.tecnico] || 0)} · gastos ${brl(gastoDe(l.tecnico))} · terceiros ${brl(l.custo)}`}><small>Custo no período</small><b style={{ color: '#be123c' }}>{brl(custo)}</b></span>
+                  <span title={`pessoal ${brl(salarios[l.tecnico] || 0)} · gastos ${brl(gastoDe(l.tecnico))} · terceiros ${brl(l.custo)}`}><small>Custo no período</small><b style={{ color: 'var(--mx-fg-red, #be123c)' }}>{brl(custo)}</b></span>
                 </div>
                 {garantia && fezGarantia.size > 0 && <div className="ap-quem">Quem fez: {[...fezGarantia.entries()].sort((a, b) => b[1] - a[1]).map(([t, n]) => `${t.split(' ')[0]} ${Math.round(n * 10) / 10}`).join(' · ')}</div>}
               </div>
@@ -851,7 +862,7 @@ function ListaSalarios({ porPessoa, detalhe, equipe, onFechar }: { porPessoa: Re
                 {detalhe[p]?.comissaoPrevista ? ` · comissão PREVISTA ${brl(detalhe[p].comissaoPrevista)}` : ''}
                 {detalhe[p]?.rescisao ? ` · rescisão/acertos ${brl(detalhe[p].rescisao)}` : ''}
               </span>
-              <b style={{ color: '#7c3aed', minWidth: 90, textAlign: 'right' }}>{brl2(v)}</b>
+              <b style={{ color: 'var(--mx-fg-violet, #7c3aed)', minWidth: 90, textAlign: 'right' }}>{brl2(v)}</b>
             </div>
           )
         })}
@@ -890,7 +901,7 @@ const ESTILO = `
 @keyframes dmPulsa { 50% { opacity: .75 } }
 .dm-dica { position: absolute; z-index: 6; transform: translateX(-50%); width: 300px; pointer-events: none; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 14px; padding: 12px 14px; box-shadow: 0 16px 40px rgba(15,23,42,.18); display: grid; gap: 4px; font-size: 13px; animation: stEntra .2s ease both }
 .dm-dica > b { font-size: 15px } .dm-dica small { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--portal-text-muted, #94a3b8); margin-top: 4px }
-.dm-dica em { font-style: normal; font-size: 11.5px; color: #0369a1; font-weight: 700; margin-top: 4px }
+.dm-dica em { font-style: normal; font-size: 11.5px; color: var(--mx-fg-blue, #0369a1); font-weight: 700; margin-top: 4px }
 .dm-dl { display: flex; align-items: center; gap: 8px } .dm-dl span { flex: 1; color: var(--portal-text-muted, #475569) } .dm-dl b { font-variant-numeric: tabular-nums }
 .dm-dl i { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0 }
 @media (max-width: 720px) { .dm-medidor { width: 100% } .dm-resumo b { font-size: 19px } .dm-fatia small { display: none } }
@@ -901,14 +912,14 @@ const ESTILO = `
 .ct-palco .ct.ct-virado { transform: rotateY(180deg) }
 .ct-face { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden; padding: 14px 16px 12px; display: grid; gap: 10px; border-radius: 18px; position: relative; overflow: hidden; align-content: start }
 .ct-frente { cursor: pointer }
-.ct-verso { transform: rotateY(180deg); background: linear-gradient(160deg, #f8fafc, #eef2ff); font-size: 13.5px }
+.ct-verso { transform: rotateY(180deg); background: linear-gradient(160deg, var(--mx-bg1, #f8fafc), var(--mx-bg1, #eef2ff)); font-size: 13.5px }
 .ct-brilho { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .2s; background: radial-gradient(400px circle at var(--gx) var(--gy), rgba(3,105,161,.10), transparent 45%) }
 .ct-palco:hover .ct-brilho { opacity: 1 }
 .ct-acoes { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; border-top: 1px solid var(--portal-border, #f1f5f9); padding-top: 8px }
 .ct-acoes button { border: 1px solid var(--portal-border, #e2e8f0); background: transparent; border-radius: 99px; padding: 4px 10px; font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--portal-text-muted, #475569); cursor: pointer }
-.ct-acoes button:hover { border-color: #0369a1; color: #0369a1 }
+.ct-acoes button:hover { border-color: #0369a1; color: var(--mx-fg-blue, #0369a1) }
 .ct-acoes span { margin-left: auto; font-size: 11.5px; color: var(--portal-text-muted, #cbd5e1) }
-.ct-volta { border: 1px solid #c7d2fe; background: #fefefe; color: #4f46e5; border-radius: 99px; padding: 4px 10px; font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer }
+.ct-volta { border: 1px solid var(--mx-pb-blue, #c7d2fe); background: var(--mx-bg0, #fefefe); color: var(--mx-fg-blue, #4f46e5); border-radius: 99px; padding: 4px 10px; font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer }
 .ct-vbloco { display: grid; gap: 3px }
 .ct-vbloco small { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--portal-text-muted, #94a3b8) }
 .ct-vl { display: flex; justify-content: space-between; gap: 10px } .ct-vl b { font-variant-numeric: tabular-nums; white-space: nowrap }
@@ -917,21 +928,21 @@ const ESTILO = `
 .ct-alvo .ct { border-color: #7c3aed !important; box-shadow: 0 0 0 4px rgba(124,58,237,.18), 0 18px 40px rgba(124,58,237,.18) }
 .ct-solte { position: absolute; z-index: 5; inset: 10px 10px auto 10px; background: #7c3aed; color: #fefefe; border-radius: 12px; padding: 8px 12px; font-size: 13px; font-weight: 800; text-align: center; pointer-events: none; animation: stEntra .25s ease both }
 .bq-flutua { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 9000; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #334155); border-radius: 99px; padding: 8px 14px; font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 28px rgba(15,23,42,.16) }
-.bq-flutua:hover { border-color: #0369a1; color: #0369a1 }
+.bq-flutua:hover { border-color: #0369a1; color: var(--mx-fg-blue, #0369a1) }
 .bq-flutua kbd, .bq-campo kbd, .bq-item kbd, .bq-kbd { font-family: inherit; font-size: 11px; font-weight: 800; background: var(--portal-bg-secondary, #f1f5f9); border: 1px solid var(--portal-border, #e2e8f0); border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; color: var(--portal-text-muted, #64748b) }
 .bq-fundo { position: fixed; inset: 0; z-index: 100070; background: rgba(15,23,42,.4); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 0; animation: cmpFade .15s ease both }
 @keyframes cmpFade { from { opacity: 0 } to { opacity: 1 } }
 .bq-caixa { width: min(640px, 100%); background: var(--portal-bg-card, #fefefe); border-radius: 18px; box-shadow: 0 30px 80px rgba(15,23,42,.35); overflow: hidden; animation: bqEntra .25s cubic-bezier(.2,1.1,.3,1) both }
 @keyframes bqEntra { from { transform: translateY(-12px) scale(.97); opacity: 0 } to { transform: none; opacity: 1 } }
 .bq-campo { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--portal-border, #e5e7eb) }
-.bq-campo i { color: #0369a1; font-size: 16px }
+.bq-campo i { color: var(--mx-fg-blue, #0369a1); font-size: 16px }
 .bq-campo input { flex: 1; border: none; outline: none; font-family: inherit; font-size: 17px; background: transparent; color: var(--portal-text, #0f172a) }
 .bq-lista { max-height: 55vh; overflow-y: auto; padding: 6px }
 .bq-grupo { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--portal-text-muted, #94a3b8); padding: 8px 12px 4px }
 .bq-item { width: 100%; display: flex; align-items: center; gap: 10px; border: none; background: transparent; border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 14px; color: var(--portal-text, #0f172a); cursor: pointer; text-align: left }
 .bq-item i { width: 18px; color: var(--portal-text-muted, #94a3b8) }
 .bq-item small { color: var(--portal-text-muted, #94a3b8); font-size: 12.5px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.bq-on { background: #eff6ff } .bq-on i { color: #0369a1 }
+.bq-on { background: var(--mx-bg1, #eff6ff) } .bq-on i { color: var(--mx-fg-blue, #0369a1) }
 @media (max-width: 720px) { .bq-flutua { display: none } .ct-acoes span { display: none } }
 
 .dn-caixa { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; padding: 18px 20px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(15,23,42,.05) }
@@ -960,28 +971,28 @@ const ESTILO = `
 .dn-legenda button:disabled { cursor: default }
 .dn-legenda i { width: 11px; height: 11px; border-radius: 3px; display: inline-block }
 .dn-legenda b { color: var(--portal-text, #0f172a) } .dn-legenda small { color: var(--portal-text-muted, #94a3b8) }
-.dn-legenda em { font-style: normal; font-size: 12px; font-weight: 800; color: #0369a1 } .dn-legenda em i { width: auto; height: auto; background: none; font-size: 10px }
+.dn-legenda em { font-style: normal; font-size: 12px; font-weight: 800; color: var(--mx-fg-blue, #0369a1) } .dn-legenda em i { width: auto; height: auto; background: none; font-size: 10px }
 .ct { text-align: left; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; padding: 14px 16px 12px; cursor: pointer; font-family: inherit; color: inherit; transition: box-shadow .2s, transform .2s, border-color .2s; min-width: 0; display: grid; gap: 10px }
 .ct:hover { box-shadow: 0 14px 30px rgba(15,23,42,.10); border-color: #93c5fd }
 .pt-troca { animation: ptTroca .45s cubic-bezier(.2,.8,.2,1) both }
 @keyframes ptTroca { from { opacity: 0; transform: translateY(14px) scale(.995); filter: blur(2px) } to { opacity: 1; transform: none; filter: none } }
-.pt-aviso-cartao { display: flex; gap: 10px; align-items: flex-start; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; font-size: 13.5px; line-height: 1.45 }
-.pt-aviso-cartao i { margin-top: 3px } .pt-aviso-cartao a { color: #b45309; font-weight: 800 }
+.pt-aviso-cartao { display: flex; gap: 10px; align-items: flex-start; background: var(--mx-p-amber, #fffbeb); border: 1px solid var(--mx-pb-amber, #fde68a); color: var(--mx-fg-orange, #92400e); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; font-size: 13.5px; line-height: 1.45 }
+.pt-aviso-cartao i { margin-top: 3px } .pt-aviso-cartao a { color: var(--mx-fg-orange, #b45309); font-weight: 800 }
 .ap { margin: 14px 0; border: 1px solid var(--portal-border, #e2e8f0); border-radius: 16px; background: var(--portal-bg-card, #fefefe); padding: 14px 16px }
 .ap-cab { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-bottom: 10px } .ap-cab b { font-size: 16px } .ap-cab span { font-size: 13px; color: var(--portal-text-muted, #64748b) }
 .ap-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 10px }
 .ap-item { display: flex; gap: 12px; border-radius: 14px; padding: 12px; border: 1px solid transparent }
-.ap-gar { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border-color: #ddd6fe } .ap-out { background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-color: #e2e8f0 }
-.ap-ic { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 19px; flex-shrink: 0; background: #fefefe; color: #7c3aed }
-.ap-out .ap-ic { color: #475569 }
-.ap-nome { font-size: 15.5px; font-weight: 900; color: #0f172a } .ap-nome small { font-size: 12.5px; font-weight: 700; color: #64748b; margin-left: 4px }
-.ap-desc { font-size: 12.5px; color: #64748b; margin: 2px 0 8px }
-.ap-quem { margin-top: 8px; font-size: 12.5px; color: #6d28d9; font-weight: 700 }
+.ap-gar { background: linear-gradient(135deg, var(--mx-p-violet, #f5f3ff), var(--mx-p-violet, #ede9fe)); border-color: var(--mx-pb-violet, #ddd6fe) } .ap-out { background: linear-gradient(135deg, var(--mx-bg1, #f8fafc), var(--mx-bg1, #f1f5f9)); border-color: var(--mx-bd, #e2e8f0) }
+.ap-ic { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 19px; flex-shrink: 0; background: var(--mx-bg0, #fefefe); color: var(--mx-fg-violet, #7c3aed) }
+.ap-out .ap-ic { color: var(--mx-t2, #475569) }
+.ap-nome { font-size: 15.5px; font-weight: 900; color: var(--mx-t, #0f172a) } .ap-nome small { font-size: 12.5px; font-weight: 700; color: var(--mx-t3, #64748b); margin-left: 4px }
+.ap-desc { font-size: 12.5px; color: var(--mx-t3, #64748b); margin: 2px 0 8px }
+.ap-quem { margin-top: 8px; font-size: 12.5px; color: var(--mx-fg-violet, #6d28d9); font-weight: 700 }
 .ap-nums { display: flex; gap: 8px; flex-wrap: wrap }
-.ap-nums > * { display: flex; flex-direction: column; background: rgba(255,255,255,.8); border: none; border-radius: 10px; padding: 6px 10px; font-family: inherit; text-align: left; color: #0f172a }
+.ap-nums > * { display: flex; flex-direction: column; background: rgba(255,255,255,.8); border: none; border-radius: 10px; padding: 6px 10px; font-family: inherit; text-align: left; color: var(--mx-t, #0f172a) }
 .ap-nums button { cursor: pointer } .ap-nums button:hover:not(:disabled) { box-shadow: 0 0 0 2px #c4b5fd }
-.ap-nums small { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b } .ap-nums b { font-size: 14px; font-variant-numeric: tabular-nums }
-.ct-grupo { width: 64px; height: 64px; border-radius: 50%; background: #f5f3ff; color: #7c3aed; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0 }
+.ap-nums small { font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--mx-t3, #64748b) } .ap-nums b { font-size: 14px; font-variant-numeric: tabular-nums }
+.ct-grupo { width: 64px; height: 64px; border-radius: 50%; background: var(--mx-p-violet, #f5f3ff); color: var(--mx-fg-violet, #7c3aed); display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0 }
 .ct-topo { display: flex; gap: 12px; align-items: center }
 .ct-nome { font-size: 17px; font-weight: 900; color: var(--portal-text, #0f172a); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .ct-sub { font-size: 12.5px; color: var(--portal-text-muted, #64748b); margin-top: 2px }
@@ -1022,7 +1033,7 @@ button.pt-passo:hover { box-shadow: 0 8px 20px rgba(15,23,42,.08); transform: tr
 .pt-barra { display: flex; border-radius: 6px; overflow: hidden; margin: 10px 0 8px; background: var(--portal-bg-secondary, #f1f5f9) }
 .pt-legenda { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13.5px; color: var(--portal-text-muted, #475569) }
 .pt-legenda > * { display: inline-flex; align-items: center; gap: 6px; border: none; background: transparent; font-family: inherit; font-size: 13.5px; color: inherit; padding: 0 }
-.pt-legenda button { cursor: pointer } .pt-legenda button:hover { color: #0369a1 }
+.pt-legenda button { cursor: pointer } .pt-legenda button:hover { color: var(--mx-fg-blue, #0369a1) }
 .pt-legenda i { width: 11px; height: 11px; border-radius: 3px; display: inline-block }
 .pt-legenda b { color: var(--portal-text, #0f172a) }
 .pt-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; margin-bottom: 12px }
@@ -1038,19 +1049,22 @@ button.pt-passo:hover { box-shadow: 0 8px 20px rgba(15,23,42,.08); transform: tr
 .pt-reqs-lista { overflow-y: auto; display: grid; gap: 8px; align-content: start; padding-right: 4px }
 .pt-req { text-align: left; border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-card, #fefefe); border-radius: 12px; padding: 10px 12px; cursor: pointer; font-family: inherit; font-size: 13.5px; color: var(--portal-text, #0f172a); transition: border-color .15s, background .15s }
 .pt-req:hover { border-color: #93c5fd }
-.pt-req-on { border-color: #0369a1; background: #eff6ff; box-shadow: inset 3px 0 0 #0369a1 }
+.pt-req-on { border-color: #0369a1; background: var(--mx-bg1, #eff6ff); box-shadow: inset 3px 0 0 #0369a1 }
 .pt-reqs-doc { display: flex; flex-direction: column; min-width: 0 }
-.pt-reqs-frame { flex: 1; width: 100%; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 12px; background: #fefefe }
+.pt-reqs-frame { flex: 1; width: 100%; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 12px; background: var(--mx-bg0, #fefefe) }
 @media (max-width: 860px) { .pt-reqs { grid-template-columns: 1fr; height: auto } .pt-reqs-frame { height: 70vh } }
 .pt-det { font-style: normal; font-size: 11.5px; color: var(--portal-text-muted, #94a3b8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.pt-abrir { display: block; margin-top: 10px; font-size: 12.5px; font-weight: 800; color: #0369a1; opacity: .7 }
+.pt-abrir { display: block; margin-top: 10px; font-size: 12.5px; font-weight: 800; color: var(--mx-fg-blue, #0369a1); opacity: .7 }
 .pt-card:hover .pt-abrir { opacity: 1 }
 .pt-sem { display: block; width: 100%; text-align: left; border: 1px dashed var(--portal-border, #cbd5e1); background: transparent; border-radius: 12px; padding: 9px 12px; font-family: inherit; font-size: 13px; color: var(--portal-text-muted, #64748b); cursor: pointer; margin-bottom: 14px }
-.pt-sem:hover { color: #0369a1; border-color: #0369a1 }
+.pt-sem:hover { color: var(--mx-fg-blue, #0369a1); border-color: #0369a1 }
 .pt-metricas { display: flex; gap: 4px; flex-wrap: wrap }
 .pt-metricas button { border: 1px solid var(--portal-border, #e2e8f0); background: transparent; border-radius: 99px; padding: 5px 12px; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--portal-text-muted, #64748b); cursor: pointer }
 .pt-metricas .pt-m-on { background: #0369a1; border-color: #0369a1; color: #fefefe }
 @media (max-width: 720px) { .pt-op { display: none } .pt-val { font-size: 23px } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `
 
 const btnSeta: React.CSSProperties = { width: 34, height: 34, borderRadius: 9, border: '1px solid var(--portal-border, #e2e8f0)', background: 'var(--portal-bg-card, #fefefe)', color: 'var(--portal-text, #334155)', cursor: 'pointer', fontFamily: 'inherit' }
@@ -1151,7 +1165,7 @@ function ListaRequisicoes({ reqs, onFechar }: { reqs: ReqLinha[]; onFechar: () =
                     <button type="button" className={ver === 'req' ? 'pt-m-on' : ''} onClick={() => setVer('req')}>Requisição</button>
                     <button type="button" className={ver === 'nota' ? 'pt-m-on' : ''} disabled={!sel.nota} onClick={() => setVer('nota')} title={sel.nota ? 'Ver a nota anexada' : 'Sem nota anexada'}>Nota anexada</button>
                   </div>
-                  <a href={ver === 'nota' && sel.nota ? sel.nota : `/requisicoes/imprimir/${sel.id}`} target="_blank" rel="noreferrer" style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: '#0369a1' }}>abrir em nova aba <i className="fas fa-arrow-up-right-from-square" /></a>
+                  <a href={ver === 'nota' && sel.nota ? sel.nota : `/requisicoes/imprimir/${sel.id}`} target="_blank" rel="noreferrer" style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: 'var(--mx-fg-blue, #0369a1)' }}>abrir em nova aba <i className="fas fa-arrow-up-right-from-square" /></a>
                 </div>
                 <iframe key={`${sel.id}:${ver}`} src={ver === 'nota' && sel.nota ? sel.nota : `/requisicoes/imprimir/${sel.id}`} title={`Requisição ${sel.id}`} className="pt-reqs-frame" />
               </>

@@ -122,6 +122,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
 
     const prods = Object.entries(resumo).filter(([, p]) => p.qtde !== 0);
+    // Peças "não gerar cobrança" (preço 0 nas movimentações): mostra o valor de antes riscado + "não cobrado"
+    const { semCobrancaDosPPVs } = await import("@/lib/ppv/sem-cobranca");
+    const marcas = await semCobrancaDosPPVs(listaIds);
+    const semCobCod: Record<string, { motivo: string; precoOriginal: number }> = {};
+    for (const porCod of Object.values(marcas)) for (const [cod, m] of Object.entries(porCod)) semCobCod[cod] = m;
+    const escHtml = (s: string) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
+    const linhaPeca = (cod: string, p: { desc: string; qtde: number; preco: number; total: number }) => {
+      const nc = semCobCod[cod];
+      if (!nc || p.preco > 0) return `<tr><td>${cod}</td><td>${p.desc}</td><td style="text-align:center">${p.qtde}</td><td style="text-align:right">R$ ${p.preco.toFixed(2)}</td><td style="text-align:right">R$ ${p.total.toFixed(2)}</td></tr>`;
+      return `<tr style="color:#64748b"><td>${cod}</td><td>${p.desc}<div style="font-size:7.5pt;color:#047857;font-weight:700">Não cobrado: ${escHtml(nc.motivo)}</div></td><td style="text-align:center">${p.qtde}</td><td style="text-align:right"><s>R$ ${nc.precoOriginal.toFixed(2)}</s></td><td style="text-align:right"><s>R$ ${(nc.precoOriginal * p.qtde).toFixed(2)}</s><div style="font-size:7pt;font-weight:800;color:#047857;text-transform:uppercase">não cobrado</div></td></tr>`;
+    };
     // Sem peças: some da lista E do total (fica um PDF só do serviço).
     // COM peças: o total aplica o desconto percentual de cada PPV (a tabela
     // continua com os preços cheios; o desconto sai como linha no resumo).
@@ -137,7 +148,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           <table class="cost-table">
             <thead><tr><th>Código</th><th>Descrição</th><th style="text-align:center">Qtde</th><th style="text-align:right">Unitário</th><th style="text-align:right">Total</th></tr></thead>
             <tbody>
-              ${prods.map(([cod, p]) => `<tr><td>${cod}</td><td>${p.desc}</td><td style="text-align:center">${p.qtde}</td><td style="text-align:right">R$ ${p.preco.toFixed(2)}</td><td style="text-align:right">R$ ${p.total.toFixed(2)}</td></tr>`).join("")}
+              ${prods.map(([cod, p]) => linhaPeca(cod, p)).join("")}
             </tbody>
           </table>
         </div>

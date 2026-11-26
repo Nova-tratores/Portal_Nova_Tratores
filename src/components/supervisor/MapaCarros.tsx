@@ -10,6 +10,7 @@ import { fmtMin } from '@/lib/frota/tempo-loja'
 import { formatarPlaca } from '@/lib/frota/placa'
 import type { VeiculoVivo } from '@/lib/frota/mapa-vivo-server'
 import CamadaViasForaMapa from '@/components/frota/CamadaViasForaMapa'
+import { MX_ESCURO } from '@/lib/tema/mx-escuro'
 
 interface Carro { placa: string; descricao?: string | null; pessoa_nome?: string | null; vinculo_tipo?: string | null }
 
@@ -26,22 +27,22 @@ const ORDEM_STATUS: StatusVivo[] = ['andando', 'ligado_parado', 'desligado', 'se
 
 // Bloco "tempo da loja até aqui" que vai dentro dos popups (preenchido depois
 // que a rota /api/frota/mapa/tempo-loja responde).
-const PLACEHOLDER_TEMPO = '<div data-tempo-loja style="margin-top:6px;border-top:1px solid #e2e8f0;padding-top:5px;font-size:12px;color:#64748b">Calculando o tempo até a loja…</div>'
+const PLACEHOLDER_TEMPO = '<div data-tempo-loja style="margin-top:6px;border-top:1px solid var(--mx-bd,#e2e8f0);padding-top:5px;font-size:12px;color:var(--mx-t3,#64748b)">Calculando o tempo até a loja…</div>'
 function htmlTempoLoja(d: any): string {
-  if (!d || d.error) return '<span style="color:#b91c1c">Não foi possível calcular o tempo até a loja.</span>'
-  if (d.naLoja) return '<b style="color:#334155">Na loja</b>'
+  if (!d || d.error) return '<span style="color:var(--mx-fg-red,#b91c1c)">Não foi possível calcular o tempo até a loja.</span>'
+  if (d.naLoja) return '<b style="color:var(--mx-t2,#334155)">Na loja</b>'
   const linha = (rotulo: string, e: any) => {
     if (!e || e.min == null) return `<div>${rotulo}: <b>sem dados</b></div>`
     const det = e.fonte === 'historico'
       ? `${e.viagens} viage${e.viagens === 1 ? 'm' : 'ns'}${e.descartadas ? ` · ${e.descartadas} fora da curva` : ''}`
       : 'estimado pela distância'
-    const km = e.kmRealizado != null ? ` · <b style="color:#0f172a">${kmBR(e.kmRealizado)}</b> rodados` : ''
-    return `<div>${rotulo}: <b style="color:#0f172a">~${fmtMin(e.min)}</b>${km} <span style="color:#94a3b8">(${det})</span></div>`
+    const km = e.kmRealizado != null ? ` · <b style="color:var(--mx-t,#0f172a)">${kmBR(e.kmRealizado)}</b> rodados` : ''
+    return `<div>${rotulo}: <b style="color:var(--mx-t,#0f172a)">~${fmtMin(e.min)}</b>${km} <span style="color:#94a3b8">(${det})</span></div>`
   }
   const projetado = d.kmProjetado != null
-    ? `<div style="margin-top:2px">Percurso projetado: <b style="color:#0f172a">${kmBR(d.kmProjetado)}</b> <span style="color:#94a3b8">(pela estrada)</span></div>`
+    ? `<div style="margin-top:2px">Percurso projetado: <b style="color:var(--mx-t,#0f172a)">${kmBR(d.kmProjetado)}</b> <span style="color:#94a3b8">(pela estrada)</span></div>`
     : ''
-  return `<div style="font-weight:800;color:#334155;margin-bottom:2px">Tempo com a loja</div>` +
+  return `<div style="font-weight:800;color:var(--mx-t2,#334155);margin-bottom:2px">Tempo com a loja</div>` +
     linha('Ida da loja', d.ida) + linha('Volta à loja', d.volta) + projetado
 }
 // "Paulo Motta / Gabriel Moraes" → "Paulo" (o rótulo do carro é curto)
@@ -190,6 +191,20 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     carRendererRef.current = L.canvas({ padding: 0.5 })
   }, [ready])
 
+  // A caixa do mapa mudou de tamanho (tela cheia, giro do celular, barra do
+  // Safari aparecendo/sumindo): o Leaflet só escuta o resize da JANELA, então
+  // sem isto ficava um pedaço cinza sem mapa e os cliques caíam no lugar errado.
+  useEffect(() => {
+    if (!ready || !mapRef.current || typeof ResizeObserver === 'undefined') return
+    let raf = 0
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => mapInstance.current?.invalidateSize())
+    })
+    ro.observe(mapRef.current)
+    return () => { cancelAnimationFrame(raf); ro.disconnect() }
+  }, [ready])
+
   // "Voar até" o ponto buscado (cliente/local) — abre um popup no destino.
   useEffect(() => {
     if (!ready || !mapInstance.current || !foco?.lat || !foco?.lng) return
@@ -200,7 +215,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       .setLatLng([foco.lat, foco.lng])
       .setContent(
         `<b>${esc(foco.nome || 'Local')}</b>` +
-        (foco.subtitulo ? `<br/><span style="font-size:11px;color:#666">${esc(foco.subtitulo)}</span>` : ''),
+        (foco.subtitulo ? `<br/><span style="font-size:11px;color:var(--mx-t3,#666)">${esc(foco.subtitulo)}</span>` : ''),
       )
       .openOn(mapInstance.current)
   }, [foco, ready])
@@ -247,7 +262,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       const m = L.circleMarker([loc.lat, loc.lng], {
         radius: 6, weight: 2, color: '#fff', fillColor: cor, fillOpacity: 0.9, bubblingMouseEvents: false,
       })
-        .bindPopup(`<div style="font-size:13px;font-weight:700">${esc(loc.nome)}</div>${loc.subtitulo ? `<div style="font-size:11px;color:#64748B">${esc(loc.subtitulo)}</div>` : ''}${ehFrota ? PLACEHOLDER_TEMPO : ''}`)
+        .bindPopup(`<div style="font-size:13px;font-weight:700">${esc(loc.nome)}</div>${loc.subtitulo ? `<div style="font-size:11px;color:var(--mx-t3,#64748B)">${esc(loc.subtitulo)}</div>` : ''}${ehFrota ? PLACEHOLDER_TEMPO : ''}`)
         .bindTooltip(esc(loc.nome), { direction: 'top', offset: [0, -6] })
       if (ehFrota) m.on('popupopen', (ev: any) => preencherTempoLoja(ev.popup.getElement(), loc.lat, loc.lng))
       m.addTo(locaisLayerRef.current)
@@ -319,20 +334,20 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
         const lugar = [cidadeG, lugar0 && lugar0 !== 'Sem cadastro de local' ? lugar0 : ''].filter(Boolean).join(' — ')
         const icon = L.divIcon({
           className: '',
-          html: `<div style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:2px solid #1e293b;border-radius:16px;padding:4px 9px 4px 6px;box-shadow:0 2px 8px rgba(0,0,0,0.35);white-space:nowrap;opacity:${carroSel ? 0.45 : 1};font:800 12px Inter,sans-serif;color:#0f172a">
+          html: `<div style="display:inline-flex;align-items:center;gap:6px;background:var(--mx-bg0,#fff);border:2px solid #1e293b;border-radius:16px;padding:4px 9px 4px 6px;box-shadow:0 2px 8px rgba(0,0,0,0.35);white-space:nowrap;opacity:${carroSel ? 0.45 : 1};font:800 12px Inter,sans-serif;color:var(--mx-t,#0f172a)">
             <span style="display:inline-flex;gap:2px">${bolinhas}</span>${grupo.length} carros${lugar ? ` · ${esc(lugar)}` : ''}
           </div>`,
           iconSize: [220, 28], iconAnchor: [20, 14],
         })
         const linhas = grupo.map((v, i) => {
           const st = sts[i]
-          return `<button data-placa="${esc(v.placa)}" style="display:flex;gap:8px;align-items:center;width:100%;text-align:left;border:none;border-top:${i ? '1px solid #e2e8f0' : 'none'};background:none;padding:6px 2px;cursor:pointer">
+          return `<button data-placa="${esc(v.placa)}" style="display:flex;gap:8px;align-items:center;width:100%;text-align:left;border:none;border-top:${i ? '1px solid var(--mx-bd,#e2e8f0)' : 'none'};background:none;padding:6px 2px;cursor:pointer">
             <span style="width:10px;height:10px;border-radius:50%;background:${STATUS_INFO[st].cor};flex-shrink:0"></span>
-            <span><b style="font-size:12.5px;color:#0f172a">${esc(v.nome || v.placa_exibicao)}</b><br/><span style="font-size:11px;color:#64748b">${esc(v.placa_exibicao)} · ${esc(haQuanto(v.dt, agoraMs))}</span></span>
+            <span><b style="font-size:12.5px;color:var(--mx-t,#0f172a)">${esc(v.nome || v.placa_exibicao)}</b><br/><span style="font-size:11px;color:var(--mx-t3,#64748b)">${esc(v.placa_exibicao)} · ${esc(haQuanto(v.dt, agoraMs))}</span></span>
           </button>`
         }).join('')
         const m = L.marker([grupo[0].lat, grupo[0].lng], { icon, zIndexOffset: 5500 })
-          .bindPopup(`<div style="font-size:12px;font-weight:800;color:#334155;margin-bottom:4px">${grupo.length} carros${lugar ? ` · ${esc(lugar)}` : ''}</div>${linhas}`, { maxWidth: 260 })
+          .bindPopup(`<div style="font-size:12px;font-weight:800;color:var(--mx-t2,#334155);margin-bottom:4px">${grupo.length} carros${lugar ? ` · ${esc(lugar)}` : ''}</div>${linhas}`, { maxWidth: 260 })
         m.on('popupopen', (e: any) => {
           e.popup.getElement()?.querySelectorAll('[data-placa]').forEach((b: HTMLElement) => {
             b.onclick = () => {
@@ -387,8 +402,8 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
           `<b>${esc(v.nome || v.placa_exibicao)}</b>${v.nome ? ` · ${esc(v.placa_exibicao)}` : ''}<br/>` +
           `<span style="color:${cor};font-weight:700">${STATUS_INFO[st].label}</span>${st === 'andando' && v.rumo != null ? ` para o ${nomeRumo(v.rumo)}` : ''} · ${esc(haQuanto(v.dt, agoraMs))}` +
           (v.local ? `<br/>${esc(v.local)}` : '') +
-          (st === 'andando' && v.retorno ? `<br/><span style="color:#1d4ed8;font-weight:700">${esc(textoRetorno(v.retorno))}</span>` : '') +
-          (v.os_execucao || []).map((o) => `<br/><span style="color:#15803d;font-weight:700">${esc(o.id)}</span> em execução${o.cliente ? ` · ${esc(o.cliente)}` : ''}`).join(''),
+          (st === 'andando' && v.retorno ? `<br/><span style="color:var(--mx-fg-blue,#1d4ed8);font-weight:700">${esc(textoRetorno(v.retorno))}</span>` : '') +
+          (v.os_execucao || []).map((o) => `<br/><span style="color:var(--mx-fg-green,#15803d);font-weight:700">${esc(o.id)}</span> em execução${o.cliente ? ` · ${esc(o.cliente)}` : ''}`).join(''),
           { direction: 'top', offset: [0, -20] },
         )
         marker.on('click', () => selecionarCarroRef.current(v.placa, v.nome || v.placa_exibicao))
@@ -446,8 +461,8 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       const temHandler = !!onVisitaClick
       marker.bindPopup(`
         <div style="font-size:14px;font-weight:700">${esc(v.vendedor_nome || '-')}</div>
-        <div style="font-size:12px;color:#64748B">${esc(fv(v.data_visita))}</div>
-        <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11px;background:${tipoCores[v.tipo]?.bg || '#F1F5F9'};color:${tipoCores[v.tipo]?.text || '#475569'};margin-top:4px">${esc(v.tipo)}</span>
+        <div style="font-size:12px;color:var(--mx-t3,#64748B)">${esc(fv(v.data_visita))}</div>
+        <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-weight:700;font-size:11px;background:${tipoCores[v.tipo]?.bg || 'var(--mx-bg1,#F1F5F9)'};color:${tipoCores[v.tipo]?.text || 'var(--mx-t2,#475569)'};margin-top:4px">${esc(v.tipo)}</span>
         ${v.cliente_nome ? `<div style="font-size:12px;margin-top:4px;font-weight:600">${esc(v.cliente_nome)}</div>` : ''}
         ${temHandler ? `<button id="${popupId}" style="margin-top:8px;width:100%;padding:6px;border:none;border-radius:6px;background:#dc2626;color:#fff;font-size:12px;font-weight:700;cursor:pointer">Ver detalhes</button>` : ''}
       `, { maxWidth: 260 })
@@ -516,8 +531,8 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
               const pr = f.properties || {}
               const ha = pr.area_ha != null ? `${Number(pr.area_ha).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ha` : ''
               layer.bindPopup(
-                `<div style="font-size:12px;font-weight:800;color:#334155">Propriedade rural (CAR) · ${esc(m.nome)}</div>` +
-                (pr.clientes ? `<div style="font-size:13px;font-weight:700;color:#7c3aed;margin-top:3px">${esc(pr.clientes)}</div>` : '<div style="font-size:11.5px;color:#64748b;margin-top:3px">sem cliente vinculado</div>') +
+                `<div style="font-size:12px;font-weight:800;color:var(--mx-t2,#334155)">Propriedade rural (CAR) · ${esc(m.nome)}</div>` +
+                (pr.clientes ? `<div style="font-size:13px;font-weight:700;color:var(--mx-fg-violet,#7c3aed);margin-top:3px">${esc(pr.clientes)}</div>` : '<div style="font-size:11.5px;color:var(--mx-t3,#64748b);margin-top:3px">sem cliente vinculado</div>') +
                 `<div style="font-size:12px;margin-top:3px">${[ha, pr.cultura].filter(Boolean).map(esc).join(' · ')}</div>` +
                 `<div style="font-size:10px;color:#94a3b8;margin-top:3px">${esc(pr.cod_car || '')}</div>` + PLACEHOLDER_TEMPO,
                 { maxWidth: 280 },
@@ -577,12 +592,12 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       if (c.lat == null || c.lng == null) continue
       const icon = L.divIcon({
         className: '',
-        html: `<div style="display:flex;flex-direction:column;align-items:center"><div style="width:22px;height:22px;border-radius:50%;background:#0d9488;border:2px solid #fff;display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.35);color:#fff;font-size:11px"><i class="fas fa-house"></i></div><div style="margin-top:2px;background:rgba(255,255,255,.95);color:#0f172a;font:500 10.5px Inter,sans-serif;padding:0 6px;border-radius:4px;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 3px rgba(0,0,0,.2)">${esc(c.nome || c.cliente_nome || 'Cliente')}</div></div>`,
+        html: `<div style="display:flex;flex-direction:column;align-items:center"><div style="width:22px;height:22px;border-radius:50%;background:#0d9488;border:2px solid #fff;display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.35);color:#fff;font-size:11px"><i class="fas fa-house"></i></div><div style="margin-top:2px;background:rgba(255,255,255,.95);color:var(--mx-t,#0f172a);font:500 10.5px Inter,sans-serif;padding:0 6px;border-radius:4px;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 3px rgba(0,0,0,.2)">${esc(c.nome || c.cliente_nome || 'Cliente')}</div></div>`,
         iconSize: [160, 40], iconAnchor: [80, 11],
       })
       const quando = c.confirmado_em ? new Date(c.confirmado_em).toLocaleDateString('pt-BR') : ''
       L.marker([c.lat, c.lng], { icon, zIndexOffset: 1000 })
-        .bindPopup(`<div style="font:14px Inter,sans-serif;color:#0f172a"><b style="font-weight:600">${esc(c.nome || 'Local do cliente')}</b><div style="font-size:12.5px;color:#475569;margin-top:2px">${esc(c.cliente_nome || '')}</div><div style="font-size:12px;color:#64748b;margin-top:4px">${[c.os_id, c.tecnico, quando ? 'salva em ' + quando : ''].filter(Boolean).map(esc).join(' · ')}</div><a href="https://www.google.com/maps?q=${c.lat},${c.lng}" target="_blank" rel="noreferrer" style="display:inline-block;margin-top:6px;font-size:12.5px;color:#2563eb">abrir no Google Maps</a></div>`, { maxWidth: 260 })
+        .bindPopup(`<div style="font:14px Inter,sans-serif;color:var(--mx-t,#0f172a)"><b style="font-weight:600">${esc(c.nome || 'Local do cliente')}</b><div style="font-size:12.5px;color:var(--mx-t2,#475569);margin-top:2px">${esc(c.cliente_nome || '')}</div><div style="font-size:12px;color:var(--mx-t3,#64748b);margin-top:4px">${[c.os_id, c.tecnico, quando ? 'salva em ' + quando : ''].filter(Boolean).map(esc).join(' · ')}</div><a href="https://www.google.com/maps?q=${c.lat},${c.lng}" target="_blank" rel="noreferrer" style="display:inline-block;margin-top:6px;font-size:12.5px;color:var(--mx-fg-blue,#2563eb)">abrir no Google Maps</a></div>`, { maxWidth: 260 })
         .addTo(camada)
     }
   }, [ready, mostrarCliPos, cliPos])
@@ -692,7 +707,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
           iconSize: [22, 30], iconAnchor: [11, 30],
         })
         L.marker([vis.lat, vis.lng], { icon, zIndexOffset: 4000 })
-          .bindPopup(`<div style="font-size:13px;font-weight:700">${esc(vis.cliente_nome || 'Visita')}</div><div style="font-size:11px;color:#64748B">${esc(vis.vendedor_nome || '')}${vis.tipo ? ` · ${esc(vis.tipo)}` : ''}</div><div style="font-size:11px;color:#059669;margin-top:2px">a ${esc(vis.dist_parada_km)} km de uma parada</div>`)
+          .bindPopup(`<div style="font-size:13px;font-weight:700">${esc(vis.cliente_nome || 'Visita')}</div><div style="font-size:11px;color:var(--mx-t3,#64748B)">${esc(vis.vendedor_nome || '')}${vis.tipo ? ` · ${esc(vis.tipo)}` : ''}</div><div style="font-size:11px;color:#059669;margin-top:2px">a ${esc(vis.dist_parada_km)} km de uma parada</div>`)
           .addTo(rotaLayerRef.current)
       }
 
@@ -778,7 +793,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       await espera(1800)
       if (tourRef.current !== id) return
       L.popup({ closeButton: false, autoClose: true, offset: [0, -6] }).setLatLng([e.lat, e.lng])
-        .setContent(`<div style="font:14px Inter,sans-serif;color:#0f172a"><div style="font-size:12px;color:#d97706;font-weight:600">Parada ${i + 1} de ${ps.length}</div><b style="font-weight:600">${fmtH(e.hora)}${e.fim ? ' – ' + fmtH(e.fim) : ''}</b> · ${fmtT(e.dur)}<div style="font-size:12.5px;color:#475569;margin-top:2px">${esc(e.local || '')}</div></div>`)
+        .setContent(`<div style="font:14px Inter,sans-serif;color:var(--mx-t,#0f172a)"><div style="font-size:12px;color:#d97706;font-weight:600">Parada ${i + 1} de ${ps.length}</div><b style="font-weight:600">${fmtH(e.hora)}${e.fim ? ' – ' + fmtH(e.fim) : ''}</b> · ${fmtT(e.dur)}<div style="font-size:12.5px;color:var(--mx-t2,#475569);margin-top:2px">${esc(e.local || '')}</div></div>`)
         .openOn(map)
       await espera(2600)
     }
@@ -797,6 +812,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
 
   return (
     <div className="mapa-carros" style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <style>{MX_ESCURO}</style>
       {/* tema escuro (auditoria 06/11/2026): os painéis e botões sobre o mapa tinham fundo branco fixo, mas o
           globals.css clareia o texto escrito em cinza-escuro — "desligado" e afins sumiam. No escuro o fundo
           deles também fica escuro. */}
@@ -807,10 +823,10 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       <div style={{ position: 'absolute', top: isMobile ? 52 : 10, left: 10, zIndex: 1000, background: 'rgba(255,255,255,0.97)', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', width: isMobile ? 'min(220px, calc(100% - 20px))' : 280, maxHeight: isMobile ? '45%' : 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {!carroSel ? (
           <>
-            <div style={{ padding: '12px 14px', borderBottom: '1px solid #eef2f7', fontSize: 12, fontWeight: 600, color: '#64748B', letterSpacing: ehFrota ? 0 : 0.3 }}>
-              {ehFrota ? <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}><span style={{ fontSize: 15, fontWeight: 600, color: '#0f172a' }}>Frota</span><span style={{ fontSize: 12.5, fontWeight: 400, color: '#64748b' }}>{vivos.length} {vivos.length === 1 ? 'carro' : 'carros'}</span></span> : tituloPainel}
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid #eef2f7', fontSize: 12, fontWeight: 600, color: 'var(--mx-t3, #64748B)', letterSpacing: ehFrota ? 0 : 0.3 }}>
+              {ehFrota ? <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}><span style={{ fontSize: 15, fontWeight: 600, color: 'var(--mx-t, #0f172a)' }}>Frota</span><span style={{ fontSize: 12.5, fontWeight: 400, color: 'var(--mx-t3, #64748b)' }}>{vivos.length} {vivos.length === 1 ? 'carro' : 'carros'}</span></span> : tituloPainel}
               {ehFrota && vivos.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, fontWeight: 500, letterSpacing: 0, fontSize: 12, color: '#334155' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, fontWeight: 500, letterSpacing: 0, fontSize: 12, color: 'var(--mx-t2, #334155)' }}>
                   {ORDEM_STATUS.map((s) => {
                     const n = contarPorStatus(vivos.map((v) => ({ status: statusVivo(v, agoraMs) })))[s]
                     if (!n) return null
@@ -818,7 +834,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                       <button key={s} onClick={() => setFiltroSt(filtroSt === s ? null : s)} title={filtroSt === s ? 'Mostrar todos' : `Mostrar só os ${STATUS_INFO[s].label.toLowerCase()}`}
                         style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 500,
                           border: `1px solid ${filtroSt === s ? STATUS_INFO[s].cor : 'transparent'}`, background: filtroSt === s ? STATUS_INFO[s].cor : `${STATUS_INFO[s].cor}17`, color: filtroSt === s ? '#fff' : STATUS_INFO[s].cor }}>
-                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: filtroSt === s ? '#fff' : STATUS_INFO[s].cor }} />
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: filtroSt === s ? 'var(--mx-bg0, #fff)' : STATUS_INFO[s].cor }} />
                         {n} {s === 'ligado_parado' ? 'parado ligado' : STATUS_INFO[s].label.toLowerCase()}
                       </button>
                     )
@@ -840,20 +856,20 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                       style={{ width: '100%', textAlign: 'left', padding: '11px 14px', border: 'none', borderBottom: '1px solid #f1f5f9', background: 'transparent', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'flex-start', fontFamily: 'inherit' }}>
                       <span style={{ width: 9, height: 9, borderRadius: '50%', background: STATUS_INFO[st].cor, flexShrink: 0, marginTop: 6, boxShadow: `0 0 0 3px ${STATUS_INFO[st].cor}22` }} />
                       <span style={{ minWidth: 0, flex: 1 }}>
-                        <span style={{ display: 'block', fontSize: 14, fontWeight: 500, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.nome || v.placa_exibicao}</span>
-                        <span style={{ display: 'block', fontSize: 12, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'block', fontSize: 14, fontWeight: 500, color: 'var(--mx-t, #0f172a)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.nome || v.placa_exibicao}</span>
+                        <span style={{ display: 'block', fontSize: 12, color: 'var(--mx-t3, #64748b)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {v.placa_exibicao}{v.modelo ? ` · ${v.modelo}` : ''}
                         </span>
-                        <span style={{ display: 'block', fontSize: 12, color: st === 'sem_sinal' ? '#b91c1c' : '#334155', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'block', fontSize: 12, color: st === 'sem_sinal' ? 'var(--mx-fg-red, #b91c1c)' : 'var(--mx-t2, #334155)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {!v.tem_rastreador ? 'sem rastreador vinculado' : <>{v.cidade ? <><i className="fas fa-location-dot" style={{ color: '#94a3b8', marginRight: 4 }} /><b style={{ fontWeight: 500 }}>{v.cidade}</b>{' · '}</> : null}{v.local && v.local !== 'Sem cadastro de local' ? `${v.local} · ` : ''}<span style={{ color: '#94a3b8' }}>{haQuanto(v.dt, agoraMs)}</span></>}
                         </span>
                         {st === 'andando' && v.retorno && (
-                          <span title={textoRetorno(v.retorno)} style={{ display: 'block', fontSize: 11, color: '#1d4ed8', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span title={textoRetorno(v.retorno)} style={{ display: 'block', fontSize: 11, color: 'var(--mx-fg-blue, #1d4ed8)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             ↩ Voltando · chega ~{horaBR(v.retorno.eta)} · {kmBR(v.retorno.kmRestante)}
                           </span>
                         )}
                         {(v.os_execucao || []).map((o) => (
-                          <span key={o.id} style={{ display: 'block', fontSize: 11, color: '#15803d', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span key={o.id} style={{ display: 'block', fontSize: 11, color: 'var(--mx-fg-green, #15803d)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {o.id} em execução{o.cliente ? ` · ${o.cliente}` : ''}
                           </span>
                         ))}
@@ -870,7 +886,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                   width: '100%', textAlign: 'left', padding: '10px 12px', border: 'none', borderBottom: '1px solid #f1f5f9',
                   background: 'transparent', cursor: 'pointer',
                 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{c.pessoa_nome || c.placa}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--mx-t, #1e293b)' }}>{c.pessoa_nome || c.placa}</div>
                   <div style={{ fontSize: 11, color: '#94a3b8' }}>{c.placa}{c.descricao ? ` · ${c.descricao}` : ''}</div>
                 </button>
               ))}
@@ -881,13 +897,13 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
             <div style={{ padding: '10px 12px', borderBottom: '1px solid #eee' }}>
               <button onClick={fecharCarro} style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                background: '#fefefe', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: 10,
+                background: 'var(--mx-bg0, #fefefe)', color: 'var(--mx-t, #0f172a)', border: '1px solid #e2e8f0', borderRadius: 10,
                 padding: '9px 12px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
               }}>
-                <i className="fas fa-arrow-left" style={{ fontSize: 12, color: '#64748b' }} /> Voltar para todos os carros
+                <i className="fas fa-arrow-left" style={{ fontSize: 12, color: 'var(--mx-t3, #64748b)' }} /> Voltar para todos os carros
               </button>
               <div style={{ minWidth: 0, marginTop: 9 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{carroSel.nome}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--mx-t, #1e293b)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{carroSel.nome}</div>
                 <div style={{ fontSize: 10, color: '#94a3b8' }}>{formatarPlaca(carroSel.placa)}</div>
               </div>
             </div>
@@ -895,9 +911,9 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
               {/* Hoje (calcula ao vivo) */}
               <button onClick={() => verRota(carroSel.placa, hojeStr())} style={{
                 width: '100%', textAlign: 'left', padding: '10px 12px', border: 'none', borderBottom: '1px solid #f1f5f9',
-                background: placaSel === hojeStr() ? '#eff6ff' : 'transparent', cursor: 'pointer',
+                background: placaSel === hojeStr() ? 'var(--mx-bg1, #eff6ff)' : 'transparent', cursor: 'pointer',
               }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: placaSel === hojeStr() ? '#2563eb' : '#1e293b' }}>Hoje</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: placaSel === hojeStr() ? 'var(--mx-fg-blue, #2563eb)' : 'var(--mx-t, #1e293b)' }}>Hoje</div>
                 <div style={{ fontSize: 11, color: '#94a3b8' }}>ver rota de hoje</div>
               </button>
               {loadingHist ? (
@@ -909,13 +925,13 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                 return (
                   <button key={h.data} onClick={() => verRota(carroSel.placa, h.data)} style={{
                     width: '100%', textAlign: 'left', padding: '10px 12px', border: 'none', borderBottom: '1px solid #f1f5f9',
-                    background: ativo ? '#eff6ff' : 'transparent', cursor: 'pointer',
+                    background: ativo ? 'var(--mx-bg1, #eff6ff)' : 'transparent', cursor: 'pointer',
                   }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: ativo ? '#2563eb' : '#1e293b' }}>{fmtData(h.data)}</div>
-                    <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
-                      <span style={{ color: '#2563eb', fontWeight: 600 }}>{h.km_total} km</span>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: ativo ? 'var(--mx-fg-blue, #2563eb)' : 'var(--mx-t, #1e293b)' }}>{fmtData(h.data)}</div>
+                    <div style={{ fontSize: 11, color: 'var(--mx-t3, #64748b)', display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
+                      <span style={{ color: 'var(--mx-fg-blue, #2563eb)', fontWeight: 600 }}>{h.km_total} km</span>
                       <span style={{ color: '#d97706', fontWeight: 600 }}>{h.paradas} paradas</span>
-                      {h.visitas > 0 && <span style={{ color: '#6366f1', fontWeight: 600 }}>{h.visitas} visita{h.visitas !== 1 ? 's' : ''}</span>}
+                      {h.visitas > 0 && <span style={{ color: 'var(--mx-fg-blue, #6366f1)', fontWeight: 600 }}>{h.visitas} visita{h.visitas !== 1 ? 's' : ''}</span>}
                       <span style={{ color: '#059669', fontWeight: 600 }}>{fmtT(h.tempo_dirigindo_min)}</span>
                     </div>
                   </button>
@@ -930,7 +946,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       {(locais.length > 0 || visitas.length > 0 || ehFrota) && (
         <>
         <button onClick={() => setCamadasAbertas((v) => !v)} title="Mostrar ou esconder camadas no mapa"
-          style={{ position: 'absolute', ...(isMobile ? { top: 8, right: 8 } : { bottom: 12, right: 12 }), zIndex: 1001, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: camadasAbertas ? '#eff6ff' : 'rgba(255,255,255,0.97)', color: camadasAbertas ? '#1d4ed8' : '#334155', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 6px 18px -10px rgba(15,23,42,.5)' }}>
+          style={{ position: 'absolute', ...(isMobile ? { top: 8, right: 8 } : { bottom: 12, right: 12 }), zIndex: 1001, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: camadasAbertas ? 'var(--mx-bg1, #eff6ff)' : 'rgba(255,255,255,0.97)', color: camadasAbertas ? 'var(--mx-fg-blue, #1d4ed8)' : 'var(--mx-t2, #334155)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 6px 18px -10px rgba(15,23,42,.5)' }}>
           <i className="fas fa-layer-group" /> Camadas{[mostrarVisitas && visitas.length > 0, mostrarLocais && locais.length > 0, mostrarCliPos].filter(Boolean).length ? ` (${[mostrarVisitas && visitas.length > 0, mostrarLocais && locais.length > 0, mostrarCliPos].filter(Boolean).length})` : ''}
         </button>
         {camadasAbertas && <div className="mapa-filtros" style={{ position: 'absolute', ...(isMobile ? { top: 52, right: 8 } : { bottom: 58, right: 12 }), zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 6, background: 'rgba(255,255,255,0.97)', border: '1px solid #e2e8f0', borderRadius: 12, padding: 8, boxShadow: '0 12px 30px -14px rgba(15,23,42,.5)' }}>{/* celular: uma linha no topo que rola de lado (empilhados, cobriam o painel da frota; auditoria 06/11/2026) */}
@@ -942,7 +958,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                 display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
                 borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
                 background: mostrarVisitas ? '#1d4ed8' : 'rgba(255,255,255,0.97)',
-                color: mostrarVisitas ? '#fff' : '#475569',
+                color: mostrarVisitas ? '#fff' : 'var(--mx-t2, #475569)',
                 boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
               }}
             >
@@ -958,11 +974,11 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                 display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
                 borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
                 background: mostrarLocais ? '#0f766e' : 'rgba(255,255,255,0.97)',
-                color: mostrarLocais ? '#fff' : '#475569',
+                color: mostrarLocais ? '#fff' : 'var(--mx-t2, #475569)',
                 boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
               }}
             >
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: mostrarLocais ? '#5eead4' : '#94a3b8' }} />
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: mostrarLocais ? 'var(--mx-p-teal, #5eead4)' : '#94a3b8' }} />
               Locais ({locais.length})
             </button>
           )}
@@ -974,7 +990,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                 display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
                 borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 500, fontFamily: 'inherit',
                 background: mostrarCliPos ? '#0d9488' : 'rgba(255,255,255,0.97)',
-                color: mostrarCliPos ? '#fff' : '#475569',
+                color: mostrarCliPos ? '#fff' : 'var(--mx-t2, #475569)',
               }}
             >
               <i className="fas fa-house" style={{ fontSize: 11 }} />
@@ -989,11 +1005,11 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                 display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
                 borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
                 background: mostrarCar ? '#7c3aed' : 'rgba(255,255,255,0.97)',
-                color: mostrarCar ? '#fff' : '#475569',
+                color: mostrarCar ? '#fff' : 'var(--mx-t2, #475569)',
                 boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
               }}
             >
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: mostrarCar ? '#ddd6fe' : '#94a3b8' }} />
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: mostrarCar ? 'var(--mx-p-violet, #ddd6fe)' : '#94a3b8' }} />
               {carCarregando ? 'Propriedades…' : 'Propriedades (CAR)'}
             </button>
           )}
@@ -1005,11 +1021,11 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                 display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
                 borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
                 background: mostrarVias ? '#b91c1c' : 'rgba(255,255,255,0.97)',
-                color: mostrarVias ? '#fff' : '#475569',
+                color: mostrarVias ? '#fff' : 'var(--mx-t2, #475569)',
                 boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
               }}
             >
-              <span style={{ width: 12, height: 4, borderRadius: 2, background: mostrarVias ? '#fecaca' : '#94a3b8' }} />
+              <span style={{ width: 12, height: 4, borderRadius: 2, background: mostrarVias ? 'var(--mx-p-red, #fecaca)' : '#94a3b8' }} />
               Vias fora do mapa
             </button>
           )}
@@ -1044,7 +1060,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
           position: 'absolute', zIndex: 999, right: 12,
           ...(isMobile ? { bottom: 12, left: 12, flexWrap: 'wrap', justifyContent: 'center' } as React.CSSProperties : { bottom: (locais.length > 0 || visitas.length > 0) ? 56 : 12, flexDirection: 'column' } as React.CSSProperties),
           display: 'flex', gap: isMobile ? '4px 10px' : 4, background: 'rgba(255,255,255,0.97)', borderRadius: 10,
-          boxShadow: '0 3px 10px rgba(0,0,0,0.2)', padding: isMobile ? '6px 10px' : '8px 12px', fontSize: 11.5, color: '#334155', fontWeight: 600,
+          boxShadow: '0 3px 10px rgba(0,0,0,0.2)', padding: isMobile ? '6px 10px' : '8px 12px', fontSize: 11.5, color: 'var(--mx-t2, #334155)', fontWeight: 600,
         }}>
           {ORDEM_STATUS.map((s) => (
             <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -1061,15 +1077,15 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       )}
 
       {ehFrota && carroSel && (
-        <button onClick={fecharCarro} style={{ position: 'absolute', top: 10, right: (timelineAberta && timeline.length > 0 && placaSel && !isMobile) ? 312 : 10, zIndex: 1001, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: 'rgba(255,255,255,0.97)', color: '#0f172a', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 6px 18px -10px rgba(15,23,42,.5)' }}>
-          <i className="fas fa-expand" style={{ color: '#2563eb' }} /> Mapa geral
+        <button onClick={fecharCarro} style={{ position: 'absolute', top: 10, right: (timelineAberta && timeline.length > 0 && placaSel && !isMobile) ? 312 : 10, zIndex: 1001, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: 'rgba(255,255,255,0.97)', color: 'var(--mx-t, #0f172a)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 6px 18px -10px rgba(15,23,42,.5)' }}>
+          <i className="fas fa-expand" style={{ color: 'var(--mx-fg-blue, #2563eb)' }} /> Mapa geral
         </button>
       )}
 
       {atualizadoEm && (
-        <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'rgba(255,255,255,0.97)', border: '1px solid #e2e8f0', borderRadius: 99, padding: '5px 14px', fontSize: 12.5, color: '#334155', boxShadow: '0 6px 18px -10px rgba(15,23,42,.5)', display: 'inline-flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'rgba(255,255,255,0.97)', border: '1px solid #e2e8f0', borderRadius: 99, padding: '5px 14px', fontSize: 12.5, color: 'var(--mx-t2, #334155)', boxShadow: '0 6px 18px -10px rgba(15,23,42,.5)', display: 'inline-flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap', pointerEvents: 'none' }}>
           <span style={{ width: 8, height: 8, borderRadius: 99, background: gravado ? '#f59e0b' : '#16a34a', boxShadow: `0 0 0 3px ${gravado ? 'rgba(245,158,11,.2)' : 'rgba(22,163,74,.18)'}` }} />
-          {gravado ? <>Posição de <b style={{ fontWeight: 600, color: '#0f172a' }}>{fmtH(atualizadoEm)}</b> · buscando a de agora…</> : <>Ao vivo · atualizado às <b style={{ fontWeight: 600, color: '#0f172a' }}>{fmtH(atualizadoEm)}</b> · a cada 30 s</>}
+          {gravado ? <>Posição de <b style={{ fontWeight: 600, color: 'var(--mx-t, #0f172a)' }}>{fmtH(atualizadoEm)}</b> · buscando a de agora…</> : <>Ao vivo · atualizado às <b style={{ fontWeight: 600, color: 'var(--mx-t, #0f172a)' }}>{fmtH(atualizadoEm)}</b> · a cada 30 s</>}
         </div>
       )}
 
@@ -1086,20 +1102,20 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       )}
 
       {resumo && placaSel && (
-        <div style={{ position: 'absolute', bottom: 12, ...(isMobile ? { left: 8, right: 8, flexWrap: 'wrap', justifyContent: 'center', gap: 8, padding: '8px 10px', fontSize: 12 } as React.CSSProperties : { left: '50%', transform: 'translateX(-50%)', gap: 14, padding: '8px 16px', fontSize: 13, whiteSpace: 'nowrap' } as React.CSSProperties), zIndex: 1000, background: 'rgba(255,255,255,0.97)', color: '#0f172a', border: '1px solid #e2e8f0', boxShadow: '0 8px 24px -12px rgba(15,23,42,.45)', borderRadius: 12, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
+        <div style={{ position: 'absolute', bottom: 12, ...(isMobile ? { left: 8, right: 8, flexWrap: 'wrap', justifyContent: 'center', gap: 8, padding: '8px 10px', fontSize: 12 } as React.CSSProperties : { left: '50%', transform: 'translateX(-50%)', gap: 14, padding: '8px 16px', fontSize: 13, whiteSpace: 'nowrap' } as React.CSSProperties), zIndex: 1000, background: 'rgba(255,255,255,0.97)', color: 'var(--mx-t, #0f172a)', border: '1px solid #e2e8f0', boxShadow: '0 8px 24px -12px rgba(15,23,42,.45)', borderRadius: 12, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
           <span>{fmtData(placaSel)}</span>
-          <span style={{ color: '#2563eb' }}>{resumo.km} km</span>
+          <span style={{ color: 'var(--mx-fg-blue, #2563eb)' }}>{resumo.km} km</span>
           {resumo.paradas > 0 && timeline.some((e) => e.tipo === 'parada') ? (
             <button onClick={() => (tourAtivo ? pararTour() : void passearParadas())} title={tourAtivo ? 'Parar' : 'Passar por cada parada no mapa'}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #fcd34d', background: tourAtivo ? '#d97706' : '#fffbeb', color: tourAtivo ? '#fff' : '#b45309', borderRadius: 8, padding: '4px 10px', fontSize: 'inherit', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #fcd34d', background: tourAtivo ? '#d97706' : 'var(--mx-p-amber, #fffbeb)', color: tourAtivo ? '#fff' : 'var(--mx-fg-orange, #b45309)', borderRadius: 8, padding: '4px 10px', fontSize: 'inherit', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
               <i className={`fas ${tourAtivo ? 'fa-stop' : 'fa-play'}`} style={{ fontSize: 10 }} /> {resumo.paradas} paradas
             </button>
           ) : <span style={{ color: '#d97706' }}>{resumo.paradas} paradas</span>}
-          {resumo.visitas > 0 && <span style={{ color: '#7c3aed' }}>{resumo.visitas} visita{resumo.visitas !== 1 ? 's' : ''}</span>}
+          {resumo.visitas > 0 && <span style={{ color: 'var(--mx-fg-violet, #7c3aed)' }}>{resumo.visitas} visita{resumo.visitas !== 1 ? 's' : ''}</span>}
           <span style={{ color: '#059669' }}>{fmtT(resumo.dirigindo)} dirigindo</span>
-          <span style={{ color: '#64748b', fontWeight: 400 }}>{fmtH(resumo.ini || '')} – {fmtH(resumo.fim || '')}</span>
+          <span style={{ color: 'var(--mx-t3, #64748b)', fontWeight: 400 }}>{fmtH(resumo.ini || '')} – {fmtH(resumo.fim || '')}</span>
           {timeline.length > 0 && (
-            <button onClick={() => setTimelineAberta((v) => !v)} style={{ background: timelineAberta ? '#eff6ff' : '#2563eb', border: timelineAberta ? '1px solid #93c5fd' : 'none', color: timelineAberta ? '#1d4ed8' : '#fff', borderRadius: 8, padding: '5px 12px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <button onClick={() => setTimelineAberta((v) => !v)} style={{ background: timelineAberta ? 'var(--mx-bg1, #eff6ff)' : '#2563eb', border: timelineAberta ? '1px solid #93c5fd' : 'none', color: timelineAberta ? 'var(--mx-fg-blue, #1d4ed8)' : '#fff', borderRadius: 8, padding: '5px 12px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <i className="fas fa-clock" /> linha do dia{excessos > 0 ? <> · {excessos} <i className="fas fa-triangle-exclamation" /></> : null}
             </button>
           )}
@@ -1111,14 +1127,14 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
         <div style={{ position: 'absolute', top: 10, right: 10, ...(isMobile ? { left: 10, zIndex: 1001, maxHeight: 'calc(100% - 110px)' } : { zIndex: 1000, width: 292, maxHeight: 'calc(100% - 20px)' }), background: 'rgba(255,255,255,0.98)', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid #eee' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', display: 'inline-flex', alignItems: 'center', gap: 7 }}><i className="fas fa-clock" style={{ color: '#2563eb' }} /> Linha do dia · {fmtData(placaSel)}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--mx-t, #0f172a)', display: 'inline-flex', alignItems: 'center', gap: 7 }}><i className="fas fa-clock" style={{ color: 'var(--mx-fg-blue, #2563eb)' }} /> Linha do dia · {fmtData(placaSel)}</span>
               <button onClick={() => setTimelineAberta(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}><i className="fas fa-xmark" /></button>
             </div>
-            <div style={{ fontSize: 11.5, color: '#475569', marginTop: 3 }}>
+            <div style={{ fontSize: 11.5, color: 'var(--mx-t2, #475569)', marginTop: 3 }}>
               <i className="fas fa-user" style={{ color: '#94a3b8', marginRight: 5 }} />Motorista do dia: <strong>{motoristaDia || 'não marcado no app'}</strong>
             </div>
             {excessos > 0 && (
-              <div style={{ fontSize: 11, color: '#b91c1c', fontWeight: 600, marginTop: 2 }}>
+              <div style={{ fontSize: 11, color: 'var(--mx-fg-red, #b91c1c)', fontWeight: 600, marginTop: 2 }}>
                 <i className="fas fa-triangle-exclamation" style={{ marginRight: 5 }} />{excessos} trecho{excessos > 1 ? 's' : ''} acima de {LIMITE_VEL_KMH} km/h
               </div>
             )}
@@ -1133,24 +1149,24 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                     background: e.tipo === 'inicio' ? '#22c55e' : e.tipo === 'fim' ? '#dc2626' : e.tipo === 'parada' ? '#f59e0b' : (e.velMax > LIMITE_VEL_KMH ? '#dc2626' : '#3b82f6'),
                     border: '2px solid #fff', boxShadow: '0 0 0 1px #cbd5e1',
                   }} />
-                  {i < timeline.length - 1 && <div style={{ width: 2, flex: 1, background: '#e2e8f0', marginTop: 2 }} />}
+                  {i < timeline.length - 1 && <div style={{ width: 2, flex: 1, background: 'var(--mx-bg2, #e2e8f0)', marginTop: 2 }} />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {e.tipo === 'inicio' && (
-                    <div style={{ fontSize: 12, color: '#334155' }}>
+                    <div style={{ fontSize: 12, color: 'var(--mx-t2, #334155)' }}>
                       <strong>{fmtH(e.hora)}</strong> · saiu{e.local ? <> de <strong>{e.local}</strong></> : ''}
                     </div>
                   )}
                   {e.tipo === 'trecho' && (
-                    <div style={{ fontSize: 11.5, color: '#475569' }}>
+                    <div style={{ fontSize: 11.5, color: 'var(--mx-t2, #475569)' }}>
                       {fmtH(e.de)}–{fmtH(e.ate)} · rodou <strong>{e.km} km</strong> em {fmtT(e.min)}
-                      <span style={{ color: e.velMax > LIMITE_VEL_KMH ? '#dc2626' : '#64748b', fontWeight: e.velMax > LIMITE_VEL_KMH ? 800 : 500 }}>
-                        {' '}· máx {e.velMax} km/h{e.velMax > LIMITE_VEL_KMH ? <i className="fas fa-triangle-exclamation" style={{ color: '#dc2626', marginLeft: 4 }} /> : null}
+                      <span style={{ color: e.velMax > LIMITE_VEL_KMH ? 'var(--mx-fg-red, #dc2626)' : 'var(--mx-t3, #64748b)', fontWeight: e.velMax > LIMITE_VEL_KMH ? 800 : 500 }}>
+                        {' '}· máx {e.velMax} km/h{e.velMax > LIMITE_VEL_KMH ? <i className="fas fa-triangle-exclamation" style={{ color: 'var(--mx-fg-red, #dc2626)', marginLeft: 4 }} /> : null}
                       </span>
                     </div>
                   )}
                   {e.tipo === 'parada' && (
-                    <div style={{ fontSize: 12, color: '#334155' }}>
+                    <div style={{ fontSize: 12, color: 'var(--mx-t2, #334155)' }}>
                       <strong>{fmtH(e.hora)}</strong> · parou {fmtT(e.dur)}{' '}
                       {e.local
                         ? <>em <strong>{e.local}</strong></>
@@ -1158,7 +1174,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                     </div>
                   )}
                   {e.tipo === 'fim' && (
-                    <div style={{ fontSize: 12, color: '#334155' }}>
+                    <div style={{ fontSize: 12, color: 'var(--mx-t2, #334155)' }}>
                       <strong>{fmtH(e.hora)}</strong> · fim do trajeto{e.local ? <> em <strong>{e.local}</strong></> : ''}
                     </div>
                   )}

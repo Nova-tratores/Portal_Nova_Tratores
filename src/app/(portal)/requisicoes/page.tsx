@@ -35,6 +35,7 @@ import { ESTILO_REQ_VN } from '@/components/requisicoes/visualReq';
 import { normalizarStatus, normalizarTipo, ROTULO_FASE, type ItemAtencao } from '@/lib/requisicoes/inteligencia';
 
 import { mensagemErroFornecedor } from '@/lib/requisicoes/fornecedor-campos';
+import { registrosDaMudanca } from '@/lib/requisicoes/historico';
 /** Linha do banco → como a tela usa (colunas antigas do AppSheet + grafias diferentes juntadas). */
 function normalizarLinha(r: any) {
   return {
@@ -247,10 +248,24 @@ function RequisicoesPageInner() {
     } catch { /* aviso é bônus: não trava a mudança */ }
   }, [userProfile?.id]);
 
+  // Pediu autorização (24/11/2026): o servidor manda e-mail + mensagem no Chatwoot para quem vai autorizar.
+  // Quem ficou sem o WhatsApp (sem celular no cadastro) aparece aqui na hora e também no sino.
+  const avisarAutorizadores = useCallback(async (id: number) => {
+    try {
+      const r = await fetch('/api/autorizacoes/avisar', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ id }) });
+      const j = await r.json().catch(() => ({}));
+      if (Array.isArray(j?.semWhats) && j.semWhats.length) {
+        alert(`Autorização pedida. O e-mail foi, mas o WhatsApp não foi para:\n\n${j.semWhats.map((s: { nome: string; motivo: string }) => `• ${s.nome}: ${s.motivo}`).join('\n')}\n\nAvise a pessoa ou peça para cadastrar o celular.`);
+      }
+    } catch { /* aviso é bônus: o pedido já está gravado */ }
+  }, []);
+
   // Rastreia quais cards foram editados enquanto estavam abertos
   const cardsEditadosRef = useRef<Set<number>>(new Set());
 
-  const handleUpdateReq = useCallback(async (id: number, dados: Record<string, unknown>, opcoes?: { soLocal?: boolean }) => {
+  const handleUpdateReq = useCallback(async (id: number, dados: Record<string, unknown>, opcoes?: { soLocal?: boolean; motivo?: string }) => {
+    // como estava ANTES (o histórico grava "de X para Y", não só o valor novo)
+    const antes = requisicoesRef.current.find(r => r.id === id);
     setRequisicoes(prev => prev.map(r => r.id === id ? { ...r, ...dados } : r));
     const { data: volta, error } = await supabase.from('Requisicao').update(dados).eq('id', id)
       .select('status, autorizacao_status, autorizacao_pedida_em').maybeSingle();
@@ -262,7 +277,11 @@ function RequisicoesPageInner() {
     // trava da autorização do Diretor (gatilho no banco) volta com a explicação: mostra e recarrega
     if (error && /autoriza/i.test(String(error.message || ''))) { alert(error.message); carregarDados(true); return }
     if (error) { console.error('[Requisições] Erro ao atualizar:', error?.message, error?.code, error?.details, error?.hint); carregarDados(true); return }
-    auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'requisicao', entidade_id: String(id), detalhes: dados });
+    // cada ação com nome próprio (mudou de fase, anexou, marcou pago, alterou X de A para B)
+    for (const reg of registrosDaMudanca(antes, dados, { motivo: opcoes?.motivo })) {
+      auditLog({ sistema: 'requisicoes', acao: reg.acao, entidade: 'requisicao', entidade_id: String(id), entidade_label: antes?.titulo || undefined, detalhes: reg.detalhes });
+    }
+    if (dados.autorizacao_status === 'aguardando') void avisarAutorizadores(id);
     // Chegou ao financeiro: o motor da frota fecha na hora a pendência do carro
     // ligada a esta requisição (sem isso, só fechava na rodada de 15 min)
     if (dados.status === 'financeiro') {
@@ -271,7 +290,7 @@ function RequisicoesPageInner() {
     // Marca que esse card foi editado (notificação só ao fechar)
     cardsEditadosRef.current.add(id);
     if (typeof dados.status === 'string' && dados.status !== 'lixeira') avisarSolicitante(id, dados.status);
-  }, [carregarDados, auditLog, avisarSolicitante])
+  }, [carregarDados, auditLog, avisarSolicitante, avisarAutorizadores])
 
   const handleCardFechado = useCallback((id: number) => {
     // Fechou o card do deep-link: solta o destaque (senão ele reabre no rerender)
@@ -952,8 +971,10 @@ function RequisicoesPageInner() {
                   }).catch(() => {});
                 }
               }
+              if (ins?.id && nova.autorizacao_status === 'aguardando') void avisarAutorizadores(Number(ins.id));
               apagarRascunho(RASCUNHO_NOVA_REQ); // criou: o rascunho não serve mais
-              auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'requisicao', entidade_label: String(nova.titulo || '') });
+              // com o nº da requisição: sem ele o "Criou" nunca aparecia no histórico dela
+              auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'requisicao', entidade_id: ins?.id != null ? String(ins.id) : undefined, entidade_label: String(nova.titulo || '') });
               notificarUsuariosReq('requisicao', `${userName} criou uma requisição`, String(nova.titulo || 'Nova requisição'), '/requisicoes');
               // Veicular Manutenção → a pendência da Frota nasce NA HORA (o motor
               // cria pro carro com o km do hodômetro e fecha sozinho quando a

@@ -76,6 +76,15 @@ const ESTILO = `
 .mfa-telas a:hover { background: color-mix(in srgb, var(--c) 6%, transparent); color: var(--c) }
 .mfa-seta { margin-left: auto; font-size: 11px; color: var(--portal-text-muted, #94a3b8) }
 .mfa-telas .mfa-montagem { color: #7c3aed } .mfa-telas .mfa-montagem > i:first-child { color: #7c3aed }
+[data-theme="dark"] .mfa-card { background: var(--portal-bg-card, #1a1a1a); border-color: var(--portal-border, #2a2a2a) }
+[data-theme="dark"] .mfa-card:hover { border-color: color-mix(in srgb, var(--c) 55%, var(--portal-border, #2a2a2a)); box-shadow: 0 12px 26px -20px rgba(0,0,0,.8) }
+[data-theme="dark"] .mfa-topo, [data-theme="dark"] .mfa-telas a { color: var(--portal-text, #f5f5f5) }
+[data-theme="dark"] .mfa-desc { color: var(--portal-text-secondary, #a3a3a3) }
+[data-theme="dark"] .mfa-telas, [data-theme="dark"] .mfa-telas a, [data-theme="dark"] .mfa-largo .mfa-telas a:nth-child(odd) { border-color: var(--portal-border, #2a2a2a) }
+[data-theme="dark"] .mfa-telas a > i:first-child, [data-theme="dark"] .mfa-telas a:hover { color: color-mix(in srgb, var(--c) 55%, #fff) }
+[data-theme="dark"] .mfa-telas a:hover { background: color-mix(in srgb, var(--c) 14%, transparent) }
+[data-theme="dark"] .mfa-telas .mfa-montagem, [data-theme="dark"] .mfa-telas .mfa-montagem > i:first-child { color: var(--portal-violet-fg, #a78bfa) }
+[data-theme="dark"] .mfa-ico { color: #fff }
 @keyframes mfa-entra { from { opacity: 0 } }
 @media (prefers-reduced-motion: reduce) { .mfa-card { animation: none; transition: none } }
 `

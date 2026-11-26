@@ -139,8 +139,9 @@ export default function TratorilsonPainel() {
   const valor: React.CSSProperties = { fontSize: 26, fontWeight: 800, color: 'var(--portal-text)', marginTop: 2 }
 
   return (
-    <div style={{ padding: 'clamp(12px, 3vw, 24px)', width: '100%', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' }}>
-      <style>{`@media (max-width: 900px){.trt-split{grid-template-columns:minmax(0,1fr) !important}}`}</style>
+    <div className="trt-raiz" style={{ padding: 'clamp(12px, 3vw, 24px)', width: '100%', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' }}>
+      <style>{`@media (max-width: 900px){.trt-split{grid-template-columns:minmax(0,1fr) !important}}
+        [data-theme="dark"] .trt-raiz{--t-verm:#fca5a5;--t-verm-bg:rgb(248 113 113 / .15);--t-amb:#fcd34d;--t-amb-bg:rgb(251 191 36 / .12);--t-amb-bd:rgb(251 191 36 / .35);--t-ok:var(--portal-green-fg,#34d399);--t-ok-bg:rgb(52 211 153 / .12);--t-ok-bd:rgb(52 211 153 / .35);--t-azu:#93c5fd;--t-azu2:var(--portal-blue-fg,#60a5fa);--t-azu-bg:rgb(96 165 250 / .12);--t-azu-bd:rgb(96 165 250 / .35)}`}</style>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
         <div style={{ width: 38, height: 38, borderRadius: 11, background: 'linear-gradient(135deg,#dc2626,#991b1b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Bot size={20} color="#fff" />
@@ -200,13 +201,13 @@ export default function TratorilsonPainel() {
         {omieResult && (() => {
           /* eslint-disable @typescript-eslint/no-explicit-any */
           const O = omieResult as any
-          if (O.erro) return <div style={{ marginTop: 12, padding: 10, background: '#fef2f2', color: '#b91c1c', borderRadius: 8, fontSize: 13 }}>{String(O.erro)}</div>
+          if (O.erro) return <div style={{ marginTop: 12, padding: 10, background: 'var(--t-verm-bg, #fef2f2)', color: 'var(--t-verm, #b91c1c)', borderRadius: 8, fontSize: 13 }}>{String(O.erro)}</div>
           const erros = Array.isArray(O.resultados) ? O.resultados.filter((r: any) => !r.ok || r.ppvErro) : []
           return (
             <div style={{ marginTop: 12, padding: 10, background: 'var(--portal-bg-secondary)', borderRadius: 8, fontSize: 13 }}>
               <div style={{ fontWeight: 700, color: 'var(--portal-text)' }}>Envio ao Omie: {O.ok}/{O.total} enviadas{O.erros ? ` · ${O.erros} com erro` : ''}</div>
               {erros.length > 0 && (
-                <div style={{ marginTop: 6, color: '#b91c1c', fontSize: 12 }}>
+                <div style={{ marginTop: 6, color: 'var(--t-verm, #b91c1c)', fontSize: 12 }}>
                   {erros.map((r: any, i: number) => <div key={i}>OS {r.os}: {r.erro || (r.ppvErro ? `PPV: ${r.ppvErro}` : '')}</div>)}
                 </div>
               )}
@@ -217,7 +218,7 @@ export default function TratorilsonPainel() {
         {loteResult && (() => {
           /* eslint-disable @typescript-eslint/no-explicit-any */
           const L = loteResult as any
-          if (L.erro) return <div style={{ marginTop: 12, padding: 10, background: '#fef2f2', color: '#b91c1c', borderRadius: 8, fontSize: 13 }}>{String(L.erro)}</div>
+          if (L.erro) return <div style={{ marginTop: 12, padding: 10, background: 'var(--t-verm-bg, #fef2f2)', color: 'var(--t-verm, #b91c1c)', borderRadius: 8, fontSize: 13 }}>{String(L.erro)}</div>
           const erros = Array.isArray(L.resultados) ? L.resultados.filter((r: any) => !r.ok) : []
           return (
             <div style={{ marginTop: 12, padding: 10, background: 'var(--portal-bg-secondary)', borderRadius: 8, fontSize: 13 }}>
@@ -225,7 +226,7 @@ export default function TratorilsonPainel() {
                 Lote: {L.ok}/{L.total} atualizadas · {L.paraEnviarOmie} → Enviar Omie · {L.paraPreenchido} → Preenchido Garantia{L.erros ? ` · ${L.erros} com erro` : ''}
               </div>
               {erros.length > 0 && (
-                <div style={{ marginTop: 6, color: '#b91c1c', fontSize: 12 }}>
+                <div style={{ marginTop: 6, color: 'var(--t-verm, #b91c1c)', fontSize: 12 }}>
                   {erros.map((r: any, i: number) => <div key={i}>OS {r.os}: {r.erro}</div>)}
                 </div>
               )}
@@ -234,7 +235,7 @@ export default function TratorilsonPainel() {
         })()}
 
         {proposta && !(proposta as { ok?: boolean }).ok && (
-          <div style={{ marginTop: 12, padding: 10, background: '#fef2f2', color: '#b91c1c', borderRadius: 8, fontSize: 13 }}>{String((proposta as { erro?: string }).erro || 'Falha')}</div>
+          <div style={{ marginTop: 12, padding: 10, background: 'var(--t-verm-bg, #fef2f2)', color: 'var(--t-verm, #b91c1c)', borderRadius: 8, fontSize: 13 }}>{String((proposta as { erro?: string }).erro || 'Falha')}</div>
         )}
 
         {proposta && (proposta as { ok?: boolean }).ok && (() => {
@@ -247,16 +248,16 @@ export default function TratorilsonPainel() {
                 <span style={{ width: 110, color: 'var(--portal-text-muted)' }}>{rot}</span>
                 <span style={{ color: 'var(--portal-text-secondary)', textDecoration: mudou ? 'line-through' : 'none' }}>{String(antes ?? '') || '—'}</span>
                 {mudou && <span style={{ color: 'var(--portal-text-muted)' }}>→</span>}
-                {mudou && <span style={{ color: '#16a34a', fontWeight: 600 }}>{String(depois ?? '') || '—'}</span>}
+                {mudou && <span style={{ color: 'var(--t-ok, #16a34a)', fontWeight: 600 }}>{String(depois ?? '') || '—'}</span>}
               </div>
             )
           }
           return (
             <div style={{ marginTop: 12 }}>
               {Array.isArray(p.duvidas) && p.duvidas.length > 0 && (
-                <div style={{ padding: 10, background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 8, marginBottom: 12 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#92400e', marginBottom: 4 }}>⚠ Dúvidas do Tratorilson</div>
-                  {p.duvidas.map((d: string, i: number) => <div key={i} style={{ fontSize: 12.5, color: '#92400e' }}>• {d}</div>)}
+                <div style={{ padding: 10, background: 'var(--t-amb-bg, #fffbeb)', border: '1px solid var(--t-amb-bd, #fcd34d)', borderRadius: 8, marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--t-amb, #92400e)', marginBottom: 4 }}>⚠ Dúvidas do Tratorilson</div>
+                  {p.duvidas.map((d: string, i: number) => <div key={i} style={{ fontSize: 12.5, color: 'var(--t-amb, #92400e)' }}>• {d}</div>)}
                 </div>
               )}
               {linha('Horas', p.antes?.qtdHoras, p.qtdHoras)}
@@ -266,7 +267,7 @@ export default function TratorilsonPainel() {
               {linha('Projeto', p.antes?.projeto, p.projeto)}
               <div style={{ display: 'flex', gap: 8, fontSize: 13, padding: '4px 0' }}>
                 <span style={{ width: 110, color: 'var(--portal-text-muted)' }}>Horímetro</span>
-                <span style={{ color: '#16a34a', fontWeight: 600 }}>{String(p.horimetro || '') || '—'}</span>
+                <span style={{ color: 'var(--t-ok, #16a34a)', fontWeight: 600 }}>{String(p.horimetro || '') || '—'}</span>
                 <span style={{ color: 'var(--portal-text-muted)', fontSize: 11 }}>(do relatório)</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
@@ -275,15 +276,15 @@ export default function TratorilsonPainel() {
                   <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap', background: 'var(--portal-bg-secondary)', padding: 10, borderRadius: 8, color: 'var(--portal-text-secondary)', maxHeight: 280, overflowY: 'auto' }}>{p.antes?.servSolicitado || '—'}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#16a34a', marginBottom: 4 }}>Descrição — DEPOIS</div>
-                  <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap', background: '#f0fdf4', border: '1px solid #86efac', padding: 10, borderRadius: 8, color: 'var(--portal-text)', maxHeight: 280, overflowY: 'auto' }}>{p.servSolicitado || '—'}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--t-ok, #16a34a)', marginBottom: 4 }}>Descrição — DEPOIS</div>
+                  <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap', background: 'var(--t-ok-bg, #f0fdf4)', border: '1px solid var(--t-ok-bd, #86efac)', padding: 10, borderRadius: 8, color: 'var(--portal-text)', maxHeight: 280, overflowY: 'auto' }}>{p.servSolicitado || '—'}</div>
                 </div>
               </div>
               {Array.isArray(p.devolucoes) && p.devolucoes.length > 0 && (
-                <div style={{ marginTop: 12, padding: 10, background: '#eff6ff', border: '1px solid #93c5fd', borderRadius: 8 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', marginBottom: 4 }}>↩ Devoluções no PPV{p.ppvId ? ` ${p.ppvId}` : ''} ({p.devolucoes.length})</div>
+                <div style={{ marginTop: 12, padding: 10, background: 'var(--t-azu-bg, #eff6ff)', border: '1px solid var(--t-azu-bd, #93c5fd)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--t-azu, #1e40af)', marginBottom: 4 }}>↩ Devoluções no PPV{p.ppvId ? ` ${p.ppvId}` : ''} ({p.devolucoes.length})</div>
                   {p.devolucoes.map((d: any, i: number) => (
-                    <div key={i} style={{ fontSize: 12.5, color: '#1e3a5f' }}>• {d.quantidade}x {d.codigo} — {d.descricao} <span style={{ color: '#2563eb' }}>({d.motivo})</span></div>
+                    <div key={i} style={{ fontSize: 12.5, color: 'var(--portal-text, #1e3a5f)' }}>• {d.quantidade}x {d.codigo} — {d.descricao} <span style={{ color: 'var(--t-azu2, #2563eb)' }}>({d.motivo})</span></div>
                   ))}
                 </div>
               )}
@@ -291,7 +292,7 @@ export default function TratorilsonPainel() {
                 <button onClick={aplicar} disabled={aplicando} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, border: 'none', background: '#16a34a', color: '#fff', fontWeight: 700, cursor: aplicando ? 'default' : 'pointer' }}>
                   {aplicando ? <Loader2 size={14} className="spin" /> : <Save size={14} />} Aplicar na OS {osNum}
                 </button>
-                {msgAplic && <span style={{ fontSize: 13, color: msgAplic.startsWith('✓') ? '#16a34a' : '#b91c1c' }}>{msgAplic}</span>}
+                {msgAplic && <span style={{ fontSize: 13, color: msgAplic.startsWith('✓') ? 'var(--t-ok, #16a34a)' : 'var(--t-verm, #b91c1c)' }}>{msgAplic}</span>}
               </div>
             </div>
           )

@@ -8,6 +8,9 @@ import { authHeaders } from '@/lib/auth/client'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIAS_SUGERIDAS, type TicketVisibilidade } from '@/lib/tickets/constantes'
 import UserSelect from './UserSelect'
+import CargaDaPessoa from '@/components/trabalho/CargaDaPessoa'
+import EstimarTempo from '@/components/trabalho/EstimarTempo'
+import { ESTILO_FILA } from '@/components/trabalho/estiloFila'
 import { dataMinima, diaUtil, fimDeSemana } from '@/lib/trabalho/agenda'
 import SeletorDataAgenda from '@/components/trabalho/SeletorDataAgenda'
 
@@ -21,6 +24,10 @@ interface Props {
   /** Já preenchido (ex.: "Fulano pediu para você abrir um ticket"). */
   tituloInicial?: string
   descricaoInicial?: string
+  /** Pedido já para alguém (ex.: botão "Pedir" na carga da Equipe). */
+  responsavelInicial?: string
+  /** Prazo já dito (Ctrl+K: "até sexta"). A pessoa pode mudar antes de enviar. */
+  prazoInicial?: string
 }
 
 const br = (iso: string) => iso.slice(8, 10) + "/" + iso.slice(5, 7)
@@ -45,17 +52,19 @@ const rotuloStyle: React.CSSProperties = {
   color: 'var(--portal-text-secondary, #555)', textTransform: 'uppercase', letterSpacing: .4,
 }
 
-export default function FormTicket({ onFechar, onCriado, printInicial, quadro, tituloInicial, descricaoInicial }: Props) {
+export default function FormTicket({ onFechar, onCriado, printInicial, quadro, tituloInicial, descricaoInicial, responsavelInicial, prazoInicial }: Props) {
   const [titulo, setTitulo] = useState(tituloInicial || '')
   const [descricao, setDescricao] = useState(descricaoInicial || '')
-  const [responsavelId, setResponsavelId] = useState('')
+  const [responsavelId, setResponsavelId] = useState(responsavelInicial || '')
   const [categoria, setCategoria] = useState('')
-  const [prazo, setPrazo] = useState('')
+  // Tempo do trabalho escolhido no bloquinho (vai junto ao criar; o pedido entra no fim da fila).
+  const [horasPedido, setHorasPedido] = useState<number | null>(null)
+  const [prazo, setPrazo] = useState(prazoInicial || '')
   // Agenda do responsável (Central de Trabalho)
   const [inicio, setInicio] = useState('')
   const [duracao, setDuracao] = useState(1)
   const [tocouInicio, setTocouInicio] = useState(false)
-  const [tocouPrazo, setTocouPrazo] = useState(false)
+  const [tocouPrazo, setTocouPrazo] = useState(!!prazoInicial)
   const [noCronograma, setNoCronograma] = useState(true)
   // Prazo mínimo = amanhã. "Muito urgente" fura a fila e libera hoje.
   const [urgente, setUrgente] = useState(false)
@@ -145,6 +154,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
           // Contínuo não começa no fim de semana: cai na segunda.
           inicio: inicio ? (indeterminado ? diaUtil(inicio) : inicio) : null,
           ...(urgente ? { urgente: true } : {}),
+          ...(horasPedido ? { horas: horasPedido } : {}),
           ...(quadro?.temCronograma && noCronograma ? { cronograma: true, duracao } : {}),
           terceiro_envolvido: terceiro.trim(),
           visibilidade,
@@ -179,7 +189,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 18 }}>
           <h2 style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', minWidth: 0, gap: 8, fontSize: 17, fontWeight: 800, color: 'var(--portal-text, #111)', margin: 0 }}>
-            <TicketIcon size={18} color="#dc2626" /> Novo Ticket
+            <TicketIcon size={18} color="#dc2626" /> Pedir para alguém
             {quadro && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted, #888)' }}><LayoutGrid size={13} /> {quadro.nome}</span>}
           </h2>
           <button onClick={onFechar} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted, #888)', flex: 'none', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
@@ -193,6 +203,15 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
             <label style={rotuloStyle}>Para quem? *</label>
             <UserSelect value={responsavelId} onChange={setResponsavelId} placeholder="Digite o nome da pessoa..." autoFocus barraBusca />
           </div>
+          {/* A fila dessa pessoa antes de pedir (24/11/2026): pedido é uma porta só, com a carga na frente. */}
+          {responsavelId && <CargaDaPessoa userId={responsavelId} />}
+          {/* Quanto tempo leva + quando sai (24/11/2026): entra no FIM da fila dessa pessoa */}
+          {responsavelId && (
+            <>
+              <style>{ESTILO_FILA}</style>
+              <EstimarTempo pedido={{ userId: responsavelId, titulo: titulo.trim(), categoria: categoria.trim() || undefined, urgente }} titulo={titulo.trim()} onEscolher={setHorasPedido} />
+            </>
+          )}
 
           {responsavelId && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 12, borderRadius: 10, border: '1px solid var(--portal-border, #e5e7eb)', background: 'var(--portal-bg, #fafafa)' }}>
@@ -236,7 +255,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
               </div>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: 'pointer', color: indeterminado ? '#0369a1' : 'var(--portal-text-secondary, #555)' }}>
                 <input type="checkbox" checked={indeterminado} onChange={(e) => setIndeterminado(e.target.checked)} style={{ marginTop: 2 }} />
-                <span><strong>Prazo indeterminado</strong> — trabalho contínuo: aparece todo dia útil (seg a sex) no Cronograma até alguém concluir.</span>
+                <span><strong>Prazo indeterminado</strong> — pedido contínuo: aparece todo dia útil (seg a sex) no Cronograma até alguém concluir.</span>
               </label>
               {!indeterminado && prazo && inicio && prazo < inicio && (
                 <div style={{ fontSize: 12.5, fontWeight: 600, color: '#dc2626' }}>
@@ -309,7 +328,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {([
                 { valor: 'privado' as const, rotulo: 'Privado (só envolvidos)', icone: <Lock size={14} /> },
-                { valor: 'publico' as const, rotulo: quadro ? `Compartilhado com o bloco ${quadro.nome}` : 'Visível a todos', icone: <Globe size={14} /> },
+                { valor: 'publico' as const, rotulo: quadro ? `Compartilhado com o quadro ${quadro.nome}` : 'Visível a todos', icone: <Globe size={14} /> },
               ]).map((op) => (
                 <button key={op.valor} type="button" onClick={() => setVisibilidade(op.valor)}
                   style={{

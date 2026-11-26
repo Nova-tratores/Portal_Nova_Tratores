@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import '@/components/abas-modulo.css';
 
 const ABAS = [
   { label: 'A Ideia', href: '/crm' },
@@ -19,7 +20,7 @@ export default function CrmNav() {
   const isMobile = useIsMobile();
   return (
     <div
-      className="print:hidden"
+      className="print:hidden aba-faixa"
       style={{
         display: 'flex',
         alignItems: 'flex-end',
@@ -37,6 +38,7 @@ export default function CrmNav() {
           <Link
             key={a.href}
             href={a.href}
+            className={`aba-guia${ativo ? ' aba-ativa' : ''}`}
             style={{
               display: 'flex',
               alignItems: 'center',

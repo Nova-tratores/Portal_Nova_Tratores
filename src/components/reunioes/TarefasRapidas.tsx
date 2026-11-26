@@ -10,6 +10,7 @@ import type { UsuarioMin } from '@/lib/tickets/constantes'
 import UserSelect from '@/components/tickets/UserSelect'
 import type { AcaoUI } from './tipos'
 import { chamar, hojeISO, primeiroNome } from './comum'
+import CargaDaPessoa from '@/components/trabalho/CargaDaPessoa'
 
 const somarDia = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
 const dow = (iso: string) => new Date(`${iso}T12:00:00Z`).getUTCDay()
@@ -119,6 +120,8 @@ export function FormNovaTarefa({ pessoas, usuarios, tituloInicial = '', onSalvar
               onChange={(id, u) => { if (u) { setDeFora(u); setQuem(id); setBuscandoFora(false) } }} />
           </div>
         )}
+        {/* Fila de quem vai fazer, antes de dar o prazo (24/11/2026: pedido sempre com a carga na frente). */}
+        {quem && <div style={{ maxWidth: 560 }}><CargaDaPessoa userId={quem} /></div>}
       </div>
       <div className="tr-passo">
         <label><i>3</i> Até quando?</label>
@@ -135,7 +138,7 @@ export function FormNovaTarefa({ pessoas, usuarios, tituloInicial = '', onSalvar
       <div className="tr-acoes">
         <button className="tr-btn" onClick={onCancelar}><X size={15} /> Cancelar</button>
         <button className="tr-btn ok" disabled={!pronto || salvando} onClick={salvar}>
-          <Check size={15} /> {salvando ? 'Criando…' : pronto ? `Dar a tarefa para ${primeiroNome(nome(quem))} até ${ddmm(prazo)}` : !texto.trim() ? 'Escreva o que fazer' : !quem ? 'Escolha quem faz' : 'Escolha até quando'}
+          <Check size={15} /> {salvando ? 'Criando…' : pronto ? `Dar a ação para ${primeiroNome(nome(quem))} até ${ddmm(prazo)}` : !texto.trim() ? 'Escreva o que fazer' : !quem ? 'Escolha quem faz' : 'Escolha até quando'}
         </button>
       </div>
     </div>
@@ -180,7 +183,7 @@ export default function TarefasRapidas({ reuniaoId, pessoas, usuarios, acoes, po
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ flex: 'none', width: 32, height: 32, borderRadius: 9, display: 'grid', placeItems: 'center', color: '#059669', background: 'color-mix(in srgb,#059669 9%,var(--portal-surface,#fefefe))', border: '1px solid color-mix(in srgb,#059669 18%,transparent)' }}><ListChecks size={16} /></span>
           <span style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 17, fontWeight: 500, color: 'var(--portal-text,#0f172a)' }}>Tarefas</span>
+            <span style={{ fontSize: 17, fontWeight: 500, color: 'var(--portal-text,#0f172a)' }}>Ações</span>
             <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>Quem ficou de fazer o quê, e até quando. A pessoa recebe no sino e na agenda.</span>
           </span>
           <span style={{ flex: 1 }} />
@@ -188,11 +191,11 @@ export default function TarefasRapidas({ reuniaoId, pessoas, usuarios, acoes, po
         </div>
       )}
 
-      {acoes.length === 0 && !criando && <div style={{ fontSize: 13.5, color: 'var(--portal-text-muted,#64748b)' }}>Nenhuma tarefa ainda.</div>}
+      {acoes.length === 0 && !criando && <div style={{ fontSize: 13.5, color: 'var(--portal-text-muted,#64748b)' }}>Nenhuma ação ainda.</div>}
       {acoes.map((a) => {
         const s = situacao(a, hoje)
         return (
-          <button key={a.id} className="tr-it" onClick={() => onAbrir?.(a.id)} title="Abrir a tarefa">
+          <button key={a.id} className="tr-it" onClick={() => onAbrir?.(a.id)} title="Abrir a ação">
             <Av u={usuarios[a.responsavel_id]} nome={nome(a.responsavel_id)} />
             <span className="tx">{a.titulo}<small>{nome(a.responsavel_id)} faz</small></span>
             <span className="tr-pill" style={{ ['--c' as string]: s.cor }}>{s.texto}</span>
@@ -203,7 +206,7 @@ export default function TarefasRapidas({ reuniaoId, pessoas, usuarios, acoes, po
       {podeCriar && (criando
         ? <FormNovaTarefa pessoas={pessoas} usuarios={usuarios} onCancelar={() => setCriando(false)}
             onSalvar={criar} />
-        : <button className="tr-btn ok" style={{ alignSelf: 'flex-start' }} onClick={() => setCriando(true)}><Plus size={16} /> Nova tarefa</button>)}
+        : <button className="tr-btn ok" style={{ alignSelf: 'flex-start' }} onClick={() => setCriando(true)}><Plus size={16} /> Nova ação</button>)}
     </div>
   )
 }

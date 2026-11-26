@@ -9,7 +9,7 @@ import { STATUS_COLORS, type StatusKey } from "@/lib/ppv/constants";
 import { FASES, faseDoPPVNaTela, faseParaGravarNoPPV } from "@/lib/fases/fases";
 import RotuloFase from "@/components/fases/RotuloFase";
 import { useFasesDo } from "@/hooks/useFasesQuadro";
-import { CapaTitulo, CapaFaseValor, CapaBolinhas, CapaLinha, CapaData, CapaTexto, CapaReservar, CapaRodape } from "@/components/comum/CapaCard";
+import { CapaTitulo, CapaFaseValor, CapaLinha, CapaData, CapaTexto, CapaReservar, CapaRodape } from "@/components/comum/CapaCard";
 import { fetchAuth } from "@/lib/auth/client";
 
 // Preview do card no hover (com OS → descrição da OS + produtos; sem OS → produtos + observação)
@@ -93,13 +93,6 @@ export const PHASE_SHORT: Record<string, string> = {
 const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 
 // Bolinhas da capa: o caminho do pedido até faturar
-const ETAPAS_PPV: { r: string; fases: string[] }[] = [
-  { r: "Orçamento", fases: ["Orçamento", "Orçamento enviado para o cliente e aguardando"] },
-  { r: "Aprovado", fases: ["Orçamento Aprovado"] },
-  { r: "Execução", fases: ["Execução", "Execução (Realizando Diagnóstico)", "Execução aguardando peças (em transporte)", "Executada aguardando comercial", "Aguardando outros", "Aguardando ordem Técnico", "Preenchido Paliativo", "Relatório Concluído"] },
-  { r: "Omie", fases: ["Enviado Omie"] },
-  { r: "Faturado", fases: ["Concluída"] },
-];
 
 const MiniCard = memo(function MiniCard({
   order: o,
@@ -228,13 +221,10 @@ const MiniCard = memo(function MiniCard({
 
   // ── Modo CARDS ── capa no mesmo modelo do POS (José, 13/10/2026)
   const numero = String(o.id || "").replace(/^(PPV|REM)-?/i, "");
-  const atual = ETAPAS_PPV.findIndex((e) => e.fases.includes(statusNorm));
-  const cancelada = statusNorm === "Cancelada";
-  const passos = ETAPAS_PPV.map((e, i) => ({ r: e.r, ok: atual >= 0 && (i < atual || (statusNorm === "Concluída" && i === atual)), atual: i === atual && statusNorm !== "Concluída" }));
   const semZeros = (n?: string) => String(n || "").replace(/^0+(?=\d)/, "");
   const prevFat = o.previsaoFaturamento ? formatarDataFrontend(o.previsaoFaturamento) : "";
   return (
-    <div ref={cardRef} className={`ppv-mini-card ${dragging ? "dragging" : ""}`} draggable={!segueOS} title={segueOS ? `Segue a fase da OS ${o.osId} — mude pela OS` : undefined} onDragStart={dragStart} onDragEnd={dragEnd} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}
+    <div ref={cardRef} className={`ppv-mini-card ${isTipoRem ? "rem" : ""} ${dragging ? "dragging" : ""}`} draggable={!segueOS} title={segueOS ? `Segue a fase da OS ${o.osId} — mude pela OS` : undefined} onDragStart={dragStart} onDragEnd={dragEnd} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}
       style={{ borderTop: `3px solid ${isTipoRem ? "#e8730c" : "#EA580C"}`, display: "flex", flexDirection: "column", gap: 8, borderRadius: 12, padding: "10px 12px" }}>
       <CapaTitulo numero={isTipoRem ? `REM ${numero}` : numero} cliente={o.cliente} corNumero={tituloColor} />
       <CapaFaseValor fase={faseTela} rotulo={fq.nome(faseTela)} fases={fq.chaves} rotuloDe={(p) => fq.nome(p)}
@@ -244,7 +234,7 @@ const MiniCard = memo(function MiniCard({
           <i className="fas fa-file-invoice" style={{ marginRight: 5 }} />NF-e emitida
         </span>
       )}
-      {!cancelada && <CapaBolinhas passos={passos} />}
+      {/* linha de etapas (Orçamento → Faturado) tirada do card (José, 24/11/2026) */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <CapaLinha icone="fas fa-user-cog" rotulo="Técnico">{o.tecnico || "?"}</CapaLinha>
         <CapaLinha icone="far fa-calendar" rotulo="Data">{dataFmt}</CapaLinha>

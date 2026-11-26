@@ -28,7 +28,11 @@ interface Props {
   onAbrir: (id: string) => void
   /** Novo 1º dia do trabalho + novo prazo (arrastar no Gantt/Calendário). */
   onMudarDatas: (id: string, inicio: string, prazo: string | null) => void
+  /** Nome de quem FAZ o ticket (24/11/2026: "não só o que fazer, mas de quem é"). */
+  usuarios?: Record<string, { nome: string }>
 }
+
+const iniciaisDe = (n: string) => n.split(' ').filter(Boolean).map((x) => x[0]).slice(0, 2).join('').toUpperCase()
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const diaDe = (s: string) => new Date(s.slice(0, 10) + 'T12:00:00')
@@ -78,7 +82,7 @@ export default function VistasCronogramaGeral(p: Props) {
 }
 
 // ─────────────────────────────────────────────────────────────── Gantt
-function Gantt({ tickets, hoje, corDe, progresso, onAbrir, onMudarDatas }: Props) {
+function Gantt({ tickets, hoje, corDe, progresso, onAbrir, onMudarDatas, usuarios }: Props) {
   const [modo, setModo] = useState<ViewMode>('Day')
   const comPrazo = tickets // todos entram (sem prazo = barra contínua até hoje)
 
@@ -88,7 +92,7 @@ function Gantt({ tickets, hoje, corDe, progresso, onAbrir, onMudarDatas }: Props
     const p = noPlano(t, hoje)
     return {
       id: t.id,
-      name: `${ehUrgente(t) ? '🔥 ' : ''}#${t.numero} ${t.titulo}${p.atrasado ? ` (atrasado desde ${br(t.prazo)})` : p.continuo ? ' (contínuo)' : ''}`,
+      name: `${ehUrgente(t) ? '🔥 ' : ''}#${t.numero} ${t.titulo}${usuarios?.[t.responsavel_id]?.nome ? ` · ${usuarios[t.responsavel_id].nome.split(' ')[0]}` : ''}${p.atrasado ? ` (atrasado desde ${br(t.prazo)})` : p.continuo ? ' (contínuo)' : ''}`,
       start: p.inicio,
       end: p.fim,
       progress: progresso(t) ?? 0,
@@ -96,7 +100,7 @@ function Gantt({ tickets, hoje, corDe, progresso, onAbrir, onMudarDatas }: Props
       // derruba a página inteira (InvalidCharacterError).
       custom_class: `cg-cor-${cores.indexOf(corDe(t))}${p.atrasado ? '-atrasado' : p.continuo ? '-continuo' : ''}`,
     }
-  }), [comPrazo, cores, corDe, progresso, hoje])
+  }), [comPrazo, cores, corDe, progresso, hoje, usuarios])
 
   const aoMover = useCallback((id: string, inicio: Date, fim: Date) => {
     const t = comPrazo.find((x) => x.id === id)
@@ -142,11 +146,16 @@ function Gantt({ tickets, hoje, corDe, progresso, onAbrir, onMudarDatas }: Props
 }
 
 // ────────────────────────────────────────────────────────── Calendário
-function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
+function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas, usuarios }: Props) {
+  const nomeDe = (id: string) => usuarios?.[id]?.nome || ''
   const [mes, setMes] = useState(() => { const d = diaDe(hoje); return new Date(d.getFullYear(), d.getMonth(), 1) })
   const [arr, setArr] = useState<string | null>(null)
   const [arrDe, setArrDe] = useState<string | null>(null) // dia de onde saiu o arraste
   const [sobre, setSobre] = useState<string | null>(null)
+  // Sem prazo (contínuo) começa ESCONDIDO (Fase 0, 24/11/2026): repetido em todo
+  // dia útil, virava papel de parede e escondia o que tem data.
+  const [verContinuos, setVerContinuos] = useState(false)
+  const qtdContinuos = useMemo(() => tickets.filter((t) => noPlano(t, hoje).continuo).length, [tickets, hoje])
   // Semana seg → dom (sábado e domingo no fim). Só os dias DO mês têm número;
   // as casas que completam a grade (antes do dia 1 / depois do último) ficam
   // na cor de "não trabalhamos", igual ao fim de semana.
@@ -167,6 +176,7 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
     for (const t of tickets) {
       const p = noPlano(t, hoje)
       if (p.continuo) {
+        if (!verContinuos) continue
         // Contínuo é trabalho do dia a dia: só dias úteis (sem sábado/domingo).
         for (let d = p.inicio > primeiroDoMes ? p.inicio : primeiroDoMes, i = 0; d <= ultimo && i < 40; d = somaDias(d, 1), i++) {
           if (!fimDeSemana(d)) por(d, t)
@@ -178,7 +188,7 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
     }
     for (const l of m.values()) l.sort((a, b) => Number(ehUrgente(b)) - Number(ehUrgente(a)) || (a.prazo || '').localeCompare(b.prazo || ''))
     return m
-  }, [tickets, hoje, mes])
+  }, [tickets, hoje, mes, verContinuos])
   // Soltar num dia: o bloco todo anda junto (mantém a duração). Contínuo:
   // muda só o dia em que começa. Dia que já passou não aceita (replanejar
   // para trás não faz sentido).
@@ -207,8 +217,14 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
         <button style={nav} aria-label="Mês anterior" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}><ChevronLeft size={16} /></button>
         <b style={{ minWidth: 160, textAlign: 'center', color: 'var(--portal-text,#111)', textTransform: 'capitalize' }}>{mes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</b>
         <button style={nav} aria-label="Próximo mês" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}><ChevronRight size={16} /></button>
+        {qtdContinuos > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: 'var(--portal-text,#111)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={verContinuos} onChange={(e) => setVerContinuos(e.target.checked)} />
+            Mostrar sem prazo ({qtdContinuos})
+          </label>
+        )}
         <small style={{ marginLeft: 'auto', color: muted }}>
-          Ticket em todos os dias do trabalho · atrasado fica em hoje (vermelho) · ∞ sem prazo aparece todo dia até concluir · arraste para mudar.
+          Pedido em cada dia previsto · atrasado fica em hoje (vermelho){verContinuos ? ' · ∞ sem prazo aparece todo dia até concluir' : ''} · arraste para mudar.
         </small>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(110px, 1fr))', minWidth: 780 }}>
@@ -236,8 +252,9 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
                   <div key={t.id} draggable
                     onDragStart={() => { setArr(t.id); setArrDe(k) }} onDragEnd={() => { setArr(null); setArrDe(null); setSobre(null) }}
                     onClick={() => onAbrir(t.id)}
-                    title={`#${t.numero} ${t.titulo} — ${STATUS_INFO[t.status]?.label || t.status}${atrasado ? ` · atrasado desde ${br(t.prazo)}` : ''}`}
+                    title={`#${t.numero} ${t.titulo} — ${STATUS_INFO[t.status]?.label || t.status}${nomeDe(t.responsavel_id) ? ` · faz: ${nomeDe(t.responsavel_id)}` : ''}${atrasado ? ` · atrasado desde ${br(t.prazo)}` : ''}`}
                     style={{ fontSize: 11, fontWeight: 600, padding: '2px 6px', marginBottom: 2, borderRadius: 5, cursor: 'grab', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#fff', background: corDe(t), outline: atrasado ? '2px solid #dc2626' : undefined, outlineOffset: -2 }}>
+                    {nomeDe(t.responsavel_id) && <span style={{ display: 'inline-grid', placeItems: 'center', width: 17, height: 17, marginRight: 4, borderRadius: '50%', fontSize: 8.5, verticalAlign: -3, background: 'rgba(255,255,255,.3)', color: '#fff' }}>{iniciaisDe(nomeDe(t.responsavel_id))}</span>}
                     {ehUrgente(t) && '🔥 '}#{t.numero} {t.titulo}{atrasado ? ` · desde ${br(t.prazo)}` : p.continuo ? ' · ∞' : total > 1 ? ` · dia ${diaN}/${total}` : ''}
                   </div>
                 )

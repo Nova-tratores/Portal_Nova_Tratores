@@ -37,6 +37,12 @@ import { SC_ETAPA_INFO, SC_CONFIANCA_INFO, margemPrevista, type PayloadSC, type 
 import PainelCompras from '@/components/tickets/compras/PainelCompras'
 import SeletorDataAgenda from '@/components/trabalho/SeletorDataAgenda'
 import { fimDeSemana } from '@/lib/trabalho/agenda'
+import EstimarTempo from '@/components/trabalho/EstimarTempo'
+
+/** O quadro saiu da Central (24/11/2026): o servidor escolhe sozinho e ninguém precisa ver nem
+ *  escolher. true = volta a etiqueta, o aviso "escolha um quadro" e o Trocar/Escolher. */
+const MOSTRAR_QUADRO = false
+import { ESTILO_FILA } from '@/components/trabalho/estiloFila'
 
 const fmtData = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("pt-BR")
 const fmtQuando = (d: string) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -125,6 +131,8 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   const [addParticipante, setAddParticipante] = useState(false)
   const [novoParticipante, setNovoParticipante] = useState('')
   const [editando, setEditando] = useState(false)
+  // Tempo do trabalho (24/11/2026): o mesmo escolhedor da Minha fila (tamanho, sugestão, previsão).
+  const [estimarTempo, setEstimarTempo] = useState(false)
   const [editPrazo, setEditPrazo] = useState('')
   const [editCategoria, setEditCategoria] = useState('')
   const [editTerceiro, setEditTerceiro] = useState('')
@@ -295,9 +303,21 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
     if (!ok) setComentario(texto)
   }
 
-  const mudarStatus = (para: TicketStatus) => acao({ acao: 'status', para }, undefined, {
-    otimista: () => mexer((d) => ({ ...d, ticket: { ...d.ticket, status: para } })),
-  })
+  const mudarStatus = async (para: TicketStatus) => {
+    const ok = await acao({ acao: 'status', para }, undefined, {
+      otimista: () => mexer((d) => ({ ...d, ticket: { ...d.ticket, status: para } })),
+    })
+    // Cronômetro do Modo Agora (24/11/2026): quem faz clicou "Começar" → conta o tempo;
+    // resolveu, pausou ou cancelou → para (só se estava contando ESTE ticket).
+    if (ok && souResponsavel) {
+      const corpo = para === 'em_andamento' ? { acao: 'comecar', ticket_id: id }
+        : ['resolvido', 'aguardando_terceiro', 'aguardando_interno', 'cancelado', 'fechado'].includes(para) ? { acao: 'pausar', ticket_id: id } : null
+      if (corpo) void (async () => {
+        try { await fetch('/api/trabalho/agora', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify(corpo) }) } catch { /* sem cronômetro */ }
+      })()
+    }
+    return ok
+  }
 
   // Imagens/prints na timeline: Ctrl+V no comentário cola direto, e o
   // clipe abre o seletor de arquivos (upload no bucket público `anexos`)
@@ -356,7 +376,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   // Sem bloco o ticket não anda (mesma regra do servidor): quem pediu ainda
   // confirma/contesta o resolvido e todos podem cancelar.
   const semBlocoPode = (s: TicketStatus) => s === 'fechado' || (souSolicitante && ticket.status === 'resolvido')
-  const statusBotoes = ehSC || ehRevisaoPop ? [] : proximosStatus.filter((s) => s !== 'cancelado' && ROTULO_STATUS_ACAO[s] && (!!quadro || semBlocoPode(s) || ehExecPop))
+  const statusBotoes = ehSC || ehRevisaoPop ? [] : proximosStatus.filter((s) => s !== 'cancelado' && ROTULO_STATUS_ACAO[s] && (!!quadro || souResponsavel || semBlocoPode(s) || ehExecPop))
     .sort((a, b) => Number(!!ROTULO_STATUS_ACAO[b]?.destaque) - Number(!!ROTULO_STATUS_ACAO[a]?.destaque))
   const podeCancelar = !ehSC && proximosStatus.includes('cancelado')
   const continuo = !ticket.prazo
@@ -423,14 +443,14 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
               📋 {ticket.tipo === 'pop' ? 'Abrir execução do POP' : 'Revisão de POP — abrir'}
             </a>
           )}
-          {quadro && (
-            <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o bloco"
+          {MOSTRAR_QUADRO && quadro && (
+            <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o quadro"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, fontSize: 12, fontWeight: 700, textDecoration: 'none', color: 'var(--portal-text,#111)', background: quadro.cor + '1f', border: `1px solid ${quadro.cor}55` }}>
               <span style={{ width: 8, height: 8, borderRadius: 2, background: quadro.cor }} /> {quadro.nome}
             </a>
           )}
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--portal-text-muted,#999)' }}>
-            {ticket.visibilidade === 'privado' ? <><Lock size={11} /> privado</> : <><Globe size={11} /> {quadro ? 'compartilhado com o bloco' : 'visível a todos'}</>}
+            {ticket.visibilidade === 'privado' ? <><Lock size={11} /> privado</> : <><Globe size={11} /> visível a todos</>}
           </span>
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             {scInfo
@@ -461,7 +481,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             continuo
               ? <><InfinityIcon size={15} /> Contínuo (dias úteis)</>
               : <><CalendarDays size={14} /> {fmtData(ticket.prazo!)}{vencido && ' · vencido'}</>,
-            vencido ? '#dc2626' : continuo ? '#0369a1' : undefined)}
+            vencido ? 'var(--cor-atrasado-texto)' : continuo ? '#0369a1' : undefined)}
           {fato('Movimento',
             <><Clock size={14} /> {dias === 0 ? 'hoje' : `${dias} dia${dias > 1 ? 's' : ''} parado`}</>,
             dias >= 5 && !encerrado ? '#dc2626' : undefined)}
@@ -474,16 +494,16 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
         )}
 
         {/* Todo ticket precisa estar num bloco antes de andar */}
-        {!ehSC && !ehExecPop && !ehRevisaoPop && !quadro && !encerrado && (
+        {MOSTRAR_QUADRO && !ehSC && !ehExecPop && !ehRevisaoPop && !quadro && !encerrado && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600 }}>
             <LayoutGrid size={15} />
             <span style={{ flex: 1, minWidth: 200 }}>
-              {souResponsavel ? 'Este ticket ainda não está em nenhum bloco. Escolha um para poder trabalhar nele.' : 'Esperando quem recebeu escolher o bloco.'}
+              {souResponsavel ? 'Este ticket ainda não está em nenhum quadro. Escolha um para poder trabalhar nele.' : 'Esperando quem recebeu escolher o quadro.'}
             </span>
             {podeMoverQuadro && (
               <button disabled={agindo} onClick={abrirModalQuadro}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: 'none', background: '#d97706', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
-                <LayoutGrid size={14} /> Escolher bloco
+                <LayoutGrid size={14} /> Escolher quadro
               </button>
             )}
           </div>
@@ -666,20 +686,23 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             </div>
           )}
 
-          {/* Bloco e privacidade */}
+          {/* Quem vê (antes "Bloco/Quadro" — o quadro saiu da tela em 24/11/2026; fica a privacidade) */}
           {!ehSC && (
             <div style={cartao}>
-              <div style={{ ...tituloCartao, marginBottom: 10 }}><LayoutGrid size={13} /> Bloco</div>
+              <div style={{ ...tituloCartao, marginBottom: 10 }}>{ticket.visibilidade === 'privado' ? <Lock size={13} /> : <Globe size={13} />} Quem vê</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {quadro ? (
-                  <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o bloco"
+                <span style={{ fontSize: 13, color: 'var(--portal-text-secondary,#555)' }}>
+                  {ticket.visibilidade === 'privado' ? 'Privado: só quem pediu, quem faz e quem está no ticket.' : 'Visível para todos da Central.'}
+                </span>
+                {MOSTRAR_QUADRO && (quadro ? (
+                  <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o quadro"
                     style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 9, fontSize: 13.5, fontWeight: 800, textDecoration: 'none',
                       color: 'var(--portal-text,#111)', background: quadro.cor + '1f', border: `1px solid ${quadro.cor}55` }}>
                     <span style={{ width: 11, height: 11, borderRadius: 3, background: quadro.cor }} /> {quadro.nome}
                   </a>
-                ) : <span style={{ fontSize: 13, color: '#b45309', fontWeight: 600 }}>Sem bloco</span>}
+                ) : <span style={{ fontSize: 13, color: '#b45309', fontWeight: 600 }}>Sem quadro</span>)}
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {podeMoverQuadro && (
+                  {MOSTRAR_QUADRO && podeMoverQuadro && (
                     <button disabled={agindo} style={botaoMini} onClick={abrirModalQuadro}>
                       <LayoutGrid size={12} /> {quadro ? 'Trocar' : 'Escolher'}
                     </button>
@@ -687,7 +710,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                   {podeVisibilidade && (
                     <button disabled={agindo} style={botaoMini}
                       onClick={() => acao({ acao: 'visibilidade', para: ticket.visibilidade === 'privado' ? 'publico' : 'privado' })}>
-                      {ticket.visibilidade === 'privado' ? <><Globe size={12} /> {quadro ? 'Compartilhar com o bloco' : 'Tornar visível'}</> : <><Lock size={12} /> Tornar privado</>}
+                      {ticket.visibilidade === 'privado' ? <><Globe size={12} /> Tornar visível</> : <><Lock size={12} /> Tornar privado</>}
                     </button>
                   )}
                 </div>
@@ -745,7 +768,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                   setEditTitulo(ticket.titulo); setEditInicio(plano.inicio || '')
                   setEditDias(plano.dias ? String(plano.dias) : ''); setEditHoras(plano.horas_dia ? String(plano.horas_dia) : '')
                   setEditando(true)
-                }} style={botaoMini} title="Editar título, datas, tempo de trabalho, categoria e terceiro">
+                }} style={botaoMini} title="Editar título, datas, tempo, categoria e terceiro">
                   <PenLine size={12} /> Editar
                 </button>
               )}
@@ -755,7 +778,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                 <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <CalendarDays size={13} style={{ opacity: .6 }} />
                   {ticket.prazo
-                    ? <span style={{ color: vencido ? '#dc2626' : undefined, fontWeight: vencido ? 700 : undefined }}>
+                    ? <span style={{ color: vencido ? 'var(--cor-atrasado-texto)' : undefined, fontWeight: vencido ? 700 : undefined }}>
                         Prazo {fmtData(ticket.prazo)}{vencido ? ' (vencido)' : ''}
                       </span>
                     : 'Sem prazo — contínuo'}
@@ -765,18 +788,33 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                     <CalendarDays size={13} style={{ opacity: .6 }} /> Começa {fmtData(plano.inicio)}
                   </span>
                 )}
-                {(plano.dias || plano.horas_dia) && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <Clock size={13} style={{ opacity: .6 }} />
-                    {[plano.dias && `${plano.dias} dia${plano.dias > 1 ? 's' : ''} de trabalho`, plano.horas_dia && `${String(plano.horas_dia).replace('.', ',')} h/dia`].filter(Boolean).join(' · ')}
-                  </span>
+                {/* Tempo do trabalho (24/11/2026): total em horas, fácil de ler, e "mudar"/"Estimar" abre o escolhedor */}
+                {ticket.prazo && (() => {
+                  const total = plano.horas_dia ? (plano.dias || 1) * plano.horas_dia : 0
+                  return (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                      <Clock size={13} style={{ opacity: .6 }} />
+                      {total
+                        ? <span>Leva {String(total).replace('.', ',')} h{total > 4.5 ? ` · uns ${Math.ceil(total / 4.5)} dias` : ''}</span>
+                        : <span style={{ color: '#b45309' }}>Sem tempo estimado</span>}
+                      {podeEditar && <button onClick={() => setEstimarTempo((v) => !v)} style={botaoMini}>{total ? 'mudar' : 'Estimar'}</button>}
+                    </span>
+                  )
+                })()}
+                {estimarTempo && (
+                  <>
+                    <style>{ESTILO_FILA}</style>
+                    <EstimarTempo ticketId={id} titulo={ticket.titulo} onFechar={() => setEstimarTempo(false)} onSalvo={() => { setEstimarTempo(false); carregar(true) }} />
+                  </>
                 )}
                 <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <Tag size={13} style={{ opacity: .6 }} /> {ticket.categoria || 'Sem categoria'}
                 </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <Building2 size={13} style={{ opacity: .6 }} /> {ticket.terceiro_envolvido || 'Sem terceiro envolvido'}
-                </span>
+                {ticket.terceiro_envolvido && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <Building2 size={13} style={{ opacity: .6 }} /> {ticket.terceiro_envolvido}
+                  </span>
+                )}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -788,7 +826,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                 <SeletorDataAgenda diasUteis rotulo="Prazo (vazio = contínuo)" value={editPrazo} onChange={setEditPrazo}
                   userId={ticket.responsavel_id} min={editInicio || undefined} permitirVazio textoVazio="Contínuo (sem prazo)" ignorar={ticket.titulo} />
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <label style={{ ...rotuloCampo, flex: 1 }}>Dias de trabalho
+                  <label style={{ ...rotuloCampo, flex: 1 }}>Quantos dias leva
                     <input type="number" min={1} max={120} value={editDias} onChange={(e) => setEditDias(e.target.value)} placeholder="—" style={campoEdit} />
                   </label>
                   <label style={{ ...rotuloCampo, flex: 1 }}>Horas por dia
@@ -893,7 +931,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                 )}
                 {verAgenda && (
                   <a href={`/cronograma?fila=${ticket.responsavel_id}`} style={{ ...botaoMini, textDecoration: 'none' }}
-                    title="Ver a fila de trabalho dessa pessoa e a previsão do seu pedido">
+                    title="Ver a fila dessa pessoa e a previsão do seu pedido">
                     <CalendarDays size={12} /> Agenda de {nome(ticket.responsavel_id).split(' ')[0]}
                   </a>
                 )}
@@ -952,15 +990,15 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           <div onClick={(e) => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 420, maxHeight: '80vh', overflowY: 'auto', background: 'var(--portal-surface,#fff)', borderRadius: 14, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, margin: '0 0 6px', color: 'var(--portal-text,#111)' }}>
-              <LayoutGrid size={16} color="#dc2626" /> {quadro ? 'Trocar de bloco' : 'Pôr num bloco'}
+              <LayoutGrid size={16} color="#dc2626" /> {quadro ? 'Trocar de quadro' : 'Pôr num quadro'}
             </h3>
             <p style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)', margin: '0 0 14px' }}>
               A situação do ticket não muda.
             </p>
             {opcoesQuadro === null ? (
-              <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Carregando blocos...</div>
+              <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Carregando quadros...</div>
             ) : opcoesQuadro.filter((q) => q.id !== quadro?.id).length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Você não tem outro bloco. Crie um na página Quadros.</div>
+              <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Você não tem outro quadro. Crie um na página Quadros.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {opcoesQuadro.filter((q) => q.id !== quadro?.id).map((q) => (
@@ -974,7 +1012,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 16 }}>
               {/* Todo ticket fica num bloco: dá para trocar, não para tirar. */}
-              <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)', alignSelf: 'center' }}>Todo ticket fica num bloco.</span>
+              <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)', alignSelf: 'center' }}>Todo ticket fica num quadro.</span>
               <button onClick={() => setModalQuadro(false)}
                 style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--portal-text-secondary,#555)' }}>
                 Fechar
@@ -1030,14 +1068,16 @@ function LinhaEvento({ e, uid, nome, usuarios }: {
     ? <>entrou na conversa</>
     : <>adicionou <strong>{nome(String(e.payload.user_id || ''))}</strong></>
   else if (e.tipo === 'participante_removido') texto = <>removeu <strong>{nome(String(e.payload.user_id || ''))}</strong></>
-  else if (e.tipo === 'pedido_atualizacao') texto = <>pediu atualização{e.payload.texto ? <>: {String(e.payload.texto)}</> : null}</>
+  else if (e.tipo === 'pedido_atualizacao') texto = <>{e.payload.cutucada ? 'cutucou' : 'pediu atualização'}{e.payload.texto ? <>: {String(e.payload.texto)}</> : null}</>
   else if (e.tipo === 'edicao') {
-    if (e.payload.campo === 'visibilidade') texto = <>tornou o ticket <strong>{e.payload.para === 'publico' ? 'compartilhado' : 'privado'}</strong></>
+    if (e.payload.campo === 'fila') texto = <>pôs no topo da fila{e.payload.origem === 'faxina' ? ' (faxina)' : ''}</>
+    else if (e.payload.campo === 'prioridade') texto = e.payload.para === 'pedida' ? <>pediu prioridade{e.payload.motivo ? <>: {String(e.payload.motivo)}</> : null}</> : e.payload.para === 'aceita' ? <>aceitou a prioridade (foi para o topo da fila)</> : <>recusou o pedido de prioridade</>
+    else if (e.payload.campo === 'visibilidade') texto = <>tornou o ticket <strong>{e.payload.para === 'publico' ? 'compartilhado' : 'privado'}</strong></>
     else if (e.payload.campo === 'quadro') texto = e.payload.para
-      ? <>colocou no bloco <strong>{String(e.payload.para)}</strong></>
-      : <>tirou do bloco{e.payload.de ? <> <strong>{String(e.payload.de)}</strong></> : null}</>
-    else if (e.payload.campo === 'tarefa' && e.payload.acao === 'editada') texto = <>editou a tarefa <strong>{String(e.payload.titulo || '')}</strong>{Array.isArray(e.payload.mudou) && e.payload.mudou.length ? <> ({(e.payload.mudou as string[]).join(', ')})</> : null}</>
-    else if (e.payload.campo === 'tarefa') texto = <>{e.payload.acao === 'criada' ? 'criou a tarefa' : e.payload.acao === 'feita' ? 'concluiu a tarefa' : e.payload.acao === 'removida' ? 'removeu a tarefa' : 'reabriu a tarefa'} <strong>{String(e.payload.titulo || '')}</strong></>
+      ? <>colocou no quadro <strong>{String(e.payload.para)}</strong></>
+      : <>tirou do quadro{e.payload.de ? <> <strong>{String(e.payload.de)}</strong></> : null}</>
+    else if (e.payload.campo === 'tarefa' && e.payload.acao === 'editada') texto = <>editou o passo <strong>{String(e.payload.titulo || '')}</strong>{Array.isArray(e.payload.mudou) && e.payload.mudou.length ? <> ({(e.payload.mudou as string[]).join(', ')})</> : null}</>
+    else if (e.payload.campo === 'tarefa') texto = <>{e.payload.acao === 'criada' ? 'adicionou ao checklist' : e.payload.acao === 'feita' ? 'concluiu o passo' : e.payload.acao === 'removida' ? 'removeu do checklist' : 'reabriu o passo'} <strong>{String(e.payload.titulo || '')}</strong></>
     else if (e.payload.campo === 'cronograma') texto = <>colocou o ticket no <strong>cronograma</strong></>
     else if (e.payload.campo === 'coluna') texto = <>moveu o cartão{e.payload.de ? <> de {String(e.payload.de)}</> : null} para <strong>{String(e.payload.para)}</strong></>
     else {

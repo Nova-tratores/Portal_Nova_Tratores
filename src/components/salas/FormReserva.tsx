@@ -77,7 +77,7 @@ export default function FormReserva({ salaId, salaNome, inicial, reservas, minDi
         {erro && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600 }}>{erro}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button onClick={onFechar} style={botaoClaro()}>Voltar</button>
-          <button onClick={salvar} disabled={salvando || !pronto} style={{ ...botao('#0891b2'), opacity: salvando || !pronto ? .5 : 1 }}>{salvando ? 'Salvando…' : editando ? 'Salvar' : 'Reservar'}</button>
+          <button onClick={salvar} disabled={salvando || !pronto} style={{ ...botao('var(--sala-cheio, #0891b2)'), opacity: salvando || !pronto ? .5 : 1 }}>{salvando ? 'Salvando…' : editando ? 'Salvar' : 'Reservar'}</button>
         </div>
       </div>
     </Modal>

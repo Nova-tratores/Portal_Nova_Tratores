@@ -196,12 +196,14 @@ export default function RecorrentesNovo() {
       <details className="rc-card rc-ajuda">
         <summary><HelpCircle size={16} color="#2563eb" /> Como ler esta tela <ChevronDown size={14} style={{ marginLeft: 'auto' }} /></summary>
         <ul>
-          <li>O portal olha as contas a pagar do Omie e acha as que <b style={{ fontWeight: 500 }}>se repetem todo mês</b>: mesmo fornecedor e categoria em 5 dos últimos 6 meses. Compra de peça, frete, posto e manutenção ficam de fora.</li>
+          <li>O portal olha as contas a pagar do Omie das duas empresas e acha as que <b style={{ fontWeight: 500 }}>se repetem todo mês</b>: mesmo fornecedor, vencendo perto do mesmo dia, em 5 dos últimos 6 meses. A categoria pode mudar de um mês para outro, e um fornecedor pode ter mais de uma conta (dias diferentes).</li>
+          <li>Compras, frete, juros, multas, tarifas, viagens, férias, 13º e outras despesas eventuais ficam de fora. Faturas de combustível, pedágio e manutenção com dia certo entram. Contas canceladas no Omie não contam.</li>
           <li>Muitas contas entram no Omie <b style={{ fontWeight: 500 }}>depois</b> de vencer (salário, comissão, FGTS…). Por isso cada conta tem o seu prazo: <b style={{ fontWeight: 500 }}>dia que costuma vencer + quantos dias ela costuma demorar para entrar + 7 dias de folga</b>.</li>
           <li><span style={{ color: '#dc2626' }}>Faltando lançar</span>: passou desse prazo e não tem conta no mês. É isso que vai para o sino.</li>
           <li><span style={{ color: '#d97706' }}>Dentro do prazo</span>: ainda não tem conta, mas ainda é normal. A tela mostra o dia em que vai avisar.</li>
           <li>As bolinhas são os 6 meses anteriores + o mês do aviso (verde = teve conta). Clique na linha para ver o histórico.</li>
           <li>Se uma conta veio com outro vencimento (2 num mês e nenhuma no outro), ela aparece como <span style={{ color: '#0891b2' }}>mês vizinho</span> e não avisa.</li>
+          <li>São olhados o mês atual e os 2 anteriores. <b style={{ fontWeight: 500 }}>Já lancei</b> e <b style={{ fontWeight: 500 }}>Não vai ter</b> resolvem só aquele mês e têm Desfazer; <b style={{ fontWeight: 500 }}>Não é recorrente</b> tira a conta da tela em todos os meses.</li>
         </ul>
       </details>
 

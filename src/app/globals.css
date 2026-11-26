@@ -30,9 +30,50 @@
   --portal-sidebar-bg: #ffffff;
   --portal-scrollbar-track: #f5f5f5;
   --portal-scrollbar-thumb: #d4d4d4;
+  /* Cores de acento PARA TEXTO (link, status, valor). No escuro viram tons claros. */
+  --portal-red-fg: #b91c1c;
+  --portal-blue-fg: #1d4ed8;
+  --portal-green-fg: #15803d;
+  --portal-teal-fg: #0f766e;
+  --portal-violet-fg: #6d28d9;
+  --portal-pink-fg: #be185d;
+  --portal-amber-fg: #b45309;
+  /* Central de Trabalho (Fase 0, 24/11/2026): atrasado e urgente com nome próprio, separados
+     do vermelho da marca (que fica nos botões primários e no logo). */
+  --cor-atrasado-fundo: #fee2e2;
+  --cor-atrasado-texto: #b91c1c;
+  --cor-atrasado-borda: #fecaca;
+  --cor-urgente-fundo: #ffedd5;
+  --cor-urgente-texto: #c2410c;
+  --cor-urgente-borda: #fed7aa;
 }
 
 [data-theme="dark"] {
+  /* Auditoria 23/11: tons de acento legíveis no escuro (>= 6:1 no card) */
+  --portal-red-fg: #f87171;
+  --portal-blue-fg: #60a5fa;
+  --portal-green-fg: #34d399;
+  --portal-teal-fg: #2dd4bf;
+  --portal-violet-fg: #a78bfa;
+  --portal-pink-fg: #f472b6;
+  --portal-amber-fg: #fbbf24;
+  --cor-atrasado-fundo: rgba(248,113,113,.16);
+  --cor-atrasado-texto: #fca5a5;
+  --cor-atrasado-borda: rgba(248,113,113,.35);
+  --cor-urgente-fundo: rgba(251,146,60,.16);
+  --cor-urgente-texto: #fdba74;
+  --cor-urgente-borda: rgba(251,146,60,.35);
+  /* Design system ep-* (estilo-portal.css) seguindo o tema escuro */
+  --ep-bg: var(--portal-bg);
+  --ep-surface: var(--portal-bg-card);
+  --ep-surface-2: var(--portal-bg-secondary);
+  --ep-border: var(--portal-border);
+  --ep-border-strong: #333333;
+  --ep-line: var(--portal-border);
+  --ep-text: var(--portal-text);
+  --ep-muted: var(--portal-text-secondary);
+  --ep-faint: var(--portal-text-muted);
+  --ep-accent-soft: #2a1215;
   --portal-bg: #0f0f0f;
   --portal-bg-card: #1a1a1a;
   --portal-surface: #1a1a1a;
@@ -43,8 +84,9 @@
   --portal-border-hover: #7f1d1d;
   --portal-text: #f5f5f5;
   --portal-text-secondary: #a3a3a3;
-  --portal-text-muted: #737373;
-  --portal-text-faint: #525252;
+  /* Auditoria 23/11: #737373 dava 3,7:1 e #525252 dava 2,2:1 no card */
+  --portal-text-muted: #949494;
+  --portal-text-faint: #8a8a8a;
   --portal-shadow: rgba(0,0,0,0.3);
   --portal-header-bg: #141414;
   --portal-sidebar-bg: #141414;
@@ -228,9 +270,16 @@ body {
 [data-theme="dark"] .text-gray-500 {
   color: var(--portal-text-muted) !important;
 }
+/* zinc/gray-400 já é um cinza claro no tema claro: no escuro vai pro secundário
+   (antes ia pro "faint" #525252 e sumia — auditoria 23/11) */
 [data-theme="dark"] .text-zinc-400,
 [data-theme="dark"] .text-gray-400 {
-  color: var(--portal-text-faint) !important;
+  color: var(--portal-text-secondary) !important;
+}
+
+/* Controles nativos (select, calendário, barra de rolagem, autofill) escuros */
+@media screen {
+  [data-theme="dark"] { color-scheme: dark; }
 }
 
 /* Shadow overrides */
@@ -352,7 +401,7 @@ body {
    (a regra global "[data-theme=dark] h3 → claro" pintava eles de branco). */
 [data-theme="dark"] h3.fin-col-title,
 .portal-dark h3.fin-col-title {
-  color: #111111 !important;
+  color: var(--portal-text) !important; /* era #111111 (sumia no fundo escuro) */
 }
 
 /* EXCEÇÃO: a faixa VERDE do Financeiro fica verde nos dois temas (a regra
@@ -639,6 +688,26 @@ body {
 .input-portal:focus {
   border-color: #dc2626;
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+/* Login é sempre claro: o tema escuro salvo (data-theme="dark") e o preenchimento automático
+   do Chrome deixavam os campos pretos/cinza (24/11/2026) */
+.input-portal,
+[data-theme="dark"] .input-portal {
+  color-scheme: light;
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+  border-color: #e5e5e5 !important;
+}
+[data-theme="dark"] .input-portal::placeholder { color: #a3a3a3 !important; }
+[data-theme="dark"] .input-portal:focus { border-color: #dc2626 !important; }
+.input-portal:-webkit-autofill,
+.input-portal:-webkit-autofill:hover,
+.input-portal:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #1a1a1a !important;
+  caret-color: #1a1a1a;
+  transition: background-color 9999s ease-out 0s;
 }
 
 /* ===== Controle de Revisões (tema escuro) ===== */
@@ -1178,43 +1247,46 @@ body {
   [data-theme="dark"] [style*="solid rgb(187, 247, 208)"] { border-color: #14532d !important; }
   [data-theme="dark"] [style*="solid rgb(245, 201, 154)"] { border-color: #7c3a12 !important; }
 
-  /* ── Botões de fundo LARANJA no escuro: legenda PRETA (Novo Lançamento,
-        Cards, Novo Item, Adicionar, Finalizar…) — pedido do usuário, 18/08 ── */
+  /* ── Botões de fundo LARANJA no escuro: legenda BRANCA e laranja mais
+        fechado (#c2410c) pra dar 5,2:1 — auditoria 23/11 (antes: legenda preta) ── */
   [data-theme="dark"] [style*="background: rgb(232, 115, 12)"],
   [data-theme="dark"] [style*="background-color: rgb(232, 115, 12)"],
-  [data-theme="dark"] [style*="background: rgb(234, 88, 12)"],
-  [data-theme="dark"] [style*="background-color: rgb(234, 88, 12)"],
   [data-theme="dark"] [style*="background: rgb(249, 115, 22)"],
   [data-theme="dark"] [style*="background-color: rgb(249, 115, 22)"],
-  [data-theme="dark"] [style*="background: rgb(240, 162, 46)"],
+  [data-theme="dark"] [style*="background: rgb(240, 162, 46)"] {
+    background: #c2410c !important;
+    color: #ffffff !important;
+  }
+  [data-theme="dark"] [style*="background: rgb(234, 88, 12)"],
+  [data-theme="dark"] [style*="background-color: rgb(234, 88, 12)"],
   [data-theme="dark"] [style*="linear-gradient(135deg, rgb(249, 115, 22)"],
   [data-theme="dark"] [style*="linear-gradient(135deg, rgb(232, 115, 12)"] {
-    color: #1a1200 !important;
+    color: #ffffff !important;
   }
   [data-theme="dark"] .ppv-rail-btn.primary,
   [data-theme="dark"] .ppv-rail-btn.primary i,
   [data-theme="dark"] .ppv-btn-save,
   [data-theme="dark"] .cat-add {
-    color: #1a1200 !important;
+    color: #ffffff !important;
   }
 
-  /* ── Botões/chips de fundo VERMELHO no escuro (Menu, perfil…): legenda PRETA ── */
+  /* ── Botões/chips de fundo VERMELHO no escuro: legenda BRANCA (4,8:1) ── */
   [data-theme="dark"] [style*="background: rgb(220, 38, 38)"],
   [data-theme="dark"] [style*="background-color: rgb(220, 38, 38)"],
   [data-theme="dark"] [style*="background: rgb(185, 28, 28)"],
   [data-theme="dark"] [style*="linear-gradient(135deg, rgb(220, 38, 38)"],
   [data-theme="dark"] [style*="linear-gradient(135deg, rgb(239, 68, 68)"] {
-    color: #0f0505 !important;
+    color: #ffffff !important;
   }
   [data-theme="dark"] [style*="linear-gradient(135deg, rgb(220, 38, 38)"] :is(span, div, b, small, p),
   [data-theme="dark"] [style*="linear-gradient(135deg, rgb(239, 68, 68)"] :is(span, div, b, small, p) {
-    color: #0f0505 !important;
+    color: #ffffff !important;
   }
 
   /* Nome e função no chip do perfil (fundo vermelho do header) */
-  [data-theme="dark"] .portal-user-name p { color: #0f0505 !important; }
+  [data-theme="dark"] .portal-user-name p { color: #ffffff !important; }
 
-  /* ── Botões de fundo AZUL do módulo Frota no escuro: legenda PRETA ── */
+  /* ── Botões de fundo AZUL no escuro: legenda BRANCA ── */
   [data-theme="dark"] [style*="background: rgb(30, 64, 175)"],
   [data-theme="dark"] [style*="background-color: rgb(30, 64, 175)"],
   [data-theme="dark"] [style*="background: rgb(29, 78, 216)"],
@@ -1223,19 +1295,17 @@ body {
   [data-theme="dark"] [style*="background-color: rgb(37, 99, 235)"],
   [data-theme="dark"] [style*="background: rgb(30, 58, 138)"],
   [data-theme="dark"] [style*="linear-gradient(135deg, rgb(29, 78, 216)"] {
-    color: #0b0f1a !important;
+    color: #ffffff !important;
   }
 
-  /* ── Fase do PPV no escuro: PRETO em chip claro (pedido 25/08) ── */
+  /* ── Fase do PPV no escuro: texto claro sem o chip branco (auditoria 23/11) ── */
   [data-theme="dark"] .ppv-phase-group-name {
-    background: #fefefe !important;
-    color: #111111 !important;
+    background: transparent !important;
+    color: var(--portal-text) !important;
     text-shadow: none !important;
-    padding: 2px 10px;
-    border-radius: 4px;
   }
   [data-theme="dark"] .ppv-phase-group-count {
-    background: #fefefe !important;
+    background: var(--portal-bg-secondary) !important;
   }
   [data-theme="dark"] .bg-orange-100 { background-color: #9A3412 !important; }
   [data-theme="dark"] .text-orange-800 { color: #FFEDD5 !important; }
@@ -1365,7 +1435,7 @@ body {
   color: #111111;
 }
 [data-theme="dark"] .ppv-num-neon {
-  color: #111111;
+  color: var(--portal-text);
 }
 .ppv-phase-group-count {
   font-size: 13px;
@@ -3127,7 +3197,8 @@ body {
 }
 
 .pos-num-preto { color: #111111; }
-[data-theme="dark"] .pos-num-preto { color: #111111; }
+[data-theme="dark"] .pos-num-preto { color: var(--portal-text); }
+[data-theme="dark"] .phase-group-name { color: var(--portal-text); }
 
 .mini-card-phase {
   margin-bottom: 10px;
@@ -5033,18 +5104,36 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
   color: #111111 !important;
   text-shadow: none !important;
 }
-/* Vencer as regras dark antigas (mesma especificidade, aqui embaixo ganha) */
-[data-theme="dark"] .ppv-mini-card-obs,
-[data-theme="dark"] .ppv-phase-group-count {
-  color: #111111 !important;
-}
-/* No escuro o card e a linha da lista ficam CLAROS pra letra preta ler bem */
+/* No escuro (auditoria 23/11): card e linha ESCUROS com letra clara —
+   o preto #111111 acima vale só pro tema claro. */
 [data-theme="dark"] .ppv-mini-card,
 [data-theme="dark"] .ppv-list-row {
-  background: #fefefe !important;
+  background: var(--portal-bg-card) !important;
+  border-color: var(--portal-border) !important;
+}
+[data-theme="dark"] .ppv-mini-card,
+[data-theme="dark"] .ppv-mini-card span,
+[data-theme="dark"] .ppv-mini-card b,
+[data-theme="dark"] .ppv-mini-card i,
+[data-theme="dark"] .ppv-mini-card select,
+[data-theme="dark"] .ppv-mini-card-title,
+[data-theme="dark"] .ppv-list-v,
+[data-theme="dark"] .ppv-list-valor,
+[data-theme="dark"] .ppv-list-titulo,
+[data-theme="dark"] .ppv-list-cliente,
+[data-theme="dark"] .ppv-phase-group-count {
+  color: var(--portal-text) !important;
+}
+[data-theme="dark"] .ppv-mini-card-obs,
+[data-theme="dark"] .ppv-list-lbl,
+[data-theme="dark"] .ppv-list-obs {
+  color: var(--portal-text-secondary) !important;
 }
 [data-theme="dark"] .ppv-mini-card select {
-  background: #fefefe !important;
+  background: var(--portal-bg-secondary) !important;
+}
+[data-theme="dark"] .ppv-mini-card .capa-texto {
+  background: var(--portal-bg-secondary) !important;
 }
 
 /* ---- Tickets: anexo na timeline (chip clicável) ---- */
@@ -5092,3 +5181,152 @@ main .ppv-topbar-nav-btn.active,
 [data-theme="dark"] main .ppv-topbar-nav-btn.active { background: var(--tom-modulo) !important; border-color: transparent !important; }
 main .ppv-topbar-nav-btn.active::before { box-shadow: 5.5px 5.5px 0 5.5px var(--tom-modulo); }
 main .ppv-topbar-nav-btn.active::after { box-shadow: -5.5px 5.5px 0 5.5px var(--tom-modulo); }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   AUDITORIA DO MODO ESCURO (23/11/2026) — correções globais.
+   Tudo aqui vale só na tela e só no escuro.
+   ═══════════════════════════════════════════════════════════════════ */
+@media screen {
+
+  /* ── 1. Texto colorido do Tailwind (tons de tema claro) → tons -fg ── */
+  [data-theme="dark"] :is(.text-red-500, .text-red-600, .text-red-700, .text-red-800, .text-rose-600, .text-rose-700) { color: var(--portal-red-fg) !important; }
+  [data-theme="dark"] :is(.text-blue-600, .text-blue-700, .text-blue-800, .text-sky-600, .text-sky-700, .text-indigo-600, .text-indigo-700) { color: var(--portal-blue-fg) !important; }
+  [data-theme="dark"] :is(.text-green-600, .text-green-700, .text-green-800, .text-emerald-600, .text-emerald-700, .text-emerald-800) { color: var(--portal-green-fg) !important; }
+  [data-theme="dark"] :is(.text-teal-600, .text-teal-700, .text-cyan-600, .text-cyan-700) { color: var(--portal-teal-fg) !important; }
+  [data-theme="dark"] :is(.text-violet-600, .text-violet-700, .text-purple-600, .text-purple-700) { color: var(--portal-violet-fg) !important; }
+  [data-theme="dark"] :is(.text-pink-600, .text-pink-700) { color: var(--portal-pink-fg) !important; }
+  [data-theme="dark"] :is(.text-slate-600, .text-slate-700) { color: var(--portal-text-secondary) !important; }
+  [data-theme="dark"] :is(.text-slate-800, .text-slate-900, .text-neutral-900) { color: var(--portal-text) !important; }
+
+  /* ── 2. Chips pastéis do Tailwind → cor a 15% (padrão único de chip) ── */
+  [data-theme="dark"] :is(.bg-red-50, .bg-red-100, .bg-rose-50, .bg-rose-100) { background-color: rgb(248 113 113 / .15) !important; }
+  [data-theme="dark"] :is(.bg-blue-50, .bg-blue-100, .bg-sky-50, .bg-sky-100, .bg-indigo-50, .bg-indigo-100) { background-color: rgb(56 189 248 / .15) !important; }
+  [data-theme="dark"] :is(.bg-green-50, .bg-green-100, .bg-emerald-50, .bg-emerald-100) { background-color: rgb(52 211 153 / .15) !important; }
+  [data-theme="dark"] :is(.bg-teal-50, .bg-teal-100, .bg-cyan-50, .bg-cyan-100) { background-color: rgb(45 212 191 / .15) !important; }
+  [data-theme="dark"] :is(.bg-violet-50, .bg-violet-100, .bg-purple-50, .bg-purple-100) { background-color: rgb(167 139 250 / .15) !important; }
+  [data-theme="dark"] :is(.bg-pink-50, .bg-pink-100) { background-color: rgb(244 114 182 / .15) !important; }
+  [data-theme="dark"] :is(.bg-amber-100, .bg-yellow-100) { background-color: rgb(251 191 36 / .15) !important; }
+  [data-theme="dark"] .bg-orange-50 { background-color: rgb(251 146 60 / .15) !important; }
+  [data-theme="dark"] :is(.bg-slate-50, .bg-slate-100, .bg-neutral-50, .bg-neutral-100) { background-color: var(--portal-bg-secondary) !important; }
+  [data-theme="dark"] :is(.border-red-200, .border-red-100) { border-color: rgb(248 113 113 / .3) !important; }
+  [data-theme="dark"] :is(.border-blue-200, .border-blue-100, .border-sky-200) { border-color: rgb(56 189 248 / .3) !important; }
+  [data-theme="dark"] :is(.border-green-200, .border-emerald-200) { border-color: rgb(52 211 153 / .3) !important; }
+  [data-theme="dark"] :is(.border-slate-200, .border-slate-100) { border-color: var(--portal-border) !important; }
+
+  /* ── 3. Texto colorido em style inline. O seletor ^= / "; color:" pega só
+        a propriedade color (e não background-color nem border-color). ── */
+  /* vermelhos */
+  [data-theme="dark"] :is([style^="color: rgb(220, 38, 38)"], [style*="; color: rgb(220, 38, 38)"],
+    [style^="color: rgb(185, 28, 28)"], [style*="; color: rgb(185, 28, 28)"],
+    [style^="color: rgb(198, 40, 40)"], [style*="; color: rgb(198, 40, 40)"],
+    [style^="color: rgb(239, 68, 68)"], [style*="; color: rgb(239, 68, 68)"],
+    [style^="color: rgb(153, 27, 27)"], [style*="; color: rgb(153, 27, 27)"]) { color: var(--portal-red-fg) !important; }
+  /* azuis */
+  [data-theme="dark"] :is([style^="color: rgb(3, 105, 161)"], [style*="; color: rgb(3, 105, 161)"],
+    [style^="color: rgb(29, 78, 216)"], [style*="; color: rgb(29, 78, 216)"],
+    [style^="color: rgb(37, 99, 235)"], [style*="; color: rgb(37, 99, 235)"],
+    [style^="color: rgb(2, 132, 199)"], [style*="; color: rgb(2, 132, 199)"],
+    [style^="color: rgb(30, 64, 175)"], [style*="; color: rgb(30, 64, 175)"]) { color: var(--portal-blue-fg) !important; }
+  /* verdes */
+  [data-theme="dark"] :is([style^="color: rgb(4, 120, 87)"], [style*="; color: rgb(4, 120, 87)"],
+    [style^="color: rgb(21, 128, 61)"], [style*="; color: rgb(21, 128, 61)"],
+    [style^="color: rgb(5, 150, 105)"], [style*="; color: rgb(5, 150, 105)"],
+    [style^="color: rgb(22, 163, 74)"], [style*="; color: rgb(22, 163, 74)"],
+    [style^="color: rgb(22, 101, 52)"], [style*="; color: rgb(22, 101, 52)"]) { color: var(--portal-green-fg) !important; }
+  /* teal / ciano */
+  [data-theme="dark"] :is([style^="color: rgb(15, 118, 110)"], [style*="; color: rgb(15, 118, 110)"],
+    [style^="color: rgb(14, 116, 144)"], [style*="; color: rgb(14, 116, 144)"],
+    [style^="color: rgb(11, 110, 112)"], [style*="; color: rgb(11, 110, 112)"],
+    [style^="color: rgb(8, 145, 178)"], [style*="; color: rgb(8, 145, 178)"]) { color: var(--portal-teal-fg) !important; }
+  /* violeta */
+  [data-theme="dark"] :is([style^="color: rgb(124, 58, 237)"], [style*="; color: rgb(124, 58, 237)"],
+    [style^="color: rgb(139, 92, 246)"], [style*="; color: rgb(139, 92, 246)"],
+    [style^="color: rgb(109, 40, 217)"], [style*="; color: rgb(109, 40, 217)"]) { color: var(--portal-violet-fg) !important; }
+  /* rosa */
+  [data-theme="dark"] :is([style^="color: rgb(190, 24, 93)"], [style*="; color: rgb(190, 24, 93)"],
+    [style^="color: rgb(219, 39, 119)"], [style*="; color: rgb(219, 39, 119)"]) { color: var(--portal-pink-fg) !important; }
+  /* pretos e cinzas-azulados de tema claro → texto do tema */
+  [data-theme="dark"] :is([style^="color: rgb(15, 23, 42)"], [style*="; color: rgb(15, 23, 42)"],
+    [style^="color: rgb(17, 17, 17)"], [style*="; color: rgb(17, 17, 17)"],
+    [style^="color: rgb(17, 24, 39)"], [style*="; color: rgb(17, 24, 39)"],
+    [style^="color: rgb(0, 0, 0)"], [style*="; color: rgb(0, 0, 0)"],
+    [style^="color: rgb(30, 41, 59)"], [style*="; color: rgb(30, 41, 59)"]) { color: var(--portal-text) !important; }
+  [data-theme="dark"] :is([style^="color: rgb(51, 65, 85)"], [style*="; color: rgb(51, 65, 85)"],
+    [style^="color: rgb(71, 85, 105)"], [style*="; color: rgb(71, 85, 105)"],
+    [style^="color: rgb(100, 116, 139)"], [style*="; color: rgb(100, 116, 139)"],
+    [style^="color: rgb(107, 98, 89)"], [style*="; color: rgb(107, 98, 89)"],
+    [style^="color: rgb(82, 82, 82)"], [style*="; color: rgb(82, 82, 82)"],
+    [style^="color: rgb(115, 115, 115)"], [style*="; color: rgb(115, 115, 115)"],
+    [style^="color: rgb(55, 65, 81)"], [style*="; color: rgb(55, 65, 81)"],
+    [style^="color: rgb(68, 68, 68)"], [style*="; color: rgb(68, 68, 68)"],
+    [style^="color: rgb(85, 85, 85)"], [style*="; color: rgb(85, 85, 85)"],
+    [style^="color: rgb(107, 114, 128)"], [style*="; color: rgb(107, 114, 128)"]) { color: var(--portal-text-secondary) !important; }
+  [data-theme="dark"] :is([style^="color: rgb(34, 34, 34)"], [style*="; color: rgb(34, 34, 34)"]) { color: var(--portal-text) !important; }
+  [data-theme="dark"] :is([style^="color: rgb(146, 64, 14)"], [style*="; color: rgb(146, 64, 14)"],
+    [style^="color: rgb(180, 83, 9)"], [style*="; color: rgb(180, 83, 9)"]) { color: var(--portal-amber-fg) !important; }
+
+  /* ── 4. Fundos pastéis em style inline (chips/badges) → cor a 15% ── */
+  [data-theme="dark"] :is([style*="background: rgb(254, 249, 195)"], [style*="background-color: rgb(254, 249, 195)"],
+    [style*="background: rgb(254, 243, 199)"], [style*="background-color: rgb(254, 243, 199)"],
+    [style*="background: rgb(253, 230, 138)"], [style*="background-color: rgb(253, 230, 138)"]) { background: rgb(251 191 36 / .15) !important; }
+  [data-theme="dark"] :is([style*="background: rgb(255, 237, 213)"], [style*="background-color: rgb(255, 237, 213)"]) { background: rgb(251 146 60 / .15) !important; }
+  [data-theme="dark"] :is([style*="background: rgb(254, 226, 226)"], [style*="background-color: rgb(254, 226, 226)"]) { background: rgb(248 113 113 / .15) !important; }
+  [data-theme="dark"] :is([style*="background: rgb(220, 252, 231)"], [style*="background-color: rgb(220, 252, 231)"],
+    [style*="background: rgb(209, 250, 229)"], [style*="background-color: rgb(209, 250, 229)"]) { background: rgb(52 211 153 / .15) !important; }
+  [data-theme="dark"] :is([style*="background: rgb(224, 231, 255)"], [style*="background-color: rgb(224, 231, 255)"],
+    [style*="background: rgb(237, 233, 254)"], [style*="background-color: rgb(237, 233, 254)"],
+    [style*="background: rgb(245, 243, 255)"], [style*="background-color: rgb(245, 243, 255)"]) { background: rgb(167 139 250 / .15) !important; }
+  [data-theme="dark"] :is([style*="background: rgb(252, 231, 243)"], [style*="background-color: rgb(252, 231, 243)"]) { background: rgb(244 114 182 / .15) !important; }
+  [data-theme="dark"] :is([style*="background: rgb(204, 251, 241)"], [style*="background-color: rgb(204, 251, 241)"],
+    [style*="background: rgb(207, 250, 254)"], [style*="background-color: rgb(207, 250, 254)"]) { background: rgb(45 212 191 / .15) !important; }
+  [data-theme="dark"] :is([style*="background: rgb(226, 232, 240)"], [style*="background-color: rgb(226, 232, 240)"],
+    [style*="background: rgb(238, 242, 246)"], [style*="background-color: rgb(238, 242, 246)"],
+    [style*="background: rgb(233, 236, 239)"], [style*="background-color: rgb(233, 236, 239)"],
+    [style*="background: rgb(254, 254, 254)"], [style*="background-color: rgb(254, 254, 254)"]) { background: var(--portal-bg-secondary) !important; }
+  /* card cinza médio (#94a3b8) com texto claro: escurece */
+  [data-theme="dark"] :is([style*="background: rgb(148, 163, 184)"], [style*="background-color: rgb(148, 163, 184)"]) { background: #334155 !important; }
+
+  /* ── 5. Botões de cor clara demais pra letra branca → tom mais fechado ── */
+  [data-theme="dark"] :is([style*="background: rgb(11, 183, 205)"], [style*="background-color: rgb(11, 183, 205)"],
+    [style*="background: rgb(8, 145, 178)"], [style*="background-color: rgb(8, 145, 178)"]) { background: #0e7490 !important; color: #fff !important; }
+  [data-theme="dark"] :is([style*="background: rgb(14, 165, 233)"], [style*="background-color: rgb(14, 165, 233)"]) { background: #0369a1 !important; color: #fff !important; }
+  [data-theme="dark"] :is([style*="background: rgb(16, 185, 129)"], [style*="background-color: rgb(16, 185, 129)"]) { background: #047857 !important; color: #fff !important; }
+  [data-theme="dark"] :is([style*="background: rgb(22, 163, 74)"], [style*="background-color: rgb(22, 163, 74)"]) { background: #15803d !important; color: #fff !important; }
+  [data-theme="dark"] :is([style*="background: rgb(217, 119, 6)"], [style*="background-color: rgb(217, 119, 6)"]) { background: #b45309 !important; color: #fff !important; }
+  [data-theme="dark"] :is(.bg-cyan-500, .bg-sky-500) { background-color: #0369a1 !important; }
+  [data-theme="dark"] :is(.bg-emerald-500, .bg-green-500, .bg-green-600) { background-color: #15803d !important; }
+  [data-theme="dark"] :is(.bg-amber-500, .bg-amber-600, .bg-orange-500) { background-color: #b45309 !important; }
+
+  /* ── 6. Mapas Leaflet: tiles escurecidos + controles no tema ── */
+  [data-theme="dark"] .leaflet-container { background: #1b1b1b !important; }
+  [data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9); }
+  [data-theme="dark"] .leaflet-bar a,
+  [data-theme="dark"] .leaflet-bar a:hover {
+    background: var(--portal-bg-card) !important; color: var(--portal-text) !important;
+    border-bottom-color: var(--portal-border) !important;
+  }
+  [data-theme="dark"] .leaflet-bar { border-color: var(--portal-border) !important; }
+  [data-theme="dark"] .leaflet-control-attribution {
+    background: rgb(26 26 26 / .8) !important; color: var(--portal-text-muted) !important;
+  }
+  [data-theme="dark"] .leaflet-control-attribution a { color: var(--portal-blue-fg) !important; }
+  [data-theme="dark"] .leaflet-popup-content-wrapper,
+  [data-theme="dark"] .leaflet-popup-tip { background: var(--portal-bg-card) !important; color: var(--portal-text) !important; }
+  [data-theme="dark"] .leaflet-tooltip { background: var(--portal-bg-card) !important; color: var(--portal-text) !important; border-color: var(--portal-border) !important; }
+
+  /* ── 7. Gráficos Recharts: eixos, grade, legenda e tooltip no tema ── */
+  [data-theme="dark"] .recharts-cartesian-axis-tick-value,
+  [data-theme="dark"] .recharts-cartesian-axis-tick-value tspan,
+  [data-theme="dark"] .recharts-label,
+  [data-theme="dark"] .recharts-polar-angle-axis-tick-value { fill: var(--portal-text-secondary) !important; }
+  [data-theme="dark"] .recharts-cartesian-grid line { stroke: var(--portal-border) !important; }
+  [data-theme="dark"] .recharts-cartesian-axis-line,
+  [data-theme="dark"] .recharts-cartesian-axis-tick-line { stroke: #404040 !important; }
+  [data-theme="dark"] .recharts-legend-item-text { color: var(--portal-text-secondary) !important; }
+  [data-theme="dark"] .recharts-default-tooltip {
+    background: var(--portal-bg-card) !important; border-color: var(--portal-border) !important; color: var(--portal-text) !important;
+  }
+  [data-theme="dark"] .recharts-tooltip-label { color: var(--portal-text) !important; }
+  [data-theme="dark"] .recharts-tooltip-cursor { fill: rgb(255 255 255 / .05) !important; }
+}

@@ -12,6 +12,7 @@ import { totaisCusto, rankingCategorias, divergente, parseValorMisto } from '@/l
 import {
   apiGet, brl, dataBR, Painel, Titulo, Kpi, Vazio, AvisoMigracao, Erro, estiloInput, ROSA,
 } from '@/components/marketing/ui';
+import RequisicaoDoCusto from '@/components/marketing/RequisicaoDoCusto';
 
 export default function CustosGeraisPage() {
   const [custos, setCustos] = useState<any[]>([]);
@@ -22,6 +23,7 @@ export default function CustosGeraisPage() {
   const [fAno, setFAno] = useState('');
   const [fCategoria, setFCategoria] = useState('');
   const [fAcao, setFAcao] = useState('');
+  const [reqAberta, setReqAberta] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -143,7 +145,7 @@ export default function CustosGeraisPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 800 }}>
               <thead>
                 <tr style={{ background: 'var(--portal-bg)' }}>
-                  {['Ação', 'Descrição', 'Categoria', 'Fornecedor', 'Data', 'Origem', 'Valor'].map((h) => (
+                  {['Ação', 'Descrição', 'Categoria', 'Fornecedor', 'Pedida por', 'Data', 'Origem', 'Valor'].map((h) => (
                     <th key={h} style={{ textAlign: h === 'Valor' ? 'right' : 'left', padding: '9px 10px', fontWeight: 700, color: 'var(--portal-text)', borderBottom: '1px solid var(--portal-border)', whiteSpace: 'nowrap' }}>{h}</th>
                   ))}
                 </tr>
@@ -159,9 +161,17 @@ export default function CustosGeraisPage() {
                     <td style={{ padding: '8px 10px', color: 'var(--portal-text)' }}>{c.descricao}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--portal-text)' }}>{rotulo(CATEGORIAS_CUSTO, c.categoria)}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--portal-text)' }}>{c.fornecedor || '—'}</td>
+                    <td style={{ padding: '8px 10px', color: 'var(--portal-text)' }}>{c.req_solicitante || '—'}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{dataBR(c.data)}</td>
                     <td style={{ padding: '8px 10px', color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>
-                      {rotulo(ORIGENS_CUSTO, c.origem)}{c.vinculo_ref ? ` #${c.vinculo_ref}` : ''}
+                      {c.vinculo_tipo === 'requisicao' ? (
+                        <button type="button" onClick={() => setReqAberta(c.vinculo_ref)} title="Ver notas, produtos e o PDF da requisição"
+                          style={{ padding: 0, border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer', font: 'inherit', fontWeight: 600 }}>
+                          Requisição #{c.vinculo_ref}
+                        </button>
+                      ) : (
+                        <>{rotulo(ORIGENS_CUSTO, c.origem)}{c.vinculo_ref ? ` #${c.vinculo_ref}` : ''}</>
+                      )}
                       {divergente(c) && (
                         <span title={`Origem está em ${brl(c.valor_fonte)}`} style={{ marginLeft: 5, color: '#dc2626', display: 'inline-flex', verticalAlign: 'middle' }}>
                           <TriangleAlert size={13} />
@@ -178,6 +188,7 @@ export default function CustosGeraisPage() {
           </Painel>
         </div>
       )}
+      <RequisicaoDoCusto reqId={reqAberta} onFechar={() => setReqAberta(null)} />
     </div>
   );
 }

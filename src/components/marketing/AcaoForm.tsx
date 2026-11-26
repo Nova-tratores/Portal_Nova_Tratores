@@ -4,10 +4,11 @@
 // (na ficha). Um só, pra os dois caminhos não divergirem.
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { TIPOS_ACAO, STATUS_ACAO, EMPRESAS } from '@/lib/marketing/tipos';
+import { TIPOS_ACAO, STATUS_ACAO, EMPRESAS, ehEventoInterno } from '@/lib/marketing/tipos';
 import type { Acao } from '@/lib/marketing/tipos';
-import { Campo, estiloInput, BotaoRosa, ROSA } from './ui';
+import { Campo, estiloInput, BotaoRosa, ROSA, MaisDetalhes } from './ui';
 import EnviarFoto from './redes/EnviarFoto';
+import SeletorPessoas from '@/components/reunioes/SeletorPessoas';
 
 interface Usuario { id: string; nome: string; email: string | null; ativo: boolean | null }
 interface Projeto { codigo: number; nome: string; empresa: string }
@@ -29,7 +30,12 @@ export default function AcaoForm({
     objetivo: '', observacoes: '',
     responsavel_id: '', responsavel_nome: '', responsavel_email: '',
     projeto_codigo: '', projeto_nome: '', projeto_empresa: '',
+    visibilidade: 'publica',
     ...(inicial ?? {}),
+    // 25/11/2026: grupo de responsáveis (ids). Na edição vem da ficha (inicial.responsaveis = [{user_id}])
+    responsaveis: Array.isArray((inicial as any)?.responsaveis)
+      ? (inicial as any).responsaveis.map((r: any) => (typeof r === 'string' ? r : r.user_id)).filter(Boolean)
+      : [],
   });
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [projetos, setProjetos] = useState<Projeto[]>([]);
@@ -73,6 +79,7 @@ export default function AcaoForm({
   };
 
   const respAtual = usuarios.find((u) => u.id === f.responsavel_id);
+  const interno = ehEventoInterno(f.tipo);
 
   return (
     <form onSubmit={submeter} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -108,7 +115,7 @@ export default function AcaoForm({
       </Campo>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-        <Campo label="Tipo *" ajuda="Feira é um tipo — o módulo cobre também mídia, brinde e patrocínio.">
+        <Campo label="Tipo *" ajuda={interno ? 'Confraternização, festa, aniversário, almoço da equipe. Sem leads nem stand.' : 'Feira é um tipo — o módulo cobre também mídia, brinde e patrocínio.'}>
           <select style={estiloInput} value={f.tipo} onChange={(e) => set('tipo', e.target.value)}>
             {TIPOS_ACAO.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
@@ -133,7 +140,7 @@ export default function AcaoForm({
           <input type="date" style={estiloInput} value={(f.data_fim ?? '').slice(0, 10)} onChange={(e) => set('data_fim', e.target.value)} />
         </Campo>
         <Campo label="Local">
-          <input style={estiloInput} value={f.local_nome ?? ''} onChange={(e) => set('local_nome', e.target.value)} placeholder="Parque de exposições" />
+          <input style={estiloInput} value={f.local_nome ?? ''} onChange={(e) => set('local_nome', e.target.value)} placeholder={interno ? 'Ex.: salão de festas, chácara' : 'Parque de exposições'} />
         </Campo>
         <Campo label="Cidade">
           <input style={estiloInput} value={f.cidade ?? ''} onChange={(e) => set('cidade', e.target.value)} />
@@ -161,7 +168,8 @@ export default function AcaoForm({
             }}
           >
             <option value="">— escolher —</option>
-            {usuarios.map((u) => (
+            {/* 24/11/2026: só quem está ativo; o inativo só aparece se já for o responsável gravado */}
+            {usuarios.filter((u) => u.ativo !== false || u.id === f.responsavel_id).map((u) => (
               <option key={u.id} value={u.id}>
                 {u.nome}{u.ativo === false ? ' (inativo)' : ''}
               </option>
@@ -173,24 +181,38 @@ export default function AcaoForm({
             Essa pessoa não está mais ativa no portal.
           </div>
         )}
-      </div>
-
-      {/* Dois públicos diferentes, e confundir os dois enganava o relatório. */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-        <Campo label="Visitantes no nosso stand (por dia)" ajuda="Estimativa de quem passou no estande.">
-          <input type="number" min={0} style={estiloInput} value={f.publico_estimado ?? ''} onChange={(e) => set('publico_estimado', e.target.value)} />
-        </Campo>
-        <Campo label="Público total do evento" ajuda="O número que o organizador divulgou.">
-          <input type="number" min={0} style={estiloInput} value={f.publico_total_evento ?? ''} onChange={(e) => set('publico_total_evento', e.target.value)} />
-        </Campo>
-        <Campo label="Dias de participação">
-          <input type="number" min={0} style={estiloInput} value={f.dias_participacao ?? ''} onChange={(e) => set('dias_participacao', e.target.value)} />
+        {/* 25/11/2026 (José): pública ou privada. Privada = só os responsáveis (e dev) veem. */}
+        <Campo label="Quem vê" largura="0 1 220px" ajuda={f.visibilidade === 'privada' ? 'Só os responsáveis abaixo (e dev). Os outros veem só "Campanha privada".' : 'Todo mundo do Marketing.'}>
+          <select style={estiloInput} value={f.visibilidade ?? 'publica'} onChange={(e) => set('visibilidade', e.target.value)}>
+            <option value="publica">Pública</option>
+            <option value="privada">Privada</option>
+          </select>
         </Campo>
       </div>
 
-      <Campo label="Stand" ajuda="Tamanho, localização, e se era próprio ou dentro do espaço da fábrica." largura="1 1 100%">
-        <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f.stand_descricao ?? ''} onChange={(e) => set('stand_descricao', e.target.value)} />
+      {/* 25/11/2026 (José): "sempre vamos criar responsáveis da campanha, como se fosse uma reunião".
+          Quem está aqui recebe as atribuições e os @ das requisições da campanha. O dono acima sempre entra. */}
+      <Campo label="Responsáveis da campanha" ajuda="Quem cuida junto. Só estas pessoas podem receber tarefas nas requisições da campanha.">
+        <SeletorPessoas
+          valor={f.responsaveis ?? []}
+          onChange={(ids: string[]) => set('responsaveis', ids)}
+          fixos={f.responsavel_id ? [f.responsavel_id] : []}
+          placeholder="Digite o nome de quem cuida junto…"
+        />
       </Campo>
+
+      {/* Evento interno (23/11/2026): sem stand, público de feira nem metas de venda — só convidados.
+          Convidados ficam em publico_total_evento (a mesma coluna; o rótulo é que muda). */}
+      {interno && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+          <Campo label="Convidados" ajuda="Quantas pessoas devem participar. Serve para o custo por pessoa.">
+            <input type="number" min={0} style={estiloInput} value={f.publico_total_evento ?? ''} onChange={(e) => set('publico_total_evento', e.target.value)} />
+          </Campo>
+          <Campo label="Orçamento previsto (R$)">
+            <input type="number" step="0.01" min={0} style={estiloInput} value={f.orcamento_previsto ?? ''} onChange={(e) => set('orcamento_previsto', e.target.value)} />
+          </Campo>
+        </div>
+      )}
 
       {/* Projeto do Omie — a ponte com o financeiro */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
@@ -237,10 +259,36 @@ export default function AcaoForm({
         </div>
       )}
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+      {!interno && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <Campo label="Orçamento previsto (R$)">
           <input type="number" step="0.01" min={0} style={estiloInput} value={f.orcamento_previsto ?? ''} onChange={(e) => set('orcamento_previsto', e.target.value)} />
         </Campo>
+      </div>}
+
+      {/* 24/11/2026 (José: "tem informações que a gente não tem como saber agora"): os números da feira e as
+          metas ficam num bloco fechado. Abre sozinho quando já tem algo preenchido (ao editar depois do evento). */}
+      {!interno && <MaisDetalhes
+        titulo="Números da feira e metas"
+        resumo="pode preencher depois"
+        abertoInicial={['publico_estimado', 'publico_total_evento', 'dias_participacao', 'stand_descricao', 'meta_leads', 'leads_declarados', 'meta_vendas', 'meta_receita']
+          .some((k) => f[k] !== '' && f[k] !== null && f[k] !== undefined)}
+      >
+      {/* Dois públicos diferentes, e confundir os dois enganava o relatório. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+        <Campo label="Visitantes no nosso stand (por dia)" ajuda="Estimativa de quem passou no estande.">
+          <input type="number" min={0} style={estiloInput} value={f.publico_estimado ?? ''} onChange={(e) => set('publico_estimado', e.target.value)} />
+        </Campo>
+        <Campo label="Público total do evento" ajuda="O número que o organizador divulgou.">
+          <input type="number" min={0} style={estiloInput} value={f.publico_total_evento ?? ''} onChange={(e) => set('publico_total_evento', e.target.value)} />
+        </Campo>
+        <Campo label="Dias de participação">
+          <input type="number" min={0} style={estiloInput} value={f.dias_participacao ?? ''} onChange={(e) => set('dias_participacao', e.target.value)} />
+        </Campo>
+      </div>
+      <Campo label="Stand" ajuda="Tamanho, localização, e se era próprio ou dentro do espaço da fábrica." largura="1 1 100%">
+        <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f.stand_descricao ?? ''} onChange={(e) => set('stand_descricao', e.target.value)} />
+      </Campo>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <Campo label="Meta de leads">
           <input type="number" min={0} style={estiloInput} value={f.meta_leads ?? ''} onChange={(e) => set('meta_leads', e.target.value)} />
         </Campo>
@@ -257,6 +305,7 @@ export default function AcaoForm({
           <input type="number" step="0.01" min={0} style={estiloInput} value={f.meta_receita ?? ''} onChange={(e) => set('meta_receita', e.target.value)} />
         </Campo>
       </div>
+      </MaisDetalhes>}
 
       <Campo label="Objetivo" largura="1 1 100%">
         <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f.objetivo ?? ''} onChange={(e) => set('objetivo', e.target.value)} />

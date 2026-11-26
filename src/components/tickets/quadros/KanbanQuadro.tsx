@@ -7,6 +7,7 @@ import { Clock, CalendarDays, User as UserIcon, Pencil, Trash2, ChevronLeft, Che
 import { diasParado, prazoVencido, type Ticket, type UsuarioMin } from '@/lib/tickets/constantes'
 import { colunaDoTicket, type QuadroColuna } from '@/lib/tickets/quadros'
 import StatusBadge from '../StatusBadge'
+import SeloAtrasado from '../SeloAtrasado'
 
 interface Props {
   colunas: QuadroColuna[]
@@ -45,6 +46,9 @@ export default function KanbanQuadro({
   const [renomeando, setRenomeando] = useState<{ id: string; nome: string } | null>(null)
   const [removendo, setRemovendo] = useState<{ id: string; destino: string } | null>(null)
   const [novaColuna, setNovaColuna] = useState<string | null>(null)
+  // Coluna vazia fica recolhida numa faixa fina (Fase 0, 24/11/2026). Abre com um
+  // clique, e TODAS abrem enquanto um cartão é arrastado (para ter onde soltar).
+  const [abertas, setAbertas] = useState<Set<string>>(new Set())
 
   const porColuna = new Map<string, Ticket[]>()
   for (const t of tickets) {
@@ -81,6 +85,15 @@ export default function KanbanQuadro({
         const lista = porColuna.get(col.id) || []
         const alvo = !!arrastando && over === col.id
         const outras = colunas.filter((c) => c.id !== col.id)
+        if (lista.length === 0 && !arrastando && !abertas.has(col.id) && renomeando?.id !== col.id) return (
+          <button key={col.id} type="button" onClick={() => setAbertas(new Set(abertas).add(col.id))}
+            title={`${col.nome}: vazia. Clique para abrir.`} aria-label={`Abrir coluna ${col.nome} (vazia)`}
+            style={{ flex: '0 0 44px', width: 44, minHeight: 160, borderRadius: 12, padding: '10px 0', border: '1.5px solid transparent', cursor: 'pointer',
+              background: 'var(--portal-bg,#f3f4f6)', color: 'var(--portal-text-muted,#888)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 800 }}>0</span>
+            <span style={{ writingMode: 'vertical-rl', fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap' }}>{col.nome}</span>
+          </button>
+        )
         return (
           <div key={col.id}
             onDragOver={(e) => { if (!arrastando) return; e.preventDefault(); if (over !== col.id) setOver(col.id) }}
@@ -171,14 +184,15 @@ export default function KanbanQuadro({
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text,#111)', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}>{t.titulo}</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 10px', fontSize: 11.5, color: 'var(--portal-text-muted,#888)' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><UserIcon size={11} /> {usuarios[t.responsavel_id]?.nome || '—'}</span>
-                      {t.prazo && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: vencido ? '#dc2626' : undefined, fontWeight: vencido ? 700 : undefined }}>
-                          <CalendarDays size={11} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}
-                        </span>
+                      {t.prazo && (vencido
+                        ? <SeloAtrasado>{new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}</SeloAtrasado>
+                        : <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <CalendarDays size={11} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}
+                          </span>
                       )}
                       {passos[t.id] && (
-                        <span title="Tarefas deste ticket" style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, color: passos[t.id].feitas === passos[t.id].total ? '#16a34a' : undefined }}>
-                          <SquareCheck size={11} /> {passos[t.id].feitas}/{passos[t.id].total} tarefas
+                        <span title="Checklist deste ticket" style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, color: passos[t.id].feitas === passos[t.id].total ? '#16a34a' : undefined }}>
+                          <SquareCheck size={11} /> {passos[t.id].feitas}/{passos[t.id].total} passos
                         </span>
                       )}
                       {etapas[t.id]?.fim && etapas[t.id].status !== 'concluida' && (
@@ -213,7 +227,7 @@ export default function KanbanQuadro({
               {podeTrabalhar && (
                 <button onClick={() => onNovoTicket(col.id)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderRadius: 8, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 12.5, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>
-                  <Plus size={14} /> Novo ticket aqui
+                  <Plus size={14} /> Novo pedido aqui
                 </button>
               )}
             </div>

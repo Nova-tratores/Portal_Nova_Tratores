@@ -57,6 +57,11 @@ const TIPOS_OS: { id: TipoOS; rotulo: string; curto: string; dica: string; cor: 
   { id: "pendente", rotulo: "Pendentes", curto: "Pendentes", dica: "Pendentes na Lousa (embaixo da faixa vermelha) — a data de execução continua na OS", cor: "#DC2626", icone: "fa-thumbtack" },
 ];
 const COR_TIPO: Record<TipoOS, string> = { cliente: "#2563EB", garantia: "#DB2777", interna: "#64748B", pendente: "#DC2626" };
+// Garantia REJEITADA ou CANCELADA não faz a OS ser de garantia: o serviço é cobrado do
+// cliente (ex.: OS-0625/GAR-0032, 26/11/2026). O escudo do card continua mostrando o status.
+function contaComoGarantia(st?: GarantiaStatus | null): boolean {
+  return !!st && st !== "rejeitada" && st !== "cancelada";
+}
 function tipoDaOS(o: KanbanCard, temGarantia: boolean): TipoOS {
   if (temGarantia) return "garantia";
   if (o.servicoInterno) return "interna";
@@ -402,7 +407,7 @@ function PainelCobranca({ osId, onPhaseChange, onStatus }: { osId: string; onPha
                 </div>
               )}
               <button onClick={() => setBuscaAberta(true)}
-                style={{ marginTop: 6, border: "none", background: "transparent", color: "#0369A1", fontSize: 11.5, fontWeight: 700, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+                style={{ marginTop: 6, border: "none", background: "transparent", color: "var(--pos-c-azul, #0369A1)", fontSize: 11.5, fontWeight: 700, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
                 <i className="fas fa-search" style={{ marginRight: 4 }} />Buscar outro contato no NovaZap
               </button>
               {/* Preferência de faturamento: vem do chatwoot; preencher SALVA lá.
@@ -533,7 +538,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
   })();
 
   const cobrando = o.status === FASE_COBRANDO;
-  const garantia = !!garantiaStatus;
+  const garantia = contaComoGarantia(garantiaStatus); // cor/aba do card (rejeitada = OS normal)
   const noOmie = !!o.ordemOmie;
   const tooltip = (titulo: string, cor: string, corpo: ReactNode) => (
     <div className="mc-tooltip">
@@ -633,7 +638,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
           ))) : undefined },
         { icone: "fas fa-file-alt", rotulo: "Relat.", on: o.temRel, titulo: "Relatório técnico",
           extra: o.temRel ? tooltip("Relatório Técnico", "#60a5fa", <div style={{ color: "#e2e8f0", fontSize: 12 }}>{o.relTecnico ? <>Preenchido por <span style={{ fontWeight: 700, color: "#60a5fa" }}>{o.relTecnico}</span></> : "Relatório anexado"}</div>) : undefined },
-        { icone: "fas fa-shield-halved", rotulo: "Garantia", on: garantia, titulo: garantiaStatus ? `Garantia: ${STATUS_LABEL[garantiaStatus]}` : "Garantia",
+        { icone: "fas fa-shield-halved", rotulo: "Garantia", on: !!garantiaStatus, titulo: garantiaStatus ? `Garantia: ${STATUS_LABEL[garantiaStatus]}` : "Garantia",
           extra: garantiaStatus ? tooltip("Garantia", "#38bdf8", <div style={{ color: "#e2e8f0", fontSize: 12 }}>{STATUS_LABEL[garantiaStatus]}</div>) : undefined },
       ]} />
     </div>
@@ -674,7 +679,8 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
       .then((d) => {
         const m: Record<string, GarantiaStatus> = {};
         for (const g of d.garantias || []) {
-          if (g.id_ordem && !m[g.id_ordem]) m[g.id_ordem] = g.status;
+          // várias garantias na mesma OS: vale a que ainda conta (uma rejeitada não esconde uma ativa)
+          if (g.id_ordem && (!m[g.id_ordem] || (!contaComoGarantia(m[g.id_ordem]) && contaComoGarantia(g.status)))) m[g.id_ordem] = g.status;
         }
         setGarantiaMap(m);
       })
@@ -746,11 +752,11 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
   // Contagem por aba: só ordens em aberto (concluída/cancelada não pesam no número)
   const contaPorTipo = useMemo(() => {
     const c: Record<TipoOS, number> = { cliente: 0, garantia: 0, interna: 0, pendente: 0 };
-    for (const o of buscados) if (!SEM_CONTAGEM.has(o.status)) { c[tipoDaOS(o, !!garantiaMap[o.id])]++; if (o.lousaPendente) c.pendente++; }
+    for (const o of buscados) if (!SEM_CONTAGEM.has(o.status)) { c[tipoDaOS(o, contaComoGarantia(garantiaMap[o.id]))]++; if (o.lousaPendente) c.pendente++; }
     return c;
   }, [buscados, garantiaMap]);
   const filtered = useMemo(
-    () => buscados.filter((o) => (abaTipo === "pendente" ? !!o.lousaPendente : tipoDaOS(o, !!garantiaMap[o.id]) === abaTipo)),
+    () => buscados.filter((o) => (abaTipo === "pendente" ? !!o.lousaPendente : tipoDaOS(o, contaComoGarantia(garantiaMap[o.id])) === abaTipo)),
     [buscados, garantiaMap, abaTipo]
   );
 
@@ -764,8 +770,8 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
       const items = filtered.filter((o) => o.status === phase);
       if (phase === FASE_CONCLUIDO) {
         // separa as concluídas: sem garantia ficam na fase; com garantia vão pro grupo próprio
-        const semGar = items.filter((o) => !garantiaMap[o.id]);
-        const comGar = items.filter((o) => garantiaMap[o.id]);
+        const semGar = items.filter((o) => !contaComoGarantia(garantiaMap[o.id]));
+        const comGar = items.filter((o) => contaComoGarantia(garantiaMap[o.id]));
         if (semGar.length > 0) map[FASE_CONCLUIDO] = semGar;
         if (comGar.length > 0) map[FASE_CONCLUIDO_GAR] = comGar;
       } else if (items.length > 0) {
@@ -917,7 +923,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 {!SEM_CONTAGEM.has(phase) && <span className="phase-group-count">{items.length}</span>}
                 {/* Selo: esta fase é DIFERENTE — dinheiro na mesa */}
                 {phase === FASE_COBRANDO && (
-                  <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: 0.8, color: "#92400E", background: "#FDE68A", borderRadius: 999, padding: "2px 10px", textTransform: "uppercase" }}>
+                  <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: 0.8, color: "var(--pos-c-ambar, #92400E)", background: "var(--pos-c-chip-ambar-bg, #FDE68A)", borderRadius: 999, padding: "2px 10px", textTransform: "uppercase" }}>
                     <i className="fas fa-comment-dollar" style={{ marginRight: 4 }} />Cobrança
                   </span>
                 )}
@@ -939,7 +945,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                     style={{
                       marginLeft: 10, display: "inline-flex", alignItems: "center", gap: 6,
                       padding: "5px 12px", borderRadius: 7, border: "none",
-                      background: enviandoOmie === "__todas__" ? "#94A3B8" : "#0EA5E9", color: "#fff",
+                      background: enviandoOmie === "__todas__" ? "#94A3B8" : "var(--pos-c-omie, #0EA5E9)", color: "#fff",
                       fontSize: 12, fontWeight: 700, cursor: enviandoOmie ? "default" : "pointer",
                     }}>
                     <i className={enviandoOmie === "__todas__" ? "fas fa-spinner fa-spin" : "fas fa-paper-plane"} />

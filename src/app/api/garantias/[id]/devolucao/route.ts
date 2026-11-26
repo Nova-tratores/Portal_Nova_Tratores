@@ -3,6 +3,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_ANEXOS } from '@/lib/garantias/constants';
 import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
+import { refOS } from '@/lib/garantias/so-pecas';
 
 // PATCH /api/garantias/[id]/devolucao — devolução das peças usadas à fábrica
 // (prova de destruição). Pendência anexa à garantia APROVADA (padrão cobrança).
@@ -142,7 +143,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (acao === 'registrar') {
     await notificarGarantistas({
       titulo: `Peças da garantia ${g.numero} devolvidas à fábrica`,
-      descricao: `OS ${g.id_ordem}${body.nf ? ` · NF ${String(body.nf).trim()}` : ''}`,
+      descricao: `${refOS(g)}${body.nf ? ` · NF ${String(body.nf).trim()}` : ''}`,
       link: `/garantias?id=${id}`,
     });
   }

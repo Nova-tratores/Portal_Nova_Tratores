@@ -7,7 +7,7 @@ import { authHeaders } from '@/lib/auth/client'
 import type { AgendamentoPainel, Rodada } from './tipos'
 import { duracao, horaSP, quemDisparou, statusInfo, STATUS } from './tipos'
 
-const campo: React.CSSProperties = { padding: '6px 8px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: '.8rem', background: '#fefefe', color: '#111111' }
+const campo: React.CSSProperties = { padding: '6px 8px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: '.8rem', background: 'var(--agd-campo, #fefefe)', color: 'var(--agd-tx, #111111)' }
 
 export default function HistoricoExecucoes({ agendamentos }: { agendamentos: AgendamentoPainel[] }) {
   const [job, setJob] = useState('')
@@ -60,7 +60,7 @@ export default function HistoricoExecucoes({ agendamentos }: { agendamentos: Age
         {carregando && <Loader2 size={15} style={{ animation: 'spin 1s linear infinite', color: '#6b7280' }} />}
         <span style={{ fontSize: '.74rem', color: '#6b7280' }}>{rodadas.length} execução(ões){rodadas.length >= 500 ? ' (mostrando as 500 mais recentes)' : ''}</span>
       </div>
-      {erro && <div style={{ color: '#b91c1c', fontSize: '.8rem', marginBottom: 8 }}>{erro}</div>}
+      {erro && <div style={{ color: 'var(--agd-err, #b91c1c)', fontSize: '.8rem', marginBottom: 8 }}>{erro}</div>}
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflowX: 'auto' }}>
         <div style={{ minWidth: 820 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(220px,1.3fr) 130px 90px minmax(160px,1fr) minmax(200px,1.4fr)', gap: 10, padding: '8px 14px', background: '#fafafa', fontSize: '.62rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase' }}>
@@ -70,13 +70,13 @@ export default function HistoricoExecucoes({ agendamentos }: { agendamentos: Age
             <div key={r.id} onClick={() => setAberta(aberta === r.id ? null : r.id)} style={{ padding: '8px 14px', borderTop: '1px solid #f3f4f6', cursor: 'pointer' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '110px minmax(220px,1.3fr) 130px 90px minmax(160px,1fr) minmax(200px,1.4fr)', gap: 10, alignItems: 'center', fontSize: '.76rem' }}>
                 <span style={{ color: '#374151' }}>{horaSP(r.iniciado_em, true)}</span>
-                <span style={{ fontWeight: 600, color: '#111111' }}>{nomes.get(r.job) ?? r.job}</span>
+                <span style={{ fontWeight: 600, color: 'var(--agd-tx, #111111)' }}>{nomes.get(r.job) ?? r.job}</span>
                 <span>
                   <span style={{ display: 'inline-block', padding: '1px 7px', borderRadius: 999, fontSize: '.66rem', fontWeight: 700, color: statusInfo(r.status).cor, background: statusInfo(r.status).bg, border: `1px solid ${statusInfo(r.status).borda}` }}>{statusInfo(r.status).rotulo}</span>
                 </span>
                 <span style={{ color: '#6b7280' }}>{duracao(r.duracao_ms)}</span>
                 <span style={{ color: '#6b7280' }}>{quemDisparou(r)}</span>
-                <span style={{ color: r.status === 'erro' ? '#b91c1c' : '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: aberta === r.id ? 'normal' : 'nowrap' }}>{r.detalhe || ''}</span>
+                <span style={{ color: r.status === 'erro' ? 'var(--agd-err, #b91c1c)' : '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: aberta === r.id ? 'normal' : 'nowrap' }}>{r.detalhe || ''}</span>
               </div>
               {aberta === r.id && r.progresso && (
                 <div style={{ marginTop: 6, fontSize: '.72rem', color: '#374151' }}>

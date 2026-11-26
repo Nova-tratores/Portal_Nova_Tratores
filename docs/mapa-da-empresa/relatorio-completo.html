@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Mapa da Empresa — Relatório Completo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+@page { size: A4; margin: 15mm 14mm 15mm 14mm; }
+:root { --ink: #1e231b; --muted: #5d6857; --line: #d9ded2; --soft: #f3f5ef; --green: #2f7d4a; --red: #b8322d; --blue: #2b6cb0; --amber: #8a6d00; --brown: #b5482f;
+  --vendas: #2f6b2a; --posvendas: #b4670f; --garantia: #b4373f; --pecas: #2b6cb0; --financeiro: #5b4a9e; }
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--ink); font: 10pt/1.5 "IBM Plex Sans", "Segoe UI", sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.cover { border-bottom: 3px solid var(--ink); padding-bottom: 10px; margin-bottom: 12px; }
+.kicker { font: 700 9pt "Barlow Semi Condensed", sans-serif; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+h1 { font: 800 30pt/1 "Barlow Condensed", sans-serif; text-transform: uppercase; margin: 4px 0 6px; }
+.cover p { margin: 0; color: var(--muted); }
+h2 { font: 800 17pt/1.1 "Barlow Condensed", sans-serif; text-transform: uppercase; margin: 16px 0 8px; padding-top: 6px; border-top: 2px solid var(--ink); break-after: avoid; }
+h3 { font: 700 13pt/1.2 "Barlow Semi Condensed", sans-serif; margin: 14px 0 6px; break-after: avoid; }
+p { margin: 4px 0; }
+.page-break { break-before: page; }
+ul.toc { margin: 4px 0; padding-left: 18px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.ans { display: inline-block; font: 600 8.5pt/1.25 "Barlow Semi Condensed", sans-serif; padding: 2px 7px; border-radius: 9px; margin: 2px 3px 0 0; }
+.k-s { background: #e3f1e7; color: var(--green); } .k-v { background: #f9e4de; color: var(--brown); border: 1px solid currentColor; }
+.k-e { background: #f6eecb; color: var(--amber); } .k-a { background: #e0ebf8; color: var(--blue); } .k-f { background: #eceef0; color: #555; }
+.road-head { display: flex; gap: 10px; align-items: baseline; margin-top: 14px; padding: 6px 10px; border-radius: 6px; color: #fff; break-after: avoid; }
+.road-head b { font: 800 15pt/1.1 "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.road-head span { font: 600 9pt "Barlow Semi Condensed", sans-serif; opacity: .9; }
+.road-sub { color: var(--muted); margin: 4px 0 6px; }
+.step { border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; margin: 0 0 6px; break-inside: avoid; }
+.step-h { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.step-h .n { font: 600 8pt "IBM Plex Mono", monospace; color: var(--muted); }
+.step-h .k { font: 700 8pt "Barlow Semi Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.step-h b { font-size: 10.5pt; }
+.meta { font-size: 8.5pt; color: var(--muted); }
+.meta code { font: 500 8pt "IBM Plex Mono", monospace; }
+.step p { font-size: 9.5pt; }
+.step ul { margin: 3px 0 0; padding-left: 16px; font-size: 9pt; color: var(--muted); }
+.hole { margin-top: 4px; font-size: 9pt; color: var(--red); background: #fde5e3; border-radius: 4px; padding: 3px 7px; }
+.areachip { display: inline-block; font: 700 7pt/1 "Barlow Semi Condensed", sans-serif; text-transform: uppercase; letter-spacing: .06em; color: #fff; padding: 2px 4px; border-radius: 3px; }
+table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+th { text-align: left; font: 700 8pt "Barlow Semi Condensed", sans-serif; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border-bottom: 2px solid var(--ink); padding: 4px 6px; }
+td { border-bottom: 1px solid var(--line); padding: 5px 6px; vertical-align: top; }
+tr { break-inside: avoid; }
+.furo { border: 1px solid var(--line); border-left: 4px solid var(--red); border-radius: 6px; padding: 7px 10px; margin-bottom: 7px; break-inside: avoid; }
+.furo.top { border-left-color: var(--ink); }
+.furo h4 { margin: 0 0 3px; font: 700 11.5pt "Barlow Semi Condensed", sans-serif; }
+.row { display: grid; grid-template-columns: 15mm 1fr; gap: 6px; font-size: 9.5pt; }
+.row b { font: 700 7.5pt/2 "Barlow Semi Condensed", sans-serif; text-transform: uppercase; color: var(--muted); }
+.row.g span { color: var(--green); font-weight: 600; }
+.box { background: var(--soft); border-radius: 6px; padding: 8px 11px; margin: 8px 0; break-inside: avoid; }
+.box b { display: block; font: 700 11pt "Barlow Semi Condensed", sans-serif; }
+code { font: 500 8.5pt "IBM Plex Mono", monospace; }
+.foot { margin-top: 14px; font-size: 8.5pt; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+  <div class="kicker">Nova Tratores · levantamento completo · 23/11/2026</div>
+  <h1>Mapa da empresa</h1>
+  <p>Como a empresa funciona de ponta a ponta, lido do código do portal: cada etapa, cada decisão com todas as saídas, quem faz, onde fica no portal, onde está o dinheiro, onde estão os furos e o que dá para ganhar.</p>
+</div>
+
+<h2>Sumário</h2>
+<ul class="toc">
+  <li>1. Como ler este relatório</li>
+  <li>2. A rota do cliente em 9 estações</li>
+  <li>3. Todas as rotas em detalhe (rota principal e ramais)</li>
+  <li>4. Onde as áreas se cruzam</li>
+  <li>5. Onde está o dinheiro e como é calculado</li>
+  <li>6. Furos e ganhos</li>
+  <li>7. Por onde começar</li>
+  <li>8. O que foi mexido no portal nesta análise</li>
+  <li>9. Limites desta análise e próximos passos</li>
+</ul>
+
+<h2>1. Como ler este relatório</h2>
+<p>A empresa foi desenhada como uma <b>rota principal</b> (o caminho do cliente, do primeiro contato até voltar a comprar) e <b>ramais</b> que saem dela e voltam: compra da máquina na fábrica, peças, compras, garantia, cobrança e bastidores (custos e alçadas).</p>
+<p>Cada <b>etapa</b> é algo que alguém faz. Cada <b>decisão</b> é um ponto onde o caminho se divide, e todas as saídas estão listadas, marcadas assim:</p>
+<div class="legend"><span class="ans k-s">→ segue</span><span class="ans k-v">↩ volta (retrabalho)</span><span class="ans k-e">⏸ fica esperando</span><span class="ans k-a">⇢ vai para um ramal</span><span class="ans k-f">■ fim</span></div>
+<p>O que está marcado em vermelho como <b>furo</b> é algo que depende de alguém lembrar, que o sistema não liga, ou uma regra que parece errada.</p>
+
+<h2>2. A rota do cliente em 9 estações</h2>
+<div id="estacoes"></div>
+
+<h2 class="page-break">3. Todas as rotas em detalhe</h2>
+<div id="rotas"></div>
+
+<h2 class="page-break">4. Onde as áreas se cruzam</h2>
+<table><thead><tr><th style="width:30%">Cruzamento</th><th>O que acontece</th></tr></thead><tbody>
+<tr><td><b>“É garantia?”</b></td><td>A mesma pergunta decide em 5 lugares: a fase da OS, a regra fiscal da remessa de peças (CFOP 5.949/6.949), a classificação da nota recebida, o reembolso no Financeiro e a comissão do técnico (garantia da loja não paga comissão).</td></tr>
+<tr><td><b>NOVA ou CASTRO?</b></td><td>Decide em peças (qual empresa vende), contas a pagar, cobrança e DRE. Pedido com peças exclusivas das duas é bloqueado; peça que só existe na outra vai pela outra.</td></tr>
+<tr><td><b>Omie é o ponto final</b></td><td>Pedido de máquina, OS, pedido de peças, contas a pagar e a receber: tudo que vira dinheiro termina no Omie.</td></tr>
+<tr><td><b>Uma cadeia de compras, dois usos</b></td><td>A Solicitação de Compras (Diretoria → Financeiro → Comprador) serve para máquina e para peça. Cada etapa pode devolver para a anterior.</td></tr>
+<tr><td><b>O ciclo fecha</b></td><td>OS faturada → ligação de satisfação (3 a 15 dias depois) → oportunidades (próxima revisão, peças, máquina nova) → volta ao começo da rota.</td></tr>
+</tbody></table>
+
+<h2>5. Onde está o dinheiro e como é calculado</h2>
+<table><thead><tr><th style="width:24%">Área</th><th>Registros e regras</th></tr></thead><tbody>
+<tr><td><b>Venda de máquina</b></td><td>Valor e pagamento da proposta; custo da fábrica + frete; itens, desconto e parcelas do pedido. Comissão = venda × %. Margem da loja = venda − comissão − (CMC + custos extras + desconto). Comissão paga no dia 20 do mês seguinte ao faturamento. Custo mensal do vendedor e metas em R$ registrados.</td></tr>
+<tr><td><b>Oficina (OS)</b></td><td>Horas (padrão R$ 193/h) + km (R$ 2,80/km) + peças + requisições cobradas do cliente + extras − descontos. Alimentação do técnico vira requisição. Comissão do técnico: % das horas ou valor fixo (R$ 150 / 250 / 400 / 500); não paga em garantia da loja, resserviço e retrabalho; 1% vai para a caixinha.</td></tr>
+<tr><td><b>Garantia</b></td><td>Horas e km do técnico e do garantista; valor pago pela fábrica (horas × taxa + km × taxa + peças aprovadas); cobrança ao cliente do que não foi pago; relatório de lucro, prejuízo, recuperado e a receber.</td></tr>
+<tr><td><b>Peças</b></td><td>Preço de venda vem do Omie; na entrada da nota, preço sugerido = custo × 2 para peças e × 1,2 para máquinas, e o preço só sobe. Custo médio (CMC) do Omie. Margem real = preço − (CMC + custo do capital parado).</td></tr>
+<tr><td><b>Financeiro</b></td><td>DRE: receita − devoluções − CMV = lucro bruto; − despesas fixas (pessoal, administrativas, bancos, vendas e marketing, impostos, outras) = resultado. Blocos do caixa: pessoas, contas do mês, banco, compras. Frota: combustível + manutenção + rastreador + multas + requisições, em R$/km. Dívida do cliente: multa 2% + juros 1% ao mês. War Room: margem semanal, giro (2+ tratores por semana), caixa e meta de R$ 2 milhões até 31/12/2026.</td></tr>
+<tr><td><b>Alçadas</b></td><td>Requisição de R$ 200 ou mais: Diretor (pede de novo se o valor subir mais de 10%). Trava antiga acima de R$ 500: liberação do Dev. Comissão dos técnicos: Diretor assina ou devolve. Solicitação de Compras: Diretoria → Financeiro → Comprador. Ficha cadastral: fila do Diretor.</td></tr>
+</tbody></table>
+
+<h2 class="page-break">6. Furos e ganhos</h2>
+<div id="furos"></div>
+
+<h2>7. Por onde começar</h2>
+<table><thead><tr><th style="width:6%">#</th><th style="width:44%">Ação</th><th>Por quê</th></tr></thead><tbody>
+<tr><td>1</td><td><b>Confirmar a regra da margem</b></td><td>Custa minutos.</td></tr>
+<tr><td>2</td><td><b>Card de cobrança para máquina e garantia</b></td><td>É dinheiro grande sem dono.</td></tr>
+<tr><td>3</td><td><b>Rotina mensal de resserviço e de venda perdida</b></td><td>Só processo, custo zero de sistema.</td></tr>
+<tr><td>4</td><td><b>Peça faltando ligada à OS</b></td><td>É o maior gerador de cliente insatisfeito.</td></tr>
+<tr><td>5</td><td><b>Botões “gerar proposta / gerar OS”</b></td><td>Fecha os vazamentos de oportunidade.</td></tr>
+</tbody></table>
+<div class="box"><b>O padrão por trás dos furos</b>
+<p>Quase todo furo fica onde uma área entrega para outra: venda → financeiro, garantia → cobrança, peça → compra. Dentro de cada área o sistema é bem cuidado; o que falta são as pontes.</p>
+<p>Furo de processo e furo de sistema andam juntos: muitas vezes o sistema já tem o dado (motivo de perda, dias de pátio, motivo de resserviço), mas ninguém tem a rotina de olhar. Esses são os ganhos mais baratos.</p></div>
+
+<h2>8. O que foi mexido no portal nesta análise</h2>
+<div class="box"><b>Limpeza de código morto no envio da OS ao Omie</b>
+<p>O código tinha um caminho antigo em que a OS interna ia direto para “Concluída” depois do envio ao Omie. Esse caminho nunca rodava, porque a função de envio não informava que a OS era interna. Hoje toda OS, interna ou não, vai para “Cobrando Cliente”, e é de lá que a OS interna é faturada com recibo (59 das últimas 163 OS faturadas foram com recibo).</p>
+<p>Ligar o caminho antigo quebraria o recibo. Por isso foi feita só a limpeza: o código agora diz o que acontece de verdade. Nada mudou no funcionamento. Arquivos: <code>src/app/api/pos/ordens/[id]/omie/route.ts</code>, <code>src/lib/pos/atualizar-relatorio.ts</code>, <code>src/lib/pos/omie.ts</code>.</p>
+<p><b>Ideia para depois:</b> uma fase própria “Aguardando recibo” para a OS interna, em vez de usar “Cobrando Cliente”.</p></div>
+<div class="box"><b>Regra da margem a conferir</b>
+<p>Em <code>src/lib/gestao-vendas/calculos.ts</code>: CMC/Venda abaixo de 0,80 = vermelho; 0,80 a 0,89 = amarelo; 0,90 ou mais = verde. Do jeito que está, venda com custo alto aparece verde. Não foi alterado; precisa ser confirmado com quem usa a tela.</p></div>
+<div class="box"><b>Mapa interativo</b>
+<p>Página de teste no portal, em <code>/empresa/mapa</code> (só no computador local por enquanto). O conteúdo fica em <code>docs/mapa-da-empresa/</code>.</p></div>
+
+<h2>9. Limites desta análise e próximos passos</h2>
+<p><b>O que este relatório não vê:</b> o que acontece fora do portal (combinados de boca, planilhas, WhatsApp pessoal) e os valores reais. Tudo aqui saiu da leitura do código: mostra onde está cada furo, não quanto custa.</p>
+<p><b>Próximos passos sugeridos:</b></p>
+<ul>
+  <li>Medir cada furo com os números do banco: quantos resserviços por mês e quanto custaram, quanto de garantia ficou pendente, quantos leads nunca viraram proposta, quanto de máquina está parado no pátio.</li>
+  <li>Conferir as rotas com quem faz o trabalho e completar o que acontece fora do portal.</li>
+  <li>Decidir a ordem das melhorias pelo dinheiro medido.</li>
+</ul>
+<p class="foot">Documento interno · levantado a partir do código do portal em 23/11/2026.</p>
+
+<script>
+const ROADS = [
+{ id: "main", code: "BR-NT", nome: "Rota do cliente", sub: "O caminho que faz a loja girar: do primeiro contato até o cliente voltar a comprar.",
+  stops: [
+  { id: "lead", area: "vendas", t: "p", h: "Lead chega", quem: "Vendedor · Marketing", mod: "/lead · app de vendas · Inteligência de Vendas",
+    sum: "Quatro portas: feira/estande, app de vendas externo, prospecção e indicações, recompra da base.",
+    det: ["Feira: só o texto é obrigatório; funciona sem internet.", "Propostas perdidas há 3 meses a 2 anos voltam como “reabordar”."] },
+  { area: "vendas", t: "d", h: "Lead qualificado?", quem: "Vendedor · Marketing", mod: "mkt_leads.qualificacao",
+    furo: "A passagem de lead para proposta é feita na mão. Nada liga os dois automaticamente.",
+    s: [["Em contato", "e", "continua tentando"], ["Qualificado", "s", "vira proposta (manual)"], ["Perdido / descartado", "f", ""]] },
+  { area: "vendas", t: "d", h: "Como o cliente vai pagar?", quem: "Vendedor", mod: "proposta_pagamento",
+    s: [["À vista", "s", ""], ["Parcelado direto", "s", "boleto, pix, cheque"], ["Financiado", "s", "banco + linha (FINAME, Moderfrota, Pronaf…)"], ["Misto", "s", "entrada + financiamento"]] },
+  { id: "prop", area: "vendas", t: "p", h: "Proposta e PDF", quem: "Vendedor", mod: "/propostas",
+    sum: "O PDF não sai sem vendedor, carimbo e dados da empresa. Assinatura no papel.", det: ["A proposta não guarda o chassi."] },
+  { area: "vendas", t: "d", h: "Cliente respondeu?", quem: "Cliente", mod: "Kanban de propostas",
+    furo: "A proposta pode pular de qualquer fase para qualquer outra, sem conferência.",
+    det: ["Motivos de perda (obrigatório): preço, concorrente (diz qual e o valor), prazo, crédito negado ou parcial, condição de pagamento, especificação técnica, desistiu, sumiu, adiou, outro."],
+    s: [["Ainda não", "e", "aguardando cliente"], ["Depende do banco", "e", "aguardando banco"], ["Vendeu", "s", ""], ["Não vendeu", "f", "motivo obrigatório"], ["Reabordar em 3 meses", "v", "Inteligência de Vendas", "lead"]] },
+  { id: "estq", area: "vendas", t: "d", h: "Tem a máquina em estoque?", quem: "Vendedor", mod: "produtos.estoque",
+    s: [["Sim", "s", "direto ao pedido"], ["Não", "a", "compra à fábrica", "compra-maq"]] },
+  { id: "pvm", area: "vendas", t: "p", h: "Pedido de Máquina (PVM)", quem: "Comercial · Faturamento", mod: "/propostas?aba=pedidos", sum: "Importa cliente, vendedor e parcelas da proposta." },
+  { area: "vendas", t: "d", h: "Pronto para o Omie?", quem: "Sistema", mod: "validarParaOmie",
+    s: [["Falta CPF/CNPJ, vendedor, preço ou parcelas", "v", "corrigir", "pvm"], ["Tudo certo", "s", "envia ao Omie"]] },
+  { area: "vendas", t: "d", h: "Faturar a máquina", quem: "Faturamento", mod: "pedidos-maquinas",
+    furo: "O faturamento de máquina pelo portal está desligado: é feito direto no Omie, e a venda não vira card de cobrança no Financeiro.",
+    s: [["Faturar", "s", "hoje direto no Omie"], ["Cancelar", "f", "exige motivo"], ["Já faturado", "v", "cancelar a NF-e no Omie antes", "pvm"]] },
+  { area: "vendas", t: "d", h: "Entrega técnica registrada na Mahindra?", quem: "Técnico · Pós-vendas", mod: "/revisoes/vendidos",
+    s: [["Sim", "s", "30/60/90 dias contam dela"], ["Não", "e", "contam da NF, com alerta"]] },
+  { id: "chamado", area: "posvendas", t: "p", h: "Cliente pede atendimento", quem: "Cliente", mod: "SAT · telefone · WhatsApp · revisões",
+    sum: "Revisões de 50h, 300h, 600h… contatos de 30/60/90 dias, quebra ou manutenção.",
+    furo: "Ligação com resultado “serviço agendado” não cria OS, e concluir um SAT também não. Alguém abre a OS na mão." },
+  { id: "orc", area: "posvendas", t: "d", h: "Aprovou o orçamento da OS?", quem: "Cliente · Atendente", mod: "/pos · Reservar/Agendar",
+    det: ["Tipos de OS: manutenção, revisão, entrega técnica, inspeção pré-entrega.", "OS interna: sem cobrança, peças como remessa e fatura com recibo."],
+    s: [["Ainda não", "e", "aguardando"], ["Sim", "a", "reserva as peças e agenda", "pecas"], ["Não", "f", "Cancelada"]] },
+  { id: "exec", area: "posvendas", t: "p", h: "Agenda e execução", quem: "Atendente · Técnico", mod: "agenda_tecnico · Lousa", sum: "Uma pessoa põe a OS em Execução (o robô não faz mais isso)." },
+  { area: "posvendas", t: "d", h: "Como está a execução?", quem: "Atendente", mod: "fases da OS",
+    furo: "“Aguardando peças” é marcado na mão. Nada liga essa fase à compra ou ao recebimento da peça.",
+    s: [["Normal", "s", ""], ["Precisa diagnóstico", "e", ""], ["Falta peça", "e", "aguardando peças"]] },
+  { area: "posvendas", t: "d", h: "Técnico concluiu?", quem: "Técnico (app)", mod: "Ordem_Servico_Tecnicos",
+    s: [["Relatório final", "s", "Tratorilson preenche a OS"], ["Paliativo", "v", "foi, mas não resolveu", "exec"], ["Prazo acabou sem relatório", "v", "aguardando ordem técnico + atraso", "exec"]] },
+  { id: "garant", area: "posvendas", t: "d", h: "É garantia?", quem: "Robô", mod: "tabela garantias",
+    s: [["Sim", "a", "fábrica paga o serviço", "garantia"], ["Não", "s", "enviar ao Omie"]] },
+  { id: "cobr", area: "posvendas", t: "d", h: "Envio ao Omie e cobrança", quem: "Atendente · Tratorilson", mod: "Enviar Omie · cobranca.ts",
+    sum: "Tratorilson manda orçamento, PDFs, link de assinatura e pergunta a forma de pagamento (à vista, 30, 30/60, 30/60/90, 30/60/90/120).",
+    s: [["Falta texto, CNPJ ou data", "v", "completar", "exec"], ["Enviou", "s", "Cobrando cliente"]] },
+  { id: "pode", area: "posvendas", t: "d", h: "Pode faturar?", quem: "Quem fatura", mod: "travas-faturar",
+    s: [["Previsão ≠ hoje, sem projeto, CEP ou local", "v", "corrigir", "cobr"], ["Garantia sem montadora", "v", "escolher montadora", "cobr"], ["Tudo certo", "s", ""]] },
+  { area: "posvendas", t: "d", h: "Omie confirmou e a NFS-e saiu?", quem: "Sistema · Omie", mod: "faturamento-fluxo",
+    s: [["Sim", "s", ""], ["Recusou ou NFS-e rejeitada", "v", "corrigir e reenviar", "pode"], ["Sem resposta", "e", "vai para conferência"], ["Disse que faturou e não", "v", "volta a Cobrando cliente", "cobr"]] },
+  { id: "fatok", area: "posvendas", t: "d", h: "OS e peças faturadas?", quem: "Sistema", mod: "faturamento.ts",
+    s: [["Sim", "s", "Concluída · nasce o card de cobrança"], ["Falta o pedido de peças", "e", "espera"]] },
+  { id: "paga", area: "financeiro", t: "d", h: "Como o cliente paga?", quem: "Financeiro", mod: "Chamado_NF",
+    furo: "Venda de máquina e garantia não viram card de cobrança. O Financeiro só vê pela cópia do Omie.",
+    s: [["Pix · cartão · cheque · dinheiro", "s", "validar comprovante"], ["Boleto", "a", "gerar e cobrar", "cobranca"]] },
+  { id: "din", area: "financeiro", t: "p", h: "Dinheiro entra", quem: "Omie · Robôs", mod: "contas a receber",
+    sum: "Recebido no Omie → card “pago” → concluído em 7 dias.", s: [["Bastidores", "a", "custos e alçadas", "custos"]] },
+  { area: "posvendas", t: "d", h: "Precisou voltar ao cliente?", quem: "Pós-vendas", mod: "resservico.ts",
+    sum: "Resserviço: OS nova, a original fica marcada e o técnico não ganha comissão.",
+    s: [["Não", "s", ""], ["Mal feito · peça mal montada · faltou item · diagnóstico errado · vazamento", "v", "nova OS", "exec"]] },
+  { id: "lig", area: "posvendas", t: "d", h: "Como foi a ligação de satisfação?", quem: "Pós-vendas", mod: "/feedbacks · crm-automatico",
+    sum: "Entre 3 e 15 dias depois do faturamento. Fica fora: ≤ R$ 1, cortesia, interna, ligado há menos de 30 dias, “não contatar”.",
+    furo: "Resultado “serviço agendado” não cria OS.",
+    s: [["Não atendeu", "v", "escolhe quando tentar de novo", "lig"], ["Retornar", "e", "data obrigatória"], ["Número errado", "e", "pendência de cadastro"], ["Falou", "s", ""]] },
+  { area: "posvendas", t: "d", h: "Cliente satisfeito?", quem: "Cliente", mod: "feedbacks",
+    s: [["Sim", "s", "nova oportunidade: revisão, peças, máquina", "chamado"], ["Pronto para outra máquina", "s", "volta ao começo", "lead"], ["Nota ≤ 6", "e", "alerta ao gerente"], ["Humor muito baixo", "e", "retorno em 90 dias"]] },
+  ]},
+
+{ id: "compra-maq", code: "NT-110", nome: "Compra da máquina", area: "vendas", lado: "up", de: "estq", volta: "pvm",
+  stops: [
+  { id: "dir", area: "vendas", t: "d", h: "Diretoria aprova a compra?", quem: "Diretoria", mod: "/tickets/compras",
+    s: [["Aprova", "s", "define a quantidade"], ["Devolve", "v", "ao vendedor (reenvia ou cancela)"]] },
+  { id: "finc", area: "vendas", t: "d", h: "Financeiro aprova?", quem: "Financeiro", mod: "/tickets/compras",
+    s: [["Aprova", "s", "com parecer"], ["Reprova", "v", "volta à Diretoria", "dir"]] },
+  { area: "vendas", t: "d", h: "Comprador emite o PC?", quem: "Comprador", mod: "/tickets/compras",
+    s: [["Emite", "s", "pedido à fábrica vira “Pedido feito”"], ["Devolve", "v", "ao Financeiro", "finc"], ["Cancelada", "f", "em qualquer etapa"]] },
+  { area: "vendas", t: "p", h: "Pedido à fábrica anda", quem: "Comercial", mod: "Proposta_Fabrica",
+    sum: "Solicitada → recebida → pedido feito → máquina recebida → aguardando faturamento da fábrica → faturado por nós.",
+    furo: "As fases mudam sem conferência. Campos planejados (NF da fábrica, data de recebimento) não têm tela." },
+  { area: "vendas", t: "d", h: "Chegou no prazo?", quem: "Comercial", mod: "eta_fabrica", s: [["Sim", "s", ""], ["Atrasou", "e", "“atrasada N dias”"]] },
+  ]},
+
+{ id: "garantia", code: "NT-300", nome: "Garantia", area: "garantia", lado: "up", de: "garant", volta: "din",
+  stops: [
+  { id: "an", area: "garantia", t: "p", h: "Garantista assume", quem: "Garantista", mod: "/garantias",
+    sum: "Nasce pelo app do técnico, relatório marcado, varredura de 14 dias ou manual. Uma ativa por OS." },
+  { area: "garantia", t: "d", h: "Falta informação do técnico?", quem: "Garantista", mod: "pendências", s: [["Não", "s", ""], ["Sim", "v", "B.O. ao técnico", "an"]] },
+  { area: "garantia", t: "d", h: "Cabe garantia?", quem: "Garantista", mod: "finalizar.ts",
+    s: [["Sim", "s", "envia à fábrica (montadora + checklist)"], ["Não", "s", "recusa interna", "cob"], ["Recusa reaberta", "v", "se a cobrança não foi paga", "an"]] },
+  { area: "garantia", t: "d", h: "Fábrica pediu mais informação?", quem: "Fábrica", mod: "info_pendente", s: [["Não", "s", ""], ["Sim", "v", "responde e volta", "an"]] },
+  { area: "garantia", t: "d", h: "O que a fábrica aprovou?", quem: "Fábrica", mod: "aprovação por item (peças, M.O., deslocamento)",
+    det: ["Montadoras de duas etapas exigem o retorno das peças antes."],
+    s: [["Tudo", "s", "reembolso", "reemb"], ["Parte", "s", "o resto vira cobrança", "cob"], ["Nada", "s", "rejeitada", "cob"]] },
+  { area: "garantia", t: "d", h: "Devolver as peças à fábrica?", quem: "Garantista · Peças", mod: "devolucao_status",
+    s: [["Sim", "s", "remessa de garantia, 30 dias"], ["Não", "e", "guarda 90 dias e descarta"]] },
+  { id: "cob", area: "garantia", t: "d", h: "E o que a fábrica não pagou?", quem: "Garantista · Gerência", mod: "cobranca_status",
+    furo: "Não existe card de cobrança no Financeiro para isso; fica só no módulo de garantias.",
+    s: [["Cortesia", "f", "não cobra"], ["Cobrar o cliente", "e", "cobrada"], ["Desistir", "f", "prejuízo"]] },
+  { id: "reemb", area: "garantia", t: "p", h: "Reembolso da fábrica", quem: "Financeiro", mod: "DRVG (Mahindra) · SG (Kuhn)",
+    sum: "NFS-e contra a montadora: horas × taxa + km × taxa + peças aprovadas. Padrão R$ 193/h e R$ 2,80/km." },
+  ]},
+
+{ id: "pecas", code: "NT-400", nome: "Peças", area: "pecas", lado: "down", de: "orc", volta: "fatok",
+  stops: [
+  { area: "pecas", t: "p", h: "Pedido de peças nasce", quem: "Balcão · Pós-vendas", mod: "/ppv",
+    sum: "Pela OS, tela de PPV, orçamento, catálogo, Tratorilson ou liberação por QR. Também atende a venda de balcão." },
+  { area: "pecas", t: "d", h: "Para que é a peça?", quem: "Balcão", mod: "motivo de saída",
+    s: [["Técnico com OS", "s", "segue a OS"], ["Venda balcão", "s", "vira card de cobrança próprio"], ["Técnico sem OS", "s", "uso interno"]] },
+  { id: "tem", area: "pecas", t: "d", h: "Tem a peça?", quem: "Sistema", mod: "estoque-reserva",
+    furo: "Sem estoque, o sistema não bloqueia e não abre compra. Só avisa no sininho.",
+    s: [["Tem", "s", "reserva"], ["Fica com 2 ou menos", "e", "só avisa"], ["Falta", "a", "alguém precisa comprar", "compras"]] },
+  { id: "lib", area: "pecas", t: "d", h: "Peça liberada no balcão?", quem: "Depto. de peças", mod: "rastreio por QR", s: [["Libera", "s", ""], ["Recusa", "v", "volta ao estoque", "lib"]] },
+  { area: "pecas", t: "d", h: "Técnico usou a peça?", quem: "Robô (lê o relatório)", mod: "abate",
+    s: [["Usou", "s", "aplicada"], ["Não usou", "v", "devolução ao estoque", "lib"], ["Faturou sem liberar", "e", "alerta"]] },
+  { area: "pecas", t: "d", h: "Venda ou remessa? É garantia?", quem: "Sistema", mod: "enviarPPVParaOmie",
+    s: [["Venda", "s", "CFOP 5.910"], ["Remessa interna", "s", "OS interna"], ["Remessa de garantia", "s", "CFOP 5.949 / 6.949"]] },
+  { id: "fatp", area: "pecas", t: "d", h: "NOVA ou CASTRO?", quem: "Sistema", mod: "omie.ts",
+    s: [["Uma só", "s", ""], ["Peças das duas", "v", "separar em dois pedidos", "fatp"], ["Só existe na outra", "s", "vai pela outra"]] },
+  { area: "pecas", t: "d", h: "Faturamento confirmado?", quem: "Sistema · Omie", mod: "faturarPPVNoOmie",
+    s: [["Sim", "s", ""], ["Omie diverge do portal", "v", "aceitar ou corrigir", "fatp"], ["Sem resposta", "e", "pendente"]] },
+  ]},
+
+{ id: "compras", code: "NT-410", nome: "Compras e contas a pagar", area: "pecas", lado: "down", de: "tem",
+  stops: [
+  { area: "pecas", t: "d", h: "Qual caminho de compra?", quem: "Quem precisa", mod: "3 módulos separados",
+    furo: "Os três caminhos não se falam nem com o pedido de peças. O pedido de compra e o PC não vão ao Omie pelo portal.",
+    s: [["Requisição", "s", "compra avulsa"], ["Sugestão de compra", "e", "45 dias de demanda + mínimo"], ["Solicitação de Compras", "a", "mesma cadeia das máquinas", "compra-maq"]] },
+  { id: "req", area: "pecas", t: "d", h: "Requisição de R$ 200 ou mais?", quem: "Diretor", mod: "autorizações",
+    s: [["Não", "s", ""], ["Autorizada", "s", "selo “Aprovada”"], ["Recusada", "f", "motivo obrigatório"], ["Valor subiu > 10%", "v", "pede de novo", "req"]] },
+  { area: "pecas", t: "d", h: "Chegou a nota?", quem: "Estoque · Recebimento", mod: "/estoque/recebimentos",
+    s: [["Peças", "s", "preço = custo × 2 (só sobe)"], ["Máquinas", "s", "preço = custo × 1,2"], ["Sem lugar na prateleira", "e", "pendência de alocação"], ["Ainda não", "e", "aguardando nota"]] },
+  { id: "rasc", area: "financeiro", t: "p", h: "Vira conta a pagar", quem: "Financeiro", mod: "finan_pagar", sum: "Com nota, valor e fornecedor, a requisição vai sozinha. Nasce como rascunho." },
+  { area: "financeiro", t: "d", h: "Checklist completo?", quem: "Financeiro", mod: "omie-contapagar",
+    sum: "NF, boleto, empresa, categoria, conta, parcelas = total, fornecedor com CNPJ.",
+    s: [["Sim", "s", "validado"], ["Não", "v", "volta a rascunho", "rasc"]] },
+  { area: "financeiro", t: "d", h: "Envio ao Omie deu certo?", quem: "Financeiro", mod: "contas-pagar/omie",
+    s: [["Enviado", "s", "pago no Omie → concluído"], ["Erro", "v", "corrigir", "rasc"], ["Sem código Omie", "e", "pós-vendas lança"]] },
+  ]},
+
+{ id: "cobranca", code: "NT-500", nome: "Cobrança", area: "financeiro", lado: "down", de: "paga", volta: "din",
+  stops: [
+  { area: "financeiro", t: "d", h: "O card pode nascer?", quem: "Robô", mod: "sync-os", s: [["Sim", "s", ""], ["Sem NFS-e ou PDF", "e", "avisa o pós-vendas"], ["Peças sem faturar", "e", "espera"]] },
+  { area: "financeiro", t: "p", h: "Boleto gerado", quem: "Financeiro", mod: "Chamado_NF", sum: "Com o boleto anexado, a tarefa “Enviar para o cliente” passa ao pós-vendas." },
+  { area: "financeiro", t: "d", h: "Boleto chegou ao cliente?", quem: "Pós-vendas", mod: "home-posvendas", s: [["Enviado", "e", "aguardando vencimento"], ["Sem boleto", "e", ""], ["Já pagou", "s", "pago"]] },
+  { id: "venc", area: "financeiro", t: "d", h: "Venceu: o que o Omie diz?", quem: "Robô", mod: "decidirFase",
+    det: ["E-mail de lembrete de 0 a 5 dias antes; cobrança em D+1 e D+7.", "Vigia das 8h avisa card parado."],
+    s: [["Recebido", "s", "pago"], ["Atrasado", "s", "vencido"], ["Em aberto", "e", ""]] },
+  { area: "financeiro", t: "d", h: "Dá para recobrar?", quem: "Pós-vendas", mod: "recobranca",
+    s: [["Sim (boleto, até 180 dias)", "v", "ticket em 2 dias úteis", "venc"], ["Pix · cartão · cheque", "f", ""], ["Mais de 180 dias", "f", "sem recobrança"]] },
+  ]},
+
+{ id: "custos", code: "NT-590", nome: "Bastidores: custos e alçadas", area: "financeiro", lado: "up", de: "din",
+  stops: [
+  { area: "financeiro", t: "d", h: "Quem precisa aprovar?", quem: "Diretoria", mod: "autorizações",
+    s: [["Requisição ≥ R$ 200", "e", "Diretor"], ["Trava antiga > R$ 500", "e", "Dev"], ["Comissão dos técnicos", "e", "Diretor assina"], ["Solicitação de Compras", "e", "Diretoria → Financeiro → Comprador"]] },
+  { area: "vendas", t: "d", h: "Margem da venda saudável?", quem: "Gestor comercial", mod: "gestao-vendas/calculos.ts",
+    furo: "Conferir: no código, CMC/Venda abaixo de 0,80 fica vermelho e 0,90 ou mais fica verde. Parece invertido.",
+    sum: "Comissão = venda × %. Margem da loja = venda − comissão − (CMC + extras + desconto). Paga no dia 20 do mês seguinte.",
+    s: [["Vermelho", "e", "CMC/Venda < 0,80"], ["Amarelo", "e", "0,80 a 0,89"], ["Verde", "s", "≥ 0,90"]] },
+  { area: "financeiro", t: "p", h: "DRE do mês", quem: "Diretoria", mod: "/dre-financeiro",
+    sum: "Receita − devoluções − CMV = lucro bruto; − despesas fixas (pessoal, administrativas, bancos, vendas e marketing, impostos) = resultado.",
+    furo: "As despesas da DRE não separam o que é entre NOVA e CASTRO." },
+  { area: "financeiro", t: "p", h: "Caixa e frota", quem: "Financeiro", mod: "modulosContas · /frota",
+    sum: "Blocos: pessoas, contas do mês, banco, compras. Frota: combustível + manutenção + multas + requisições, em R$/km." },
+  { area: "financeiro", t: "p", h: "War Room", quem: "Diretoria", mod: "/war-room",
+    sum: "Margem semanal, giro (2+ tratores/semana), caixa e meta de R$ 2 mi até 31/12/2026.", furo: "O caixa de 30/60/90 dias é digitado à mão." },
+  ]},
+];
+
+const STATIONS = [
+  { id: "atrair",   nome: "Atrair",          sub: "o cliente aparece",          de: 0,  ate: 1,  ramais: [],
+    what: "O cliente aparece pela feira, pelo app de vendas, por indicação ou porque já é cliente e vai recomprar." },
+  { id: "negociar", nome: "Negociar",        sub: "proposta e pagamento",       de: 2,  ate: 4,  ramais: [],
+    what: "O vendedor monta a proposta, combina como o cliente vai pagar e espera a resposta (dele ou do banco)." },
+  { id: "maquina",  nome: "Ter a máquina",   sub: "pátio ou fábrica",           de: 5,  ate: 5,  ramais: [["compra-maq", "up"]],
+    what: "Se a máquina está no pátio, segue. Se não, compra da fábrica, com aprovação da Diretoria, do Financeiro e do Comprador." },
+  { id: "entregar", nome: "Faturar e entregar", sub: "pedido, nota, entrega técnica", de: 6, ate: 9, ramais: [],
+    what: "Monta o pedido de máquina, fatura no Omie e faz a entrega técnica. A partir daqui o cliente passa para o pós-vendas." },
+  { id: "atender",  nome: "Atender",         sub: "pedido de serviço e orçamento", de: 10, ate: 11, ramais: [["pecas", "down"], ["compras", "down"]],
+    what: "O cliente pede serviço (revisão, quebra, manutenção). A oficina orça, o cliente aprova e as peças são reservadas." },
+  { id: "executar", nome: "Executar",        sub: "técnico no serviço",         de: 12, ate: 15, ramais: [["garantia", "up"]],
+    what: "O técnico faz o serviço e manda o relatório. Se for garantia, o conserto vai para a fábrica pagar." },
+  { id: "faturar",  nome: "Faturar o serviço", sub: "Omie e nota",              de: 16, ate: 19, ramais: [],
+    what: "A OS vai ao Omie, o cliente é cobrado pelo WhatsApp e sai a nota de serviço e de peças." },
+  { id: "receber",  nome: "Receber",         sub: "o dinheiro entra",           de: 20, ate: 21, ramais: [["cobranca", "down"], ["custos", "up"]],
+    what: "Nasce o card de cobrança: pix, cartão ou boleto, até o dinheiro entrar no Omie." },
+  { id: "manter",   nome: "Manter o cliente", sub: "satisfação e retorno",      de: 22, ate: 24, ramais: [],
+    what: "Ligação de satisfação, resserviço se precisar, e as novas oportunidades. O cliente satisfeito volta ao começo." },
+];
+const FUROS = [
+  { n: 1, top: true, titulo: "Regra da margem parece invertida", tipos: ["sistema"], esforco: "minutos", onde: ["entregar", "receber"],
+    hoje: "No código, venda com custo de 90% aparece verde e com custo de 70% aparece vermelha.",
+    fazer: "Confirmar a regra com quem usa a tela de gestão de vendas e corrigir.",
+    ganho: "Avaliar vendedor, preço e comissão com informação certa." },
+  { n: 2, top: true, titulo: "Máquina vendida sem cobrança no Financeiro", tipos: ["sistema", "processo"], esforco: "dias", onde: ["entregar", "receber"],
+    hoje: "A máquina é faturada direto no Omie e não vira card. A maior venda da loja é a única sem acompanhamento.",
+    fazer: "Criar o card automático com as parcelas do pedido e definir um dono para a cobrança de máquina.",
+    ganho: "Caixa previsível e nenhuma parcela de trator esquecida." },
+  { n: 3, top: true, titulo: "Garantia: o que a fábrica não paga se perde", tipos: ["sistema", "processo"], esforco: "dias", onde: ["executar", "receber"],
+    hoje: "A parte recusada fica “pendente” no módulo de garantias, sem card, sem prazo e sem dono. O reembolso da fábrica também não é acompanhado.",
+    fazer: "Card para cobrar o cliente e card “a receber da fábrica”. Prazo para decidir: cobrar, cortesia ou prejuízo.",
+    ganho: "Recuperar dinheiro que hoje vira prejuízo sem ninguém decidir." },
+  { n: 4, top: true, titulo: "Resserviço sem rotina de análise", tipos: ["processo", "sistema"], esforco: "horas", onde: ["manter", "executar"],
+    hoje: "O motivo do retorno é registrado, mas ninguém olha. Cada resserviço paga técnico, km e peça duas vezes.",
+    fazer: "Reunião mensal com ranking por motivo e por técnico + checklist de saída do serviço. Painel simples com custo.",
+    ganho: "Cada resserviço evitado é uma OS inteira de custo que não acontece." },
+  { n: 5, top: true, titulo: "Falta peça e ninguém sabe quando chega", tipos: ["sistema", "processo"], esforco: "semanas", onde: ["atender", "executar"],
+    hoje: "Sem estoque, o sistema só avisa no sininho. A OS vai para “aguardando peças” na mão e a compra corre por 3 caminhos separados.",
+    fazer: "Faltou peça na OS aprovada → abre requisição ligada à OS, mostra a previsão e avisa quando a nota chegar. Uma pessoa dona da fila.",
+    ganho: "Menos trator do cliente parado, menos ligação de “cadê minha peça”, técnico menos ocioso." },
+  { n: 6, titulo: "Oportunidades que caem no chão", tipos: ["sistema", "processo"], esforco: "dias", onde: ["atrair", "atender", "manter"],
+    hoje: "Lead → proposta, ligação “serviço agendado” → OS e SAT → OS dependem de alguém lembrar.",
+    fazer: "Botão “gerar proposta” / “gerar OS” direto dessas telas. Prazo de primeiro contato com o lead (ex.: 24 h).",
+    ganho: "Mais conversão. Hoje nem dá para medir quanto se perde." },
+  { n: 7, titulo: "Orçamento de oficina sem resposta", tipos: ["processo"], esforco: "horas", onde: ["atender"],
+    hoje: "O orçamento expira sozinho e acabou.",
+    fazer: "Antes de expirar, ligar para o cliente (o Tratorilson pode lembrar).",
+    ganho: "Serviço que já estava quase vendido." },
+  { n: 8, titulo: "Venda perdida sem análise", tipos: ["processo"], esforco: "horas", onde: ["negociar"],
+    hoje: "O motivo da perda é obrigatório e fica registrado, mas ninguém analisa.",
+    fazer: "Reunião mensal: perdemos para quem, por quê e por quanto.",
+    ganho: "Ajustar preço, prazo e crédito com base em fato." },
+  { n: 9, titulo: "Máquina parada no pátio", tipos: ["processo"], esforco: "horas", onde: ["maquina"],
+    hoje: "O sistema já marca máquina com 60 e 120+ dias de pátio, mas não existe rotina de ação.",
+    fazer: "Revisão mensal das paradas: demonstração, condição especial, troca.",
+    ganho: "Capital parado custa juro todo mês." },
+  { n: 10, titulo: "Fases sem trava", tipos: ["sistema", "processo"], esforco: "dias", onde: ["negociar", "maquina", "atender"],
+    hoje: "Proposta, pedido à fábrica e OS podem pular de qualquer fase para qualquer outra.",
+    fazer: "Combinar o que precisa estar pronto para avançar e travar no sistema.",
+    ganho: "Funil e previsão de vendas em que dá para confiar." },
+  { n: 11, titulo: "Caixa futuro digitado à mão", tipos: ["sistema"], esforco: "dias", onde: ["receber"],
+    hoje: "O caixa de 30/60/90 dias do War Room é digitado.",
+    fazer: "Montar automático a partir do a receber e a pagar do Omie.",
+    ganho: "Previsão de caixa confiável sem trabalho manual." },
+  { n: 12, titulo: "Compra digitada duas vezes", tipos: ["sistema"], esforco: "semanas", onde: ["atender"],
+    hoje: "O pedido de compra da sugestão e o PC da Solicitação de Compras não vão ao Omie pelo portal.",
+    fazer: "Integrar com o Omie ou eliminar um dos lançamentos.",
+    ganho: "Menos erro de compra e menos retrabalho." },
+  { n: 13, titulo: "Lucro por empresa misturado", tipos: ["processo"], esforco: "dias", onde: ["receber"],
+    hoje: "A DRE não separa as despesas entre NOVA e CASTRO.",
+    fazer: "Definir uma regra de rateio entre as empresas.",
+    ganho: "Saber qual empresa dá lucro de verdade." },
+];
+
+const AREAS = { vendas: "Vendas", posvendas: "Pós-vendas", garantia: "Garantia", pecas: "Peças", financeiro: "Financeiro" };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const roadById = Object.fromEntries(ROADS.map(r => [r.id, r]));
+const KIND = { s: "→", v: "↩", e: "⏸", a: "⇢", f: "■" };
+const stopName = id => { for (const r of ROADS) { const p = r.stops.find(x => x.id === id); if (p) return p.h; } return null; };
+
+// estações
+document.getElementById("estacoes").innerHTML = `<table><thead><tr><th style="width:5%">#</th><th style="width:20%">Estação</th><th>O que acontece</th><th style="width:22%">Ramais que saem dali</th></tr></thead><tbody>${
+  STATIONS.map((s, i) => `<tr><td>${i + 1}</td><td><b>${esc(s.nome)}</b></td><td>${esc(s.what)}</td><td>${s.ramais.map(([r]) => esc(roadById[r].nome)).join(", ") || "—"}</td></tr>`).join("")}</tbody></table>`;
+
+// rotas
+const ans = ([a, k, to, alvo]) => {
+  const r = k === "a" && roadById[alvo], back = (k === "v" || k === "s") && alvo && stopName(alvo);
+  return `<span class="ans k-${k}">${KIND[k]} ${esc(a)}${to ? " · " + esc(to) : ""}${r ? " · ramal " + esc(r.nome) : ""}${back ? " · até “" + esc(back) + "”" : ""}</span>`;
+};
+document.getElementById("rotas").innerHTML = ROADS.map(r => {
+  const c = r.id === "main" ? "#3a3e44" : `var(--${r.area})`;
+  const origem = r.de ? `Sai de “${esc(stopName(r.de))}”${r.volta ? ` e volta em “${esc(stopName(r.volta))}”` : ""}.` : "";
+  return `<div class="road-head" style="background:${c}"><b>${esc(r.code)} · ${esc(r.nome)}</b><span>${r.stops.length} etapas</span></div>
+    <p class="road-sub">${esc(r.sub || "")} ${origem}</p>
+    ${r.stops.map((p, i) => `<div class="step">
+      <div class="step-h"><span class="n">${String(i + 1).padStart(2, "0")}</span><span class="k">${p.t === "d" ? "Decisão" : "Etapa"}</span><b>${esc(p.h)}</b><span class="areachip" style="background:var(--${p.area})">${AREAS[p.area]}</span></div>
+      <div class="meta">Quem faz: ${esc(p.quem || "—")} · No portal: <code>${esc(p.mod || "—")}</code></div>
+      ${p.sum ? `<p>${esc(p.sum)}</p>` : ""}
+      ${p.s ? `<div>${p.s.map(ans).join("")}</div>` : ""}
+      ${p.det ? `<ul>${p.det.map(d => `<li>${esc(d)}</li>`).join("")}</ul>` : ""}
+      ${p.furo ? `<div class="hole">⚠ Furo: ${esc(p.furo)}</div>` : ""}
+    </div>`).join("")}`;
+}).join("");
+
+// furos
+const stName = id => STATIONS.find(s => s.id === id).nome;
+document.getElementById("furos").innerHTML = FUROS.map(f => `<div class="furo ${f.top ? "top" : ""}">
+  <h4>${f.n}. ${esc(f.titulo)}${f.top ? " · prioridade " + f.n : ""}</h4>
+  <div class="meta">${f.tipos.join(" + ")} · esforço: ${esc(f.esforco)} · onde: ${f.onde.map(stName).join(", ")}</div>
+  <div class="row"><b>Hoje</b><span>${esc(f.hoje)}</span></div>
+  <div class="row"><b>Fazer</b><span>${esc(f.fazer)}</span></div>
+  <div class="row g"><b>Ganho</b><span>${esc(f.ganho)}</span></div></div>`).join("");
+</script>
+</body>
+</html>

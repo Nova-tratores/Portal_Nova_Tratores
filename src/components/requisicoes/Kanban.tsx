@@ -262,6 +262,13 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
     const porCampo: Record<string, Set<string>> = {};
     for (const f of filtros) { (porCampo[f.campo] ||= new Set()).add(f.valor); }
     const campos = Object.keys(porCampo);
+    // 25/11/2026 (José): grupo de campanha PRIVADA e eu não sou responsável → das requisições dos outros
+    // fica só o título (sem valor, fornecedor, nota…; o card não abre). As minhas continuam completas.
+    const soTitulo = !!grupoAtivo?.so_titulo;
+    // UserProfile não declara email (vem do banco em algumas contas): o cast evita quebrar o build (25/11/2026)
+    const eu = [(userProfile as { email?: string } | null)?.email, userProfile?.nome].map((s) => String(s || '').trim().toLowerCase()).filter(Boolean);
+    const minha = (r: any) => eu.includes(String(r.solicitante || '').trim().toLowerCase()) || eu.includes(String(nomeSolicitante(r.solicitante) || '').trim().toLowerCase());
+    const mascarar = (r: any) => (soTitulo && !minha(r) ? { id: r.id, titulo: r.titulo, status: r.status, data: r.data, _so_titulo: true } : r);
     return requisicoes.filter((r: any) => {
       if (idsEspecial && !idsEspecial.has(Number(r.id))) return false;
       if (idsGrupo && !idsGrupo.has(Number(r.id))) return false;
@@ -281,8 +288,8 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
         r.tipo || '',
       ].join(' ');
       return matchData && paraBusca(alvo).includes(q);
-    });
-  }, [requisicoes, filtroBusca, filtroData, nomeSolicitante, grupoAtivo, filtros, valorCampo, idsEspecial]);
+    }).map(mascarar);
+  }, [requisicoes, filtroBusca, filtroData, nomeSolicitante, grupoAtivo, filtros, valorCampo, idsEspecial, userProfile]);
 
   const temFiltroAtivo = filtroBusca || filtroData || filtros.length > 0;
   const limparFiltros = () => { setFiltroBusca(''); setFiltroData(''); setFiltros([]); };
@@ -831,7 +838,12 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                 <div className="px-1 pb-4 flex-1 md:max-xl:max-h-[72vh] md:max-xl:overflow-y-auto scrollbar-hide">
                   {items.length > 0 ? (
                     <>
-                      {priorizarDestaque(items).slice(0, limitesPorColuna[col.id] || CARDS_POR_VEZ).map((req: any) => (
+                      {priorizarDestaque(items).slice(0, limitesPorColuna[col.id] || CARDS_POR_VEZ).map((req: any) => req._so_titulo ? (
+                        <div key={req.id} className="mb-3 rounded-[14px] border border-dashed border-zinc-300 bg-white/70 px-3 py-2.5" title="Campanha privada: só os responsáveis veem os detalhes">
+                          <div className="text-[11px] text-zinc-500">#{req.id} · campanha privada</div>
+                          <div className="text-[13.5px] font-semibold text-zinc-800">{req.titulo || 'Requisição'}</div>
+                        </div>
+                      ) : (
                         <CardCapaReq
                           key={req.id}
                           req={req}
@@ -906,7 +918,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                   const v = visualTipo(r.tipo);
                   const dias = diasAberta(r, hoje);
                   return (
-                    <tr key={r.id} onClick={() => setReqAbertaLista(r)} className="cursor-pointer transition-colors hover:bg-orange-50/50" style={{ borderTop: '1px solid var(--rq-borda)' }}>
+                    <tr key={r.id} onClick={() => { if (!r._so_titulo) setReqAbertaLista(r); }} title={r._so_titulo ? 'Campanha privada: só os responsáveis veem os detalhes' : undefined} className={`${r._so_titulo ? 'cursor-default' : 'cursor-pointer'} transition-colors hover:bg-orange-50/50`} style={{ borderTop: '1px solid var(--rq-borda)' }}>
                       <td className="px-3 py-2.5" style={{ fontVariantNumeric: 'tabular-nums', color: v.cor }}>{r.id}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap"><i className={`fa-solid ${v.icone}`} style={{ color: v.cor, marginRight: 7, fontSize: 12 }} />{normalizarTipo(r.tipo)}</td>
                       <td className="px-3 py-2.5 max-w-[360px] truncate">{r.titulo}</td>

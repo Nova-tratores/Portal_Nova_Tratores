@@ -282,10 +282,13 @@ async function ppvsDaOS(os: LinhaOS): Promise<PPVDaOS[]> {
   const { data } = await supabase.from(TBL_PEDIDOS)
     .select('id_pedido, pedido_omie, Tipo_Pedido, status, omie_empresa, faturado_omie_em, valor_total')
     .or(filtro);
-  return (data || []).map((p: Record<string, unknown>) => ({
+  const lista = (data || []) as Record<string, unknown>[];
+  const { contarSemCobrancaAtivos } = await import('@/lib/ppv/sem-cobranca');
+  const semCob = await contarSemCobrancaAtivos(lista.map((p) => String(p.id_pedido))).catch(() => ({} as Record<string, number>));
+  return lista.map((p) => ({
     id: String(p.id_pedido), pedidoOmie: String(p.pedido_omie || ''), tipo: String(p.Tipo_Pedido || 'Pedido'),
     status: String(p.status || ''), empresa: String(p.omie_empresa || ''), faturadoEm: (p.faturado_omie_em as string) || null,
-    valor: Number(p.valor_total || 0),
+    valor: Number(p.valor_total || 0), semCobranca: semCob[String(p.id_pedido)] || 0,
   }));
 }
 
@@ -751,7 +754,14 @@ async function faturarOSComReciboSemPausa(id: string, entrada: { totalConfirmado
   if (entrada.faturarRemessas !== false) {
     const { faturarRemessaPPV } = await import('@/lib/ppv/omie');
     for (const p of await ppvsDaOS(os).catch(() => [] as PPVDaOS[])) {
-      if (!/remessa/i.test(p.tipo) || /cancel/i.test(String(p.status || '')) || !p.pedidoOmie) continue;
+      if (!/remessa/i.test(p.tipo) || /cancel/i.test(String(p.status || '')) || p.faturadoEm) continue;
+      // remessa que ainda não foi pro Omie: antes ficava de fora EM SILÊNCIO — agora aparece no resultado e no log
+      if (!p.pedidoOmie) {
+        const erro = 'ainda não foi enviada ao Omie — envie a remessa pelo PPV e fature por lá.';
+        remessas.push({ id: p.id, ok: false, nf: null, erro });
+        await logOS(id, `Remessa ${p.id} NÃO faturada: ${erro}`, userName, String(os.Status || ''));
+        continue;
+      }
       const r = await faturarRemessaPPV(p.id, userName).catch((e) => ({ ok: false, erro: e instanceof Error ? e.message : String(e), nf: null }));
       remessas.push({ id: p.id, ok: r.ok, nf: r.nf ?? null, erro: r.erro });
       await logOS(id, r.ok ? `Remessa ${p.id} faturada${r.nf ? ` — NF-e ${r.nf}` : ''}.` : `Remessa ${p.id} NÃO faturada: ${r.erro}`, userName, String(os.Status || ''));

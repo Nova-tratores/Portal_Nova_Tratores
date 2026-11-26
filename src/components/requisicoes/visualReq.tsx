@@ -24,6 +24,9 @@ export const ESTILO_REQ_VN = `
    cartões brancos com texto branco; aqui dentro as duas seguem o tema */
 [data-theme="dark"] .req-vn { --surface: var(--portal-bg-card); --border: var(--portal-border); }
 [data-theme="dark"] .req-vn .rq-req-num small { color: color-mix(in srgb, var(--c) 70%, #fefefe) }
+/* tema escuro (23/11/2026): pílulas ("parada há N dias"…) = cor a 15% + texto clareado; anexo NF ligado em verde claro */
+[data-theme="dark"] .req-vn .rq-pilula { color: color-mix(in srgb, var(--c) 45%, #fefefe); background: color-mix(in srgb, var(--c) 15%, transparent) }
+[data-theme="dark"] .req-vn .rq-anexo.on { color: var(--portal-green-fg, #34d399); background: rgba(52, 211, 153, .15) }
 .req-vn .req-ico { display: inline-grid; place-items: center; flex: none; }
 .req-vn .req-ico i { font-weight: 900 }
 

@@ -246,7 +246,7 @@ export const ESTILO_SIM = `
 .sa-grupo { padding: 12px 16px 4px; font-size: 12px; color: ${MUDO}; text-transform: uppercase; letter-spacing: .04em; border-top: 1px solid ${BORDA} }
 .sa-r { display: grid; gap: 1px; min-width: 0 } .sa-r b { font-weight: 500 } .sa-r small { font-size: 11.5px }
 .sa-l.tot { background: ${FUNDO2} } .sa-l.tot .sa-r b, .sa-l.tot strong { font-weight: 700 }
-.sa-l.forte { background: #f0fdfa; font-size: 15px } .sa-l.forte strong { color: ${VERDE} }
+.sa-l.forte { background: var(--mx-p-teal, #f0fdfa); font-size: 15px } .sa-l.forte strong { color: ${VERDE} }
 .sa-sim { display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap } .sa-sim strong { font-weight: 500; min-width: 90px }
 .sa-campos { display: inline-flex; gap: 6px }
 .sa-campo { display: inline-flex; align-items: center; border: 1px solid ${BORDA}; border-radius: 7px; background: ${FUNDO2}; padding: 0 6px; height: 28px; transition: border-color .15s }
@@ -262,10 +262,10 @@ export const ESTILO_SIM = `
 .sb-esq, .sb-dir { background: ${CARTAO}; border: 1px solid ${BORDA}; border-radius: 12px; padding: 16px }
 .sb-esq { display: grid; gap: 4px }
 .sb-sec { font-size: 12px; color: ${MUDO}; text-transform: uppercase; letter-spacing: .04em; padding: 8px 0 2px }
-.sb-alav { padding: 8px 10px; border-radius: 10px; transition: background .2s } .sb-alav.on { background: #eff6ff }
+.sb-alav { padding: 8px 10px; border-radius: 10px; transition: background .2s } .sb-alav.on { background: var(--mx-bg1, #eff6ff) }
 .sb-alav-t { display: flex; justify-content: space-between; gap: 8px; font-size: 13.5px } .sb-alav-t b { font-weight: 700 }
 .sb-alav input[type=range] { width: 100%; accent-color: #2563eb; margin: 6px 0 2px; cursor: pointer }
-.sb-alav-p { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px } .sb-alav-p button { border: 0; background: none; color: #2563eb; font: inherit; font-size: 11.5px; cursor: pointer; padding: 0 }
+.sb-alav-p { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px } .sb-alav-p button { border: 0; background: none; color: var(--mx-fg-blue, #2563eb); font: inherit; font-size: 11.5px; cursor: pointer; padding: 0 }
 .sb-dir { position: sticky; top: 90px; display: grid; gap: 6px }
 .sb-res { font-size: 38px; font-weight: 700; line-height: 1.1 } .sb-sub { font-size: 13px; color: ${MUDO} } .sb-sub b { color: ${TXT} }
 .sb-barra { display: flex; height: 14px; border-radius: 99px; overflow: hidden; margin: 12px 0 4px; background: ${FUNDO2} } .sb-barra i { transition: flex-grow .5s ease }
@@ -277,4 +277,6 @@ export const ESTILO_SIM = `
 .sb-frases { display: grid; gap: 6px; margin-top: 10px } .sb-frases p { margin: 0; font-size: 13px; line-height: 1.45 } .sb-frases i { color: ${MUDO}; width: 18px } .sb-frases b { font-weight: 700 }
 .sb-volta { justify-self: start; margin-top: 6px }
 @media (max-width: 900px) { .sb { grid-template-columns: 1fr } .sb-dir { position: static } .sa-topo { grid-template-columns: 1fr } .sa-l { grid-template-columns: minmax(0, 1fr) 90px; } .sa-l > span:nth-child(2), .sa-l > span:nth-child(4) { display: none } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
 `

@@ -12,7 +12,7 @@
 // que o dark NÃO converte, e o resto sai das vars do tema.
 // =============================================================================
 import {
-  AlertTriangle, BarChart3, CalendarDays, ClipboardCheck, FileText, Gift, HandCoins, Handshake, Megaphone,
+  AlertTriangle, BarChart3, PartyPopper, CalendarDays, ClipboardCheck, FileText, Gift, HandCoins, Handshake, Megaphone,
   BadgePercent, Percent, Sprout, Store, Tent, TrendingUp, Users, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
@@ -198,7 +198,7 @@ export function Selo({ texto, cor, titulo }: { texto: string; cor: string; titul
 
 const ICONE_TIPO: Record<string, LucideIcon> = {
   campanha: BadgePercent, feira: Tent, dia_de_campo: Sprout, acao_loja: Store, patrocinio: Handshake,
-  midia: Megaphone, brinde: Gift, outro: CalendarDays,
+  midia: Megaphone, brinde: Gift, evento_interno: PartyPopper, outro: CalendarDays,
 };
 
 /** Ícone do tipo da ação (feira, dia de campo…) em quadradinho, na cor da situação. */
@@ -278,6 +278,41 @@ export const estiloInput: React.CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
 };
+
+/**
+ * Campo de dinheiro (24/11/2026: "falta os campos monetários melhorados"). Mostra "R$ 20.000,00" enquanto digita,
+ * no jeito de caixa eletrônico: cada dígito entra pela direita (digitar 2-0-0-0-0-0-0 → R$ 20.000,00).
+ * Devolve pro formulário o número em texto com ponto ("20000.00"), que é o que as rotas já aceitam; vazio = ''.
+ */
+export function CampoReais({
+  value, onChange, required, autoFocus, placeholder = 'R$ 0,00', style,
+}: { value: any; onChange: (v: string) => void; required?: boolean; autoFocus?: boolean; placeholder?: string; style?: React.CSSProperties }) {
+  const n = value === '' || value === null || value === undefined ? null : Number(value);
+  const mostrado = n === null || !Number.isFinite(n) ? '' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  return (
+    <input
+      type="text" inputMode="numeric" style={{ ...estiloInput, fontVariantNumeric: 'tabular-nums', ...style }}
+      value={mostrado} placeholder={placeholder} required={required} autoFocus={autoFocus}
+      onChange={(e) => {
+        const dig = e.target.value.replace(/\D/g, '').replace(/^0+/, '');
+        onChange(dig ? (Number(dig) / 100).toFixed(2) : '');
+      }}
+      onFocus={(e) => { const el = e.target; requestAnimationFrame(() => el.setSelectionRange(el.value.length, el.value.length)); }}
+    />
+  );
+}
+
+/** Bloco "Mais detalhes" fechado por padrão: esconde o que quase nunca se preenche. Abre sozinho se já tem algo. */
+export function MaisDetalhes({ titulo = 'Mais detalhes', resumo, abertoInicial, children }: { titulo?: string; resumo?: string; abertoInicial?: boolean; children: React.ReactNode }) {
+  return (
+    <details open={abertoInicial} style={{ border: '1px solid var(--portal-border)', borderRadius: 10, padding: '10px 12px' }}>
+      <summary style={{ cursor: 'pointer', fontSize: 13.5, fontWeight: 600, color: 'var(--portal-text)' }}>
+        {titulo}{resumo ? <span style={{ fontWeight: 400, color: 'var(--portal-text-muted, #64748b)' }}> — {resumo}</span> : null}
+      </summary>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 12 }}>{children}</div>
+    </details>
+  );
+}
 
 /** Botão secundário com contorno (Editar, Lixeira…). */
 export const estiloBotaoContorno: React.CSSProperties = {

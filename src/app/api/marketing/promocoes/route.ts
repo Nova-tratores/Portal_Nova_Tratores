@@ -4,6 +4,7 @@
 import { NextResponse } from 'next/server'
 import { guardarSite, sb } from '@/lib/marketing/redes/server'
 import { ehRede } from '@/lib/marketing/redes/redes'
+import { postDaPromocao, type PostDaPromo } from '@/lib/marketing/redes/promo-post'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -40,7 +41,11 @@ export async function GET(req: Request) {
   if (g.resposta) return g.resposta
   const { data, error } = await sb.from('site_promocoes').select('*').order('ordem').order('criado_em')
   if (error) return NextResponse.json({ ok: false, erro: falta(error.message) ? MSG_SQL : error.message }, { status: falta(error.message) ? 503 : 500 })
-  return NextResponse.json({ ok: true, promocoes: data || [], podeEditar: podeEditar(g.user) })
+  // 25/11/2026: cada promoção leva o id do post dela no calendário (o botão abre esse post, não cria outro)
+  const ids = (data || []).map((p) => p.id)
+  const { data: ps } = ids.length ? await sb.from('site_posts').select('id, promocao_id').in('promocao_id', ids) : { data: [] }
+  const postDe = new Map(((ps || []) as { id: string; promocao_id: string }[]).map((x) => [x.promocao_id, x.id]))
+  return NextResponse.json({ ok: true, promocoes: (data || []).map((p) => ({ ...p, post_id: postDe.get(p.id) || null })), podeEditar: podeEditar(g.user) })
 }
 
 export async function POST(req: Request) {
@@ -51,12 +56,20 @@ export async function POST(req: Request) {
   const l = limpar({ titulo: '', ...b })
   if (!l.ok) return NextResponse.json({ ok: false, erro: l.erro }, { status: 400 })
   if (!l.v.imagem && !l.v.produto_slug && !l.v.arte_feed && !l.v.arte_vertical && !l.v.video) return NextResponse.json({ ok: false, erro: 'Envie a foto da promoção ou escolha uma máquina do site' }, { status: 400 })
+  // Fase 2 do plano do Marketing (23/11/2026): promoção sem fim ficava no ar para sempre
+  if (!l.v.fim) return NextResponse.json({ ok: false, erro: 'Informe até quando vale a promoção (data de fim)' }, { status: 400 })
   const { data: ult } = await sb.from('site_promocoes').select('ordem').order('ordem', { ascending: false }).limit(1).maybeSingle()
   const { data, error } = await sb.from('site_promocoes').insert({
     ...l.v, ordem: ((ult as { ordem?: number } | null)?.ordem ?? -1) + 1, atualizado_por: g.user.nome || g.user.email || 'Portal',
   }).select('*').single()
   if (error) return NextResponse.json({ ok: false, erro: falta(error.message) ? MSG_SQL : error.message }, { status: 500 })
-  return NextResponse.json({ ok: true, promocao: data })
+  return NextResponse.json({ ok: true, promocao: data, post: await postSemQuebrar(data, g.user.nome || g.user.email || 'Portal') })
+}
+
+/** 25/11/2026: gravar a promoção já cria/atualiza o post dela no calendário. Erro aqui não desfaz a promoção. */
+async function postSemQuebrar(promo: unknown, por: string): Promise<PostDaPromo | { erro: string }> {
+  try { return await postDaPromocao(promo as Parameters<typeof postDaPromocao>[0], por) }
+  catch (e) { console.warn('[promocoes] post da promoção:', (e as Error).message); return { erro: (e as Error).message } }
 }
 
 export async function PATCH(req: Request) {
@@ -75,9 +88,17 @@ export async function PATCH(req: Request) {
   if (!id) return NextResponse.json({ ok: false, erro: 'promoção inválida' }, { status: 400 })
   const l = limpar(b)
   if (!l.ok) return NextResponse.json({ ok: false, erro: l.erro }, { status: 400 })
+  // Fase 2 (23/11/2026): promoção que continua LIGADA precisa de data de fim (as antigas sem fim pedem na próxima edição).
+  // Só desligar não pede data.
+  const { data: atual } = await sb.from('site_promocoes').select('fim, ativo').eq('id', id).maybeSingle()
+  const ficaLigada = 'ativo' in l.v ? l.v.ativo === true : (atual as { ativo?: boolean } | null)?.ativo !== false
+  const fimFinal = 'fim' in l.v ? l.v.fim : (atual as { fim?: string | null } | null)?.fim
+  if (ficaLigada && !fimFinal) return NextResponse.json({ ok: false, erro: 'Informe até quando vale a promoção (data de fim). Promoção sem fim ficava no ar para sempre.' }, { status: 400 })
   const { data, error } = await sb.from('site_promocoes').update({ ...l.v, atualizado_em: agora, atualizado_por: por }).eq('id', id).select('*').single()
   if (error) return NextResponse.json({ ok: false, erro: /check/i.test(error.message) ? 'A promoção precisa de foto ou de uma máquina' : falta(error.message) ? MSG_SQL : error.message }, { status: 400 })
-  return NextResponse.json({ ok: true, promocao: data })
+  // só liga/desliga ou reordena não mexe no post; edição de verdade (artes, texto, redes) atualiza
+  const mexeuNoPost = ['titulo', 'texto', 'legenda', 'arte_feed', 'arte_vertical', 'video', 'redes', 'inicio'].some((k) => k in l.v)
+  return NextResponse.json({ ok: true, promocao: data, post: mexeuNoPost ? await postSemQuebrar(data, por) : undefined })
 }
 
 export async function DELETE(req: Request) {

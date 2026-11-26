@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import EnviarFoto from '@/components/marketing/redes/EnviarFoto';
 import { fetchAuth } from '@/lib/auth/client';
 import { Aviso, Conta, Numero, tela, quando } from '@/components/marketing/redes/ui';
+import '@/components/abas-modulo.css';
 import { AZUL, Campo, Secao, T1, T2, T3, bt, campoNP, cartaoNP, grade, ic } from '@/components/marketing/redes/np';
 
 type Setor = 'comercial' | 'posvendas' | 'pecas';
@@ -283,11 +284,11 @@ export default function Campanhas() {
               </span>
             </div>
             {/* guias estilo Chrome (docs/padrao-telas.md) */}
-            <nav style={{ background: `linear-gradient(135deg, ${AMBAR}, #b45309)`, padding: '8px clamp(12px, 2vw, 28px) 0', display: 'flex', gap: 4, overflowX: 'auto' }}>
+            <nav className="aba-faixa" style={{ background: `linear-gradient(135deg, ${AMBAR}, #b45309)`, padding: '8px clamp(12px, 2vw, 28px) 0', display: 'flex', gap: 4, overflowX: 'auto' }}>
               {VISOES.map((v) => {
                 const on = v.id === ver;
                 return (
-                  <Link key={v.id} href={abrir(slug, v.id, sub)}
+                  <Link key={v.id} href={abrir(slug, v.id, sub)} className={`aba-guia${on ? ' aba-ativa' : ''}`}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '8px 18px', borderRadius: '11px 11px 0 0', fontSize: 14, fontWeight: on ? 700 : 500, textDecoration: 'none', whiteSpace: 'nowrap', background: on ? '#fefefe' : 'rgba(255,255,255,0.30)', color: '#111111', boxShadow: on ? '0 -2px 6px rgba(0,0,0,0.15)' : 'none' }}>
                     <i className={`fa-solid ${v.icone}`} style={{ fontWeight: 900 }} />{v.label}
                   </Link>

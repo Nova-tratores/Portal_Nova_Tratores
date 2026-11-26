@@ -36,7 +36,7 @@ export default function FotoMaquina({ modelo, chassi, largura = 96, altura = 72,
   const url = res?.k === k && !quebrou ? res.url : null;
   const caixa: React.CSSProperties = {
     width: largura, height: altura, borderRadius: 12, flex: 'none', overflow: 'hidden', display: 'grid', placeItems: 'center', position: 'relative',
-    background: url ? '#fefefe' : `color-mix(in srgb, ${cor} 9%, var(--surface, #fefefe))`,
+    background: url ? 'var(--surface, var(--portal-bg-card, #fefefe))' : `color-mix(in srgb, ${cor} 9%, var(--surface, var(--portal-bg-card, #fefefe)))`,
     border: `1px solid ${url ? 'var(--border, #e2e8f0)' : `color-mix(in srgb, ${cor} 18%, transparent)`}`, color: cor,
   };
   return (

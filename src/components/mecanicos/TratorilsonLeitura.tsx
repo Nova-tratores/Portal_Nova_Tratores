@@ -263,7 +263,7 @@ function Ensinar({ ens, setEns }: { ens: Ensinamento[]; setEns: (e: Ensinamento[
             </div>
           ) : (
             <>
-              <b style={{ color: '#7c3aed' }}>{i + 1}.</b>
+              <b style={{ color: 'var(--mx-fg-violet, #7c3aed)' }}>{i + 1}.</b>
               <span style={{ flex: 1, whiteSpace: 'pre-wrap' }}>{e.conteudo}</span>
               <button type="button" className="rl-mini" title="Editar" onClick={() => setEditando({ id: e.id, texto: e.conteudo })}><i className="fas fa-pen" /></button>
               <button type="button" className="rl-mini" title="Apagar" disabled={salvando} onClick={() => { if (confirm('Apagar este ensinamento?')) void mexer({ acao: 'apagar', id: e.id }) }}><i className="fas fa-trash" /></button>
@@ -299,11 +299,11 @@ const ESTILO = `
 .rd-txt { display: block; font-size: 15.5px; line-height: 1.4; color: var(--portal-text, #0f172a) }
 .rd-pq { margin: 4px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--portal-text-muted, #64748b) }
 .rd-ok { border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-card, #fefefe); color: var(--portal-text-muted, #64748b); border-radius: 99px; padding: 5px 11px; font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; white-space: nowrap; flex-shrink: 0 }
-.rd-ok:hover { border-color: #16a34a; color: #15803d }
-.rd-feita { opacity: .55 } .rd-feita .rd-txt { text-decoration: line-through } .rd-feita .rd-ok { color: #15803d; border-color: #86efac; background: #f0fdf4 }
+.rd-ok:hover { border-color: #16a34a; color: var(--mx-fg-green, #15803d) }
+.rd-feita { opacity: .55 } .rd-feita .rd-txt { text-decoration: line-through } .rd-feita .rd-ok { color: var(--mx-fg-green, #15803d); border-color: var(--mx-pb-green, #86efac); background: var(--mx-p-green, #f0fdf4) }
 .rd-rodape { display: flex; justify-content: center; margin-top: 16px }
 .rd-rodape button { border: none; background: transparent; color: var(--portal-text-muted, #64748b); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; gap: 7px; align-items: center }
-.rd-rodape button:hover { color: #0369a1 }
+.rd-rodape button:hover { color: var(--mx-fg-blue, #0369a1) }
 @media (prefers-reduced-motion: reduce) { .rd-dica { animation: none } }
 
 .tl3 { display: flex; gap: 14px; align-items: center; margin-bottom: 16px }
@@ -315,7 +315,7 @@ const ESTILO = `
 .tl3-perg { flex: 1; min-width: 0; display: grid; gap: 5px } .tl3-perg > small { font-size: 11.5px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; color: var(--portal-text-muted, #64748b) }
 .tl3-perg > div { display: flex; gap: 6px; flex-wrap: wrap }
 .tl3-q { position: relative; display: inline-flex; gap: 7px; align-items: center; border: 1px solid color-mix(in srgb, var(--portal-border, #e2e8f0) 70%, transparent); background: color-mix(in srgb, var(--portal-bg-card, #fefefe) 55%, transparent); backdrop-filter: blur(6px); border-radius: 99px; padding: 6px 14px; font-family: inherit; font-size: 13px; font-weight: 700; color: color-mix(in srgb, var(--portal-text, #334155) 80%, transparent); cursor: pointer; animation: tlEntra .4s both; transition: border-color .2s, color .2s, transform .2s, box-shadow .2s }
-.tl3-q:hover { background: var(--portal-bg-card, #fefefe); border-color: #7dd3fc; color: #0369a1; transform: translateY(-2px); box-shadow: 0 6px 14px rgba(3,105,161,.12) }
+.tl3-q:hover { background: var(--portal-bg-card, #fefefe); border-color: var(--mx-pb-blue, #7dd3fc); color: var(--mx-fg-blue, #0369a1); transform: translateY(-2px); box-shadow: 0 6px 14px rgba(3,105,161,.12) }
 .tl3-q em { font-style: normal; min-width: 17px; height: 17px; border-radius: 99px; background: #dc2626; color: #fefefe; font-size: 10.5px; font-weight: 900; display: grid; place-items: center; padding: 0 4px }
 .tl2 { display: flex; align-items: stretch; gap: 0; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,.05); transition: box-shadow .2s }
 .tl2:hover { box-shadow: 0 12px 28px rgba(15,23,42,.08) }
@@ -340,18 +340,18 @@ const ESTILO = `
 .tl2 { overflow: visible } .tl2-sit { border-radius: 17px 0 0 17px }
 .tl2-botoes { display: flex; gap: 8px; align-items: center }
 .tl2-dicas { position: relative }
-.tl2-dicas-btn { position: relative; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: #0369a1; cursor: pointer; transition: all .2s }
-.tl2-dicas-btn:hover, .tl2-dicas-btn.on { background: #e0f2fe; border-color: #7dd3fc }
+.tl2-dicas-btn { position: relative; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: var(--mx-fg-blue, #0369a1); cursor: pointer; transition: all .2s }
+.tl2-dicas-btn:hover, .tl2-dicas-btn.on { background: var(--mx-p-blue, #e0f2fe); border-color: var(--mx-pb-blue, #7dd3fc) }
 .tl2-dicas-btn em { position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px; border-radius: 99px; background: #dc2626; color: #fefefe; font-style: normal; font-size: 10.5px; font-weight: 900; display: grid; place-items: center; padding: 0 4px; border: 2px solid var(--portal-bg-card, #fefefe) }
 .tl2-balao { position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; width: min(440px, 80vw); background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; box-shadow: 0 18px 40px rgba(15,23,42,.18); padding: 12px 14px; display: grid; gap: 8px; text-align: left; animation: tlBalao .25s cubic-bezier(.2,1.1,.3,1) both }
 .tl2-balao::before { content: ''; position: absolute; top: -6px; right: 13px; width: 10px; height: 10px; background: inherit; border-left: 1px solid var(--portal-border, #e5e7eb); border-top: 1px solid var(--portal-border, #e5e7eb); transform: rotate(45deg) }
 @keyframes tlBalao { from { opacity: 0; transform: translateY(-6px) scale(.97) } }
-.tl2-balao > b { font-size: 13.5px; color: var(--portal-text, #0f172a) } .tl2-balao > b i { color: #0369a1 }
+.tl2-balao > b { font-size: 13.5px; color: var(--portal-text, #0f172a) } .tl2-balao > b i { color: var(--mx-fg-blue, #0369a1) }
 .tl2-balao ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px }
 .tl2-balao li { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; line-height: 1.4; color: var(--portal-text, #334155); animation: tlEntra .35s ease both }
 .tl2-balao li > i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px }
 .tl2-balao li em { display: inline-block; margin-left: 6px; font-style: normal; font-size: 11.5px; font-weight: 800; color: var(--portal-text-muted, #64748b); background: var(--portal-bg-secondary, #f1f5f9); border-radius: 99px; padding: 0 8px }
-.tl2-balao > button { justify-self: start; border: none; background: transparent; color: #0369a1; font-family: inherit; font-weight: 800; font-size: 12.5px; cursor: pointer; padding: 0 }
+.tl2-balao > button { justify-self: start; border: none; background: transparent; color: var(--mx-fg-blue, #0369a1); font-family: inherit; font-weight: 800; font-size: 12.5px; cursor: pointer; padding: 0 }
 .tl2-abrir { border: none; background: #0369a1; color: #fefefe; border-radius: 99px; padding: 7px 14px; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; white-space: nowrap }
 .tl2-abrir:hover { background: #075985 }
 .tl-cursor { display: inline-block; width: 2px; height: 1em; background: #0369a1; margin-left: 2px; vertical-align: -2px; animation: tlPisca .8s steps(2) infinite }
@@ -369,15 +369,15 @@ const ESTILO = `
 .rl-cab p { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--portal-text, #334155); max-width: 860px }
 .rl-cab-acoes { display: flex; gap: 8px }
 .rl-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #334155); border-radius: 10px; padding: 8px 12px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit }
-.rl-btn:hover:not(:disabled) { border-color: #0369a1; color: #0369a1 } .rl-btn:disabled { opacity: .5 }
+.rl-btn:hover:not(:disabled) { border-color: #0369a1; color: var(--mx-fg-blue, #0369a1) } .rl-btn:disabled { opacity: .5 }
 .rl-x { width: 38px; justify-content: center; padding: 0 }
 .rl-roxo { background: #7c3aed; color: #fefefe; border-color: #7c3aed } .rl-roxo:hover:not(:disabled) { background: #6d28d9; color: #fefefe }
 .rl-abas { display: flex; gap: 4px; padding: 0 22px; border-bottom: 1px solid var(--portal-border, #e5e7eb); overflow-x: auto }
 .rl-abas button { position: relative; border: none; background: transparent; font-family: inherit; font-size: 14.5px; font-weight: 800; color: var(--portal-text-muted, #64748b); padding: 10px 12px 12px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px }
 .rl-abas button em { font-style: normal; font-size: 11px; background: var(--portal-bg-secondary, #e2e8f0); border-radius: 99px; padding: 1px 7px }
-.rl-abas button.on { color: #0369a1 } .rl-abas button.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 3px; border-radius: 3px; background: #0369a1 }
+.rl-abas button.on { color: var(--mx-fg-blue, #0369a1) } .rl-abas button.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 3px; border-radius: 3px; background: #0369a1 }
 .rl-corpo { flex: 1; overflow-y: auto; padding: 18px 22px 28px }
-.rl-erro { background: #fef2f2; color: #991b1b; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px }
+.rl-erro { background: var(--mx-p-red, #fef2f2); color: var(--mx-fg-red, #991b1b); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px }
 .rl-vazio { text-align: center; color: var(--portal-text-muted, #94a3b8); font-size: 13px; padding: 12px }
 .rl-plano { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start }
 .rl-col { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; padding: 12px; display: grid; gap: 8px }
@@ -400,28 +400,28 @@ const ESTILO = `
 .rl-duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
 .rl-tec h4 { margin: 0 0 4px; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .4px }
 .rl-tec ul { margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.5; color: var(--portal-text, #334155) }
-.rl-dicas { background: #fefce8; border: 1px solid #fde68a; border-radius: 12px; padding: 10px 12px }
-.rl-dicas h4 { color: #a16207 }
+.rl-dicas { background: var(--mx-p-amber, #fefce8); border: 1px solid var(--mx-pb-amber, #fde68a); border-radius: 12px; padding: 10px 12px }
+.rl-dicas h4 { color: var(--mx-fg-orange, #a16207) }
 .rl-dicas ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px }
 .rl-dicas li { display: flex; gap: 8px; font-size: 13.5px; line-height: 1.45; color: var(--portal-text, #1f2937) }
 .rl-dicas li span { width: 20px; height: 20px; border-radius: 50%; background: #eab308; color: #fefefe; font-size: 11px; font-weight: 900; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0 }
-.rl-conversa { display: flex; gap: 10px; align-items: flex-start; background: #eff6ff; border-radius: 14px 14px 14px 4px; padding: 10px 12px }
-.rl-conversa > i { color: #0369a1; font-size: 18px; margin-top: 2px }
-.rl-conversa p { margin: 0; flex: 1; font-size: 13.5px; line-height: 1.5; font-style: italic; color: #0c4a6e }
-.rl-conversa button { border: none; background: #fefefe; color: #0369a1; border-radius: 99px; padding: 4px 10px; font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer; white-space: nowrap }
+.rl-conversa { display: flex; gap: 10px; align-items: flex-start; background: var(--mx-bg1, #eff6ff); border-radius: 14px 14px 14px 4px; padding: 10px 12px }
+.rl-conversa > i { color: var(--mx-fg-blue, #0369a1); font-size: 18px; margin-top: 2px }
+.rl-conversa p { margin: 0; flex: 1; font-size: 13.5px; line-height: 1.5; font-style: italic; color: var(--mx-fg-blue, #0c4a6e) }
+.rl-conversa button { border: none; background: var(--mx-bg0, #fefefe); color: var(--mx-fg-blue, #0369a1); border-radius: 99px; padding: 4px 10px; font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer; white-space: nowrap }
 .rl-lig { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; padding: 12px 14px; animation: tlEntra .45s ease both }
 .rl-lig p { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: var(--portal-text, #334155) }
 .rl-lig ul { margin: 6px 0 0; padding-left: 18px; font-size: 13.5px }
 .rl-lig-tit { font-size: 14.5px; color: var(--portal-text, #0f172a) }
 .rl-cadeia { display: flex; flex-wrap: wrap; align-items: center; gap: 6px }
 .rl-cadeia span { display: inline-flex; align-items: center; gap: 6px }
-.rl-cadeia b { background: #eff6ff; color: #0369a1; border-radius: 99px; padding: 4px 12px; font-size: 13.5px }
+.rl-cadeia b { background: var(--mx-bg1, #eff6ff); color: var(--mx-fg-blue, #0369a1); border-radius: 99px; padding: 4px 12px; font-size: 13.5px }
 .rl-cadeia i { color: #94a3b8 }
 .rl-dest { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px }
 .rl-dest > div { border-left: 4px solid; border-radius: 12px; padding: 10px 12px; display: grid; gap: 3px; font-size: 13.5px }
 .rl-texto { width: 100%; box-sizing: border-box; border-radius: 10px; border: 1px solid var(--portal-border, #d1d5db); padding: 9px 11px; font-size: 14px; font-family: inherit; resize: vertical; background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #0f172a) }
 .rl-ens { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 12px; padding: 10px 12px; font-size: 14px; line-height: 1.5; background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #0f172a); font-family: inherit; text-align: left }
-.rl-ex { border-style: dashed; cursor: pointer; color: var(--portal-text-muted, #475569) } .rl-ex i { color: #7c3aed; margin-top: 4px }
+.rl-ex { border-style: dashed; cursor: pointer; color: var(--portal-text-muted, #475569) } .rl-ex i { color: var(--mx-fg-violet, #7c3aed); margin-top: 4px }
 .rl-mini { border: none; background: transparent; cursor: pointer; color: var(--portal-text-muted, #64748b); padding: 3px 6px; border-radius: 6px }
 .rl-mini:hover { background: rgba(100,116,139,.12) }
 @media (max-width: 900px) { .rl-plano { grid-template-columns: 1fr } .tl2 { flex-wrap: wrap } .tl2-sit { width: 100%; flex-direction: row; padding: 8px } .tl2-lado { border-left: none; width: 100%; flex-direction: row; justify-content: space-between } .rl-duas { grid-template-columns: 1fr } }
@@ -431,7 +431,7 @@ const ESTILO = `
 .tlf.oculto .tlf-capa { z-index: 9700; background: rgba(15,23,42,.38); backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px) }
 /* centrada sem transform: a animação de entrada (tlEntra) termina em transform: none e jogava a janela para o canto */
 .tlf.oculto .tlf-menu { position: fixed; inset: 0; margin: auto; height: fit-content; max-height: 86vh; overflow-y: auto; z-index: 9701; width: min(400px, 92vw); padding: 10px; border-radius: 20px; box-shadow: 0 30px 80px -20px rgba(15,23,42,.6) }
-.tlf.oculto .tlf-menu::before { content: 'Perguntas frequentes'; display: block; padding: 6px 12px 10px; font-size: 15px; font-weight: 600; color: #0369a1 }
+.tlf.oculto .tlf-menu::before { content: 'Perguntas frequentes'; display: block; padding: 6px 12px 10px; font-size: 15px; font-weight: 600; color: var(--mx-fg-blue, #0369a1) }
 .tlf-bt { display: inline-flex; gap: 10px; align-items: center; min-height: 56px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 999px; padding: 6px 16px 6px 7px; font-family: inherit; text-align: left; cursor: pointer; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05); transition: border-color .2s, box-shadow .2s, transform .15s }
 .tlf-bt:hover, .tlf.on .tlf-bt { transform: translateY(-1px); border-color: color-mix(in srgb, var(--c) 40%, transparent); box-shadow: 0 8px 20px rgba(15,23,42,.09) }
 .tlf-rosto { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; color: #fefefe; background: linear-gradient(135deg, #0ea5e9, #0369a1); box-shadow: 0 4px 10px rgba(3,105,161,.3) }
@@ -442,7 +442,10 @@ const ESTILO = `
 .tlf-capa { position: fixed; inset: 0; z-index: 40 }
 .tlf-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 41; width: 320px; display: grid; gap: 2px; padding: 6px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 18px; box-shadow: 0 20px 50px rgba(15,23,42,.18); animation: tlEntra .2s both }
 .tlf-menu button { display: flex; gap: 10px; align-items: center; justify-content: space-between; border: none; background: transparent; border-radius: 12px; padding: 10px 12px; font-family: inherit; font-size: 13.5px; font-weight: 700; color: var(--portal-text, #334155); text-align: left; cursor: pointer; animation: tlEntra .25s both }
-.tlf-menu button:hover { background: #f0f9ff; color: #0369a1 } .tlf-menu button i { font-size: 11px; opacity: 0; transition: opacity .15s, transform .15s } .tlf-menu button:hover i { opacity: 1; transform: translateX(2px) }
+.tlf-menu button:hover { background: var(--mx-bg1, #f0f9ff); color: var(--mx-fg-blue, #0369a1) } .tlf-menu button i { font-size: 11px; opacity: 0; transition: opacity .15s, transform .15s } .tlf-menu button:hover i { opacity: 1; transform: translateX(2px) }
 .tlf-menu em { font-style: normal; min-width: 18px; height: 18px; border-radius: 99px; background: #dc2626; color: #fefefe; font-size: 11px; font-weight: 900; display: grid; place-items: center; padding: 0 5px }
 @media (max-width: 900px) { .tlf-t small { display: none } .tlf-menu { width: min(320px, 90vw) } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
+
 `

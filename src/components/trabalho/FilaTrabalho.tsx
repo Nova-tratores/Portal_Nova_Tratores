@@ -11,6 +11,7 @@ import { GripVertical, AlertTriangle, CheckCircle2, RotateCcw, Save } from 'luci
 import { authHeaders } from '@/lib/auth/client'
 import type { Ticket } from '@/lib/tickets/constantes'
 import StatusBadge from '@/components/tickets/StatusBadge'
+import { SeloUrgente } from '@/components/tickets/SeloAtrasado'
 import {
   ordenarFila, planejarFila, atrasoPrevisto, diasUteisEntre, HORAS_CONTINUO_PADRAO, type ItemFila, type Previsao,
 } from '@/lib/trabalho/fila'
@@ -21,7 +22,10 @@ interface Dados {
   hoje: string
   /** Só a própria pessoa e o admin reordenam/editam; quem pediu só vê. */
   podeOrdenar: boolean
+  /** horas/dia para a fila = horasDia − rotina */
   capacidade: number
+  horasDia?: number
+  rotina?: number
   feriados: string[]
   tickets: (Ticket & { oculto?: boolean })[]
   quadros: Record<string, { id: string; nome: string; cor: string }>
@@ -60,14 +64,16 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
   const feriados = useMemo(() => new Set(dados?.feriados || []), [dados])
   // Ticket → item da fila (dias e horas/dia do payload; sem eles, do início ao prazo / dia cheio).
   const itens = useMemo(() => {
-    const m = new Map<string, ItemFila & { t: Ticket & { oculto?: boolean } }>()
+    const m = new Map<string, ItemFila & { t: Ticket & { oculto?: boolean }; semEstimativa: boolean }>()
     for (const t of dados?.tickets || []) {
       const p = (t.payload || {}) as { dias?: number; horas_dia?: number; inicio?: string; urgente?: boolean }
       const dias = p.dias || (p.inicio && t.prazo && p.inicio <= t.prazo ? diasUteisEntre(p.inicio, t.prazo, feriados) : 1)
       // Sem prazo = contínuo (prazo indeterminado): ocupa as horas dele todo dia até concluir.
       const continuo = !t.prazo
       m.set(t.id, { id: t.id, numero: t.numero, prazo: t.prazo, urgente: p.urgente === true, dias, continuo, inicio: p.inicio,
-        horasDia: p.horas_dia || (continuo ? HORAS_CONTINUO_PADRAO : dados!.capacidade), t })
+        horasDia: p.horas_dia || (continuo ? HORAS_CONTINUO_PADRAO : dados!.capacidade), t,
+        // Ninguém estimou as horas: a previsão usa o dia cheio da fila, mas o item ganha a marca "estimar".
+        semEstimativa: !continuo && !p.horas_dia })
     }
     return m
   }, [dados, feriados])
@@ -133,7 +139,8 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
   const comFim = fila.filter((i) => !i.continuo)
   const totalHoras = comFim.reduce((s, i) => s + (previsao.get(i.id)?.horas || 0), 0)
   const livreEm = comFim.length ? comFim.map((i) => previsao.get(i.id)?.fim || '').sort().pop() : null
-  const horasContinuas = fila.filter((i) => i.continuo).reduce((s, i) => s + i.horasDia, 0)
+  const nContinuos = fila.filter((i) => i.continuo).length
+  const nf = (h: number) => String(h).replace('.', ',')
   const vaoAtrasar = fila.filter((i) => atrasoPrevisto(i.prazo, previsao.get(i.id)) > 0).length
   const campo: React.CSSProperties = { width: 46, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)', fontSize: 13, textAlign: 'center' }
 
@@ -150,10 +157,12 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
           <b style={{ fontSize: 14, color: 'var(--portal-text,#111)' }}>Minha fila</b>
         )}
         <span style={{ fontSize: 13, color: muted }}>
-          {fila.length} ticket{fila.length === 1 ? '' : 's'} · {Math.round(totalHoras)} h de trabalho
+          {fila.length} {fila.length === 1 ? 'pedido' : 'pedidos'} · {Math.round(totalHoras)} h
           {livreEm && <> · termina o que tem prazo em <b>{br(livreEm)}</b></>}
-          {horasContinuas > 0 && <> · {horasContinuas} h/dia em contínuos</>}
-          {' · '}{dados.capacidade} h por dia
+          {nContinuos > 0 && <> · {nContinuos} contínuo{nContinuos > 1 ? 's' : ''} na rotina</>}
+        </span>
+        <span style={{ fontSize: 13, color: 'var(--portal-text,#111)' }} title="Ninguém produz o dia inteiro em demanda. A rotina cobre suporte, atendimento e os tickets contínuos.">
+          Capacidade: {nf(dados.horasDia ?? dados.capacidade)} h/dia{dados.rotina ? <> − {nf(dados.rotina)} h rotina = <b>{nf(dados.capacidade)} h/dia para a fila</b></> : null}
         </span>
         {!dados.podeOrdenar && <span style={{ fontSize: 12, color: muted }}>Só {dados.pessoas.find((x) => x.id === dados.user)?.nome?.split(' ')[0] || 'a pessoa'} e o admin mudam a ordem.</span>}
         {vaoAtrasar > 0 && (
@@ -213,21 +222,25 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
                 </span>
                 <button onClick={() => { if (!t.oculto) onAbrir(t.id) }} style={{ cursor: t.oculto ? 'default' : 'pointer', flex: '1 1 240px', minWidth: 0, textAlign: 'left', border: 'none', background: 'transparent', padding: 0, color: 'var(--portal-text,#111)' }}>
                   <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
-                    {i.urgente && <span style={{ padding: '0 6px', borderRadius: 4, fontSize: 10, fontWeight: 800, color: '#fff', background: '#dc2626' }}>URGENTE</span>}
+                    {i.urgente && <SeloUrgente tamanho={10.5} />}
                     {t.oculto ? <i style={{ fontWeight: 600, color: muted }}>Outro compromisso</i> : <>#{t.numero} {t.titulo}</>}
                   </span>
                   <span style={{ fontSize: 12, color: muted }}>
                     {t.oculto ? 'horário ocupado' : <>
-                    {q ? <span style={{ color: q.cor, fontWeight: 700 }}>{q.nome}</span> : <span style={{ color: '#b45309', fontWeight: 700 }}>sem bloco</span>}
+                    {q ? <span style={{ color: q.cor, fontWeight: 700 }}>{q.nome}</span> : <span style={{ color: '#b45309', fontWeight: 700 }}>sem quadro</span>}
                     {' · '}de {dados.usuarios[t.solicitante_id]?.nome || '—'}
                     </>}
                   </span>
                 </button>
                 <StatusBadge status={t.status} tamanho={11} />
+                {i.semEstimativa && !t.oculto && (
+                  <span title="Ninguém estimou as horas deste ticket. A previsão usa o dia cheio da fila; ajuste dias × h/dia ao lado."
+                    style={{ padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, background: 'rgba(234,179,8,.18)', color: '#a16207', border: '1px solid rgba(234,179,8,.45)' }}>estimar</span>
+                )}
                 {i.continuo ? (
-                  <span title="Prazo indeterminado: aparece todo dia até alguém concluir" style={{ width: 92, fontSize: 12, fontWeight: 700, color: '#0369a1' }}>∞ contínuo</span>
+                  <span title="Prazo indeterminado: fica na reserva de rotina, não ocupa a fila" style={{ width: 92, fontSize: 12, fontWeight: 700, color: '#0369a1' }}>∞ na rotina</span>
                 ) : (
-                <label title="Dias de trabalho" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: muted }}>
+                <label title="Quantos dias leva" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: muted }}>
                   <input type="number" min={1} max={120} defaultValue={i.dias} disabled={!dados.podeOrdenar && (t.oculto || t.solicitante_id !== dados.eu)} key={`d${i.id}${i.dias}`} style={campo}
                     onBlur={(e) => { const v = Number(e.target.value); if (v && v !== i.dias) editar(i.id, 'dias', v) }} /> dia{i.dias > 1 ? 's' : ''}
                 </label>
@@ -244,7 +257,7 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
                   <span style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: muted }}>PRAZO</span>
                   {t.prazo ? br(t.prazo) : 'indeterminado'}
                 </span>
-                <span style={{ width: 120, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 700, color: atraso ? '#dc2626' : '#15803d' }}>
+                <span style={{ width: 120, display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 700, color: atraso ? 'var(--cor-atrasado-texto)' : '#15803d' }}>
                   {!t.prazo ? <span style={{ color: '#0369a1', fontWeight: 600 }}>até concluir</span>
                     : atraso ? <><AlertTriangle size={14} /> passa {atraso} dia{atraso > 1 ? 's' : ''}</>
                     : <><CheckCircle2 size={14} /> no prazo</>}

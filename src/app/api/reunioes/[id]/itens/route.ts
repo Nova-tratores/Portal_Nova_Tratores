@@ -1,6 +1,7 @@
 // REUNIÕES — itens da pauta.
 // POST /api/reunioes/:id/itens { acao:'incluir'|'editar'|'reordenar'|'remover', ... }
-//   incluir   { pergunta, tipo, trazido_por?, tempo_min?, notas?, urgente? }
+//   incluir   { pergunta, tipo, trazido_por?, tempo_min?, notas?, urgente?, ticket_referencia_id? }
+//             ticket_referencia_id: o pedido travado/da última que virou assunto (melhorias 4.1)
 //   editar    { item_id, pergunta?, tipo?, trazido_por?, tempo_min?, notas? }
 //   reordenar { ordem: uuid[] }
 //   remover   { item_id }
@@ -59,11 +60,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // Qualquer participante inclui até a ata ser fechada; o que entra depois do corte só ganha o selo "urgente".
       const urgente = corteFechado && souCondutor
       const trazidoPor = v.campos.trazido_por || auth.userId
+      const refTicket = uuidValido(body.ticket_referencia_id) ? String(body.ticket_referencia_id) : null
+      if (refTicket && r.itens.some((i) => i.ticket_referencia_id === refTicket)) return erro('Este pedido já está na pauta.', 409)
       const { data: maxRow } = await supabaseAdmin.from('reunioes_itens').select('ordem').eq('reuniao_id', id).order('ordem', { ascending: false }).limit(1)
       const { data: item, error } = await supabaseAdmin.from('reunioes_itens').insert({
         reuniao_id: id, ordem: (maxRow?.[0]?.ordem ?? -1) + 1, pergunta: v.campos.pergunta, tipo: v.campos.tipo,
         trazido_por: trazidoPor, tempo_min: v.campos.tempo_min, notas: v.campos.notas ?? null, urgente,
         ...(uuidValido(body.campanha_id) ? { campanha_id: body.campanha_id } : {}),
+        ...(refTicket ? { ticket_referencia_id: refTicket } : {}),
         origem: etapa === 'em_andamento' && body.parking === true ? 'parking' : 'manual', criado_por: auth.userId,
         // "Anotar p/ próxima" na condução: o assunto não é tratado hoje — já nasce como fora do tema
         // para entrar na pauta da próxima reunião da série (antes ficava sem resultado e não ia).

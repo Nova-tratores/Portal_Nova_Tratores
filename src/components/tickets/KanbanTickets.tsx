@@ -8,6 +8,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Clock, CalendarDays, User as UserIcon, Zap, ShoppingCart } from 'lucide-react'
+import SeloAtrasado from './SeloAtrasado'
 import {
   STATUS_INFO, STATUS_ATIVOS, STATUS_FINAIS, statusDisponiveis, diasParado, prazoVencido,
   type Ticket, type TicketStatus, type UsuarioMin,
@@ -41,6 +42,9 @@ export default function KanbanTickets({
   const [arrastando, setArrastando] = useState<{ id: string; permitidos: Set<TicketStatus> } | null>(null)
   const [colunaOver, setColunaOver] = useState<TicketStatus | null>(null)
   const [salvando, setSalvando] = useState<string | null>(null)
+  // Coluna vazia recolhida numa faixa (Fase 0, 24/11/2026), igual ao kanban dos Quadros:
+  // abre no clique e TODAS abrem enquanto um cartão é arrastado.
+  const [abertas, setAbertas] = useState<Set<TicketStatus>>(new Set())
 
   const colunas: TicketStatus[] = encerrados ? [...STATUS_ATIVOS, ...STATUS_FINAIS] : STATUS_ATIVOS
   const porStatus: Partial<Record<TicketStatus, Ticket[]>> = {}
@@ -52,8 +56,19 @@ export default function KanbanTickets({
   const destinosDe = (t: Ticket): TicketStatus[] => {
     const souSolicitante = t.solicitante_id === meuId
     const todos = statusDisponiveis(t.status, t.responsavel_id === meuId, souSolicitante, isAdmin)
-    if (t.quadro_id) return todos
+    // Quem FAZ anda mesmo sem quadro: o servidor põe no quadro dele sozinho (24/11/2026).
+    if (t.quadro_id || t.responsavel_id === meuId) return todos
     return todos.filter((s) => s === 'cancelado' || s === 'fechado' || (souSolicitante && t.status === 'resolvido'))
+  }
+  // Os estados que a pessoa NÃO pode escolher, com o motivo (melhorias 1.5: antes só sumiam e
+  // "só Cancelado" parecia bug). Mesma regra do servidor (statusDisponiveis por papel).
+  const bloqueadosDe = (t: Ticket): { s: TicketStatus; motivo: string }[] => {
+    const podem = new Set(destinosDe(t))
+    const peloQueFaz = new Set(statusDisponiveis(t.status, true, false, false))
+    const peloQuePediu = new Set(statusDisponiveis(t.status, false, true, false))
+    return ([...STATUS_ATIVOS, ...STATUS_FINAIS] as TicketStatus[])
+      .filter((s) => s !== t.status && !podem.has(s) && (peloQueFaz.has(s) || peloQuePediu.has(s)))
+      .map((s) => ({ s, motivo: peloQueFaz.has(s) && !peloQuePediu.has(s) ? 'só quem faz' : peloQuePediu.has(s) && !peloQueFaz.has(s) ? 'só quem pediu' : 'sem permissão' }))
   }
 
   const iniciarArrasto = (t: Ticket, e: React.DragEvent) => {
@@ -82,9 +97,10 @@ export default function KanbanTickets({
     await mover(atual.id, para)
   }
 
+  const recolhida = (s: TicketStatus) => !arrastando && !abertas.has(s) && !(porStatus[s] || []).length
   return (
     <div className="kt-board" style={{
-      display: 'grid', gridTemplateColumns: `repeat(${colunas.length}, minmax(230px, 1fr))`, gap: 12,
+      display: 'grid', gridTemplateColumns: colunas.map((s) => (recolhida(s) ? '44px' : 'minmax(230px, 1fr)')).join(' '), gap: 12,
       overflowX: 'auto', alignItems: 'start', paddingBottom: 8, maxWidth: '100%',
     }}>
       {/* Celular/tablet: as colunas rolam de lado e "encaixam" uma por vez. */}
@@ -95,6 +111,15 @@ export default function KanbanTickets({
         const final = STATUS_FINAIS.includes(status)
         const bloqueada = !!arrastando && !arrastando.permitidos.has(status)
         const alvo = !!arrastando && colunaOver === status && !bloqueada
+        if (recolhida(status)) return (
+          <button key={status} type="button" className="kt-col" onClick={() => setAbertas(new Set(abertas).add(status))}
+            title={`${info.label}: vazia. Clique para abrir.`} aria-label={`Abrir coluna ${info.label} (vazia)`}
+            style={{ minHeight: 160, borderRadius: 12, padding: '10px 0', border: '1.5px solid transparent', cursor: 'pointer', font: 'inherit',
+              background: 'var(--portal-bg,#f9fafb)', color: 'var(--portal-text-muted,#888)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 800 }}>0</span>
+            <span style={{ writingMode: 'vertical-rl', fontSize: 12.5, fontWeight: 700, whiteSpace: 'nowrap', color: info.cor }}>{info.label}</span>
+          </button>
+        )
         return (
           <div key={status} className="kt-col"
             onDragOver={(e) => {
@@ -182,21 +207,24 @@ export default function KanbanTickets({
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><UserIcon size={11} /> {resp?.nome || '—'}</span>
                       {visao !== 'pedidos' && sol && <span>pedido por {sol.nome}</span>}
                       {t.categoria && <span>{t.categoria}</span>}
-                      {t.prazo && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: vencido ? '#dc2626' : undefined, fontWeight: vencido ? 700 : undefined }}>
-                          <CalendarDays size={11} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}{vencido ? ' (vencido)' : ''}
-                        </span>
+                      {t.prazo && (vencido
+                          ? <SeloAtrasado>{new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')} · vencido</SeloAtrasado>
+                          : <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <CalendarDays size={11} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}
+                            </span>
                       )}
                     </div>
                     {/* Celular não arrasta: "Mover para…" faz o mesmo que soltar na coluna */}
-                    {!ehSC && destinos.length > 0 && (
-                      <select value="" disabled={salvando === t.id} aria-label={`Mover o ticket #${t.numero} para…`}
+                    {!ehSC && (destinos.length > 0 || bloqueadosDe(t).length > 0) && (
+                      <select value="" disabled={salvando === t.id} aria-label={`Mover o pedido #${t.numero} para…`}
+                        title="Só aparecem liberados os estados que você pode escolher. Quem faz muda o andamento; quem pediu confirma, cancela ou fecha."
                         onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
                         onChange={(e) => { const v = e.target.value as TicketStatus; e.target.value = ''; if (v) mover(t.id, v) }}
                         style={{ alignSelf: 'flex-start', maxWidth: '100%', padding: '3px 6px', borderRadius: 7, fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
                           border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text-secondary,#555)' }}>
                         <option value="">{salvando === t.id ? 'Mudando…' : 'Mover para…'}</option>
                         {destinos.map((s) => <option key={s} value={s}>{STATUS_INFO[s].label}</option>)}
+                        {bloqueadosDe(t).map(({ s, motivo }) => <option key={s} value="" disabled>{STATUS_INFO[s].label} — {motivo}</option>)}
                       </select>
                     )}
                     {visao === 'fila' && !final && (

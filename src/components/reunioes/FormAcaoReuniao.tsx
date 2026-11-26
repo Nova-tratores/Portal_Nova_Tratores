@@ -16,9 +16,9 @@ export default function FormAcaoReuniao({ tituloInicial, descricaoInicial, categ
   onCriar: (a: { titulo: string; descricao: string; responsavel_id: string; prazo: string; categoria: string }) => Promise<void>
 }) {
   return (
-    <Modal titulo="Nova tarefa" onFechar={onFechar} largura={720}>
+    <Modal titulo="Nova ação" onFechar={onFechar} largura={720}>
       <div style={{ fontSize: 13.5, color: 'var(--portal-text-secondary,#475569)', marginBottom: 12 }}>
-        Tarefa é algo que alguém fica responsável por fazer até uma data. A pessoa recebe no sino e na agenda dela.
+        Ação é algo que alguém fica responsável por fazer até uma data (vira um ticket). A pessoa recebe no sino e na agenda dela.
       </div>
       <FormNovaTarefa pessoas={pessoas} usuarios={usuarios} tituloInicial={tituloInicial} onCancelar={onFechar}
         onSalvar={async (t) => { await onCriar({ ...t, descricao: descricaoInicial || '', categoria: categoriaInicial || '' }); onFechar() }} />

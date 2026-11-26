@@ -135,7 +135,7 @@ export default function ComoEscolhemos() {
               <li key={p.motivo}>
                 <span className="ce-ponto" style={{ background: p.cor }} />
                 <span className="ce-motivo"><b>{p.motivo}</b><small>{p.detalhe}</small></span>
-                <span className="ce-peso" style={{ color: p.cor }}>+{p.peso}</span>
+                <span className="ce-peso" style={{ color: p.cor, ['--pc' as string]: p.cor }}>+{p.peso}</span>
               </li>
             ))}
           </ul>
@@ -185,7 +185,7 @@ export default function ComoEscolhemos() {
               <span className="ce-motivo"><b>{l.motivo}:</b> {l.texto}</span>
               <span className="ce-fonte-chip"><i className="fas fa-database" /> {l.fonte}</span>
               <span className="ce-barra"><span style={{ width: `${(l.peso / 25) * 100}%`, background: l.cor }} /></span>
-              <b className="ce-peso" style={{ color: l.cor }}>+{l.peso}</b>
+              <b className="ce-peso" style={{ color: l.cor, ['--pc' as string]: l.cor }}>+{l.peso}</b>
             </li>
           ))}
         </ul>
@@ -234,6 +234,8 @@ const ESTILO = `
   .ce-fluxo { display: grid; grid-template-columns: minmax(0,1fr) 40px minmax(0,1.25fr) 40px minmax(0,1.1fr) 40px minmax(0,1fr); gap: 4px; align-items: start }
   .ce-col { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; box-shadow: 0 6px 20px rgba(15, 23, 42, .05); animation: ceEntra .45s ease both }
   .ce-col h2 { color: var(--s); background: color-mix(in srgb, var(--s) 9%, transparent); margin: -4px -4px 6px; padding: 10px 12px; border-radius: 14px }
+  [data-theme="dark"] .ce-col h2 { color: color-mix(in srgb, var(--s) 50%, #ffffff); background: color-mix(in srgb, var(--s) 15%, transparent) }
+  [data-theme="dark"] .ce-peso { color: color-mix(in srgb, var(--pc) 50%, #ffffff) !important }
   .ce-col h2 span { width: 30px; height: 30px; border-radius: 99px; background: var(--s); color: #fefefe; display: grid; place-items: center; font-size: 15px; flex-shrink: 0; box-shadow: 0 4px 10px color-mix(in srgb, var(--s) 40%, transparent) }
   .ce-sub { font-size: 12.5px; font-weight: 900; text-transform: uppercase; letter-spacing: .8px; color: var(--portal-text-muted, #94a3b8); margin: 8px 0 0 }
   .ce-seta { display: grid; place-items: center; align-self: center }

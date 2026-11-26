@@ -2,6 +2,8 @@
 import { fetchAuth } from '@/lib/auth/client';
 import { useEffect, useRef, useState } from 'react';
 import { X, Search, Loader2, ShieldCheck, AlertTriangle, Check, ExternalLink } from 'lucide-react';
+import { FormGarantiaSoPecas } from './PecasSoPecas';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 interface OSResultado {
   id_ordem: string;
@@ -38,6 +40,8 @@ const inputStyle: React.CSSProperties = {
 };
 
 export default function CriarGarantiaManualModal({ userName, userId, onClose, onCriada }: Props) {
+  const [modo, setModo] = useState<'os' | 'pecas'>('os');
+  const isMobile = useIsMobile();
   const [busca, setBusca] = useState('');
   const [resultados, setResultados] = useState<OSResultado[]>([]);
   const [carregando, setCarregando] = useState(false);
@@ -106,14 +110,16 @@ export default function CriarGarantiaManualModal({ userName, userId, onClose, on
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
         zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 16,
+        padding: isMobile ? 0 : 16,
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: 'var(--portal-bg-card)', borderRadius: 18,
-          maxWidth: 640, width: '100%', maxHeight: '90vh',
+          background: 'var(--portal-bg-card)',
+          maxWidth: isMobile ? '100%' : 640, width: '100%',
+          height: isMobile ? '100%' : undefined, maxHeight: isMobile ? '100%' : '90vh',
+          borderRadius: isMobile ? 0 : 18,
           display: 'flex', flexDirection: 'column',
           boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
         }}
@@ -136,7 +142,7 @@ export default function CriarGarantiaManualModal({ userName, userId, onClose, on
                 Criar garantia manualmente
               </div>
               <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
-                Pra quando o técnico esqueceu de marcar a OS como garantia.
+                {modo === 'os' ? 'Pra quando o técnico esqueceu de marcar a OS como garantia.' : 'Só reposição de peças, sem ordem de serviço.'}
               </div>
             </div>
           </div>
@@ -147,7 +153,18 @@ export default function CriarGarantiaManualModal({ userName, userId, onClose, on
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {!selecionada ? (
+          <div style={{ display: 'flex', gap: 4, padding: 3, borderRadius: 10, background: 'var(--portal-bg-input)', alignSelf: 'flex-start', flexWrap: 'wrap' }}>
+            {([['os', 'A partir de uma OS'], ['pecas', 'Só peças (sem OS)']] as const).map(([m, rot]) => (
+              <button key={m} type="button" onClick={() => setModo(m)}
+                style={{ minHeight: 40, padding: '0 14px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                  background: modo === m ? '#dc2626' : 'transparent', color: modo === m ? '#fefefe' : 'var(--portal-text-secondary)' }}>
+                {rot}
+              </button>
+            ))}
+          </div>
+          {modo === 'pecas' ? (
+            <FormGarantiaSoPecas onCriada={onCriada} onCancelar={onClose} />
+          ) : !selecionada ? (
             <>
               <div style={{ position: 'relative' }}>
                 <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-muted)' }} />
@@ -292,7 +309,7 @@ export default function CriarGarantiaManualModal({ userName, userId, onClose, on
         </div>
 
         {/* Footer */}
-        {selecionada && (
+        {modo === 'os' && selecionada && (
           <div style={{ padding: '14px 22px', borderTop: '1px solid var(--portal-border)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
             <button onClick={onClose} disabled={criando} style={{ ...btnStyle('transparent', criando), color: 'var(--portal-text-secondary)', border: '1px solid var(--portal-border)' }}>
               Cancelar

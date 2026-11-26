@@ -15,6 +15,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { podeFinalizarGrupo } from '@/lib/requisicoes/grupos-parados';
+import EventoDoGrupo, { ligarGrupoAoEvento, escolhaIncompleta, type EscolhaEvento } from './EventoDoGrupo';
 import { brl, normalizarStatus, normalizarTipo, visualTipo, COR_FASE } from '@/lib/requisicoes/inteligencia';
 import { parseValorBR } from '@/lib/requisicoes/autorizacao';
 import { FASES_GRUPO, resumoGrupo } from '@/lib/requisicoes/grupos';
@@ -571,6 +572,7 @@ function NovoGrupo({ onFechar, onCriado }: { onFechar: () => void; onCriado: (id
   const [fecha, setFecha] = useState(false);
   const [ids, setIds] = useState<number[]>([]);
   const [salvando, setSalvando] = useState(false);
+  const [evento, setEvento] = useState<EscolhaEvento>({ modo: 'nao' });
 
   const criar = async () => {
     if (!nome.trim()) return;
@@ -581,6 +583,8 @@ function NovoGrupo({ onFechar, onCriado }: { onFechar: () => void; onCriado: (id
       if (!r.ok) throw new Error(j.error || r.status);
       for (const id of ids) await salvarMembro(j.id, id, 'add');
       if (j.aviso) alert(j.aviso);
+      const avisoEvento = await ligarGrupoAoEvento(j.id, nome.trim(), evento);
+      if (avisoEvento) alert(avisoEvento);
       onCriado(j.id);
     } catch (e) { alert('Não consegui criar o grupo: ' + (e instanceof Error ? e.message : String(e))); setSalvando(false); }
   };
@@ -615,10 +619,11 @@ function NovoGrupo({ onFechar, onCriado }: { onFechar: () => void; onCriado: (id
             <span className="block text-[13px] text-zinc-700 mb-1.5">Requisições do grupo <span className="text-zinc-500">(opcional — dá para juntar depois)</span></span>
             <EscolherReqs mudou={setIds} />
           </div>
+          <EventoDoGrupo valor={evento} onChange={setEvento} />
         </div>
         <div className="flex gap-2 justify-end px-5 py-3 border-t border-zinc-100">
           <button type="button" onClick={onFechar} className="min-h-[44px] px-4 rounded-xl border border-zinc-200 text-[13.5px]">Cancelar</button>
-          <button type="button" onClick={criar} disabled={!nome.trim() || salvando}
+          <button type="button" onClick={criar} disabled={!nome.trim() || salvando || escolhaIncompleta(evento)}
             className="min-h-[44px] px-5 rounded-xl bg-orange-600 text-white text-[13.5px] flex items-center gap-1.5 disabled:opacity-40">
             {salvando ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />} Criar grupo{ids.length ? ` com ${ids.length} requisição(ões)` : ''}
           </button>

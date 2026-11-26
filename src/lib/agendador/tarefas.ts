@@ -153,6 +153,51 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: `abertas ${a.abertas} (${a.pecasNovas} peças) · fechadas ${a.fechadas}${erros.length ? ` · ${erros.join(' | ')}` : ''}` };
   },
 
+  // Marketing (Fase 2, 23/11/2026): desliga promoção vencida, avisa a que vence em 3 dias e a campanha parada.
+  'marketing-diario': async () => {
+    if (desligada('MARKETING_DIARIO')) return { pular: 'desligado (MARKETING_DIARIO=off)' };
+    const { cronMarketingDiario } = await import('@/lib/marketing/diario');
+    const { gerarIdeiasDePost } = await import('@/lib/marketing/pautas');
+    const r = await cronMarketingDiario();
+    // Fase 6.1 (24/11/2026): ideias de post que nascem de venda, revisão, aniversário de compra e busca sem resultado
+    const id = await gerarIdeiasDePost().catch((e) => ({ pulado: (e as Error).message, criadas: 0 }));
+    const resumo = `promoções desligadas ${r.promocoesDesligadas} · avisadas ${r.promocoesAvisadas} · campanhas paradas ${r.campanhasAvisadas} · ${id.pulado ? `ideias: ${id.pulado}` : `${id.criadas} ideia(s) de post`}`;
+    if (r.erros.length === 3) throw new Error(r.erros.join(' | '));
+    return { resumo: r.erros.length ? `${resumo} · ${r.erros.join(' | ')}` : resumo };
+  },
+
+  // Marketing (25/11/2026): números do Instagram (alcance, visualizações, interações, toques no link, seguidores)
+  // dos últimos 3 dias, pela conta ligada em Conteúdo e publicar → Contas (lib/marketing/redes/meta.ts).
+  'marketing-redes-numeros': async () => {
+    if (desligada('MARKETING_REDES_NUMEROS')) return { pular: 'desligado (MARKETING_REDES_NUMEROS=off)' };
+    const { coletarInstagram, coletarFacebook } = await import('@/lib/marketing/redes/meta');
+    // Uma rede com erro não impede a outra (25/11/2026: Facebook entrou)
+    const rs: { resumo: string; pulado?: string }[] = await Promise.all([coletarInstagram(3), coletarFacebook(3)]
+      .map((p) => p.catch((e: Error) => ({ resumo: `erro: ${e.message}` }))));
+    const feitos = rs.filter((r) => !r.pulado).map((r) => r.resumo);
+    return feitos.length ? { resumo: feitos.join(' | ') } : { pular: rs.map((r) => r.pulado).join(' · ') };
+  },
+
+  // Marketing (Fase 4.3, 23/11/2026): conversa que começou com o código de um post conta como contato dele.
+  'marketing-contatos-posts': async () => {
+    if (desligada('MARKETING_CONTATOS_POSTS')) return { pular: 'desligado (MARKETING_CONTATOS_POSTS=off)' };
+    const { cronContatosPosts } = await import('@/lib/marketing/contatos-posts');
+    const { alertarLeadsSemResposta } = await import('@/lib/marketing/leads-alerta');
+    // Fase 5.3 (23/11/2026): no mesmo ritmo, avisa lead "novo" há mais de 1 h de horário comercial
+    const [r, al] = await Promise.all([cronContatosPosts(), alertarLeadsSemResposta()]);
+    const partes = [r.pulado ? `posts: ${r.pulado}` : `${r.lidas} conversas lidas · ${r.achadas} vieram de post`,
+      al.pulado ? `leads: ${al.pulado}` : `${al.avisados} lead(s) sem resposta avisados`];
+    if (r.pulado && al.pulado) return { pular: partes.join(' · ') };
+    return { resumo: partes.join(' · ') };
+  },
+
+  // Central de Trabalho: resumo de fim de dia no sino (melhorias 6.1; sql/central-resumo-dia.sql).
+  'central-resumo-dia': async () => {
+    if (desligada('CENTRAL_RESUMO_DIA')) return { pular: 'desligado (CENTRAL_RESUMO_DIA=off)' };
+    const { resumoDoDia } = await import('@/lib/trabalho/painel-server');
+    return resumoDoDia();
+  },
+
   // Reuniões: gravações ao vivo ficam 60 dias no bucket `reunioes-gravacoes` (José, 17/11/2026).
   'reunioes-gravacoes-limpar': async () => {
     if (desligada('REUNIOES_GRAVACOES_LIMPAR')) return { pular: 'desligado (REUNIOES_GRAVACOES_LIMPAR=off)' };
@@ -354,7 +399,37 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: resumoJson(await cronSyncRemessas()) };
   },
 
+  // Vigia de atividade suspeita (11/2026): permissão alterada, exportação em volume e ação sensível
+  // em lote → sino do Henri. Só avisa. VIGIA_ATIVIDADE=off desliga.
+  'vigia-atividade': async () => {
+    if (desligada('VIGIA_ATIVIDADE')) return { pular: 'desligado (VIGIA_ATIVIDADE=off)' };
+    const { rodarVigiaAtividade } = await import('@/lib/vigia-atividade/server');
+    const r = await rodarVigiaAtividade();
+    return r.pular ? { pular: r.pular } : { resumo: r.resumo };
+  },
+
   // Remessas: aviso no sino das demonstrações que vencem em 5 dias / venceram (uma vez cada nível).
+  // Links de arquivo com o endereço antigo do Supabase → midia.novatratores.com
+  // (sql/midia-links-dominio.sql). Rede de segurança para o que outros sistemas e
+  // cópias (relatório de despesas) gravam com o endereço antigo. O resumo leva o que
+  // ESTE serviço enxerga, para descobrir por que o worker gravou recibos antigos.
+  'midia-links-trocar': async () => {
+    if (desligada('MIDIA_LINKS_TROCAR')) return { pular: 'desligado (MIDIA_LINKS_TROCAR=off)' };
+    const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
+    const { urlMidia, hostMidia } = await import('@/lib/midia');
+    const base = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const teste = urlMidia(`${base.replace(/\/+$/, '')}/storage/v1/object/public/x.pdf`);
+    const diag = `env=${JSON.stringify(base)} midia=${hostMidia() ?? 'off'} troca_local=${teste.includes('midia.') ? 'ok' : 'NAO'}`;
+    const { data, error } = await supabaseAdmin.rpc('midia_links_trocar');
+    if (error) throw new Error(`${error.message} · ${diag}`);
+    const linhas = (data || []) as { tabela: string; coluna: string; linhas: number; erro: string | null }[];
+    const ok = linhas.filter((l) => !l.erro);
+    const total = ok.reduce((s, l) => s + Number(l.linhas || 0), 0);
+    const onde = ok.sort((a, b) => b.linhas - a.linhas).slice(0, 6).map((l) => `${l.tabela}.${l.coluna} ${l.linhas}`).join(', ');
+    const erros = linhas.filter((l) => l.erro).map((l) => `${l.tabela}.${l.coluna}: ${String(l.erro).slice(0, 80)}`).join('; ');
+    return { resumo: `${total} links trocados${onde ? ` (${onde})` : ''}${erros ? ` · erros: ${erros}` : ''} · ${diag}` };
+  },
+
   'remessas-avisos-prazo': async () => {
     if (desligada('REMESSAS_AVISOS')) return { pular: 'desligado (REMESSAS_AVISOS=off)' };
     const { avisarPrazos } = await import('@/lib/remessas/server');
@@ -381,25 +456,25 @@ export const TAREFAS: Record<string, Tarefa> = {
   },
 
   // Robô: produto recém-recebido sem família vira "Peças" + sugestão de Tipo + tarefa.
-  // Conserto da TELA da Omie (11/11/2026): características alteradas pela API não
-  // aparecem na tela; locações incluídas pelo portal sem "Onde será exibida". Regrava
-  // com o valor que a API já tem (excluir + incluir). Retoma sozinha no dia seguinte e
-  // SE DESLIGA quando uma rodada termina sem pendência. parametros { tipo: true } inclui "Tipo:".
-  'caract-tela-omie': async (p, ctx) => {
-    if (desligada('CARACT_TELA_OMIE')) return { pular: 'desligado (CARACT_TELA_OMIE=off)' };
-    const { consertarTelaOmie } = await import('@/lib/ajustes/caract-tela-omie');
-    const r = await consertarTelaOmie({ contas: ['NOVA', 'CASTRO'], incluirTipo: p.tipo === true, gravar: true, limiteMin: Number(p.limite_min) || 100 });
-    const progresso: Record<string, string> = Object.fromEntries(Object.entries(r).map(([c, x]) =>
-      [c, `${x.lidos} lidos · ${x.achados} achados · ${x.consertados} consertados · ${x.falhas} falhas${x.restantes ? ` · ${x.restantes} produtos para a próxima rodada` : ''}${x.bloqueio ? ` · BLOQUEIO: ${x.bloqueio}` : ''}`]));
-    const terminou = Object.values(r).every((x) => !x.restantes && !x.bloqueio && !x.falhas && !x.falhasLeitura);
-    if (terminou) {
-      const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
-      await supabaseAdmin.from('agendamentos').update({ ativo: false }).eq('chave', ctx.chave);
-    }
-    const tot = Object.values(r).reduce((a, x) => ({ ach: a.ach + x.achados, ok: a.ok + x.consertados, f: a.f + x.falhas }), { ach: 0, ok: 0, f: 0 });
-    return { resumo: `${tot.ok} de ${tot.ach} consertadas · ${tot.f} falhas${terminou ? ' · tudo em dia: tarefa desligada' : ' · continua na próxima rodada'}`, progresso };
-  },
-
+  // Conserto da TELA da Omie (11/11/2026): características alteradas pela API não
+  // aparecem na tela; locações incluídas pelo portal sem "Onde será exibida". Regrava
+  // com o valor que a API já tem (excluir + incluir). Retoma sozinha no dia seguinte e
+  // SE DESLIGA quando uma rodada termina sem pendência. parametros { tipo: true } inclui "Tipo:".
+  'caract-tela-omie': async (p, ctx) => {
+    if (desligada('CARACT_TELA_OMIE')) return { pular: 'desligado (CARACT_TELA_OMIE=off)' };
+    const { consertarTelaOmie } = await import('@/lib/ajustes/caract-tela-omie');
+    const r = await consertarTelaOmie({ contas: ['NOVA', 'CASTRO'], incluirTipo: p.tipo === true, gravar: true, limiteMin: Number(p.limite_min) || 100 });
+    const progresso: Record<string, string> = Object.fromEntries(Object.entries(r).map(([c, x]) =>
+      [c, `${x.lidos} lidos · ${x.achados} achados · ${x.consertados} consertados · ${x.falhas} falhas${x.restantes ? ` · ${x.restantes} produtos para a próxima rodada` : ''}${x.bloqueio ? ` · BLOQUEIO: ${x.bloqueio}` : ''}`]));
+    const terminou = Object.values(r).every((x) => !x.restantes && !x.bloqueio && !x.falhas && !x.falhasLeitura);
+    if (terminou) {
+      const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
+      await supabaseAdmin.from('agendamentos').update({ ativo: false }).eq('chave', ctx.chave);
+    }
+    const tot = Object.values(r).reduce((a, x) => ({ ach: a.ach + x.achados, ok: a.ok + x.consertados, f: a.f + x.falhas }), { ach: 0, ok: 0, f: 0 });
+    return { resumo: `${tot.ok} de ${tot.ach} consertadas · ${tot.f} falhas${terminou ? ' · tudo em dia: tarefa desligada' : ' · continua na próxima rodada'}`, progresso };
+  },
+
   'ajustes-classificar-recebidos': async () => {
     if (desligada('AJUSTES_CLASSIFICAR_RECEBIDOS')) return { pular: 'desligado (AJUSTES_CLASSIFICAR_RECEBIDOS=off)' };
     const { classificarRecebidosTodasContas } = await import('@/lib/ajustes/robo-recebidos');

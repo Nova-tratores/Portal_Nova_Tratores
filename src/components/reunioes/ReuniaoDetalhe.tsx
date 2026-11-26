@@ -6,7 +6,7 @@
 // Pendências de reuniões anteriores só aparecem quando existem. Dados de GET /api/reunioes/[id].
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Play, Square, FileCheck2, Copy, Repeat, AlertTriangle, Check, Ban, MessageSquarePlus, RotateCcw, MapPin, CalendarClock, NotebookPen, Users, CircleCheck, Video, CalendarPlus, Pencil } from 'lucide-react'
+import { ArrowLeft, Play, Square, FileCheck2, Copy, Repeat, AlertTriangle, Check, Ban, MessageSquarePlus, RotateCcw, MapPin, CalendarClock, NotebookPen, Users, CircleCheck, Video, CalendarPlus, Pencil, Trash2, Printer, Lock, Globe } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -19,9 +19,14 @@ import PautaItens, { type CampanhaPauta } from './PautaItens'
 import FormAcaoReuniao from './FormAcaoReuniao'
 import TarefasRapidas from './TarefasRapidas'
 import RemarcarReuniao from './RemarcarReuniao'
+import EditarReuniao from './EditarReuniao'
+import ConviteReuniao from './ConviteReuniao'
 import VirarSerie from './VirarSerie'
 import AoVivo, { type Gravacao } from './AoVivo'
-import { chamar, horaDe, brCurto, primeiroNome } from './comum'
+import { chamar, horaDe, brCurto, primeiroNome, CronometroReuniao, hojeISO } from './comum'
+import SugestoesPauta from './SugestoesPauta'
+import EncaminhamentosAta from './EncaminhamentosAta'
+import { encaminhamentosDaAta, jaCriado, textoCusto, type Encaminhamento } from '@/lib/reunioes/fila-reuniao'
 
 // situação em palavras simples (a etapa técnica fica escondida)
 const SITUACAO: Record<string, { texto: string; cor: string }> = {
@@ -63,33 +68,94 @@ function Av({ u, nome }: { u?: { nome: string; avatar_url?: string | null }; nom
   return <span className="rd-av" title={nome}>{u?.avatar_url ? <img src={u.avatar_url} alt="" /> : iniciais(nome)}</span>
 }
 
+/**
+ * Ata em PDF (23/11/2026): abre uma página limpa só com a ata e chama a impressão do navegador —
+ * lá a pessoa escolhe a impressora ou "Salvar como PDF". O texto é o mesmo do WhatsApp (*negrito* vira negrito).
+ */
+function imprimirAta(titulo: string, texto: string, rodape: string, adendos: { quem: string; em: string; texto: string }[]) {
+  const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!))
+  const fmt = (s: string) => esc(s).replace(/\*([^*\n]+)\*/g, '<b>$1</b>').replace(/_([^_\n]+)_/g, '<i>$1</i>')
+  const w = window.open('', '_blank')
+  if (!w) return
+  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ata — ${esc(titulo)}</title>
+<style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:32px;line-height:1.5;font-size:13.5px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:#555;font-size:12px;margin-bottom:18px}
+.ata{white-space:pre-wrap}.ad{margin-top:16px;padding-top:10px;border-top:1px solid #ccc}.ad small{color:#555}
+@page{margin:16mm}</style></head><body>
+<h1>Ata — ${esc(titulo)}</h1><div class="sub">Nova Tratores · ${esc(rodape)}</div>
+<div class="ata">${fmt(texto)}</div>
+${adendos.map((a) => `<div class="ad"><small>Adendo · ${esc(a.quem)} · ${esc(a.em)}</small><div class="ata">${fmt(a.texto)}</div></div>`).join('')}
+<script>window.onload=function(){window.print()}</script></body></html>`)
+  w.document.close()
+}
+
 /** Ata escrita durante a reunião — salva sozinha 1 s depois de parar de digitar. */
-function AtaDuranteReuniao({ reuniaoId, inicial, podeEscrever }: { reuniaoId: string; inicial: string; podeEscrever: boolean }) {
+function AtaDuranteReuniao({ reuniaoId, inicial, inicialEm, podeEscrever, onTexto }: { reuniaoId: string; inicial: string; inicialEm: string | null; podeEscrever: boolean; onTexto?: (t: string) => void }) {
   const [texto, setTexto] = useState(inicial)
   const [estado, setEstado] = useState<'' | 'salvando' | 'salvo' | 'erro'>('')
   const [salvoEm, setSalvoEm] = useState('')
+  // versão do servidor em que este texto se baseia; outra pessoa salvou depois = conflito (23/11/2026)
+  const base = useRef<string | null>(inicialEm)
+  const [conflito, setConflito] = useState<{ msg: string; texto: string; em: string } | null>(null)
   const timer = useRef<number | null>(null)
-  const salvar = useCallback(async (t: string) => {
+  const salvar = useCallback(async (t: string, forcar = false) => {
     setEstado('salvando')
     try {
-      const j = await chamar<{ em: string }>(`/api/reunioes/${reuniaoId}/acoes`, { json: { acao: 'anotacoes', texto: t } })
+      const j = await chamar<{ em: string }>(`/api/reunioes/${reuniaoId}/acoes`, { json: { acao: 'anotacoes', texto: t, base_em: base.current, forcar } })
+      base.current = j.em; setConflito(null)
       setEstado('salvo'); setSalvoEm(horaDe(j.em))
-    } catch { setEstado('erro') }
+    } catch (e) {
+      const d = (e as { dados?: { conflito?: boolean; texto?: string; em?: string } }).dados
+      if (d?.conflito) { setConflito({ msg: (e as Error).message, texto: d.texto || '', em: d.em || '' }); setEstado('') }
+      else setEstado('erro')
+    }
   }, [reuniaoId])
   useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current) }, [])
   if (!podeEscrever) return <div style={{ whiteSpace: 'pre-wrap', fontSize: 14.5, lineHeight: 1.55, color: texto ? 'var(--portal-text,#0f172a)' : 'var(--portal-text-muted,#64748b)' }}>{texto || 'Nada anotado.'}</div>
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {conflito && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 12, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13.5 }}>
+          <span><b style={{ fontWeight: 500 }}>{conflito.msg}</b> O seu texto ainda não foi salvo. Escolha:</span>
+          <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="rd-btn" onClick={() => { setTexto(conflito.texto); base.current = conflito.em; setConflito(null) }}>Usar a outra versão (descarta a minha)</button>
+            <button className="rd-btn" onClick={() => { setTexto(`${conflito.texto}\n\n${texto}`); base.current = conflito.em; setConflito(null); salvar(`${conflito.texto}\n\n${texto}`) }}>Juntar as duas</button>
+            <button className="rd-btn" onClick={() => salvar(texto, true)}>Manter só a minha</button>
+          </span>
+        </div>
+      )}
       <textarea className="rd-ata" value={texto} maxLength={20000}
-        placeholder={'Anote aqui o que está sendo falado e decidido, durante a reunião.\nEx.: Ficou combinado trocar o fornecedor de filtros a partir de dezembro.'}
+        placeholder={'Anote aqui o que está sendo falado e decidido, durante a reunião.\nEx.: Ficou combinado trocar o fornecedor de filtros a partir de dezembro.\n\nLinha que começa com @pessoa vira pedido ao publicar:\n@Henri trocar o fornecedor de filtros até 05/12'}
         onChange={(e) => {
-          const t = e.target.value; setTexto(t); setEstado('')
+          const t = e.target.value; setTexto(t); setEstado(''); onTexto?.(t)
           if (timer.current) window.clearTimeout(timer.current)
           timer.current = window.setTimeout(() => salvar(t), 1000)
         }} />
       <span style={{ fontSize: 12.5, color: estado === 'erro' ? '#dc2626' : 'var(--portal-text-muted,#64748b)' }}>
         {estado === 'salvando' ? 'Salvando…' : estado === 'salvo' ? `Salvo às ${salvoEm}` : estado === 'erro' ? 'Não salvou — confira a internet e digite de novo' : 'Salva sozinha enquanto você escreve'}
+        {estado !== 'erro' && ' · @pessoa no começo da linha vira pedido ao publicar'}
       </span>
+    </div>
+  )
+}
+
+/** Esqueleto enquanto carrega (melhorias 4.5): o formato da página aparece na hora, no lugar do texto. */
+function EsqueletoReuniao() {
+  const barra = (w: string, h = 14) => <span className="rd-esq" style={{ width: w, height: h }} />
+  return (
+    <div aria-busy="true" aria-label="Carregando a reunião" style={{ padding: 'clamp(12px,2vw,28px)', display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 1100 }}>
+      <style href="rd-esqueleto" precedence="default">{`.rd-esq{display:block;border-radius:8px;background:linear-gradient(90deg,var(--portal-border,#e2e8f0) 25%,var(--portal-bg-secondary,#f1f5f9) 50%,var(--portal-border,#e2e8f0) 75%);background-size:200% 100%;animation:rd-esq 1.2s linear infinite}
+@keyframes rd-esq{from{background-position:200% 0}to{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.rd-esq{animation:none}}`}</style>
+      {barra('45%', 26)}
+      {barra('30%')}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(260px,100%),1fr))', gap: 14, marginTop: 8 }}>
+        {[0, 1].map((k) => (
+          <div key={k} style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 16, borderRadius: 16, border: '1px solid var(--portal-border,#e2e8f0)' }}>
+            {barra('40%', 16)}{barra('90%')}{barra('75%')}{barra('82%')}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -111,8 +177,14 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   const [remarcando, setRemarcando] = useState(false)
   const [repetindo, setRepetindo] = useState(false)
   const [editandoTitulo, setEditandoTitulo] = useState(false)
+  const [editandoTudo, setEditandoTudo] = useState(false)
   const [novoTitulo, setNovoTitulo] = useState('')
   const [aviso, setAviso] = useState('')
+  // Ata → pedidos (melhorias 4.4): o texto mais novo da ata e a prévia dos @encaminhamentos.
+  const ataAgora = useRef<string | null>(null)
+  const [previa, setPrevia] = useState<Encaminhamento[] | null>(null)
+  // "Manter" / "Montar pauta" na faixa de reunião sem pauta (melhorias 4.2): some até recarregar.
+  const [semPautaOk, setSemPautaOk] = useState(false)
   // campanhas de marketing para ligar os assuntos da pauta (linha do tempo da campanha, 18/11/2026)
   const [campanhas, setCampanhas] = useState<CampanhaPauta[]>([])
   useEffect(() => {
@@ -152,7 +224,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   const tratadas = useMemo(() => eventos.filter((e) => e.tipo === 'pendencia_tratada'), [eventos])
 
   if (erro && !d) return <div style={{ padding: 30, color: '#dc2626' }}>{erro}</div>
-  if (!d) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando reunião…</div>
+  if (!d) return <EsqueletoReuniao />
 
   const r = d.reuniao
   const etapa = r.reuniao_etapa || 'agendada'
@@ -166,14 +238,39 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   const sit = SITUACAO[etapa] || SITUACAO.agendada
   const fim = r.reuniao_inicio ? new Date(new Date(r.reuniao_inicio).getTime() + d.duracao_min * 60_000).toISOString() : null
   const ataTexto = String((r.payload as { ata_texto?: unknown } | null)?.ata_texto || '')
+  const ataEm = ((r.payload as { ata_texto_em?: unknown } | null)?.ata_texto_em as string) || null
   const temPendencias = d.pendencias.atrasadas.length + d.pendencias.vencendo.length > 0
 
   // botão principal: o próximo passo
   const principal = !conduz || cancelada ? null
     : antes ? <button className="rd-btn cheio" style={{ ['--c' as string]: '#d97706' }} disabled={ocupado} onClick={() => acao({ acao: 'etapa', para: 'em_andamento' }).catch(() => {})}><Play size={15} /> Começar reunião</button>
     : conducao ? <button className="rd-btn cheio" style={{ ['--c' as string]: '#7c3aed' }} disabled={ocupado} onClick={() => acao({ acao: 'etapa', para: 'ata_rascunho' }).catch(() => {})}><Square size={15} /> Encerrar reunião</button>
-    : rascunho ? <button className="rd-btn cheio" style={{ ['--c' as string]: '#059669' }} disabled={ocupado} onClick={() => acao({ acao: 'publicar_ata' }).catch(() => {})}><FileCheck2 size={15} /> Publicar a ata</button>
+    : rascunho ? <button className="rd-btn cheio" style={{ ['--c' as string]: '#059669' }} disabled={ocupado} onClick={publicar}><FileCheck2 size={15} /> Publicar a ata</button>
     : null
+
+  // "Publicar a ata": se a ata tem linhas @pessoa que ainda não viraram pedido, mostra a prévia antes.
+  const pessoasAta = d.presencas.map((p) => ({ id: p.usuario_id, nome: d.usuarios[p.usuario_id]?.nome || '' })).filter((p) => p.nome)
+  function publicar() {
+    const lista = encaminhamentosDaAta(ataAgora.current ?? ataTexto, pessoasAta, hojeISO())
+      .filter((e) => !e.responsavel_id || !jaCriado(e, (d?.acoes || []) as { responsavel_id: string; titulo: string }[]))
+    if (lista.length) { setPrevia(lista); return }
+    acao({ acao: 'publicar_ata' }).catch(() => {})
+  }
+  const criarEPublicar = async (marcados: { titulo: string; responsavel_id: string; prazo: string }[]) => {
+    const erros: string[] = []
+    // a ata salva primeiro (o salvar automático pode estar esperando)
+    if (ataAgora.current !== null && ataAgora.current !== ataTexto) {
+      try { await chamar(`/api/reunioes/${id}/acoes`, { json: { acao: 'anotacoes', texto: ataAgora.current, base_em: ataEm } }) } catch (e) { erros.push(e instanceof Error ? e.message : 'A ata não salvou') }
+    }
+    for (const m of marcados) {
+      try { await chamar(`/api/reunioes/${id}/acoes`, { json: { acao: 'criar_acao', ...m } }) }
+      catch (e) { erros.push(`${m.titulo}: ${e instanceof Error ? e.message : 'não criou'}`) }
+    }
+    if (erros.length) { await carregar(); return erros }
+    try { await acao({ acao: 'publicar_ata' }); setPrevia(null); window.dispatchEvent(new Event('central-trabalho-mudou')) }
+    catch (e) { return [e instanceof Error ? e.message : 'A ata não foi publicada'] }
+    return []
+  }
 
   const onTratar = async (ticketId: string, saida: SaidaPendencia, extra: Record<string, unknown>) => { await acao({ acao: 'tratar_pendencia', ticket_id: ticketId, saida, ...extra }) }
   const onResultado = async (itemId: string, res: { resultado: ItemResultado; decisao_texto?: string; decisao_motivo?: string }) => { await acao({ acao: 'item_resultado', item_id: itemId, ...res }) }
@@ -202,6 +299,20 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
           <span style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span className="rd-pill"><i />{sit.texto}</span>
             {d.serie && <span className="rd-pill" style={{ ['--c' as string]: '#4f46e5' }}><Repeat size={12} /> {d.serie.nome}</span>}
+            {/* pública/privada à vista; quem pode editar troca com um clique (José, 23/11/2026: "não acho onde muda") */}
+            {(() => {
+              const priv = r.visibilidade === 'privado'
+              const conteudo = <>{priv ? <Lock size={12} /> : <Globe size={12} />} {priv ? 'Privada' : 'Pública'}</>
+              const estilo = { ['--c' as string]: priv ? '#7c3aed' : '#0891b2' }
+              if (!d.posso_editar) return <span className="rd-pill" style={estilo} title={priv ? 'Só quem está na reunião vê' : 'Todo mundo do portal vê'}>{conteudo}</span>
+              return (
+                <button className="rd-pill" disabled={ocupado} style={{ ...estilo, cursor: 'pointer', border: 'none', fontFamily: 'inherit' }}
+                  title={priv ? 'Só quem está na reunião vê. Clique para deixar pública.' : 'Todo mundo do portal vê. Clique para deixar privada.'}
+                  onClick={() => { if (window.confirm(priv ? 'Deixar a reunião PÚBLICA? Todo mundo do portal vai ver.' : 'Deixar a reunião PRIVADA? Só quem está nela vai ver.')) acao({ acao: 'titulo', titulo: r.titulo, visibilidade: priv ? 'publico' : 'privado' }).catch(() => {}) }}>
+                  {conteudo} <span style={{ opacity: .7 }}>· trocar</span>
+                </button>
+              )
+            })()}
           </span>
           {editandoTitulo ? (
             <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -214,21 +325,34 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
           ) : (
             <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <h1 style={{ margin: 0, fontSize: isMobile ? 20 : 24, fontWeight: 500, letterSpacing: '-.01em', lineHeight: 1.25 }}>{r.titulo}</h1>
-              {!publicada && (conduz || d.criador_id === userProfile?.id) && (
-                <button title="Editar o título" aria-label="Editar o título" onClick={() => { setNovoTitulo(r.titulo); setEditandoTitulo(true) }}
+              {d.posso_editar && (
+                <button title="Editar título, descrição, pessoas e quem pode ver" aria-label="Editar a reunião" onClick={() => setEditandoTudo(true)}
                   style={{ flex: 'none', width: 34, height: 34, borderRadius: 9, border: '1px solid var(--portal-border,#e2e8f0)', background: 'var(--portal-surface,#fefefe)', color: 'var(--portal-text-muted,#64748b)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Pencil size={15} /></button>
               )}
             </span>
           )}
           <span style={{ display: 'flex', alignItems: 'center', gap: '6px 16px', flexWrap: 'wrap', fontSize: 14, color: 'var(--portal-text-secondary,#475569)' }}>
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>{horaDe(r.reuniao_inicio)}{fim ? ` às ${horaDe(fim)}` : ''} · {d.duracao_min} min</span>
+            <span title="Custo da reunião: pessoas × duração">{textoCusto(d.presencas.length, d.duracao_min)}</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Av u={d.usuarios[condutor]} nome={nome(condutor)} /> {primeiroNome(nome(condutor))} conduz</span>
             {d.sala && <a href="/salas" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: 'inherit', textDecoration: 'none' }}><MapPin size={14} /> {d.sala.nome}</a>}
           </span>
+          {/* cronômetro da reunião toda: rodando durante, parado mostrando quanto durou depois */}
+          {(() => {
+            const pl = (r.payload || {}) as { iniciada_em?: string; encerrada_em?: string }
+            const ini = pl.iniciada_em || r.reuniao_inicio
+            if (!ini || !(conducao || (pl.iniciada_em && pl.encerrada_em))) return null
+            return <span><CronometroReuniao inicio={ini} fim={conducao ? null : pl.encerrada_em} duracaoMin={d.duracao_min} /></span>
+          })()}
         </span>
         <span className="rd-topo-acoes" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {d.posso_remarcar && <button className="rd-btn" disabled={ocupado} onClick={() => setRemarcando(true)}><CalendarClock size={15} /> Remarcar</button>}
-          {antes && conduz && <button className="rd-btn" disabled={ocupado} onClick={() => { if (window.confirm('Cancelar esta reunião? Todos recebem o aviso.')) acao({ acao: 'etapa', para: 'cancelada' }).catch(() => {}) }}><Ban size={15} /> Cancelar</button>}
+          {antes && (conduz || d.criador_id === userProfile?.id) && <button className="rd-btn" disabled={ocupado} onClick={() => { if (window.confirm('Cancelar esta reunião? Todos recebem o aviso.')) acao({ acao: 'etapa', para: 'cancelada' }).catch(() => {}) }}><Ban size={15} /> Cancelar</button>}
+          {d.posso_excluir && <button className="rd-btn" disabled={ocupado} style={{ color: '#dc2626' }} title="Apaga de vez (para reunião de teste ou marcada por engano)" onClick={async () => {
+            if (!window.confirm(`Excluir "${r.titulo}" de vez? Não dá para desfazer.${cancelada ? '' : ' Quem estava nela recebe o aviso.'}`)) return
+            try { await chamar(`/api/reunioes/${id}`, { method: 'DELETE' }); window.dispatchEvent(new Event('central-trabalho-mudou')); router.push('/reunioes') }
+            catch (e) { setAviso(e instanceof Error ? e.message : 'Falha ao excluir') }
+          }}><Trash2 size={15} /> Excluir</button>}
           {d.posso_reabrir && <button className="rd-btn" disabled={ocupado} onClick={() => {
             const msg = publicada ? 'Reabrir? A ata volta para edição e precisa ser publicada de novo.' : cancelada ? 'Reabrir a reunião cancelada? Ela volta a ficar marcada (a sala não é reservada de novo).' : 'Reabrir a reunião?'
             if (window.confirm(msg)) acao({ acao: 'reabrir' }).catch(() => {})
@@ -243,6 +367,18 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
         </div>
       )}
       {(aviso || d.aviso) && <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#b45309' }}><AlertTriangle size={14} /> {aviso || d.aviso}</div>}
+
+      {/* melhorias 4.2: sem assunto nas 24 h antes → Montar pauta · Cancelar esta · Manter */}
+      {antes && d.itens.length === 0 && !semPautaOk && (conduz || d.criador_id === userProfile?.id) && r.reuniao_inicio
+        && Date.parse(r.reuniao_inicio) - Date.now() < 24 * 3600_000 && Date.parse(r.reuniao_inicio) > Date.now() && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 14, border: '1px solid rgba(217,119,6,.35)', background: 'rgba(217,119,6,.08)', fontSize: 14 }}>
+          <AlertTriangle size={16} color="#b45309" />
+          <span style={{ flex: 1, minWidth: 200 }}><b style={{ fontWeight: 500 }}>Esta reunião está sem pauta</b> e começa às {horaDe(r.reuniao_inicio)}. Reunião sem assunto costuma virar conversa solta.</span>
+          <button className="rd-btn cheio" style={{ ['--c' as string]: '#2563eb' }} onClick={() => { setSemPautaOk(true); document.getElementById('rd-pauta')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}>Montar pauta</button>
+          <button className="rd-btn" disabled={ocupado} onClick={() => { if (window.confirm('Cancelar esta reunião? Todos recebem o aviso.')) acao({ acao: 'etapa', para: 'cancelada' }).catch(() => {}) }}><Ban size={15} /> Cancelar esta</button>
+          <button className="rd-btn" onClick={() => setSemPautaOk(true)}>Manter</button>
+        </div>
+      )}
 
       {temPendencias && !cancelada && !publicada && (
         <BlocoPendencias pend={d.pendencias} usuarios={d.usuarios} modoConducao={conducao && conduz} onTratar={onTratar} onAbrirTicket={setTicketAberto} />
@@ -266,6 +402,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
                 gravacoes={((r.payload as { gravacoes?: Gravacao[] } | null)?.gravacoes) || []} onGravou={() => carregar()} />
             </section>
           )}
+          <div id="rd-pauta" style={{ scrollMarginTop: 80 }} />
           <PautaItens itens={d.itens} usuarios={d.usuarios} destinos={d.destinos} origens={d.origens} proxima={d.proxima} temSerie={!!d.serie}
             onAbrirReuniao={(rid) => router.push(`/reunioes/${rid}`)}
             modo={antes ? (cancelada ? 'leitura' : 'pauta') : publicada || cancelada ? 'leitura' : 'conducao'}
@@ -274,17 +411,21 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
             onResultado={publicada ? undefined : onResultado} onCriarAcao={publicada ? undefined : (item) => setAcaoDe(item)} onAbrirTicket={setTicketAberto}
             campanhas={campanhas} onCampanha={!cancelada && (participo || conduz || d.criador_id === userProfile?.id || isAdmin) ? (item_id, campanha_id) => itemAcao({ acao: 'campanha', item_id, campanha_id }) : undefined} />
 
+          {antes && !cancelada && (
+            <SugestoesPauta reuniaoId={id} podeIncluir={participo || conduz || d.criador_id === userProfile?.id} onIncluido={() => carregar()} onAbrirTicket={setTicketAberto} />
+          )}
+
           {!cancelada && (
             <section className="rd-card">
               <div className="rd-sec" style={{ ['--c' as string]: '#7c3aed' }}>
                 <span className="ic"><NotebookPen size={16} /></span>
                 <span><b>Ata</b><small>{publicada ? 'O que foi falado e decidido' : 'Escreva durante a reunião o que está sendo falado e decidido'}</small></span>
               </div>
-              <AtaDuranteReuniao key={id} reuniaoId={id} inicial={ataTexto} podeEscrever={!publicada && (conduz || participo)} />
+              <AtaDuranteReuniao key={id} reuniaoId={id} inicial={ataTexto} inicialEm={ataEm} podeEscrever={!publicada && (conduz || participo)} onTexto={(t) => { ataAgora.current = t }} />
               {rascunho && conduz && (
                 <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: 'color-mix(in srgb,#059669 7%,transparent)', fontSize: 13.5, color: 'var(--portal-text-secondary,#475569)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <CircleCheck size={16} color="#059669" /> <span style={{ flex: 1 }}>Revise e publique: todos recebem a ata no sino. Depois de publicada, correção só por adendo.</span>
-                  <button className="rd-btn cheio" style={{ ['--c' as string]: '#059669' }} disabled={ocupado} onClick={() => acao({ acao: 'publicar_ata' }).catch(() => {})}><FileCheck2 size={15} /> Publicar a ata</button>
+                  <button className="rd-btn cheio" style={{ ['--c' as string]: '#059669' }} disabled={ocupado} onClick={publicar}><FileCheck2 size={15} /> Publicar a ata</button>
                 </div>
               )}
               {publicada && d.ata && (
@@ -292,6 +433,10 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 13, color: 'var(--portal-text-muted,#64748b)', flex: 1 }}>Publicada por {nome(d.ata.publicada_por)} em {new Date(d.ata.publicada_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
                     <button className="rd-btn cheio" style={{ ['--c' as string]: '#16a34a' }} onClick={async () => { try { await navigator.clipboard.writeText(d.ata!.texto_whatsapp); setCopiado(true); setTimeout(() => setCopiado(false), 2000) } catch { /* sem clipboard */ } }}><Copy size={15} /> {copiado ? 'Copiado!' : 'Copiar para o WhatsApp'}</button>
+                    <button className="rd-btn" onClick={() => imprimirAta(r.titulo, d.ata!.texto_whatsapp,
+                      `Publicada por ${nome(d.ata!.publicada_por)} em ${new Date(d.ata!.publicada_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,
+                      adendos.map((e) => ({ quem: e.autor_id ? nome(e.autor_id) : 'sistema', em: new Date(e.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }), texto: String(e.payload.texto || '') })))}>
+                      <Printer size={15} /> Imprimir / PDF</button>
                   </div>
                   {adendos.map((e) => (
                     <div key={e.id} style={{ padding: '8px 10px', borderRadius: 10, background: 'var(--portal-bg-secondary,#f8fafc)', fontSize: 13.5 }}>
@@ -339,6 +484,18 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
             </section>
           )}
 
+          {/* Convite (23/11/2026): aceitar/recusar + WhatsApp por pessoa — só antes de a reunião acabar */}
+          {!publicada && !cancelada && (d.convite || (d.meu_papel && d.meu_papel !== 'condutor')) && (
+            <section className="rd-card">
+              <div className="rd-sec" style={{ ['--c' as string]: '#16a34a' }}>
+                <span className="ic"><MessageSquarePlus size={16} /></span>
+                <span><b>Convite</b><small>{d.convite ? 'Quem confirmou e o aviso pelo WhatsApp' : 'Confirme se vai participar'}</small></span>
+              </div>
+              <ConviteReuniao reuniaoId={id} presencas={d.presencas} usuarios={d.usuarios} meuId={userProfile?.id || ''} convite={d.convite}
+                encerrada={false} onMudou={() => carregar()} />
+            </section>
+          )}
+
           <section className="rd-card">
             <div className="rd-sec" style={{ ['--c' as string]: '#0891b2' }}>
               <span className="ic"><Users size={16} /></span>
@@ -381,7 +538,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
       {acaoDe !== false && (
         <FormAcaoReuniao tituloInicial={acaoDe?.decisao_texto || ''} categoriaInicial={r.categoria === 'Reunião' ? '' : r.categoria}
           pessoas={d.presencas.map((p) => p.usuario_id)} usuarios={d.usuarios}
-          descricaoInicial={acaoDe ? `Decidido em "${r.titulo}" — ${acaoDe.pergunta}\nDecisão: ${acaoDe.decisao_texto || ''}\nMotivo: ${acaoDe.decisao_motivo || ''}` : `Tarefa combinada em "${r.titulo}".`}
+          descricaoInicial={acaoDe ? `Decidido em "${r.titulo}" — ${acaoDe.pergunta}\nDecisão: ${acaoDe.decisao_texto || ''}\nMotivo: ${acaoDe.decisao_motivo || ''}` : `Ação combinada em "${r.titulo}".`}
           onFechar={() => setAcaoDe(false)}
           onCriar={async (a) => { await acao({ acao: 'criar_acao', ...a, item_id: acaoDe ? acaoDe.id : undefined }); window.dispatchEvent(new Event('central-trabalho-mudou')) }} />
       )}
@@ -390,9 +547,20 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
           podeRepetir={!!d.posso_virar_serie} onFechar={() => setRepetindo(false)}
           onFeito={(msg, novaId) => { setRepetindo(false); setAviso(msg); if (novaId) router.push(`/reunioes/${novaId}`); else carregar() }} />
       )}
+      {editandoTudo && (
+        <EditarReuniao reuniaoId={id} titulo={r.titulo} descricao={r.descricao ?? null} visibilidade={r.visibilidade ?? null}
+          pessoas={d.presencas.map((p) => p.usuario_id)} condutorId={d.condutor_id}
+          onFechar={() => { setEditandoTudo(false); carregar() }}
+          onFeito={() => { setEditandoTudo(false); carregar() }} />
+      )}
       {remarcando && (
         <RemarcarReuniao reuniaoId={id} inicio={r.reuniao_inicio ?? null} duracaoMin={d.duracao_min}
           onFechar={() => setRemarcando(false)} onFeito={(av) => { setRemarcando(false); setAviso(av || ''); carregar() }} />
+      )}
+      {previa && (
+        <EncaminhamentosAta lista={previa} nomes={Object.fromEntries(pessoasAta.map((p) => [p.id, p.nome]))}
+          onCriar={criarEPublicar} onFechar={() => setPrevia(null)}
+          onPublicarSem={() => { setPrevia(null); acao({ acao: 'publicar_ata' }).catch(() => {}) }} />
       )}
       {ticketAberto && <TicketModal id={ticketAberto} onFechar={() => setTicketAberto(null)} onMudou={() => carregar()} />}
     </div>

@@ -82,17 +82,17 @@ export default function TransformarTarefa({ tarefa, onFeito, onAbrirTicket }: Pr
           <b>Transformar em ticket</b>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>Bloco
             <select value={quadroId} onChange={(e) => setQuadroId(e.target.value)} style={campo}>
-              <option value="" disabled>Escolha o bloco…</option>
+              <option value="" disabled>Escolha o quadro…</option>
               {quadros.map((q) => <option key={q.id} value={q.id}>{q.nome}</option>)}
             </select>
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: quadroId ? 1 : .5 }}>
             <input type="checkbox" checked={comCrono && !!quadroId} disabled={!quadroId} onChange={(e) => setComCrono(e.target.checked)} />
-            Também pôr no cronograma do bloco, com
+            Também pôr no cronograma do quadro, com
             <input type="number" min={1} max={365} value={duracao} disabled={!quadroId} onChange={(e) => setDuracao(Number(e.target.value) || 1)} style={{ ...campo, width: 64 }} /> dias
           </label>
           <small style={{ color: 'var(--portal-text-muted,#888)' }}>O responsável é quem recebeu a tarefa; ele confirma o ticket. O ticket e a etapa ficam ligados.</small>
-          <div><button style={{ ...botao('#dc2626'), opacity: salvando || !quadroId ? .6 : 1 }} disabled={salvando || !quadroId} title={!quadroId ? 'Escolha um bloco' : undefined} onClick={() => { if (!quadroId) { setErro('Escolha um bloco.'); return } enviar({ acao: 'transformar', quadro_id: quadroId, cronograma: comCrono && !!quadroId, duracao }) }}>{salvando ? <Loader2 size={15} className="spin" /> : <ArrowRightLeft size={15} />} Transformar</button></div>
+          <div><button style={{ ...botao('#dc2626'), opacity: salvando || !quadroId ? .6 : 1 }} disabled={salvando || !quadroId} title={!quadroId ? 'Escolha um quadro' : undefined} onClick={() => { if (!quadroId) { setErro('Escolha um quadro.'); return } enviar({ acao: 'transformar', quadro_id: quadroId, cronograma: comCrono && !!quadroId, duracao }) }}>{salvando ? <Loader2 size={15} className="spin" /> : <ArrowRightLeft size={15} />} Transformar</button></div>
         </div>
       )}
       {modo === 'incluir' && (

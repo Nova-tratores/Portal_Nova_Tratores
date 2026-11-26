@@ -342,19 +342,19 @@ export function BarrasTecnicos({ faturadas, hoje }: { faturadas: OSFaturada[]; h
             <div className="l3-bt-meio">
               <div className="l3-bt-nome"><b>{t}</b><span>{s ? `${Math.round(s.os * 10) / 10} OS · ${horas(s.horas)}` : 'sem OS'}</span><b className="l3-bt-v"><Numero valor={s?.bruto || 0} formato={brl} /></b>{sb && <Delta a={s?.bruto || 0} b={sb.bruto} />}</div>
               <span className="l3-bt-barra">{s && PARTES.map(([k, r, c], j) => { const v = s[k] as number; return v > 0 ? <i key={k} title={`${r}: ${brl(v)}`} style={{ width: `${(v / max) * 100}%`, background: c, animationDelay: `${300 + i * 90 + j * 80}ms` }} /> : null })}</span>
-              <span className="l3-bt-barra fina"><i style={{ width: `${((sb?.bruto || 0) / max) * 100}%`, background: '#cbd5e1' }} /></span>
+              <span className="l3-bt-barra fina"><i style={{ width: `${((sb?.bruto || 0) / max) * 100}%`, background: 'var(--mx-bg2, #cbd5e1)' }} /></span>
             </div>
           </div>
         )
       })}
-      <div className="l3-leg">{PARTES.map(([, r, c]) => <span key={r}><i style={{ background: c }} />{r}</span>)}<span><i style={{ background: '#cbd5e1' }} />{MESES[pm - 1]} no mesmo ponto</span></div>
+      <div className="l3-leg">{PARTES.map(([, r, c]) => <span key={r}><i style={{ background: c }} />{r}</span>)}<span><i style={{ background: 'var(--mx-bg2, #cbd5e1)' }} />{MESES[pm - 1]} no mesmo ponto</span></div>
     </div>
   )
 }
 
 export const ESTILO_OPCOES = `
 .l3-delta { font-size: 12px; font-weight: 800; white-space: nowrap; border-radius: 99px; padding: 2px 8px; display: inline-block }
-.l3-delta.sobe { color: #047857; background: #ecfdf5 } .l3-delta.desce { color: #b91c1c; background: #fef2f2 } .l3-delta.neutro { color: ${MUDO}; background: var(--portal-bg-secondary, #f1f5f9) }
+.l3-delta.sobe { color: var(--mx-fg-green, #047857); background: var(--mx-p-green, #ecfdf5) } .l3-delta.desce { color: var(--mx-fg-red, #b91c1c); background: var(--mx-p-red, #fef2f2) } .l3-delta.neutro { color: ${MUDO}; background: var(--portal-bg-secondary, #f1f5f9) }
 .l3-delta small { font-weight: 600; opacity: .8 }
 .l3-faisca { width: 100%; display: block }
 .l3-desenha { stroke-dasharray: 1; stroke-dashoffset: 1; animation: l3Desenha 1.6s .2s cubic-bezier(.3,.7,.3,1) forwards }
@@ -416,4 +416,6 @@ export const ESTILO_OPCOES = `
 .l3-bt-barra { display: flex; height: 14px; border-radius: 99px; overflow: hidden; background: var(--portal-bg-secondary, #f1f5f9); gap: 2px } .l3-bt-barra.fina { height: 5px }
 .l3-bt-barra i { display: block; height: 100%; transform-origin: left; animation: l3Cresce .8s cubic-bezier(.2,.8,.2,1) both }
 @media (prefers-reduced-motion: reduce) { .l3-desenha, .l3-pulso, .l3-comp i, .l3-carr-pontos em, .l3-bt-barra i, .l3-t-barra i { animation: none !important; stroke-dashoffset: 0 } }
+/* tema escuro: cores dos hex fixos acima (no claro valem os próprios hex) */
+[data-theme="dark"] { --mx-bg0: var(--portal-bg-card, #1a1a1a); --mx-bg1: var(--portal-bg-secondary, #262626); --mx-bg2: #2e2e2e; --mx-bg3: #3a3a3a; --mx-bd: var(--portal-border, #2a2a2a); --mx-t: var(--portal-text, #f5f5f5); --mx-t2: var(--portal-text-secondary, #a3a3a3); --mx-t3: var(--portal-text-muted, #949494); --mx-fg-red: var(--portal-red-fg, #f87171); --mx-p-red: rgb(248 113 113 / .15); --mx-pb-red: rgb(248 113 113 / .35); --mx-fg-orange: #fb923c; --mx-p-orange: rgb(251 146 60 / .15); --mx-pb-orange: rgb(251 146 60 / .35); --mx-fg-amber: var(--portal-amber-fg, #fbbf24); --mx-p-amber: rgb(251 191 36 / .15); --mx-pb-amber: rgb(251 191 36 / .35); --mx-fg-green: var(--portal-green-fg, #34d399); --mx-p-green: rgb(52 211 153 / .15); --mx-pb-green: rgb(52 211 153 / .35); --mx-fg-teal: var(--portal-teal-fg, #2dd4bf); --mx-p-teal: rgb(45 212 191 / .15); --mx-pb-teal: rgb(45 212 191 / .35); --mx-fg-blue: var(--portal-blue-fg, #60a5fa); --mx-p-blue: rgb(96 165 250 / .15); --mx-pb-blue: rgb(96 165 250 / .35); --mx-fg-violet: var(--portal-violet-fg, #a78bfa); --mx-p-violet: rgb(167 139 250 / .15); --mx-pb-violet: rgb(167 139 250 / .35); --mx-fg-pink: var(--portal-pink-fg, #f472b6); --mx-p-pink: rgb(244 114 182 / .15); --mx-pb-pink: rgb(244 114 182 / .35); }
 `

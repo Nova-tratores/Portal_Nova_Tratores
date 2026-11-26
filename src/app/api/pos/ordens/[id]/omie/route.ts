@@ -32,17 +32,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const agora = new Date();
     const dataFmt = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora);
     const horaFmt = agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" });
-    const acaoParts = [
-      result.interna
-        ? `Ordem interna concluída${result.cNumOS ? ` (remessa de peças nº ${result.cNumOS})` : " (sem peças)"}`
-        : `OS enviada para Omie (nº ${result.cNumOS})`,
-    ];
+    const acaoParts = [`OS enviada para Omie (nº ${result.cNumOS})`];
     if (result.pedidoVenda) acaoParts.push(`PV nº ${result.pedidoVenda}`);
     if (result.pedidoVendaErro) acaoParts.push(`Erro remessa: ${result.pedidoVendaErro}`);
 
-    // Interna conclui direto (remessa, nada a cobrar); externa vai pra
-    // COBRANDO CLIENTE — o Tratorilson manda o orçamento + PDFs pelo card.
-    const novoStatus = result.interna ? "Concluída" : "Cobrando Cliente";
+    // Toda OS (interna ou externa) vai pra COBRANDO CLIENTE: a externa espera a
+    // cobrança + NFS-e; a interna espera o "Faturar com recibo" (lib/pos/faturamento.ts).
+    const novoStatus = "Cobrando Cliente";
     await supabase.from(TBL_OS).update({ Status: novoStatus }).eq("Id_Ordem", idOs);
     await sincronizarStatusPPV(idOs, novoStatus).catch(() => {});
     // foi para o Omie: alimentação sai do PDF (o usuário religa se quiser)
@@ -69,13 +65,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     await logAndNotify({
-      userName, sistema: "pos", acao: result.interna ? "concluir_interna" : "enviar_omie",
+      userName, sistema: "pos", acao: "enviar_omie",
       entidade: "ordem_servico", entidadeId: idOs, entidadeLabel: `OS ${idOs}`,
-      detalhes: { cNumOS: result.cNumOS, pedidoVenda: result.pedidoVenda, interna: result.interna },
-      notifTitulo: result.interna ? `Ordem interna ${idOs} concluída` : `OS ${idOs} enviada para Omie`,
-      notifDescricao: result.interna
-        ? `${userName} concluiu a ordem interna ${idOs}${result.cNumOS ? ` (remessa de peças nº ${result.cNumOS})` : ""}`
-        : `${userName} enviou OS ${idOs} para Omie (nº ${result.cNumOS})`,
+      detalhes: { cNumOS: result.cNumOS, pedidoVenda: result.pedidoVenda },
+      notifTitulo: `OS ${idOs} enviada para Omie`,
+      notifDescricao: `${userName} enviou OS ${idOs} para Omie (nº ${result.cNumOS})`,
       notifLink: `/pos?id=${idOs}`,
     });
     } catch (e) {

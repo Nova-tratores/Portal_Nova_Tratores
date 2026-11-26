@@ -5,7 +5,7 @@
 // Publicar. Preço, selo e pronta entrega aparecem no site sozinhos em até 10 min; o resto, depois de publicar.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchAuth } from '@/lib/auth/client';
-import { Aviso, ComoLer, Conta, Numero, botao, campo, cartao, grade, real, tela } from '@/components/marketing/redes/ui';
+import { Aviso, Conta, Numero, botao, campo, cartao, grade, real, tela } from '@/components/marketing/redes/ui';
 import PublicarBarra from '@/components/marketing/redes/PublicarBarra';
 import EnviarFoto from '@/components/marketing/redes/EnviarFoto';
 import { PreviaCartao, type CardPrevia } from '@/components/marketing/redes/Previa';
@@ -311,7 +311,6 @@ export default function CatalogoSitePage() {
   const [itens, setItens] = useState<Item[] | null>(null);
   const [erro, setErro] = useState('');
   const [erroSite, setErroSite] = useState('');
-  const [site, setSite] = useState('');
   const [podeEditar, setPodeEditar] = useState(false);
   const [semSql, setSemSql] = useState(false);
   const [busca, setBusca] = useState('');
@@ -357,7 +356,7 @@ export default function CatalogoSitePage() {
     const r = await fetchAuth('/api/marketing/catalogo');
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.ok) { setErro(j.erro || 'Não consegui carregar o catálogo.'); setItens([]); return; }
-    setErro(''); setErroSite(j.erroSite || ''); setSite(j.site); setPodeEditar(!!j.podeEditar); setSemSql(j.temColunaDados === false); setItens(j.itens);
+    setErro(''); setErroSite(j.erroSite || ''); setPodeEditar(!!j.podeEditar); setSemSql(j.temColunaDados === false); setItens(j.itens);
   }, []);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { carregar(); }, [carregar]);
@@ -435,12 +434,6 @@ export default function CatalogoSitePage() {
         <Numero icone="fa-eye-slash" cor="#6b7280" rotulo="Fora do site" valor={<Conta valor={contagem.ocultos} />} ativo={cat === 'ocultos'} onClick={filtro('ocultos')} />
       </div>
 
-      <ComoLer>
-        Esta é a lista das máquinas do site{site ? <> (<a href={site} target="_blank" rel="noopener">{site.replace(/^https?:\/\//, '')}</a>)</> : null}.
-        Toque numa máquina para abrir a <b>ficha</b>: nome, fotos, descrição, pontos fortes, “ideal para”, ficha técnica, preço e selo.
-        <b> + Nova máquina</b> inclui uma que ainda não está no site. <b>Tirar do site</b> esconde (dá para voltar).
-        Preço, selo e pronta entrega aparecem sozinhos em até 10 minutos; o resto aparece depois do botão <b>Publicar site</b>.
-      </ComoLer>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <input style={{ ...campo, flex: '1 1 240px', maxWidth: 420 }} placeholder="Buscar por nome, marca ou modelo" value={busca} onChange={(e) => setBusca(e.target.value)} />

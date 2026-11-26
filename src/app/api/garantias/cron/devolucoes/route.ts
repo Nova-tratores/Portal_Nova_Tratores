@@ -11,6 +11,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS } from '@/lib/garantias/constants';
 import { notificarGarantistas } from '@/lib/garantias/server';
 import { diasAte } from '@/lib/garantias/format';
+import { refOS } from '@/lib/garantias/so-pecas';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -59,7 +60,7 @@ async function executar(req: NextRequest) {
           : `Devolução de peças da ${g.numero} vence em ${dias ?? '?'} dia(s)`;
     await notificarGarantistas({
       titulo,
-      descricao: `OS ${g.id_ordem} — envie as peças usadas à fábrica (prova de destruição) e registre no card.`,
+      descricao: `${refOS(g)} — envie as peças usadas à fábrica (prova de destruição) e registre no card.`,
       link: `/garantias?id=${g.id}`,
     });
     await supabase
@@ -91,7 +92,7 @@ async function executar(req: NextRequest) {
       const dias = diasAte(g.guarda_prazo);
       await notificarGarantistas({
         titulo: `Peças da ${g.numero} já podem ser descartadas`,
-        descricao: `OS ${g.id_ordem} — guarda cumprida${dias != null && dias < 0 ? ` há ${Math.abs(dias)} dia(s)` : ' hoje'}${g.localizacao ? ` · estão em ${g.localizacao}` : ''}. Registre o descarte no card (com foto).`,
+        descricao: `${refOS(g)} — guarda cumprida${dias != null && dias < 0 ? ` há ${Math.abs(dias)} dia(s)` : ' hoje'}${g.localizacao ? ` · estão em ${g.localizacao}` : ''}. Registre o descarte no card (com foto).`,
         link: `/garantias?id=${g.id}`,
       });
       await supabase

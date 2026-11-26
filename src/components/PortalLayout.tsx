@@ -10,6 +10,7 @@ import AcessoBloqueado from '@/components/AcessoBloqueado'
 import { usePathname, useRouter } from 'next/navigation'
 import TratorinoChat from '@/components/TratorinoChat'
 import PainelDoDia from '@/components/trabalho/PainelDoDia'
+import CentralNav from '@/components/trabalho/CentralNav'
 import PerguntaTratorilson from '@/components/trabalho/PerguntaTratorilson'
 import AvisoComissoesDiretor from '@/components/mecanicos/AvisoComissoesDiretor'
 import CaixaEmail from '@/components/CaixaEmail'
@@ -82,7 +83,7 @@ const GROUP_ORDER = ['geral', 'servicos', 'pecas', 'financeiro', 'comercial', 'e
 const navItems: NavItem[] = [
   // Geral
   { id: 'dashboard', name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, tag: 'INÍCIO', gradient: '', group: 'geral' },
-  { id: 'tickets', name: 'Central de Trabalho', href: '/tickets/quadros', icon: <Ticket size={18} />, tag: 'TAREFAS · TICKETS · CRONOGRAMA', gradient: '', group: 'geral' },
+  { id: 'tickets', name: 'Central de Trabalho', href: '/fila', icon: <Ticket size={18} />, tag: 'TAREFAS · TICKETS · CRONOGRAMA', gradient: '', group: 'geral' },
   // Reuniões moram na Central de Trabalho: mesma permissão dela (filtro abaixo).
   { id: 'reunioes', name: 'Reuniões', href: '/reunioes', icon: <CalendarClock size={18} />, tag: 'PAUTA · ATA', gradient: '', group: 'geral' },
   // Agenda da sala física: todo logado reserva (o filtro abaixo libera o id).
@@ -416,6 +417,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const bellRef = useRef<HTMLDivElement>(null)
   const notifBtnRef = useRef<HTMLButtonElement>(null)
   const pathname = usePathname()
+  // Telas da Central de Trabalho: a barra dela fica no layout (não pisca ao trocar de aba).
+  const naCentral = /^\/(fila|tickets|cronograma|agenda|salas|reunioes|ideias|tarefas)(\/|$)/.test(pathname || '')
+  const temCentral = temAcesso('tickets') || temAcesso('tarefas') || temAcesso('cronograma')
   const [avisosPendentes, setAvisosPendentes] = useState<{ id: string; titulo: string; conteudo: string; prioridade: string; criado_por_nome: string }[]>([])
   const [confirmando, setConfirmando] = useState(false)
   const [configOpen, setConfigOpen] = useState(false)
@@ -1697,6 +1701,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         minHeight: 'calc(100vh - 84px)',
         background: 'var(--portal-bg)'
       }}>
+        {/* Barra da Central de Trabalho (melhorias 1.4, 24/11/2026): montada aqui, UMA vez, para não
+            piscar nem pular ao trocar de aba (antes cada tela montava a sua). Enquanto as permissões
+            carregam, reserva a altura dela. */}
+        {naCentral && (loadingPerm
+          ? <div style={{ height: 49, background: 'color-mix(in srgb, #dc2626 4%, var(--portal-bg, #f6f6f6))', borderBottom: '1px solid var(--portal-border, #e5e7eb)' }} />
+          : temCentral && <div className="ct-vn"><Suspense fallback={<div style={{ height: 49 }} />}><CentralNav /></Suspense></div>)}
         {children}
       </main>
 

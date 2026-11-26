@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { T2 } from "@/components/conhecimento/estiloKB";
+import "@/components/abas-modulo.css";
 
 export const ROXO = "#7c3aed";
 
@@ -18,14 +19,14 @@ export function TreinamentoNav({ podeGerir, conta }: { podeGerir: boolean; conta
     ] : []),
   ];
   return (
-    <div style={{ background: `linear-gradient(135deg, #a78bfa, ${ROXO})`, padding: "10px clamp(12px, 2vw, 28px) 0", display: "flex", alignItems: "flex-end", gap: 6, overflowX: "auto", margin: "0 calc(-1 * clamp(12px, 2vw, 28px))", marginBottom: 18 }}>
+    <div className="aba-faixa" style={{ background: `linear-gradient(135deg, #a78bfa, ${ROXO})`, padding: "10px clamp(12px, 2vw, 28px) 0", display: "flex", alignItems: "flex-end", gap: 6, overflowX: "auto", margin: "0 calc(-1 * clamp(12px, 2vw, 28px))", marginBottom: 18 }}>
       {guias.map((g) => (
-        <Link key={g.href} href={g.href} role="tab" aria-selected={g.ativo} style={{
+        <Link key={g.href} href={g.href} role="tab" aria-selected={g.ativo} className={`aba-guia${g.ativo ? " aba-ativa" : ""}`} style={{
           display: "flex", alignItems: "center", gap: 7, padding: "10px 14px", flexShrink: 0, borderRadius: "11px 11px 0 0", textDecoration: "none", whiteSpace: "nowrap",
           fontSize: 13.5, fontWeight: g.ativo ? 700 : 500, color: "#111111", background: g.ativo ? "#fefefe" : "rgba(255,255,255,0.30)", boxShadow: g.ativo ? "0 -2px 6px rgba(0,0,0,0.15)" : "none", transition: "0.15s",
         }}>
           <i className={`fa-solid ${g.icone}`} style={{ fontSize: 13 }} /> {g.rotulo}
-          {typeof g.n === "number" && g.n > 0 && <span style={{ fontSize: 11, padding: "0 7px", borderRadius: 999, background: g.ativo ? ROXO : "rgba(0,0,0,0.12)", color: g.ativo ? "#fefefe" : "#111111" }}>{g.n}</span>}
+          {typeof g.n === "number" && g.n > 0 && <span className="aba-n" style={{ fontSize: 11, padding: "0 7px", borderRadius: 999, background: g.ativo ? ROXO : "rgba(0,0,0,0.12)", color: g.ativo ? "#fefefe" : "#111111" }}>{g.n}</span>}
         </Link>
       ))}
     </div>

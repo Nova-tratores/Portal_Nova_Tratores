@@ -3,18 +3,23 @@ import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { buscarPPVPorId, montarDadosParaImpressao, buscarDadosCliente } from "@/lib/ppv/queries";
 import { buscarCaracteristicas } from "@/lib/ppv/caracteristicas";
 
+const esc = (s: string) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
+
 function gerarHTML(dado: ReturnType<typeof montarDadosParaImpressao>, caracMap: Record<string, string>) {
   const itensHTML = dado.itens.map((p) => {
     const car = caracMap[String(p.codigo)] || "";
+    // Peça "não gerar cobrança": valor riscado + selo "não cobrado" e o motivo (o cliente vê que não paga)
+    const nc = p.naoCobrado;
+    const motivo = nc && p.motivoNaoCobrado ? `<div class="nc-motivo">Não cobrado: ${esc(p.motivoNaoCobrado)}</div>` : "";
     return `
-    <tr>
+    <tr${nc ? ' class="nc-row"' : ""}>
       <td style="font-weight:600;">${p.codigo}</td>
-      <td>${p.descricao}${car ? `<div style="font-size:7.5pt;color:#1D4ED8;margin-top:2px;font-weight:600;">${car}</div>` : ""}</td>
+      <td>${p.descricao}${car ? `<div style="font-size:7.5pt;color:#1D4ED8;margin-top:2px;font-weight:600;">${car}</div>` : ""}${motivo}</td>
       <td style="text-align:center;">${p.saida}</td>
       <td style="text-align:center; color:#C41E2A; font-style:italic; font-weight:700;">${p.devStr}</td>
       <td style="text-align:center; font-weight:700;">${p.ficou}</td>
-      <td style="text-align:right;">R$ ${p.unit}</td>
-      <td style="text-align:right; font-weight:700;">R$ ${p.total}</td>
+      <td style="text-align:right;">${nc ? `<span class="nc-val">R$ ${p.unit}</span>` : `R$ ${p.unit}`}</td>
+      <td style="text-align:right; font-weight:700;">${nc ? `<span class="nc-val">R$ ${p.total}</span><div class="nc">não cobrado</div>` : `R$ ${p.total}`}</td>
     </tr>
   `;
   }).join("");
@@ -60,6 +65,10 @@ function gerarHTML(dado: ReturnType<typeof montarDadosParaImpressao>, caracMap: 
   .cost-table th { text-align: left; font-size: 7pt; font-weight: 800; color: #000; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 8px; border-bottom: 2px solid #000; }
   .cost-table td { padding: 6px 8px; border-bottom: 1px solid #e5e5e5; font-size: 9pt; color: #222; }
 
+  .nc-row td { color: #64748b; }
+  .nc-val { text-decoration: line-through; color: #94a3b8; }
+  .nc { font-size: 7pt; font-weight: 800; text-transform: uppercase; color: #047857; letter-spacing: .4px; }
+  .nc-motivo { font-size: 7.5pt; color: #047857; font-weight: 700; margin-top: 2px; }
   .total-row { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 10px; padding-top: 10px; border-top: 2.5px solid #C2410C; }
   .total-sub { font-size: 8pt; color: #888; margin-bottom: 2px; }
   .total-sub span { margin-right: 12px; }
@@ -157,6 +166,7 @@ function gerarHTML(dado: ReturnType<typeof montarDadosParaImpressao>, caracMap: 
     <div class="total-row">
       <div>
         <div class="total-sub">
+          ${dado.totalNaoCobrado !== "0,00" ? `<span style="color:#047857;font-weight:700;">Peças não cobradas: R$ ${dado.totalNaoCobrado}</span>` : ""}
           ${dado.totalDev !== "0,00" ? `<span>Devoluções: - R$ ${dado.totalDev}</span>` : ""}
           ${dado.desconto > 0 ? `<span style="color:#059669;font-weight:700;">Desconto (${dado.desconto}%): - R$ ${dado.valorDesconto}</span>` : ""}
           ${dado.desconto > 0 ? `<span>Subtotal: R$ ${dado.totalBruto}</span>` : ""}

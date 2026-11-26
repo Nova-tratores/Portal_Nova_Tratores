@@ -7,7 +7,7 @@ import { BotaoRedondo } from "@/components/comum/MenuRadial";
 import MenuSuspenso from "@/components/comum/MenuSuspenso";
 import ControladorFases from "@/components/fases/ControladorFases";
 import { useFasesQuadro } from "@/hooks/useFasesQuadro";
-import { ESTILO_POS_VN, usePosVisualNovo } from "./VisualNovoPOS";
+import { ESTILO_POS_ESCURO, ESTILO_POS_VN, usePosVisualNovo } from "./VisualNovoPOS";
 import { normName } from "@/lib/tecnico-utils";
 import { BTN_BARRA } from "./botoes-barra";
 import BuscaPOS from "./BuscaPOS";
@@ -219,7 +219,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
         {/* Atalhos num menu suspenso (José, 09/11/2026: "deixa isso um menu dropdown bonitinho"; antes era o
             círculo de 21/10) + "+" da Nova ordem */}
         <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <style>{ESTILO_POS_VN}</style>
+          <style>{ESTILO_POS_VN + ESTILO_POS_ESCURO}</style>
           <MenuSuspenso titulo="Atalhos: buscar trator, técnicos, lembretes, relatório, fases e configurações"
             itens={[
               { k: "trator", t: "Buscar trator", sub: "modelo, cliente ou chassi", ic: "fa-tractor", cor: "#0369a1", destaque: true, ir: abrirBuscaTrator },

@@ -107,7 +107,7 @@ export function E2({ d }: { d: DadosEvo }) {
             <button key={x.id} type="button" className={`ev-card ${aberto === x.id ? 'on' : ''}`} style={{ ['--k' as string]: x.cor, animationDelay: `${i * 80}ms` }} onClick={() => setAberto(aberto === x.id ? null : x.id)}>
               <small>{x.nome}</small>
               <b>{x.fmt(v)}</b>
-              <span style={{ color: bom == null ? MUDO : bom ? '#15803d' : '#dc2626' }}>{varPct == null ? 'sem período anterior' : `${varPct >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(varPct))}% vs anterior`}</span>
+              <span style={{ color: bom == null ? MUDO : bom ? 'var(--mx-fg-green, #15803d)' : 'var(--mx-fg-red, #dc2626)' }}>{varPct == null ? 'sem período anterior' : `${varPct >= 0 ? '▲' : '▼'} ${Math.abs(Math.round(varPct))}% vs anterior`}</span>
               <div style={{ height: 46, marginTop: 6 }}>
                 <ResponsiveContainer><LineChart data={d.pontos}><Line type="monotone" dataKey={x.id} stroke={x.cor} strokeWidth={2.5} dot={false} animationDuration={1000} /></LineChart></ResponsiveContainer>
               </div>
@@ -273,7 +273,7 @@ export function EvolucaoViva({ pontos, onIr }: { pontos: PontoEvo[]; onIr?: (de:
     <div ref={caixa} className="evv">
       <div className="evv-topo" key={p.rotulo}>
         <div className="evv-per"><small>{foco == null ? (p.atual ? 'período atual' : 'último período') : 'período'}</small><b>{p.rotulo}</b>
-          {varFat != null && <span style={{ color: varFat >= 0 ? '#15803d' : '#dc2626' }}>{varFat >= 0 ? '▲' : '▼'} {Math.abs(Math.round(varFat))}% no faturado</span>}</div>
+          {varFat != null && <span style={{ color: varFat >= 0 ? 'var(--mx-fg-green, #15803d)' : 'var(--mx-fg-red, #dc2626)' }}>{varFat >= 0 ? '▲' : '▼'} {Math.abs(Math.round(varFat))}% no faturado</span>}</div>
         <div className="evv-num" style={{ ['--k' as string]: CORES.fat }}><small>Faturado</small><b><Contando v={p.fat} fmt={brl} /></b></div>
         <div className="evv-num" style={{ ['--k' as string]: p.res >= 0 ? CORES.res : '#dc2626' }}><small>{p.res >= 0 ? 'Sobrou' : 'Faltou'}</small><b><Contando v={p.res} fmt={brl} /></b>{sobra != null && <em>{Math.round(sobra)} de cada R$ 100</em>}</div>
         <div className="evv-num" style={{ ['--k' as string]: CORES.hor }}><small>Horas faturadas</small><b><Contando v={p.hor} fmt={horas} /></b></div>

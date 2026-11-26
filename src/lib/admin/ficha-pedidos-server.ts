@@ -9,6 +9,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { listarMudancas, resumoMudancas, type Dados, type Mudanca } from './ficha-cadastral'
 import { enviarAoRH } from './ficha-rh-server'
+import { avisarAutorizacao } from '@/lib/autorizacoes/avisar'
 
 const sb = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -104,6 +105,12 @@ export async function pedirMudanca(userId: string, dados: Dados, autor: Pessoa) 
     `${proprio ? `${primeiro(autor.nome)} atualizou a própria ficha` : `${primeiro(autor.nome)} mudou a ficha de ${primeiro(dono.nome)}`} — ${resumoMudancas(mudancas)}. Só muda depois que você autorizar.`,
     '/dashboard?fichas=1',
   )
+  // e-mail + WhatsApp (Chatwoot) para o Diretor (24/11/2026)
+  await avisarAutorizacao({
+    chave: `ficha:${id}`, para: await diretores(), autorId: autor.id, quemPediu: autor.nome,
+    oque: 'uma mudança de ficha cadastral', titulo: `Ficha cadastral de ${dono.nome}`,
+    linhas: [resumoMudancas(mudancas)], linkPedido: '/dashboard?fichas=1',
+  })
   return { situacao: 'pendente' as const, id, mudancas: mudancas.length }
 }
 

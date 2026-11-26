@@ -29,7 +29,9 @@ export default function PainelOmiePonte() {
         setErro('Sua sessão expirou. Entre no Portal de novo e tente outra vez.')
         return
       }
-      window.location.replace(`${PAINEL}/entrar#t=${encodeURIComponent(token)}`)
+      // o painel abre no mesmo tema do Portal (claro/escuro)
+      const tema = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'
+      window.location.replace(`${PAINEL}/entrar?theme=${tema}#t=${encodeURIComponent(token)}`)
     })()
     return () => { cancelado = true }
   }, [])
@@ -40,7 +42,7 @@ export default function PainelOmiePonte() {
         <h1 style={{ fontSize: 18, margin: '0 0 8px' }}>
           {erro ? 'Não foi possível abrir o painel' : 'Abrindo o Painel Omie…'}
         </h1>
-        <p style={{ color: '#6b7280', fontSize: 14, lineHeight: 1.55 }}>
+        <p style={{ color: 'var(--portal-text-secondary, #6b7280)', fontSize: 14, lineHeight: 1.55 }}>
           {erro ?? 'Levando você para os relatórios de oficina, peças e comercial.'}
         </p>
       </div>

@@ -152,7 +152,7 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
           <span style={lbl}>Métrica dos gráficos</span>
           <div style={{ display: "inline-flex", border: `1px solid ${TEMA.border}`, borderRadius: 6, overflow: "hidden" }}>
             {(["valor", "n"] as Metrica[]).map((m) => (
-              <button key={m} type="button" onClick={() => setMetrica(m)} style={{ padding: "7px 14px", fontSize: 12.5, fontWeight: 700, border: "none", cursor: "pointer", background: metrica === m ? TEMA.accent : "#fefefe", color: metrica === m ? "#fefefe" : "#111111", fontFamily: "inherit" }}>
+              <button key={m} type="button" onClick={() => setMetrica(m)} style={{ padding: "7px 14px", fontSize: 12.5, fontWeight: 700, border: "none", cursor: "pointer", background: metrica === m ? TEMA.accent : "var(--pos-c-superficie, #fefefe)", color: metrica === m ? "#fefefe" : "var(--pos-c-texto, #111111)", fontFamily: "inherit" }}>
                 {m === "valor" ? "Valor (R$)" : "Quantidade"}
               </button>
             ))}
@@ -164,10 +164,10 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
         <Tile tema={TEMA} label="Ordens de serviço" valor={String(kpi.n)} sub={`${kpi.clientes} cliente${kpi.clientes !== 1 ? "s" : ""} · ${kpi.horas} h · ${kpi.km} km`} />
         <Tile tema={TEMA} label="Valor total" valor={fmtBRL(kpi.valor)} sub={filtrosTexto} destaque />
         <Tile tema={TEMA} label="Com nota × interno" valor={fmtBRL(nota.comNotaV)} sub={`${nota.comNotaN} OS com nota · interno ${fmtBRL(nota.internoV)} (${nota.internoN} OS)`} />
-        <Tile tema={TEMA} label="NFS-e emitidas (serviço)" valor={fmtBRL(nota.nfseV)} sub={`${nota.nfseN} OS${nota.semNfseN ? ` · ${nota.semNfseN} concluída${nota.semNfseN !== 1 ? "s" : ""} sem nota` : ""} · peças fora`} cor="#047857" />
+        <Tile tema={TEMA} label="NFS-e emitidas (serviço)" valor={fmtBRL(nota.nfseV)} sub={`${nota.nfseN} OS${nota.semNfseN ? ` · ${nota.semNfseN} concluída${nota.semNfseN !== 1 ? "s" : ""} sem nota` : ""} · peças fora`} cor="var(--pos-c-verde, #047857)" />
         <Tile tema={TEMA} label="Ticket médio" valor={fmtBRL(kpi.ticket)} sub="valor ÷ OS" />
-        <Tile tema={TEMA} label="Pendentes" valor={fmtBRL(kpi.pendV)} sub={`${kpi.pendN} OS · ${kpi.atrasN} atrasada${kpi.atrasN !== 1 ? "s" : ""}`} cor="#047857" />
-        <Tile tema={TEMA} label="Concluídas" valor={fmtBRL(kpi.concV)} sub={`${kpi.concN} OS · ${kpi.cancN} cancelada${kpi.cancN !== 1 ? "s" : ""}`} cor="#1d4ed8" />
+        <Tile tema={TEMA} label="Pendentes" valor={fmtBRL(kpi.pendV)} sub={`${kpi.pendN} OS · ${kpi.atrasN} atrasada${kpi.atrasN !== 1 ? "s" : ""}`} cor="var(--pos-c-verde, #047857)" />
+        <Tile tema={TEMA} label="Concluídas" valor={fmtBRL(kpi.concV)} sub={`${kpi.concN} OS · ${kpi.cancN} cancelada${kpi.cancN !== 1 ? "s" : ""}`} cor="var(--pos-c-azul, #1d4ed8)" />
       </div>
 
       {filtrados.length === 0 ? (

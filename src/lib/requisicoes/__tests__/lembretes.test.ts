@@ -6,9 +6,16 @@ import {
 const base = { id: 1, tipo: 'Peças', status: 'aguardando', fornecedor: 'KOBA', valor_despeza: '36.00', created_at: '2026-11-10T12:00:00Z' };
 
 describe('ida ao financeiro', () => {
-  it('recibo + valor + fornecedor = pronta', () => {
-    expect(prontaParaFinanceiro({ ...base, recibo_fornecedor: 'a.jpg' })).toBe(true);
+  it('nota + valor + fornecedor = pronta; recibo sozinho NÃO manda (25/11/2026)', () => {
     expect(prontaParaFinanceiro({ ...base, foto_nf3: 'n.pdf' })).toBe(true);
+    expect(prontaParaFinanceiro({ ...base, recibo_fornecedor: 'a.jpg' })).toBe(false);
+  });
+  it('sem autorização não sai de "Aguardando autorização"', () => {
+    const comNota = { ...base, foto_nf: 'n.pdf' };
+    expect(prontaParaFinanceiro({ ...comNota, status: 'completa', autorizacao_status: 'aguardando' })).toBe(false);
+    expect(prontaParaFinanceiro({ ...comNota, autorizacao_status: 'falta_pedir' })).toBe(false);
+    expect(prontaParaFinanceiro({ ...comNota, autorizacao_status: 'recusada' })).toBe(false);
+    expect(prontaParaFinanceiro({ ...comNota, status: 'completa', autorizacao_status: 'autorizada' })).toBe(true);
   });
   it('boleto não é comprovante', () => {
     expect(prontaParaFinanceiro({ ...base, boleto_fornecedor: 'b.pdf' })).toBe(false);

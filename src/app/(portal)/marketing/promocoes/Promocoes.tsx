@@ -20,6 +20,7 @@ type Promo = {
   id: string; titulo: string; texto: string | null; imagem: string | null; imagem_celular?: string | null; produto_slug: string | null; link: string | null
   botao: string | null; inicio: string | null; fim: string | null; ativo: boolean; ordem: number; atualizado_por: string | null
   arte_feed?: string | null; arte_vertical?: string | null; video?: string | null; legenda?: string | null; redes?: RedeId[]
+  post_id?: string | null   // 25/11/2026: o post desta promoção no calendário (criado sozinho ao gravar)
 };
 type Maquina = { slug: string; titulo: string; marca: string; foto: string | null; categoria: string };
 type Rascunho = Omit<Promo, 'id' | 'ordem' | 'atualizado_por'> & { id?: string };
@@ -57,7 +58,7 @@ function SeloTamanho({ url, ideal }: { url: string | null | undefined; ideal: { 
 
 const hoje = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const dataBR = (d: string) => d.split('-').reverse().join('/');
-const VAZIA: Rascunho = { titulo: '', texto: '', imagem: null, imagem_celular: null, produto_slug: null, link: '', botao: '', inicio: null, fim: null, ativo: true, arte_feed: null, arte_vertical: null, video: null, legenda: '', redes: ['site'] };
+const VAZIA: Rascunho = { titulo: '', texto: '', imagem: null, imagem_celular: null, produto_slug: null, link: '', botao: '', inicio: null, fim: null, ativo: true, arte_feed: null, arte_vertical: null, video: null, legenda: '', redes: ['site', 'instagram', 'facebook', 'tiktok', 'youtube'] };   // 25/11/2026: nasce em todos os meios
 const IDEAL_PC = { w: 1920, h: 640, nome: 'deitada, 3 por 1' };
 const IDEAL_CEL = { w: 1080, h: 1080, nome: 'quadrada' };
 const VERDE = '#16a34a', CINZA = '#64748b', AZUL_CLARO = '#0284c7';
@@ -100,6 +101,7 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
   const [modo, setModo] = useState<'foto' | 'maquina'>('foto');
   const [buscaMaq, setBuscaMaq] = useState('');
   const [salvando, setSalvando] = useState(false);
+  const [feito, setFeito] = useState<{ txt: string; post?: string } | null>(null);   // aviso depois de gravar
   const [erroForm, setErroForm] = useState('');
   const [versao, setVersao] = useState(0);
   const [sel, setSel] = useState<string | null>(null);
@@ -212,7 +214,15 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
     if (noSite && modo === 'maquina' && !corpo.produto_slug) { setErroForm('Escolha a máquina.'); return; }
     if (!corpo.titulo.trim()) { setErroForm('Escreva o título.'); return; }
     const j = await chamar(r.id ? 'PATCH' : 'POST', corpo);
-    if (j) { fecharEditor(); mudou(); }
+    if (j) {
+      // 1 clique gera tudo: o servidor já criou (ou atualizou) o post da promoção no calendário
+      const ps = j.post as { id?: string; criado?: boolean; pulado?: string; erro?: string } | undefined;
+      const redesTxt = (corpo.redes || []).filter((x: RedeId) => x !== 'site').map((x: RedeId) => REDE[x].nome).join(', ');
+      setFeito(ps?.id
+        ? { txt: `Promoção gravada${noSite ? ' e pronta para o site (falta só Publicar)' : ''}. ${ps.criado ? 'O post foi criado' : 'O post foi atualizado'} no calendário para ${redesTxt || 'as redes'}: abra para conferir o dia e postar.`, post: ps.id }
+        : { txt: `Promoção gravada.${ps?.pulado ? ` Post nas redes: ${ps.pulado}.` : ''}${ps?.erro ? ` Não consegui criar o post nas redes (${ps.erro}).` : ''}` });
+      fecharEditor(); mudou();
+    }
   }
   async function ligar(p: Promo) { if (await chamar('PATCH', { id: p.id, ativo: !p.ativo })) mudou(); }
   async function apagar(p: Promo) { if (confirm(`Apagar de vez a promoção "${p.titulo}"? (Para tirar do site só por um tempo, use Desligar.)`) && (await chamar('DELETE', undefined, `?id=${p.id}`))) mudou(); }
@@ -239,7 +249,7 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
           })}
         </span>)}
         {linha('fa-hand-pointer', <>Botão leva {p.link ? <>para {p.link}</> : p.produto_slug ? 'à página da máquina' : 'ao WhatsApp do vendedor'}</>)}
-        {linha('fa-calendar-days', p.inicio || p.fim ? `${p.inicio ? `De ${dataBR(p.inicio)}` : 'Desde já'} ${p.fim ? `até ${dataBR(p.fim)}` : 'sem data para sair'}` : 'Sem datas: fica até alguém desligar')}
+        {linha('fa-calendar-days', p.inicio || p.fim ? `${p.inicio ? `De ${dataBR(p.inicio)}` : 'Desde já'} ${p.fim ? `até ${dataBR(p.fim)}` : 'sem data para sair'}` : 'Sem data de fim: preencha na próxima edição')}
       </span>
     );
   }
@@ -251,7 +261,9 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
     return (
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <button style={b(AZUL)} onClick={() => abrir(p)} title="Trocar arte, textos e datas">{ic('fa-pen')}Mudar</button>
-        {(p.redes || []).some((x) => x !== 'site') && <a style={{ ...b('#7c3aed'), textDecoration: 'none' }} href={`/marketing/conteudo?da_promocao=${p.id}`} title="Marca o dia e a hora de postar nas redes">{ic('fa-calendar-plus')}Postar nas redes</a>}
+        {p.post_id
+          ? <a style={{ ...b('#7c3aed'), textDecoration: 'none' }} href={`/marketing/conteudo?post=${p.post_id}`} title="Abre o post desta promoção no calendário">{ic('fa-calendar-check')}Ver o post nas redes</a>
+          : (p.redes || []).some((x) => x !== 'site') && <a style={{ ...b('#7c3aed'), textDecoration: 'none' }} href={`/marketing/conteudo?da_promocao=${p.id}`} title="Marca o dia e a hora de postar nas redes">{ic('fa-calendar-plus')}Postar nas redes</a>}
         <button style={b(p.ativo ? CINZA : VERDE)} disabled={salvando} onClick={() => ligar(p)} title={p.ativo ? 'Tira do site sem apagar' : 'Volta a aparecer no site'}>
           {ic(p.ativo ? 'fa-eye-slash' : 'fa-eye')}{p.ativo ? 'Tirar do site' : 'Pôr no site'}
         </button>
@@ -593,12 +605,12 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
           )}
         </Secao>
 
-        <Secao icone="fa-calendar-days" cor={AZUL_CLARO} titulo="Quando aparece" sub="Sem datas, fica no ar até alguém tirar">
+        <Secao icone="fa-calendar-days" cor={AZUL_CLARO} titulo="Quando aparece" sub="Toda promoção precisa de data para sair">
           <div style={grade(200)}>
             <Campo rotulo="Começa em (opcional)" ajuda="Antes deste dia não aparece.">
               <input type="date" style={campoNP} value={r.inicio || ''} onChange={(e) => setR({ ...r, inicio: e.target.value || null })} />
             </Campo>
-            <Campo rotulo="Termina em (opcional)" ajuda="Depois deste dia sai sozinha.">
+            <Campo rotulo="Termina em *" ajuda="Obrigatório. Depois deste dia sai do site sozinha; 3 dias antes o portal avisa.">
               <input type="date" style={campoNP} value={r.fim || ''} onChange={(e) => setR({ ...r, fim: e.target.value || null })} />
             </Campo>
           </div>
@@ -629,6 +641,15 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
     <div style={{ ...tela, color: T1 }}>
       <FontesSite />
       {erro && <Aviso>{erro}</Aviso>}
+      {feito && !r && (
+        <Aviso tom="info">
+          <span style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ flex: '1 1 260px' }}>{ic('fa-circle-check')} {feito.txt}</span>
+            {feito.post && <a href={`/marketing/conteudo?post=${feito.post}`} style={{ ...bt('#7c3aed', true), textDecoration: 'none' }}>{ic('fa-calendar-check')}Abrir o post</a>}
+            <button type="button" style={bt('#64748b')} onClick={() => setFeito(null)} aria-label="Fechar aviso">{ic('fa-xmark')}</button>
+          </span>
+        </Aviso>
+      )}
       {teste && !r && (
         <section style={{ ...cartaoNP, display: 'grid', gap: 10, borderColor: '#7c3aed' }}>
           <span style={{ fontSize: 14, color: T2 }}>{ic('fa-flask')}&nbsp; Página de teste: escolha o jeito de ver as promoções. Os botões funcionam de verdade.</span>

@@ -32,12 +32,16 @@ import PecasNav, { subAbasPPV } from "@/components/ppv/PecasNav";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import { fetchAuth } from "@/lib/auth/client";
+import MenuSuspenso from "@/components/comum/MenuSuspenso";
+import { BotaoRedondo } from "@/components/comum/MenuRadial";
+import { usePpvVisualNovo, ESTILO_PPV_VN } from "@/components/ppv/VisualNovoPPV";
 
 function PPVApp() {
   const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, recarregarRevisoes } = usePPV();
   const { userProfile } = useAuth();
   const { pode } = usePermissoes(userProfile?.id);
   const isMobile = useIsMobile();
+  usePpvVisualNovo(); // visual igual ao POS (só aparência; ver VisualNovoPPV.tsx)
   const podeCriar = pode('ppv', 'criar');
   const podeMoverFase = pode('ppv', 'mover_fase');
   const podeCatalogo = pode('ppv', 'catalogo');
@@ -355,46 +359,29 @@ function PPVApp() {
   // Fundo igual ao POS: superfície neutra clara, sem o padrão pontilhado.
   const bgPattern = { background: "var(--portal-bg, #f1f5f9)" };
 
-  const headerMenuItem = (icon: string, label: string, onClick: () => void, disabled = false) => (
-    <button disabled={disabled} onClick={() => { onClick(); setHeaderMenuOpen(false); }}
-      style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 13px", width: "100%", border: "none", borderRadius: 8, cursor: disabled ? "not-allowed" : "pointer", background: "transparent", color: "var(--ppv-text)", fontSize: 14.5, fontWeight: 500, textAlign: "left", fontFamily: "'Poppins', sans-serif", opacity: disabled ? 0.6 : 1 }}
-      onMouseEnter={(e) => { if (!disabled) e.currentTarget.style.background = "#F1F5F9"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}>
-      <i className={`fas ${icon}`} style={{ width: 17, textAlign: "center", color: "var(--ppv-accent)" }} /> {label}
-    </button>
-  );
-
+  // Ações do topo no padrão do POS (roteiro ppv-estilo-pos.md): menu suspenso "Atalhos" + botão redondo "+".
+  // Mesmos itens e mesmas funções do antigo "Menu" e do "Novo Lançamento".
   const headerActions = (
-    <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap", marginLeft: "auto" }}>
-      <button onClick={() => setActiveTab("formTab")} disabled={!podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined}
-        style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 10, border: "none", background: "var(--ppv-primary, #dc2626)", color: "#fff", fontSize: 15, fontWeight: 600, cursor: podeCriar ? "pointer" : "not-allowed", opacity: podeCriar ? 1 : 0.55, fontFamily: "'Poppins', sans-serif", whiteSpace: "nowrap" }}>
-        <i className="fas fa-plus-circle" /> Novo Lançamento
-      </button>
+    <div className="ppv-tb-acoes" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginLeft: "auto" }}>
       {podeCatalogo && (
-        <div style={{ position: "relative" }} ref={headerMenuRef}>
-          <button onClick={() => setHeaderMenuOpen((o) => !o)}
-            style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", borderRadius: 10, border: "1.5px solid var(--ppv-border-light)", background: "#fff", color: "var(--ppv-text)", fontSize: 15, fontWeight: 600, cursor: "pointer", fontFamily: "'Poppins', sans-serif", whiteSpace: "nowrap" }}>
-            <i className="fas fa-bars" /> Menu <i className="fas fa-chevron-down" style={{ fontSize: 10, transform: headerMenuOpen ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
-          </button>
-          {headerMenuOpen && (
-            <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 60, minWidth: 220, background: "#fff", border: "1px solid var(--ppv-border-light)", borderRadius: 12, boxShadow: "0 12px 30px rgba(0,0,0,0.14)", padding: 6, display: "flex", flexDirection: "column", gap: 2 }}>
-              {headerMenuItem("fa-tools", "Gerenciar Kits", () => setShowGerenciarKits(true))}
-              <div style={{ height: 1, background: "var(--ppv-border-light)", margin: "4px 8px" }} />
-              {headerMenuItem("fa-box-open", "Criar Produto", () => { setProdutoManualEdit(null); setProdutoManualProvisorio(false); setProdutoManualOpen(true); })}
-              {headerMenuItem("fa-edit", "Editar Produto", () => handleBuscaProduto("edit"))}
-              {headerMenuItem(`fa-sync-alt ${syncingProdutos ? "fa-spin" : ""}`, syncingProdutos ? "Sincronizando..." : "Sync Preços", syncPrecosOmie, syncingProdutos)}
-              {syncResult && <div style={{ padding: "6px 12px", fontSize: 11, fontWeight: 600, color: syncResult.startsWith("Erro") ? "#DC2626" : "#065F46" }}>{syncResult}</div>}
-            </div>
-          )}
-        </div>
+        <MenuSuspenso cor="#E8730C" rotulo="Menu" titulo="Menu: kits, produtos e sync de preços"
+          itens={[
+            { k: "kits", t: "Gerenciar Kits", ic: "fa-tools", cor: "#E8730C", ir: () => setShowGerenciarKits(true) },
+            { k: "criar", grupo: "Produtos", t: "Criar Produto", ic: "fa-box-open", cor: "#E8730C", ir: () => { setProdutoManualEdit(null); setProdutoManualProvisorio(false); setProdutoManualOpen(true); } },
+            { k: "editar", t: "Editar Produto", ic: "fa-edit", cor: "#E8730C", ir: () => handleBuscaProduto("edit") },
+            { k: "sync", t: syncingProdutos ? "Sincronizando..." : "Sync Preços", sub: syncResult || undefined, ic: `fa-sync-alt ${syncingProdutos ? "fa-spin" : ""}`, cor: "#047857", ir: () => { if (!syncingProdutos) syncPrecosOmie(); } },
+          ]} />
       )}
+      <BotaoRedondo cor="#E8730C" icone="fa-plus" titulo={podeCriar ? "Novo Lançamento" : MSG_SEM_PERMISSAO} onClick={() => setActiveTab("formTab")}
+        disabled={!podeCriar} style={podeCriar ? undefined : { opacity: 0.55, cursor: "not-allowed" }} />
     </div>
   );
 
   const listaCelular = isMobile && activeTab === "kanbanTab";
   return (
     // celular na lista: a página rola (sem altura travada nem overflow-hidden); o quadro do PC continua preso à tela
-    <div className={`flex min-w-0 flex-col ${listaCelular ? "overflow-x-clip" : "overflow-hidden"} font-[Poppins] text-[14px] text-slate-800`} style={listaCelular ? { minHeight: "calc(100vh - 84px)" } : { height: "calc(100vh - 84px)" }}>
+    <div className={`ppv-vn-page flex min-w-0 flex-col ${listaCelular ? "overflow-x-clip" : "overflow-hidden"} font-[Poppins] text-[14px] text-slate-800`} style={listaCelular ? { minHeight: "calc(100vh - 84px)" } : { height: "calc(100vh - 84px)" }}>
+      <style>{ESTILO_PPV_VN}</style>
       <GlobalLoader visible={globalLoading} />
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={hideToast} />
 
@@ -431,21 +418,23 @@ function PPVApp() {
         )}
 
         {activeTab === "kanbanTab" && !isMobile && (
-          <div className="flex flex-1 flex-col overflow-auto" style={bgPattern}>
+          <div className="ppv-vn-fundo flex flex-1 flex-col overflow-auto" style={bgPattern}>
             {/* Alternar Cards ⇄ Lista */}
-            <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 6, padding: "10px 16px 0" }}>
-              <button type="button" onClick={() => trocarViewMode("cards")} title="Ver em cards"
+            <div className="ppv-visao-linha" style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 6, padding: "10px 16px 0" }}>
+             <div className="ppv-visao" role="tablist" aria-label="Visão">
+              <button type="button" role="tab" aria-selected={viewMode === "cards"} className={`ppv-visao-bt ${viewMode === "cards" ? "on" : ""}`} onClick={() => trocarViewMode("cards")} title="Ver em cards"
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 3, border: "1px solid #e2ddd3", background: viewMode === "cards" ? "#e8730c" : "#fff", color: viewMode === "cards" ? "#fff" : "#5f574c", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                 <i className="fas fa-table-cells-large" /> Cards
               </button>
-              <button type="button" onClick={() => trocarViewMode("lista")} title="Ver em lista"
+              <button type="button" role="tab" aria-selected={viewMode === "lista"} className={`ppv-visao-bt ${viewMode === "lista" ? "on" : ""}`} onClick={() => trocarViewMode("lista")} title="Ver em lista"
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 3, border: "1px solid #e2ddd3", background: viewMode === "lista" ? "#e8730c" : "#fff", color: viewMode === "lista" ? "#fff" : "#5f574c", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                 <i className="fas fa-list" /> Lista
               </button>
-              <button type="button" onClick={() => trocarViewMode("relacao")} title="Relação em tabela: filtros por coluna, ordenação, PDF e envio por e-mail"
+              <button type="button" role="tab" aria-selected={viewMode === "relacao"} className={`ppv-visao-bt ${viewMode === "relacao" ? "on" : ""}`} onClick={() => trocarViewMode("relacao")} title="Relação em tabela: filtros por coluna, ordenação, PDF e envio por e-mail"
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 3, border: "1px solid #e2ddd3", background: viewMode === "relacao" ? "#e8730c" : "#fff", color: viewMode === "relacao" ? "#fff" : "#5f574c", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                 <i className="fas fa-table-list" /> Relação
               </button>
+             </div>
             </div>
             {viewMode === "relacao" ? (
               <RelacaoView orders={filteredKanban} searchTerm={searchFilter} tipoFilter={tipoFilter} onCardClick={openCardDetails} onStatusChange={podeMoverFase ? handleStatusChange : undefined} loading={globalLoading} />
@@ -456,25 +445,25 @@ function PPVApp() {
         )}
 
         {activeTab === "dashTab" && (
-          <div className="flex-1 overflow-y-auto" style={bgPattern}>
+          <div className="ppv-vn-aba flex-1 overflow-y-auto" style={bgPattern}>
             <DashboardPPV orders={kanbanItems} onAbrirPedido={openCardDetails} />
           </div>
         )}
 
         {activeTab === "catalogoTab" && (
-          <div className="pecas-skin flex-1 overflow-hidden p-2 md:p-4" style={bgPattern}>
+          <div className="pecas-skin ppv-vn-aba flex-1 overflow-hidden p-2 md:p-4" style={bgPattern}>
             <CatalogoNovo userName={userProfile?.nome || ""} />
           </div>
         )}
 
         {activeTab === "etiquetasTab" && (
-          <div className="pecas-skin flex-1 overflow-y-auto" style={bgPattern}>
+          <div className="pecas-skin ppv-vn-aba flex-1 overflow-y-auto" style={bgPattern}>
             <EtiquetasPanel embedded />
           </div>
         )}
 
         {activeTab === "formTab" && (
-          <div className="flex-1 overflow-y-auto p-3 md:p-5" style={bgPattern}>
+          <div className="ppv-vn-form flex-1 overflow-y-auto p-3 md:p-5" style={bgPattern}>
             <FormNovoLancamento
               onVoltar={() => setActiveTab("kanbanTab")}
               onBuscaCliente={() => handleBuscaCliente("main")}

@@ -35,8 +35,8 @@ export interface Painel {
 }
 
 export const STATUS: Record<string, { rotulo: string; cor: string; bg: string; borda: string }> = {
-  ok: { rotulo: 'ok', cor: '#047857', bg: '#ecfdf5', borda: '#a7f3d0' },
-  erro: { rotulo: 'falhou', cor: '#b91c1c', bg: '#fef2f2', borda: '#fecaca' },
+  ok: { rotulo: 'ok', cor: 'var(--agd-ok, #047857)', bg: '#ecfdf5', borda: '#a7f3d0' },
+  erro: { rotulo: 'falhou', cor: 'var(--agd-err, #b91c1c)', bg: '#fef2f2', borda: '#fecaca' },
   rodando: { rotulo: 'rodando', cor: '#1d4ed8', bg: '#eff6ff', borda: '#bfdbfe' },
   interrompida: { rotulo: 'interrompida', cor: '#9a3412', bg: '#fff7ed', borda: '#fed7aa' },
   bloqueio: { rotulo: 'Omie bloqueada', cor: '#92400e', bg: '#fffbeb', borda: '#fde68a' },

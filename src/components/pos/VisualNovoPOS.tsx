@@ -141,3 +141,48 @@ body.pos-vn .pos-osd .osc-btn { font-weight: 500 !important; border-radius: 11px
 body.pos-vn .pos-osd .osc-toggle { border-width: 1px; border-radius: 14px }
 body.pos-vn .pos-osd .osc-peca { border-radius: 12px } body.pos-vn .pos-osd :is(.osc-peca-cod, .osc-peca-valor) { font-weight: 500 !important }
 `;
+
+// Modo escuro do POS (23/11/2026): cores fixas dos componentes viram var(--pos-c-*, #hexDoClaro).
+// No claro as vars não existem e vale o hex de sempre; no escuro elas apontam pros tokens -fg do portal.
+// Injetado no Header do POS, no drawer da OS e nas abas Omie (que também abrem dentro do PPV).
+export const ESTILO_POS_ESCURO = `
+[data-theme="dark"] {
+  --pos-c-azul: var(--portal-blue-fg, #60a5fa);
+  --pos-c-teal: var(--portal-teal-fg, #2dd4bf);
+  --pos-c-vermelho: var(--portal-red-fg, #f87171);
+  --pos-c-verde: var(--portal-green-fg, #34d399);
+  --pos-c-ambar: var(--portal-amber-fg, #fbbf24);
+  --pos-c-roxo: var(--portal-violet-fg, #a78bfa);
+  --pos-c-rotulo: var(--portal-text-secondary, #a3a3a3);
+  --pos-c-muted: var(--portal-text-muted, #949494);
+  --pos-c-texto: var(--portal-text, #f5f5f5);
+  --pos-c-superficie: var(--portal-bg-card, #1a1a1a);
+  --pos-c-neutro-bg: var(--portal-bg-secondary, #262626);
+  --pos-c-chip-azul-bg: rgb(96 165 250 / .15);
+  --pos-c-chip-teal-bg: rgb(45 212 191 / .15);
+  --pos-c-chip-ambar-bg: rgb(251 191 36 / .15);
+  --pos-c-chip-verm-bg: rgb(248 113 113 / .15);
+  --pos-c-chip-verde-bg: rgb(52 211 153 / .15);
+  --pos-c-borda-verm: rgb(248 113 113 / .35);
+  --pos-c-faturar: #0e7490;
+  --pos-c-omie: #0369a1;
+  --bg-soft: var(--portal-bg-secondary, #262626);
+}
+/* totais da OS (classe do globals com fundo #fff fixo) */
+[data-theme="dark"] .os-omie-totais { background: var(--portal-bg-secondary, #262626) !important; border-color: var(--portal-border, #2a2a2a) !important }
+[data-theme="dark"] .os-omie-totais-linha { color: var(--portal-text-secondary, #a3a3a3) !important }
+[data-theme="dark"] .os-omie-totais-linha b, [data-theme="dark"] .os-omie-totais-total { color: var(--portal-text, #f5f5f5) }
+[data-theme="dark"] .os-omie-totais-total { border-top-color: var(--portal-border, #2a2a2a) !important }
+/* aviso de atraso do card: chip vermelho escuro */
+[data-theme="dark"] .mini-card-atraso { background: rgb(248 113 113 / .15) !important; border-color: rgb(248 113 113 / .35) !important; color: #fca5a5 !important }
+[data-theme="dark"] .mini-card-atraso i { color: var(--portal-red-fg, #f87171) !important }
+/* texto da capa do card */
+[data-theme="dark"] .capa-texto { background: var(--portal-bg-secondary, #262626) !important; color: var(--portal-text-secondary, #a3a3a3) !important }
+[data-theme="dark"] body.pos-vn .mini-card .capa-texto { border-color: var(--portal-bg-secondary, #262626) !important }
+/* chips de fase da Relação: fundo da cor a 18% + texto claro do mesmo tom (a cor vem em --f-tx) */
+[data-theme="dark"] .pos-fase-chip { background: color-mix(in srgb, var(--f-tx, #94a3b8) 22%, transparent) !important; color: color-mix(in srgb, var(--f-tx, #94a3b8) 40%, #ffffff) !important; border-color: transparent !important }
+/* cancelar OS (coluna da direita) */
+[data-theme="dark"] .os-rail-nova .os-rail-perigo .os-rail-btn { color: var(--portal-red-fg, #f87171) !important }
+[data-theme="dark"] .os-rail-nova .os-rail-perigo .os-rail-btn i { background: rgb(248 113 113 / .15) !important; color: var(--portal-red-fg, #f87171) !important }
+[data-theme="dark"] .os-rail-nova .os-rail-perigo .os-rail-btn:hover { background: rgb(248 113 113 / .1) !important }
+`;
