@@ -1742,6 +1742,11 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
             </div>
           </div>
 
+          {r.cte && (
+            <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: '.78rem' }}>
+              CT-e (frete) não tem itens: o portal manda o <b>CFOP de entrada 1.350</b> no cabeçalho, o mesmo que a equipe usa nos fretes recebidos.
+            </div>
+          )}
           <h3 style={{ fontWeight: 600, color: '#334155', marginBottom: 4, fontSize: '.82rem' }}>CFOP de entrada por item</h3>
           <div style={{ fontSize: '.72rem', color: '#64748b', marginBottom: 8 }}>
             Pre-preenchido com o CFOP que a <b>Omie puxaria</b> (garantidamente cadastrado). Edite se precisar. O equivalente calculado da NF (5→1/6→2) e' mais &quot;correto&quot;, mas pode nao estar cadastrado na Omie — se der erro de &quot;CFOP nao cadastrada&quot;, volte ao que a Omie puxaria ou deixe em branco.
