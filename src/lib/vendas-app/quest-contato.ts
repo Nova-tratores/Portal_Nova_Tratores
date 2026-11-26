@@ -80,14 +80,14 @@ export function textoPedidoSuporte(p: {
   negocio?: string | null;
 }): { titulo: string; descricao: string } {
   const oque = p.falta.map((f) => ROTULO_FALTA[f]).join(' e ') || 'contato';
-  const alvo = p.cliente || p.trator || p.negocio || (p.questId ? `quest #${p.questId}` : 'cliente');
-  const onde = p.negocio ? 'um negócio' : 'uma quest';
+  const alvo = p.cliente || p.trator || p.negocio || (p.questId ? `missão #${p.questId}` : 'cliente');
+  const onde = p.negocio ? 'um negócio' : 'uma missão';
   const titulo = `${p.vendedor} pede ${oque}: ${alvo}`.slice(0, 200);
   const linhas = [
     `O vendedor ${p.vendedor} está com ${onde} e não achou ${oque} no cadastro.`,
     [p.cliente && `Cliente: ${p.cliente}`, p.cidade && `Cidade: ${p.cidade}`, p.trator && `Trator: ${p.trator}`, p.negocio && `Negócio: ${p.negocio}`].filter(Boolean).join(' · '),
     p.obs ? `Recado: ${String(p.obs).trim().slice(0, 300)}` : '',
-    'Abra o pedido para preencher: o vendedor é avisado e o contato aparece na quest dele.',
+    'Abra o pedido para preencher: o vendedor é avisado e o contato aparece na missão dele.',
   ].filter(Boolean);
   return { titulo, descricao: linhas.join('\n').slice(0, 1000) };
 }
@@ -149,7 +149,7 @@ export function textoRespostaVendedor(p: {
     `${quem} atualizou o contato${p.alvo ? ` de ${p.alvo}` : ''}.`,
     partes.join(' · '),
     p.obs ? `Recado: ${String(p.obs).trim().slice(0, 300)}` : '',
-    'Abra a quest: o contato já aparece lá.',
+    'Abra a missão: o contato já aparece lá.',
   ].filter(Boolean).join('\n');
   return { titulo: 'Contato atualizado pelo suporte', corpo: corpo.slice(0, 1000) };
 }

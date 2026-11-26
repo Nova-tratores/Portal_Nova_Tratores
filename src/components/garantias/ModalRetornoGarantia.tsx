@@ -3,13 +3,16 @@
 // fábrica mandou (mesmos itens, preços e impostos; chave referenciada; não mexe no estoque),
 // criada e faturada pelo portal. Abre pelo Recebimentos (nota de garantia) ou pela garantia
 // (seção Devolução: escolhe a nota da fábrica; ao faturar, dá baixa na pendência).
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { fetchAuth } from '@/lib/auth/client';
+import { conferirFiscal, aplicarAjuste, type AjusteFiscal, type ItemEntrada, type ProblemaFiscal } from '@/lib/garantias/retorno-remessa';
 
 interface ItemPrevia {
   seq: number; codigo: string | null; descricao: string | null; cfopForn: string | null; cfop: string | null;
   garantia: boolean; temProduto: boolean; qtdNF: number; precoUnit: number; jaDevolvido: number;
   devolvidoNaOmie: boolean; disponivel: number; valorDisponivel: number; icmsCst: string | null; temST: boolean;
+  /** item da nota da fábrica como a Omie devolveu (para conferir os ajustes fiscais na tela) */
+  base?: ItemEntrada; problemas?: ProblemaFiscal[];
 }
 interface Historico { id: string; cod_int_rem: string; status: string; nf_numero: string | null; valor_total: number | null; erro: string | null; user_nome: string | null; criado_em: string }
 interface Tentativa { quando: string; quem: string | null; acao: 'emitir' | 'faturar'; ok: boolean; erro: string | null; nf: string | null; fichaId: string | null }
@@ -39,6 +42,8 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
   const [texto, setTexto] = useState('');
   const [frete, setFrete] = useState({ tipo: '9', qtdVol: '', especie: '', marca: '', pesoBruto: '', pesoLiq: '' });
   const [enviando, setEnviando] = useState(false);
+  const [ajustes, setAjustes] = useState<Record<number, AjusteFiscal>>({});
+  const [fiscalAberto, setFiscalAberto] = useState<Record<number, boolean>>({});
   const [resultado, setResultado] = useState<{ ok: boolean; nf?: string | null; erro?: string; fichaId?: string } | null>(null);
 
   // pela garantia: lista as notas da fábrica para escolher
@@ -59,6 +64,10 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
       const q: Record<number, string> = {}; const m: Record<number, boolean> = {};
       for (const it of d.itens) { q[it.seq] = String(it.disponivel || 0); m[it.seq] = it.garantia && it.temProduto && it.disponivel > 0; }
       setQtd(q); setMarcado(m);
+      // abre os campos fiscais de quem tem problema que trava
+      const ab: Record<number, boolean> = {};
+      for (const it of d.itens) if ((it.problemas || []).some((p) => p.nivel === 'erro') && it.garantia) ab[it.seq] = true;
+      setFiscalAberto(ab);
       const v = d.nota.volumes;
       setFrete({ tipo: d.padroes.frete || '9', qtdVol: v.qtd ? String(v.qtd) : '', especie: v.especie || '', marca: v.marca || '', pesoBruto: v.pesoBruto ? String(v.pesoBruto) : '', pesoLiq: v.pesoLiq ? String(v.pesoLiq) : '' });
     }).catch((e) => setErro((e as Error).message));
@@ -73,8 +82,20 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
     const it = previa?.itens.find((i) => i.seq === e.seq);
     return it && it.disponivel > 0 ? s + it.valorDisponivel * (e.qtd / it.disponivel) : s;
   }, 0), [escolha, previa]);
+  const problemas = useMemo(() => {
+    const out: Record<number, ProblemaFiscal[]> = {};
+    for (const it of previa?.itens || []) out[it.seq] = it.base ? conferirFiscal(it.base, ajustes[it.seq]) : (it.problemas || []);
+    return out;
+  }, [previa, ajustes]);
+  const errosFiscais = escolha.filter((e) => (problemas[e.seq] || []).some((p) => p.nivel === 'erro')).length;
+  const ajustesEnvio = useMemo(() => {
+    const out: Record<string, AjusteFiscal> = {};
+    for (const [k, v] of Object.entries(ajustes)) if (v && Object.values(v).some((x) => x !== undefined && x !== '' && x !== null && x !== false)) out[k] = v;
+    return out;
+  }, [ajustes]);
+  const mudar = (seq: number, campo: keyof AjusteFiscal, valor: unknown) => setAjustes((s) => ({ ...s, [seq]: { ...(s[seq] || {}), [campo]: valor } }));
   const temFaltando = !!previa?.historico.some((h) => h.status === 'criando');
-  const podeEmitir = !!previa && previa.nota.recebido && !previa.migracaoFaltando && escolha.length > 0 && !enviando && !temFaltando;
+  const podeEmitir = !!previa && previa.nota.recebido && !previa.migracaoFaltando && escolha.length > 0 && !enviando && !temFaltando && errosFiscais === 0;
 
   const post = async (body: Record<string, unknown>) => {
     setEnviando(true); setErro('');
@@ -91,7 +112,7 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
     if (!previa || !alvo) return;
     if (!window.confirm(`Emitir a NF-e de devolução em garantia para ${previa.nota.fornecedor || 'o fornecedor'}?\n\n${escolha.length} item(ns) · ${brl(total)}\n\nA remessa é criada e FATURADA na Omie agora (não mexe no estoque).`)) return;
     post({
-      acao: 'emitir', conta: alvo.conta, idReceb: alvo.idReceb, escolha, texto, garantiaId: garantiaId || null,
+      acao: 'emitir', conta: alvo.conta, idReceb: alvo.idReceb, escolha, texto, garantiaId: garantiaId || null, ajustes: ajustesEnvio,
       frete: { tipo: frete.tipo, qtdVol: Number(frete.qtdVol) || 0, especie: frete.especie || null, marca: frete.marca || null, pesoBruto: Number(String(frete.pesoBruto).replace(',', '.')) || 0, pesoLiq: Number(String(frete.pesoLiq).replace(',', '.')) || 0 },
     });
   };
@@ -148,7 +169,8 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
                     const pode = it.garantia && it.temProduto && it.disponivel > 0;
                     const q = Number(String(qtd[it.seq] || '0').replace(',', '.')) || 0;
                     return (
-                      <tr key={it.seq} style={pode ? undefined : { opacity: 0.5 }}>
+                      <Fragment key={it.seq}>
+                      <tr style={pode ? undefined : { opacity: 0.5 }}>
                         <td style={td}><input type="checkbox" disabled={!pode} checked={!!marcado[it.seq]} style={{ width: 20, height: 20 }} onChange={(e) => setMarcado((s) => ({ ...s, [it.seq]: e.target.checked }))} /></td>
                         <td style={td}>
                           <b>{it.codigo || '?'}</b> {it.descricao ? `· ${it.descricao}` : ''}
@@ -165,6 +187,9 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
                         </td>
                         <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}>{pode && marcado[it.seq] && it.disponivel > 0 ? brl(it.valorDisponivel * (Math.min(q, it.disponivel) / it.disponivel)) : '—'}</td>
                       </tr>
+                      {it.garantia && it.base && <LinhaFiscal it={it} base={it.base} ajuste={ajustes[it.seq]} problemas={problemas[it.seq] || []} aberto={!!fiscalAberto[it.seq]}
+                        onAbrir={() => setFiscalAberto((s) => ({ ...s, [it.seq]: !s[it.seq] }))} onMudar={(c, v) => mudar(it.seq, c, v)} inp={inp} />}
+                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -200,7 +225,12 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
                     {h.valor_total != null && <span>{brl(h.valor_total)}</span>}
                     <span style={{ color: '#64748b' }}>{h.user_nome}</span>
                     {h.erro && <span style={{ color: '#b91c1c', fontSize: '.72rem' }}>{h.erro}</span>}
-                    {h.status === 'criada' && <button type="button" disabled={enviando} onClick={() => post({ acao: 'faturar', fichaId: h.id })} title={h.nf_numero ? 'Lê na Omie se a NF-e foi autorizada (depois de corrigir e retransmitir lá)' : 'Acerta os itens e fatura a remessa'} style={{ ...btn('#b45309', !enviando), minHeight: 36, padding: '4px 12px' }}>{h.nf_numero ? 'Conferir de novo' : 'Faturar de novo'}</button>}
+                    {h.status === 'criada' && (() => {
+                      const rejeitada = !!h.nf_numero && /rejeit/i.test(h.erro || '');
+                      const rotulo = rejeitada ? 'Corrigir e reenviar' : h.nf_numero ? 'Conferir de novo' : 'Faturar de novo';
+                      const dica = rejeitada ? 'Grava na remessa os campos fiscais da tabela acima e a Omie retransmite a NF-e' : h.nf_numero ? 'Lê na Omie se a NF-e foi autorizada' : 'Acerta os itens e fatura a remessa';
+                      return <button type="button" disabled={enviando} onClick={() => post({ acao: 'faturar', fichaId: h.id, ajustes: ajustesEnvio })} title={dica} style={{ ...btn('#b45309', !enviando), minHeight: 40, padding: '4px 12px' }}>{enviando ? 'Aguardando a Omie…' : rotulo}</button>;
+                    })()}
                     {(() => {
                       const ts = (previa.tentativas || []).filter((t) => t.fichaId === h.id);
                       if (!ts.length) return null;
@@ -235,9 +265,82 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
           {previa && <span style={{ fontSize: '.82rem', color: '#334155', marginRight: 'auto' }}>{escolha.length} item(ns) · <b>{brl(total)}</b></span>}
           {alvo && garantiaId && !contaIni && <button type="button" disabled={enviando} onClick={() => { setAlvo(null); setPrevia(null); setResultado(null); }} style={{ ...btn('#64748b', !enviando) }}>Outra nota</button>}
           <button type="button" onClick={onClose} disabled={enviando} style={{ minHeight: 40, padding: '8px 18px', borderRadius: 8, border: 'none', background: '#f1f5f9', color: '#475569', fontWeight: 600, cursor: 'pointer' }}>Fechar</button>
+            {previa && errosFiscais > 0 && <span style={{ fontSize: '.76rem', color: '#b91c1c', width: '100%', textAlign: 'right' }}>{errosFiscais} item(ns) com problema fiscal: corrija nos campos fiscais antes de emitir.</span>}
           {previa && <button type="button" onClick={emitir} disabled={!podeEmitir} style={btn('#b45309', podeEmitir)}>{enviando ? 'Emitindo na Omie…' : 'Emitir NF-e de devolução'}</button>}
         </div>
       </div>
     </div>
+  );
+}
+
+const CST_ICMS = ['00', '10', '20', '30', '40', '41', '50', '51', '53', '60', '70', '90'];
+const CST_IPI = ['00', '49', '50', '99', '01', '02', '03', '04', '05', '51', '52', '53', '54', '55'];
+
+/** campos fiscais de um item (o que vai para a Omie) + conferência; vazio = o da nota da fábrica */
+function LinhaFiscal({ it, base, ajuste, problemas, aberto, onAbrir, onMudar, inp }: {
+  it: ItemPrevia; base: ItemEntrada; ajuste?: AjusteFiscal; problemas: ProblemaFiscal[]; aberto: boolean;
+  onAbrir: () => void; onMudar: (c: keyof AjusteFiscal, v: unknown) => void; inp: React.CSSProperties;
+}) {
+  const f = aplicarAjuste(base, ajuste);
+  const erros = problemas.filter((p) => p.nivel === 'erro');
+  const avisos = problemas.filter((p) => p.nivel === 'aviso');
+  const cor = erros.length ? '#b91c1c' : avisos.length ? '#b45309' : '#047857';
+  const lab: React.CSSProperties = { fontSize: '.68rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: 2 };
+  const pc = (n: unknown) => (Number(n) || 0).toLocaleString('pt-BR', { maximumFractionDigits: 4 });
+  return (
+    <tr>
+      <td />
+      <td colSpan={6} style={{ padding: '0 8px 8px', borderBottom: '1px solid #e2e8f0' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: '.7rem', color: '#475569' }}>
+          <span style={{ color: cor, fontWeight: 600 }}>{erros.length ? '✕ fiscal com problema' : avisos.length ? '! fiscal com aviso' : '✓ fiscal ok'}</span>
+          <span>ICMS {f.icms?.cSitTrib || '—'} · origem {f.icms?.cOrigem || '0'}{f.cBenef ? ` · benefício ${f.cBenef}` : ''}</span>
+          <span>IPI {f.ipi?.cSitTribIPI || '55'}{Number(f.ipi?.nAliqIPI) ? ` · ${pc(f.ipi?.nAliqIPI)}%` : ''}</span>
+          <button type="button" onClick={onAbrir} style={{ minHeight: 32, padding: '2px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '.7rem', color: '#334155' }}>
+            {aberto ? 'Fechar campos fiscais' : 'Editar campos fiscais'}
+          </button>
+        </div>
+        {problemas.map((p, i) => (
+          <div key={i} style={{ fontSize: '.7rem', color: p.nivel === 'erro' ? '#b91c1c' : '#92400e', marginTop: 3 }}>{p.nivel === 'erro' ? '✕' : '!'} {p.msg}</div>
+        ))}
+        {aberto && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginTop: 8, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 8 }}>
+            <label style={lab}>CST do ICMS
+              <select value={f.icms?.cSitTrib || ''} onChange={(e) => onMudar('icmsCst', e.target.value)} style={{ ...inp, width: '100%' }}>
+                {!CST_ICMS.includes(f.icms?.cSitTrib || '') && <option value={f.icms?.cSitTrib || ''}>{f.icms?.cSitTrib || '—'}</option>}
+                {CST_ICMS.map((c) => <option key={c} value={c}>{c}{c === base.icms?.cSitTrib ? ' (da nota)' : ''}</option>)}
+              </select>
+            </label>
+            <label style={lab}>Origem
+              <select value={f.icms?.cOrigem || '0'} onChange={(e) => onMudar('icmsOrigem', e.target.value)} style={{ ...inp, width: '100%' }}>
+                {['0', '1', '2', '3', '4', '5', '6', '7', '8'].map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
+            <label style={lab}>Cód. benefício (cBenef)
+              <input value={ajuste?.cBenef ?? f.cBenef ?? ''} disabled={!!ajuste?.semBenef} placeholder="ex.: SP058811" onChange={(e) => onMudar('cBenef', e.target.value.toUpperCase())} style={{ ...inp, width: '100%' }} />
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, minHeight: 28 }}>
+                <input type="checkbox" checked={!!ajuste?.semBenef} onChange={(e) => onMudar('semBenef', e.target.checked)} style={{ width: 18, height: 18 }} /> não tem benefício
+              </span>
+            </label>
+            <label style={lab}>CST do IPI
+              <select value={f.ipi?.cSitTribIPI || '55'} onChange={(e) => onMudar('ipiCst', e.target.value)} style={{ ...inp, width: '100%' }}>
+                {!CST_IPI.includes(f.ipi?.cSitTribIPI || '55') && <option value={f.ipi?.cSitTribIPI}>{f.ipi?.cSitTribIPI}</option>}
+                {CST_IPI.map((c) => <option key={c} value={c}>{c}{c === (base.ipi?.cSitTribIPI || '55') ? ' (da nota)' : ''}</option>)}
+              </select>
+            </label>
+            <label style={lab}>Cálculo do IPI
+              <select value={f.ipi?.cTpCalcIPI || 'B'} onChange={(e) => onMudar('ipiTpCalc', e.target.value)} style={{ ...inp, width: '100%' }}>
+                <option value="B">B · alíquota</option><option value="Q">Q · quantidade</option>
+              </select>
+            </label>
+            <label style={lab}>Alíquota do IPI (%)
+              <input type="number" step="any" min={0} value={ajuste?.ipiAliq ?? f.ipi?.nAliqIPI ?? 0} onChange={(e) => onMudar('ipiAliq', e.target.value === '' ? null : Number(e.target.value))} style={{ ...inp, width: '100%' }} />
+            </label>
+            <div style={{ gridColumn: '1 / -1', fontSize: '.66rem', color: '#64748b' }}>
+              Veio da nota da fábrica: ICMS {base.icms?.cSitTrib || '—'}{base.cBenef ? ` · benefício ${base.cBenef}` : ' · sem benefício no XML'} · IPI {base.ipi?.cSitTribIPI || '—'}{Number(base.ipi?.nAliqIPI) ? ` ${pc(base.ipi?.nAliqIPI)}%` : ''}. Mude só se a nota da fábrica estiver errada{it.codigo ? ` para ${it.codigo}` : ''}.
+            </div>
+          </div>
+        )}
+      </td>
+    </tr>
   );
 }
