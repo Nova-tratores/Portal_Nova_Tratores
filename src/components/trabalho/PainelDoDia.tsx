@@ -8,6 +8,7 @@
 //  3) Atalho flutuante na dashboard (cada um escolhe se quer)
 import { useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { rotaInterna } from '@/lib/trabalho/rotas-central'
 import {
   Check, CircleX, CalendarClock, Kanban, X, Inbox, Sun, Send, Plus, ArrowUpRight, EyeOff,
 } from 'lucide-react'
@@ -35,7 +36,7 @@ const br = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
 const hojeIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
 export default function PainelDoDia({ nome }: { nome?: string }) {
-  const pathname = usePathname()
+  const pathname = rotaInterna(usePathname() || '') // /central → /fila (endereços novos, 27/11/2026)
   const router = useRouter()
   const [h, setH] = useState<Hoje | null>(null)
   const [verDia, setVerDia] = useState(false)       // abrir o "Seu dia" na mão (atalho)

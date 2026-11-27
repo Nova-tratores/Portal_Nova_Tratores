@@ -83,12 +83,12 @@ const GROUP_ORDER = ['geral', 'servicos', 'pecas', 'financeiro', 'comercial', 'e
 const navItems: NavItem[] = [
   // Geral
   { id: 'dashboard', name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, tag: 'INÍCIO', gradient: '', group: 'geral' },
-  { id: 'tickets', name: 'Central de Trabalho', href: '/fila', icon: <Ticket size={18} />, tag: 'TAREFAS · TICKETS · CRONOGRAMA', gradient: '', group: 'geral' },
+  { id: 'tickets', name: 'Central de Trabalho', href: '/central', icon: <Ticket size={18} />, tag: 'TAREFAS · TICKETS · CRONOGRAMA', gradient: '', group: 'geral' },
   // Reuniões moram na Central de Trabalho: mesma permissão dela (filtro abaixo).
-  { id: 'reunioes', name: 'Reuniões', href: '/reunioes', icon: <CalendarClock size={18} />, tag: 'PAUTA · ATA', gradient: '', group: 'geral' },
+  { id: 'reunioes', name: 'Reuniões', href: '/central/reunioes', icon: <CalendarClock size={18} />, tag: 'PAUTA · ATA', gradient: '', group: 'geral' },
   // Agenda da sala física: todo logado reserva (o filtro abaixo libera o id).
-  { id: 'salas', name: 'Sala de reunião', href: '/salas', icon: <MapPin size={18} />, tag: 'RESERVAR', gradient: '', group: 'geral' },
-  { id: 'agenda', name: 'Agenda', href: '/agenda', icon: <CalendarDays size={18} />, tag: 'TODOS', gradient: '', group: 'geral' },
+  { id: 'salas', name: 'Sala de reunião', href: '/central/salas', icon: <MapPin size={18} />, tag: 'RESERVAR', gradient: '', group: 'geral' },
+  { id: 'agenda', name: 'Agenda', href: '/central/agenda', icon: <CalendarDays size={18} />, tag: 'TODOS', gradient: '', group: 'geral' },
   // Base de conhecimento: aparece para todo mundo logado (o filtro abaixo libera o id).
   { id: 'conhecimento', name: 'Base de conhecimento', href: '/conhecimento', icon: <BookOpen size={18} />, tag: 'AJUDA', gradient: '', group: 'geral' },
   // Treinamento: todo logado faz as trilhas da sua área (o filtro abaixo libera o id).
@@ -1574,16 +1574,16 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
           {/* Dev: ideias (bloco de notas: captar → agrupar → planejar vira ticket) */}
           {extraVisivel('Ideias') && isDev && (
-            <Link href="/ideias" onClick={() => setSidebarOpen(false)}
-              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: pathname === '/ideias' ? 'var(--portal-bg-hover)' : 'transparent', color: pathname === '/ideias' ? '#dc2626' : 'var(--portal-text-secondary)', cursor: 'pointer', fontSize: '13px', fontWeight: pathname === '/ideias' ? '600' : '500', fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const, marginBottom: '2px', textDecoration: 'none' }}
-              onMouseEnter={(e) => { if (pathname !== '/ideias') { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' } }}
-              onMouseLeave={(e) => { if (pathname !== '/ideias') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' } }}>
-              <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: pathname === '/ideias' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
-                <IconIdeias size={14} style={{ color: pathname === '/ideias' ? '#fff' : 'var(--portal-text-muted)' }} />
+            <Link href="/central/ideias" onClick={() => setSidebarOpen(false)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: pathname === '/central/ideias' ? 'var(--portal-bg-hover)' : 'transparent', color: pathname === '/central/ideias' ? '#dc2626' : 'var(--portal-text-secondary)', cursor: 'pointer', fontSize: '13px', fontWeight: pathname === '/central/ideias' ? '600' : '500', fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const, marginBottom: '2px', textDecoration: 'none' }}
+              onMouseEnter={(e) => { if (pathname !== '/central/ideias') { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' } }}
+              onMouseLeave={(e) => { if (pathname !== '/central/ideias') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' } }}>
+              <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: pathname === '/central/ideias' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
+                <IconIdeias size={14} style={{ color: pathname === '/central/ideias' ? '#fff' : 'var(--portal-text-muted)' }} />
               </div>
               <span style={{ flex: 1 }}>Ideias</span>
               <span style={{ fontSize: '9px', fontWeight: 800, background: '#111111', color: '#fefefe', padding: '1px 6px', borderRadius: '999px' }}>DEV</span>
-              {pathname === '/ideias' && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
+              {pathname === '/central/ideias' && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
             </Link>
           )}
 

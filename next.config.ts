@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { redirectsCentral, rewritesCentral } from "./src/lib/trabalho/rotas-central";
 
 // Domínio do Chatwoot que pode embutir a página /chatwoot-app num iframe.
 const CHATWOOT_ORIGIN =
@@ -39,6 +40,8 @@ const nextConfig: NextConfig = {
       // antigos (/site?id=... dos pedidos) seguem valendo — a query vai junto.
       { source: "/site", destination: "/marketing/pedidos", permanent: false },
       { source: "/site/:caminho*", destination: "/marketing/:caminho*", permanent: false },
+      // Central de Trabalho em /central/... (27/11/2026): endereços antigos levam para os novos.
+      ...redirectsCentral(),
     ];
   },
   async rewrites() {
@@ -52,6 +55,8 @@ const nextConfig: NextConfig = {
       // Roleta da Black Friday 2026 (13/11/2026): página pública em public/black-friday/, sem login.
       // Um link por setor: /black-friday?setor=comercial | posvendas | pecas. Grava pelas funções do sql/campanhas.sql.
       { source: "/black-friday", destination: "/black-friday/index.html" },
+      // Central de Trabalho: /central/... serve as telas das pastas antigas (lib/trabalho/rotas-central.ts).
+      ...rewritesCentral(),
     ];
   },
   async headers() {

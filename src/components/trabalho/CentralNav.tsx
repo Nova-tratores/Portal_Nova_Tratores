@@ -19,9 +19,11 @@ import TicketModal from '@/components/tickets/TicketModal'
 import { useBlocoAtual, type BlocoAtual } from '@/lib/trabalho/bloco-atual'
 import { ESTILO_CENTRAL_VN } from './visualCentral'
 import PaletaComandos from './PaletaComandos'
+import { rotaInterna, rotaNova } from '@/lib/trabalho/rotas-central'
 
 export default function CentralNav() {
-  const pathname = usePathname() || ''
+  // Endereços em /central/... (27/11/2026): compara pelo endereço antigo (rotaInterna) e linka o novo (rotaNova).
+  const pathname = rotaInterna(usePathname() || '')
   const { userProfile } = useAuth()
   const { isDev } = usePermissoes(userProfile?.id)
   // "Minha equipe" só para líder de setor (pelo cargo, organograma) e dev (José, 27/11/2026).
@@ -147,7 +149,7 @@ export default function CentralNav() {
         <div className="ct-nav-abas" style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 0, overflowX: 'auto' }}>
         {/* abas estilo Chrome, sem o nome do módulo ao lado (José, 04/11/2026 — docs/padrao-telas.md); CSS em visualCentral.ts */}
         {abas.map((a) => (
-          <Link key={a.label} href={a.href} className={`ct-aba${a.ativo ? ' on' : ''}`} aria-current={a.ativo ? 'page' : undefined} title={a.label} aria-label={a.label}>
+          <Link key={a.label} href={rotaNova(a.href)} className={`ct-aba${a.ativo ? ' on' : ''}`} aria-current={a.ativo ? 'page' : undefined} title={a.label} aria-label={a.label}>
             <span className="ct-aba-ic">{a.icone}</span> <span className="ct-aba-txt">{a.label}</span>
             {'n' in a && typeof a.n === 'number' && a.n > 0 && <span className="ct-aba-n">{a.n}</span>}
           </Link>
@@ -157,7 +159,7 @@ export default function CentralNav() {
           // Vistas da aba aberta (24/11/2026): no lugar das abas que repetiam calendário e kanban.
           <div className="ct-vistas" role="group" aria-label="Vistas">
             {vistas.map((v) => (
-              <Link key={v.label} href={v.href} className={`ct-vista${v.ativo ? ' on' : ''}`} aria-current={v.ativo ? 'page' : undefined}>
+              <Link key={v.label} href={rotaNova(v.href)} className={`ct-vista${v.ativo ? ' on' : ''}`} aria-current={v.ativo ? 'page' : undefined}>
                 {v.icone} {v.label}
               </Link>
             ))}

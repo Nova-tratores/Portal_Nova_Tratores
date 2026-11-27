@@ -1,11 +1,11 @@
 'use client'
-// MINHA FILA — objetivo do dia e da semana, pedidos para aceitar e a carga da equipe.
-// Ver components/trabalho/MinhaFila.tsx.
+// MINHA FILA (/central) — a tela aprovada pelo José em 27/11/2026 ("eu quero igual ao protótipo"):
+// fazendo agora + fila (lista ou kanban), cor do mês, números do mês, Faxina em janela, "+ Novo".
+// Ver components/trabalho/FilaPrototipo.tsx. (A tela antiga, MinhaFila, segue servindo Esperando e Equipe.)
 export const dynamic = 'force-dynamic'
 
-import MinhaFila from '@/components/trabalho/MinhaFila'
+import FilaPrototipo from '@/components/trabalho/FilaPrototipo'
 
-// Desenho escolhido pelo José na página de teste em 24/11/2026: Opção 2 · Foco.
 export default function FilaPage() {
-  return <MinhaFila layout="foco" abaFixa="minha" />
+  return <FilaPrototipo />
 }
