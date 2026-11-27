@@ -267,6 +267,24 @@ export async function pularEtapa(etapaId: string, motivo: string, autor: string)
   return avancar(r.id, autor)
 }
 
+/**
+ * Pular de uma vez várias etapas do mesmo roteiro (ex.: máquina vendida no cliente — as de retorno
+ * deixam de existir). Cancela a execução de quem estava em andamento e não libera nenhuma delas.
+ */
+export async function pularEtapas(osRoteiroId: string, etapaIds: string[], motivo: string, autor: string | null) {
+  const r = await carregarRoteiroOS(osRoteiroId)
+  if (!r || r.status !== 'ativo' || !etapaIds.length) return { puladas: 0 }
+  const alvo = (await etapasDe([r.id])).filter((e) => etapaIds.includes(e.id) && (e.status === 'pendente' || e.status === 'liberada'))
+  for (const e of alvo) {
+    if (e.ticket_id && autor) await cancelarTicket(e.ticket_id, autor, `Etapa pulada: ${motivo}`)
+    await supabaseAdmin.from('pops_os_etapas')
+      .update({ status: 'pulada', motivo_pulo: motivo.slice(0, 500), pulada_por: autor, concluida_em: new Date().toISOString() })
+      .eq('id', e.id).in('status', ['pendente', 'liberada'])
+  }
+  await avancar(r.id, autor)
+  return { puladas: alvo.length }
+}
+
 /** Trocar quem faz uma etapa que ainda não começou. */
 export async function trocarResponsavel(etapaId: string, responsavel: string) {
   const { e } = await etapaComRoteiro(etapaId)

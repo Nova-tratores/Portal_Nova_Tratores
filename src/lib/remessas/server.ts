@@ -156,8 +156,16 @@ export async function lerFicha(conta: Low, idRemessa: number) {
       .map((x) => ({ numero: sem0(x.numero_nfe), data: dataBR(x.data_emissao), cfop: x.cfop, destinatario: x.destinatario, total: Number(x.total_nfe) || 0 }))
       .reverse();
   }
+  // venda no cliente em andamento/feita (sql/remessas-venda-cliente.sql; sem ela = null)
+  const { data: vc } = await sb.from('remessas_vendas_cliente').select('id,etapa,erro,proposta_id,os_id,pedido_maquina_id,user_nome,criado_em,concluido_em')
+    .eq('conta_omie', conta).eq('id_remessa', idRemessa).neq('etapa', 'cancelada').maybeSingle();
+  let vendaCliente: Json | null = vc || null;
+  if (vc?.pedido_maquina_id) {
+    const { data: pv } = await sb.from('pedidos_maquinas').select('id_pedido,status').eq('id', vc.pedido_maquina_id).maybeSingle();
+    vendaCliente = { ...vc, pedido: pv || null };
+  }
   return {
-    linha: l, controle: c || null, eventos: ev.data || [], emissoes: em.data || [], nf, omieErro, voltas,
+    linha: l, controle: c || null, eventos: ev.data || [], emissoes: em.data || [], nf, omieErro, voltas, vendaCliente,
     itens: ((omieDoc?.produtos || []) as Json[]).map((p) => ({
       nCodProd: Number(p.nCodProd), descricao: (itensDe(e as Espelho).find((i: { nCodProduto?: string | number }) => String(i.nCodProduto) === String(p.nCodProd)) as { cDescricao?: string } | undefined)?.cDescricao || null,
       qtd: Number(p.nQtde), valorUnit: Number(p.nValUnit), cfop: p.cCFOP, cst: p.ICMS?.cSitTrib || null, origem: p.ICMS?.cOrigem ?? null,
@@ -287,7 +295,7 @@ export async function criarDemo(a: DemoArgs) {
 }
 
 // ── volta (nota de entrada 1.913/2.913) ─────────────────────────────────────
-export async function criarRetorno(a: { conta: Low; idRemessa: number; obs?: string | null; quem: Quem; renovacao?: boolean }) {
+export async function criarRetorno(a: { conta: Low; idRemessa: number; obs?: string | null; quem: Quem; renovacao?: boolean; venda?: boolean }) {
   const C = up(a.conta);
   const rem = await omie.consultar(C, 'remessa', a.idRemessa);
   const cfopRem = String(rem?.produtos?.[0]?.cCFOP || '');
@@ -307,7 +315,7 @@ export async function criarRetorno(a: { conta: Low; idRemessa: number; obs?: str
   const total = Math.round(prods.reduce((s, p) => s + Number(p.nQtde) * Number(p.nValUnit), 0) * 100) / 100;
 
   const { data: ficha, error: eIns } = await sb.from('remessas_emissoes').insert({
-    conta_omie: a.conta, tipo: 'retorno', cod_int: cod, id_remessa_ref: a.idRemessa, renovacao: !!a.renovacao,
+    conta_omie: a.conta, tipo: 'retorno', cod_int: cod, id_remessa_ref: a.idRemessa, renovacao: !!a.renovacao, ...(a.venda ? { venda: true } : {}),
     n_cod_cli: Number(rem.cabec?.nCodCli) || null, itens: prods.map((p) => ({ nCodProd: Number(p.nCodProd), qtd: Number(p.nQtde), valorUnit: Number(p.nValUnit) })),
     valor_total: total, texto, status: 'criando', user_id: a.quem.id, user_nome: a.quem.nome,
   }).select('id').single();
@@ -326,7 +334,7 @@ export async function criarRetorno(a: { conta: Low; idRemessa: number; obs?: str
     throw new ErroRemessa(`A Omie não criou a nota de volta: ${r.erro}`, 502);
   }
   await sb.from('remessas_emissoes').update({ status: 'criada', n_cod: r.id, erro: null, atualizado_em: agora() }).eq('id', ficha.id);
-  await evento(a.conta, a.idRemessa, 'retorno_criado', `Nota de entrada de volta (${cfop}) criada na Omie pelo portal`, a.quem, { cod, nCodNotaEnt: r.id });
+  await evento(a.conta, a.idRemessa, 'retorno_criado', `Nota de entrada de volta${a.venda ? ' simbólica' : ''} (${cfop}) criada na Omie pelo portal${a.venda ? ' — venda no cliente' : ''}`, a.quem, { cod, nCodNotaEnt: r.id });
   return { emissaoId: ficha.id as string, nCodNotaEnt: r.id };
 }
 
@@ -354,10 +362,15 @@ export async function emitirNF(emissaoId: string, quem: Quem) {
     await evento(conta, id, 'faturada', `NF-e de demonstração emitida${nf ? ` — nº ${nf.numero}` : ''}`, quem, { nf });
     if (f.renovacao && f.id_remessa_ref) await evento(conta, Number(f.id_remessa_ref), 'renovada', `Renovada: nova remessa${nf ? ` NF ${nf.numero}` : ''}`, quem, { para: id });
   } else {
-    // a volta fecha a remessa (a renovação já marcou 'renovada' antes)
+    // a volta fecha a remessa (a renovação já marcou 'renovada' antes; a venda no cliente fecha como venda)
     const { data: c } = await sb.from('remessas_controle').select('situacao_manual').eq('conta_omie', conta).eq('id_remessa', idRem).maybeSingle();
-    if (!c || c.situacao_manual !== 'renovada') await salvarControle(conta, idRem, { situacao_manual: 'devolvida' });
-    await evento(conta, idRem, 'devolvida', `Nota de entrada de volta emitida${nf ? ` — NF ${nf.numero}` : ''}`, quem, { nf });
+    if (f.venda) {
+      await salvarControle(conta, idRem, { situacao_manual: 'virou_venda' });
+      await evento(conta, idRem, 'virou_venda', `Volta simbólica emitida (máquina vendida no cliente)${nf ? ` — NF ${nf.numero}` : ''}`, quem, { nf });
+    } else {
+      if (!c || c.situacao_manual !== 'renovada') await salvarControle(conta, idRem, { situacao_manual: 'devolvida' });
+      await evento(conta, idRem, 'devolvida', `Nota de entrada de volta emitida${nf ? ` — NF ${nf.numero}` : ''}`, quem, { nf });
+    }
   }
   return { ok: true, nf: nf?.numero || null };
 }

@@ -3,7 +3,9 @@
 // GET ?ficha=nova-123         → ficha (itens e NF ao vivo na Omie, histórico, emissões, voltas)
 // GET ?clientes=q&conta=      → busca de cliente (nova demonstração)
 // GET ?produtos=q&conta=      → busca de máquina (nova demonstração)
+// GET ?venda=nova-123[&proposta=] → prévia da venda no cliente (demonstração que fica com ele)
 // POST {acao, ...}            → demonstracao | volta | renovar | emitir_nf | prazo | marcar | obs | responsavel
+//                                | venda_cliente | venda_cliente_cancelar (pedem remessas:emitir E pedidos-maquinas:faturar)
 // Ver: o módulo Remessas ou as chaves das telas antigas (Visual Estoque e Ajustes › Remessas).
 // Escrever na Omie: ações EXPLÍCITAS remessas:emitir / remessas:renovar / remessas:devolver.
 import { NextRequest, NextResponse } from 'next/server';
@@ -13,6 +15,8 @@ import {
   lerLista, lerFicha, buscarClientes, buscarProdutos, criarDemo, criarRetorno, emitirNF, renovar,
   definirPrazo, marcar, anotar, definirResponsavel, ErroRemessa,
 } from '@/lib/remessas/server';
+import { previaVendaCliente, executarVendaCliente, cancelarVendaCliente } from '@/lib/remessas/venda-cliente-server';
+import { podeVenderNoCliente } from '@/lib/remessas/venda-cliente';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -29,7 +33,10 @@ const POR_ACAO: Record<string, OpcaoAcesso[]> = {
   prazo: [{ modulo: M, acao: 'acompanhar' }],
   obs: [{ modulo: M, acao: 'acompanhar' }],
   responsavel: [{ modulo: M, acao: 'acompanhar' }],
+  venda_cliente: [{ modulo: M, acao: 'emitir' }],
+  venda_cliente_cancelar: [{ modulo: M, acao: 'emitir' }],
 };
+const MSG_VENDA = 'Vender no cliente pede as permissões "Remessas — Emitir" e "Pedidos de Máquinas — Faturar".';
 
 const contaLow = (v: unknown): 'nova' | 'castro' | null => {
   const s = String(v || '').toLowerCase();
@@ -48,6 +55,13 @@ export async function GET(req: NextRequest) {
   if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   try {
+    const venda = sp.get('venda');
+    if (venda) {
+      const [c, id] = venda.split('-');
+      const conta = contaLow(c);
+      if (!conta || !Number(id)) return NextResponse.json({ erro: 'Remessa inválida.' }, { status: 400 });
+      return NextResponse.json({ ...(await previaVendaCliente(conta, Number(id), Number(sp.get('proposta')) || undefined)), podeVender: podeVenderNoCliente(g.user) });
+    }
     const ficha = sp.get('ficha');
     if (ficha) {
       const [c, id] = ficha.split('-');
@@ -101,6 +115,18 @@ export async function POST(req: NextRequest) {
         if (sit === 'devolvida' && !g.user.isAdmin && !g.user.modulos.includes('remessas:devolver')) throw new ErroRemessa('Marcar como devolvida pede a permissão "Remessas — Volta".', 403);
         await marcar(conta!, id, sit, quem, { pedido: b.pedido ? String(b.pedido) : null, obs: b.obs ? String(b.obs) : null });
         resultado = { ok: true };
+        break;
+      }
+      case 'venda_cliente': {
+        precisa();
+        if (!podeVenderNoCliente(g.user)) throw new ErroRemessa(MSG_VENDA, 403);
+        resultado = await executarVendaCliente({ conta: conta!, idRemessa: id, propostaId: Number(b.propostaId) || 0, osId: b.osId ? String(b.osId) : null, quem });
+        break;
+      }
+      case 'venda_cliente_cancelar': {
+        precisa();
+        if (!podeVenderNoCliente(g.user)) throw new ErroRemessa(MSG_VENDA, 403);
+        resultado = await cancelarVendaCliente(conta!, id);
         break;
       }
       case 'obs': precisa(); await anotar(conta!, id, String(b.obs || ''), quem); resultado = { ok: true }; break;
