@@ -24,6 +24,8 @@ export const PUBLICAS: Record<string, string> = {
   'src/app/api/garantia-cliente/duvida/': 'página pública do QR da garantia (formulário de dúvida)',
   'src/app/api/garantia-cliente/trator/': 'página pública do QR por trator: código aleatório na URL, devolve só modelo/entrega/revisões (sem nome nem chassi inteiro), freio por IP',
   'src/app/api/publico/': 'páginas públicas do portal',
+  'src/app/api/consorcio/[slug]/route.ts': 'QR code do estande do consórcio: ficha sem login (campos com teto, DDD obrigatório, campo-isca, piso de 2 s por IP, telefone não ganha 2º número); só devolve dados públicos do evento e o 1º nome + inicial dos ganhadores',
+  'src/app/api/consorcio/[slug]/clique/route.ts': 'contador de cliques no WhatsApp da página de divulgação do consórcio (sendBeacon, sempre 204, só grava modelo/lugar/origem/utm)',
   'src/app/api/crm-vendas/push/mensagem/': 'chamada pelo gatilho do banco a cada mensagem do supervisor ao vendedor; só traz o id, cada mensagem sai 1 vez',
   'src/app/api/push/notificacao/':'chamada pelo gatilho do banco a cada aviso do sino; só traz o id, cada aviso sai 1 vez',
   'src/app/api/push/inscrever/trocar/': 'service worker troca a inscrição sem login; exige o endpoint antigo (segredo do aparelho)',

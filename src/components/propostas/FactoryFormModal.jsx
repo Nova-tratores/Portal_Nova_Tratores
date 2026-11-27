@@ -27,7 +27,8 @@ export default function FactoryFormModal({ onClose }) {
   // Clientes: busca NO BANCO enquanto digita. Antes baixava a tabela inteira
   // (~6,5 mil) e o PostgREST devolvia só 1000 — a maioria dos clientes não aparecia.
   useEffect(() => {
-    const termo = buscaCli.trim().replace(/[,()%*\\]/g, ' ').trim()
+    // sem acento: o cadastro do Omie vem sem acento ("OSÓRIO" tem de achar "OSORIO")
+    const termo = buscaCli.normalize('NFD').replace(/\p{M}/gu, '').trim().replace(/[,()%*\\]/g, ' ').trim()
     if (termo.length < 2) return
     let cancelado = false
     const t = setTimeout(async () => {
@@ -86,7 +87,7 @@ export default function FactoryFormModal({ onClose }) {
               <input className={inputStyle} value={buscaEq} onChange={e => { setBuscaEq(e.target.value); setShowEq(true) }} placeholder="Pesquisar..." />
               {showEq && buscaEq && (
                 <div className="absolute top-[65px] left-0 w-full bg-white border border-zinc-300 z-[100] max-h-[150px] overflow-y-auto rounded-lg shadow-lg">
-                  {listaEquipamentos.filter(e => e.modelo.toLowerCase().includes(buscaEq.toLowerCase())).map(e => (
+                  {listaEquipamentos.filter(e => e.modelo.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(buscaEq.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase())).map(e => (
                     <div key={e.id} className="p-2.5 cursor-pointer border-b border-zinc-100 hover:bg-red-50 text-sm" onClick={() => selecionarEquipamento(e)}>{e.marca} {e.modelo}</div>
                   ))}
                 </div>

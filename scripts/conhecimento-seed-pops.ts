@@ -137,6 +137,27 @@ const ARTIGOS: Seed[] = [
       { tipo: "p", texto: "**Criar POP** a partir do processo já começa pelo modelo do sistema, quando existe um." },
     ],
   },
+  {
+    titulo: "Checklists em sequência na OS (ex.: trator levado a um evento)",
+    tipo: "procedimento", telas: ["/pops/roteiros", "/pos"], ordem: 7,
+    resumo: "Roteiro = vários checklists em ordem dentro de uma OS. Um de cada vez, e no fim a comparação Saída × Retorno.",
+    corpo: [
+      { tipo: "p", texto: "Quando a máquina sai da loja e volta (evento, demonstração, empréstimo), o estado dela é conferido várias vezes. O **roteiro** junta esses checklists em ordem dentro da OS: **Saída da loja → Chegada no evento → Saída do evento → Chegada na loja**." },
+      { tipo: "passos", itens: [
+        { titulo: "Cadastre o roteiro uma vez", texto: "Em **Procedimentos (POP) → Roteiros na OS**, crie o roteiro e diga qual POP cada etapa usa. O mesmo POP pode servir para todas as etapas.", dica: "O botão \"Usar exemplo do evento\" já monta as 4 etapas." },
+        { titulo: "Abra a OS interna no POS", texto: "Ex.: tipo de atendimento \"Demonstração / Evento\", com o chassi da máquina." },
+        { titulo: "Adicione o roteiro na OS", texto: "No bloco **Checklists desta OS**, clique em \"+ Adicionar roteiro\", escolha quem faz cada etapa e, se quiser, ligue ao evento do Marketing." },
+        { titulo: "Faça uma etapa de cada vez", texto: "A 1ª etapa vira um checklist no celular de quem faz. Quando ela termina, a próxima é liberada sozinha e o responsável recebe o aviso." },
+        { titulo: "Compare a saída com a volta", texto: "Com duas etapas feitas, o botão **Saída × Retorno** mostra as respostas lado a lado: horímetro (quanto andou), combustível, avarias novas e as fotos." },
+      ] },
+      { tipo: "termos", itens: [
+        { termo: "Pular", definicao: "Etapa que não vai acontecer (com motivo). A seguinte é liberada." },
+        { termo: "Liberar de novo", definicao: "Quando o checklist da etapa foi cancelado, cria outro para a mesma etapa." },
+        { termo: "Amarelo / vermelho", definicao: "Na comparação, amarelo = mudou desde a etapa anterior; vermelho = pede atenção (era \"sim\" e virou \"não\", ou número fora da faixa)." },
+      ] },
+      { tipo: "aviso", tom: "info", texto: "Concluir a OS com checklist pendente **não é bloqueado**: o portal mostra o que falta e pergunta se quer concluir mesmo assim." },
+    ],
+  },
 ];
 
 function lerEnv(): Record<string, string> {

@@ -15,6 +15,7 @@ import { faixaParada, DIAS_ESQUECIDA, DIAS_ANTIGA } from '@/lib/estoque/recebime
 import ProdutoPrecoModal from '@/components/estoque/ProdutoPrecoModal';
 import ModalReabrir from '@/components/estoque/ModalReabrir';
 import ModalRelancar from '@/components/estoque/ModalRelancar';
+import SepararMaquinas from '@/components/estoque/SepararMaquinas';
 import ModalRetornoGarantia from '@/components/garantias/ModalRetornoGarantia';
 import { fatorDoTipo, sugerirPreco } from '@/lib/estoque/preco-venda-entrada';
 
@@ -584,6 +585,8 @@ export default function RecebimentosPage() {
               </div>
             </div>
           )}
+
+          <SepararMaquinas onAviso={(msg, tipo) => (tipo === 'ok' ? setAviso(msg) : setErro(msg))} />
 
           {aba === 'pendentes' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>

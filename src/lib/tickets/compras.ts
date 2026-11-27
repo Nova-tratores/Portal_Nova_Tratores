@@ -129,6 +129,8 @@ export interface PayloadSC {
   pv_numero?: string
   pedido_omie_numero?: string
   pedido_fabrica_id?: number   // "Proposta_Fabrica".id de onde a SC foi aberta
+  pedido_maquina_id?: number   // pedidos_maquinas.id (o pedido de VENDA da máquina)
+  pedido_maquina_numero?: string // snapshot "PVM-0012" (o servidor grava o do banco)
   prazo_compromisso?: string // ISO date
   bloqueio?: { motivo: string; valor: number } | null
 }
@@ -186,6 +188,8 @@ export function validarNovaSC(body: Record<string, unknown>): { erro: string } |
   const fab = idPedidoFabrica(body.pedido_fabrica_id)
   if (Number.isNaN(fab)) return { erro: 'Pedido fábrica inválido' }
   if (fab) payload.pedido_fabrica_id = fab
+  const pvm = idPedidoFabrica(body.pedido_maquina_id)
+  if (Number.isNaN(pvm)) return { erro: 'Pedido de máquina inválido' }
 
   if (destino === 'cliente') {
     const cliente = texto(body.cliente_destino)
@@ -193,10 +197,15 @@ export function validarNovaSC(body: Record<string, unknown>): { erro: string } |
     const confianca = body.confianca as ScConfianca
     if (!cliente) return { erro: 'Informe o cliente destino (ou escolha "Compra para estoque")' }
     if (!SC_CONFIANCA_INFO[confianca]) return { erro: 'Informe o grau de confiança na venda' }
-    if (motivo.id === 'venda_fechada' && !pv) return { erro: 'Venda fechada exige o nº do pedido de venda' }
+    if (motivo.id === 'venda_fechada' && !pv && !pvm) return { erro: 'Venda fechada exige o pedido de venda: escolha o pedido de máquina (PVM) ou informe o nº' }
     payload.cliente_destino = cliente
     payload.confianca = confianca
     if (pv) payload.pv_numero = pv
+    if (pvm) {
+      payload.pedido_maquina_id = pvm
+      const num = texto(body.pedido_maquina_numero, 20)
+      if (num) payload.pedido_maquina_numero = num
+    }
   }
 
   return {
@@ -350,6 +359,44 @@ export function idPedidoFabrica(v: unknown): number | undefined {
 // antes do pedido (nunca volta um pedido que já andou à mão). null = não mexe.
 export function faseFabricaAposPC(statusAtual: string | null | undefined): string | null {
   return FASES_ANTES_DO_PC.includes(String(statusAtual || '')) ? PEDIDO_FABRICA_STATUS_PC : null
+}
+
+// ---------------------------------------------------------------------
+// Pedido de Máquinas (PVM, /pedidos-maquinas) ↔ SC. A SC de cliente aponta o
+// pedido de VENDA; emitido o PC, o pedido vai para "Aguardando máquina".
+// ---------------------------------------------------------------------
+export const PVM_FASE_APOS_PC = 'aguardando_maquina'
+const PVM_FASES_ANTES_DO_PC = ['em_montagem', 'aguardando_credito']
+
+/** Fase do pedido de máquina depois do PC. Só avança quem ainda não chegou lá. null = não mexe. */
+export function fasePedidoMaquinaAposPC(statusAtual: string | null | undefined): string | null {
+  return PVM_FASES_ANTES_DO_PC.includes(String(statusAtual || '')) ? PVM_FASE_APOS_PC : null
+}
+
+export interface PedidoMaquinaOpcao {
+  id: number
+  id_pedido: string
+  cliente?: string | null
+  status: string
+  valor_total?: number | string | null
+  proposta_id?: number | null
+  criado_em?: string | null
+}
+
+/**
+ * Ordena os PVMs para a escolha na SC: os da proposta ligada ao pedido fábrica
+ * primeiro (sugeridos), depois os mais novos. Cancelados ficam de fora.
+ * `auto` = o único sugerido (a SC já nasce com ele).
+ */
+export function ordenarPedidosMaquina(lista: PedidoMaquinaOpcao[], propostaId?: number | null) {
+  const vivos = lista.filter((p) => p.status !== 'cancelado')
+  const sugeridos = propostaId ? vivos.filter((p) => Number(p.proposta_id) === Number(propostaId)) : []
+  const resto = vivos.filter((p) => !sugeridos.includes(p))
+    .sort((a, b) => String(b.criado_em || '').localeCompare(String(a.criado_em || '')) || b.id - a.id)
+  return {
+    pedidos: [...sugeridos.map((p) => ({ ...p, sugerido: true })), ...resto.map((p) => ({ ...p, sugerido: false }))],
+    auto: sugeridos.length === 1 ? sugeridos[0] : null,
+  }
 }
 
 export interface PedidoFabricaLinha {

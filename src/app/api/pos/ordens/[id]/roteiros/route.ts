@@ -1,8 +1,11 @@
 // Checklists em sequência (roteiros de POPs) anexados a esta OS.
 // GET   → roteiros + etapas (execução, fora da faixa) + execuções avulsas da OS + pendentes ao concluir
+//         ?comparar=<roteiro_os_id> → Saída × Retorno (etapas lado a lado)
+//         ?eventos=1 → ações do Marketing para ligar ao roteiro
 // POST  { roteiro_id, responsaveis: { [ordem]: user_id }, mkt_acao_id? }  anexa e libera a 1ª etapa
 // PATCH { acao: 'pular', etapa_id, motivo } | { acao: 'responsavel', etapa_id, responsavel_id }
 //       | { acao: 'liberar', etapa_id } (execução cancelada → nova) | { acao: 'cancelar', roteiro_os_id }
+//       | { acao: 'evento', roteiro_os_id, mkt_acao_id | null }
 // Quem: usuário com o módulo POS (ou admin). O autor vem SEMPRE da sessão.
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar, type Autenticado } from '@/lib/auth/server'
@@ -10,7 +13,8 @@ import { erro, erroBanco, usuariosMin } from '@/lib/pops/server'
 import { uuidValido } from '@/lib/pops/regras'
 import { pendentesAoConcluirOS, type RoteiroOS } from '@/lib/pops/roteiros'
 import {
-  anexarRoteiro, cancelarRoteiro, ErroRoteiro, liberarDeNovo, osDe, pularEtapa, roteirosDaOS, trocarResponsavel,
+  anexarRoteiro, cancelarRoteiro, compararRoteiro, ErroRoteiro, eventosParaOS, eventosPorId, liberarDeNovo, ligarEvento,
+  osDe, pularEtapa, roteirosDaOS, trocarResponsavel,
 } from '@/lib/pops/roteiros-server'
 
 export const runtime = 'nodejs'
@@ -31,7 +35,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!auth) return erro('Não autenticado', 401)
   if (!temPos(auth)) return erro('Sem acesso ao POS.', 403)
   const { id } = await params
+  const sp = req.nextUrl.searchParams
   try {
+    if (sp.get('eventos')) return NextResponse.json({ eventos: await eventosParaOS(auth) })
+    const comparar = sp.get('comparar')
+    if (comparar) {
+      if (!uuidValido(comparar)) return erro('Roteiro inválido.')
+      if ((await osDe({ roteiroOsId: comparar })) !== id) return erro('Roteiro não encontrado nesta OS.', 404)
+      return NextResponse.json(await compararRoteiro(comparar))
+    }
     const d = await roteirosDaOS(id)
     const ids = [
       ...d.roteiros.flatMap((r) => r.etapas.map((e) => e.responsavel_id)),
@@ -40,6 +52,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({
       ...d,
       pendentes: pendentesAoConcluirOS(d.roteiros as unknown as RoteiroOS[]),
+      eventos: await eventosPorId(d.roteiros.map((r) => r.mkt_acao_id)),
       usuarios: await usuariosMin(ids),
     })
   } catch (e) { return falha(e) }
@@ -80,6 +93,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       if (!uuidValido(r)) return erro('Roteiro inválido.')
       if ((await osDe({ roteiroOsId: r })) !== id) return erro('Roteiro não encontrado nesta OS.', 404)
       await cancelarRoteiro(r, auth.userId)
+      return NextResponse.json({ ok: true })
+    }
+    if (acao === 'evento') {
+      const r = String(body.roteiro_os_id || '')
+      if (!uuidValido(r)) return erro('Roteiro inválido.')
+      if ((await osDe({ roteiroOsId: r })) !== id) return erro('Roteiro não encontrado nesta OS.', 404)
+      const m = body.mkt_acao_id ? String(body.mkt_acao_id) : null
+      if (m && !uuidValido(m)) return erro('Evento inválido.')
+      await ligarEvento(r, m)
       return NextResponse.json({ ok: true })
     }
     if (!uuidValido(etapa)) return erro('Etapa inválida.')

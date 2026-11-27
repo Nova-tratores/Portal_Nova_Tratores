@@ -34,8 +34,8 @@ export default function Lixeira({ onClose, embed = false }) {
   }
 
   const listaFiltrada = itensExcluidos.filter(item =>
-    item.Cliente?.toLowerCase().includes(filtro.toLowerCase()) ||
-    item.Modelo?.toLowerCase().includes(filtro.toLowerCase()) ||
+    item.Cliente?.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(filtro.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()) ||
+    item.Modelo?.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(filtro.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()) ||
     item.id?.toString().includes(filtro)
   )
 

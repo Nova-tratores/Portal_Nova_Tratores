@@ -2,8 +2,8 @@
 import { authHeaders } from '@/lib/auth/client'
 import { mensagemAvisoConclusao } from './roteiros'
 
-export async function chamarRoteiros<T>(osId: string, init: { method?: string; json?: unknown } = {}): Promise<T> {
-  const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/roteiros`, {
+export async function chamarRoteiros<T>(osId: string, init: { method?: string; json?: unknown; query?: string } = {}): Promise<T> {
+  const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/roteiros${init.query ? `?${init.query}` : ''}`, {
     method: init.method || (init.json ? 'POST' : 'GET'),
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: init.json ? JSON.stringify(init.json) : undefined,

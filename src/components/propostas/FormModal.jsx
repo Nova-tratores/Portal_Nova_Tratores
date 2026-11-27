@@ -296,8 +296,8 @@ export default function FormModal({ onClose, initialData }) {
                   {showCli && (
                     <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-zinc-200 z-[100] max-h-[300px] overflow-y-auto rounded-xl shadow-xl">
                       {listaClientes.filter(c => {
-                        const termo = buscaCli.toLowerCase()
-                        return !buscaCli || (c.nome || "").toLowerCase().includes(termo) || (c['cpf/cnpj'] || "").toLowerCase().includes(termo) || (c.cppf_cnpj || "").toLowerCase().includes(termo)
+                        const termo = buscaCli.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+                        return !buscaCli || (c.nome || "").normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(termo) || (c['cpf/cnpj'] || "").normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(termo) || (c.cppf_cnpj || "").normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(termo)
                       }).slice(0, 100).map((c, idx) => (
                         <div key={`${c.id}-${idx}`} className="px-3 py-2.5 cursor-pointer border-b border-zinc-100 text-zinc-800 font-semibold text-[13px] hover:bg-red-50" onClick={() => handleSelecionarCliente(c)}>
                           <div className="font-semibold">{c.nome}</div>
@@ -325,8 +325,8 @@ export default function FormModal({ onClose, initialData }) {
                     <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-zinc-200 z-[100] max-h-[300px] overflow-y-auto rounded-xl shadow-xl">
                       {(tipoMaq === 'implemento' ? listaEquipamentos : tipoMaq === 'autopropelido' ? listaAutopropelidos : listaTratores)
                         .filter(e => {
-                          const termo = buscaEq.toLowerCase()
-                          return !buscaEq || (e.marca || "").toLowerCase().includes(termo) || (e.modelo || "").toLowerCase().includes(termo)
+                          const termo = buscaEq.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+                          return !buscaEq || (e.marca || "").normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(termo) || (e.modelo || "").normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(termo)
                         }).slice(0, 30).map(e => (
                           <div key={e.id} className="px-3 py-2.5 cursor-pointer border-b border-zinc-100 text-zinc-800 font-semibold text-[13px] hover:bg-red-50" onClick={() => handleSelecionarEquipamento(e)}>{e.marca} {e.modelo}</div>
                         ))}

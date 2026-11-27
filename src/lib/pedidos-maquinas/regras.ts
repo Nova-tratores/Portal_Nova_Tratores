@@ -46,7 +46,7 @@ export const CONTA_PADRAO = '1969919786';
 export const CATEGORIA_TRATOR = '1.01.97';     // Venda de Tratores
 export const CATEGORIA_IMPLEMENTO = '1.01.98'; // Venda de Implementos
 /** Categorias que aparecem no pedido de máquina. */
-export const CATEGORIAS_MAQUINA = [CATEGORIA_TRATOR, CATEGORIA_IMPLEMENTO, '1.01.89', '1.01.90'];
+export const CATEGORIAS_MAQUINA = [CATEGORIA_TRATOR, CATEGORIA_IMPLEMENTO];
 
 /** Categoria pela família do produto: trator (novo/seminovo) e autopropelido = Venda de Tratores; o resto = Venda de Implementos. */
 export function categoriaDaFamilia(familia: string | null | undefined): string {
@@ -260,4 +260,16 @@ export function parcelasParaOmie(parcelas: ParcelaPedidoMaquina[], total: number
 /** Texto "PVM-0003 · proposta #123" para as observações da NF/pedido. */
 export function referenciaPedido(idPedido: string, propostaId?: number | null): string {
   return propostaId ? `${idPedido} · Proposta #${propostaId}` : idPedido;
+}
+
+// ---------------------------------------------------------------------------
+// Busca de máquinas: palavra por palavra ("SEMBRA 400" acha "SEMBRA-400-II")
+// ---------------------------------------------------------------------------
+export function palavrasDaBusca(q: string, max = 6): string[] {
+  const vistas = new Set<string>();
+  for (const p of String(q || '').split(/[\s\-\/.,()*%\_]+/)) {
+    const w = p.trim().slice(0, 40);
+    if (w && !vistas.has(w.toLowerCase())) vistas.add(w.toLowerCase());
+  }
+  return [...vistas].slice(0, max);
 }

@@ -91,3 +91,15 @@ describe('fases e totais', () => {
     expect(a.map((x) => [x.n, x.entrada])).toEqual([[1, true], [2, false]]);
   });
 });
+
+import { palavrasDaBusca } from '../regras';
+describe('palavrasDaBusca', () => {
+  it('separa por espaço e hífen', () => {
+    expect(palavrasDaBusca('SEMBRA 400')).toEqual(['sembra', '400']);
+    expect(palavrasDaBusca('sembra-400-II')).toEqual(['sembra', '400', 'ii']);
+  });
+  it('ignora vazios, repetidos e caracteres que quebram o filtro', () => {
+    expect(palavrasDaBusca('  a,(b)*  a % \ ')).toEqual(['a', 'b']);
+    expect(palavrasDaBusca('')).toEqual([]);
+  });
+});

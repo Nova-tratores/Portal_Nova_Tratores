@@ -8,6 +8,7 @@ import {
   guardar, autor, respostaErro, lerPedido, exigirEditavel, recalcularTotal, log, T, ErroPedido,
   ajustarCategoria, projetoDoChassi,
 } from '@/lib/pedidos-maquinas/server';
+import { palavrasDaBusca } from '@/lib/pedidos-maquinas/regras';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,9 +27,13 @@ export async function GET(req: Request) {
       .eq('inativo', false).eq('conta_omie', conta)
       .not('familia_nome', 'ilike', '*peça*').not('familia_nome', 'ilike', '*peca*')
       .order('estoque', { ascending: false }).limit(40);
-    qb = q
-      ? qb.or(`codigo.ilike.*${q}*,descricao.ilike.*${q}*,modelo.ilike.*${q}*,marca.ilike.*${q}*`)
-      : qb.ilike('familia_nome', '*novo*').gt('estoque', 0);
+    // Palavra por palavra (E entre elas): "SEMBRA 400" acha "SEMBRA-400-II" da nota da fábrica.
+    const palavras = palavrasDaBusca(q);
+    if (palavras.length) {
+      for (const p of palavras) qb = qb.or(`codigo.ilike.*${p}*,descricao.ilike.*${p}*,modelo.ilike.*${p}*,marca.ilike.*${p}*`);
+    } else {
+      qb = qb.ilike('familia_nome', '*novo*').gt('estoque', 0);
+    }
     const { data, error } = await qb;
     if (error) throw error;
     return Response.json({ produtos: data || [] });

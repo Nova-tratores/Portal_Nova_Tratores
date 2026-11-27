@@ -14,6 +14,7 @@ import {
 } from '@/lib/pedidos-maquinas/regras';
 import { gerarParcelas, numeroBR, somarDiasISO, MEIOS } from '@/lib/propostas/pagamento';
 import { brl } from '@/lib/pedidos-maquinas/lista';
+import { SC_ETAPA_INFO, type ScEtapa } from '@/lib/tickets/compras';
 import ModalImportarProposta from './ModalImportarProposta';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -25,6 +26,7 @@ interface Dados {
   logs: { id: number; acao: string; usuario: string | null; criado_em: string }[];
   vendedor: { id: number; nome: string } | null;
   proposta: Record<string, any> | null;
+  solicitacoes?: { id: string; numero: number; sc_etapa: string; pc: string | null }[];
 }
 interface Listas {
   categorias: { codigo: string; descricao: string }[];
@@ -161,6 +163,24 @@ export default function PedidoDrawer({ id, onFechar, onMudou }: { id: string | n
             )}
           </section>
 
+          {/* Compra da máquina: Solicitação de Compras ligada a este pedido */}
+          {(d.solicitacoes?.length ?? 0) > 0 && (
+            <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="pm-sec-tit">Compra da máquina</div>
+              {d.solicitacoes!.map((sc) => {
+                const etapa = SC_ETAPA_INFO[sc.sc_etapa as ScEtapa];
+                return (
+                  <div key={sc.id} className="pm-card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <b style={{ color: '#dc2626' }}>SC #{sc.numero}</b>
+                    <span className="pm-selo" style={{ background: '#f1f5f9', color: '#475569' }}>{etapa?.label || sc.sc_etapa}</span>
+                    {sc.pc && <span style={{ fontSize: 13.5 }}>PC nº {sc.pc}</span>}
+                    <a className="pm-btn" style={{ marginLeft: 'auto' }} href={`/tickets/${sc.id}`} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Abrir</a>
+                  </div>
+                );
+              })}
+            </section>
+          )}
+
           {/* 2. Cliente e vendedor */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="pm-sec-tit">Cliente e vendedor</div>
@@ -229,6 +249,8 @@ export default function PedidoDrawer({ id, onFechar, onMudou }: { id: string | n
                 <input type="checkbox" disabled={!podeEditar} checked={!!p.consumo_final} onChange={(e) => salvarCampo('consumo_final', e.target.checked)} style={{ width: 18, height: 18 }} />
                 <span style={{ fontSize: 14 }}>Consumidor final</span>
               </label>
+              <CampoProdutorRural pedidoId={p.id} chave={`${p.empresa}|${p.cliente_documento || ''}|${p.cliente_cod_omie || ''}`}
+                temCliente={!!(p.cliente_documento || p.cliente_cod_omie)} disabled={!podeEditar} />
               <div className="pm-campo" style={{ gridColumn: '1 / -1' }}>
                 <span className="pm-lbl">Dados adicionais da NF</span>
                 <textarea className="pm-input" rows={2} disabled={!podeEditar} defaultValue={p.dados_nf || ''} key={`nf-${p.dados_nf}`} onBlur={(e) => salvarCampo('dados_nf', e.target.value.trim() || null)} />
@@ -306,6 +328,78 @@ function BuscaCliente({ nome, doc, disabled, onEscolher }: { nome: string | null
 }
 
 // ---------------------------------------------------------------------------
+// "É produtor rural?" — vem do cadastro do cliente NA OMIE e é gravado lá (muda os impostos da nota).
+function CampoProdutorRural({ pedidoId, chave, temCliente, disabled }: { pedidoId: number; chave: string; temCliente: boolean; disabled: boolean }) {
+  const [valor, setValor] = useState<boolean | null>(null);
+  const [info, setInfo] = useState<{ cliente: string; empresa: string } | null>(null);
+  const [erro, setErro] = useState('');
+  const [confirmar, setConfirmar] = useState<boolean | null>(null);
+  const [gravando, setGravando] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    setValor(null); setErro(''); setInfo(null);
+    if (!temCliente) return;
+    fetchAuth(`/api/pedidos-maquinas/produtor-rural?id=${pedidoId}`)
+      .then(async (r) => { const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Erro ao ler da Omie'); return j; })
+      .then((j) => { if (vivo) { setValor(!!j.produtorRural); setInfo({ cliente: j.cliente, empresa: j.empresa }); } })
+      .catch((e) => { if (vivo) setErro(e instanceof Error ? e.message : String(e)); });
+    return () => { vivo = false; };
+  }, [pedidoId, chave, temCliente]);
+
+  async function gravar(novo: boolean) {
+    setGravando(true); setErro('');
+    try {
+      const r = await fetchAuth('/api/pedidos-maquinas/produtor-rural', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: pedidoId, produtor_rural: novo }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'A Omie recusou a alteração');
+      setValor(!!j.produtorRural);
+      setConfirmar(null);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e));
+      setConfirmar(null);
+    } finally {
+      setGravando(false);
+    }
+  }
+
+  const titulo = !temCliente ? 'Escolha o cliente primeiro' : valor === null && !erro ? 'Lendo da Omie…' : 'Vem do cadastro do cliente na Omie';
+  return (
+    <>
+      <div className="pm-campo" style={{ justifyContent: 'center', minHeight: 40 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: disabled || valor === null ? 'default' : 'pointer' }} title={titulo}>
+          <input type="checkbox" disabled={disabled || valor === null || gravando} checked={!!valor}
+            onChange={(e) => setConfirmar(e.target.checked)} style={{ width: 18, height: 18 }} />
+          <span style={{ fontSize: 14 }}>É produtor rural?</span>
+          {temCliente && valor === null && !erro && <span style={{ fontSize: 12, color: 'var(--text-light)' }}>lendo da Omie…</span>}
+        </label>
+        {erro && <span style={{ fontSize: 12, color: 'var(--portal-red-fg, #b91c1c)' }}>{erro}</span>}
+      </div>
+      {confirmar !== null && (
+        <div className="pm-modal-fundo" onClick={(e) => { if (e.target === e.currentTarget && !gravando) setConfirmar(null); }}>
+          <div className="pm-modal" role="dialog" aria-label="Alterar produtor rural na Omie">
+            <div style={{ fontSize: 17, fontWeight: 700 }}>
+              {confirmar ? 'Marcar o cliente como produtor rural?' : 'Tirar a marca de produtor rural?'}
+            </div>
+            <div style={{ fontSize: 14 }}>
+              Isto será <b>alterado no cadastro do cliente na Omie</b>{info ? <> ({info.cliente} · {info.empresa})</> : null}, não só neste pedido.
+              Vale para as próximas notas desse cliente e muda as regras de imposto.
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button className="pm-btn" disabled={gravando} onClick={() => setConfirmar(null)}>Voltar</button>
+              <button className="pm-btn ok" disabled={gravando} onClick={() => gravar(confirmar)}>
+                {gravando ? 'Alterando na Omie…' : 'Confirmar e alterar na Omie'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function CampoProjeto({ valor, empresa, disabled, sugestao, onEscolher }: { valor: string | null; empresa: string; disabled: boolean; sugestao: string; onEscolher: (nome: string | null) => void }) {
   const [q, setQ] = useState('');
   const [aberto, setAberto] = useState(false);

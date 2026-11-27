@@ -126,3 +126,133 @@ export function etapaPeloTicket(statusTicket: string | null): 'concluir' | 'canc
   if (statusTicket === 'cancelado' || statusTicket === null) return 'cancelada'
   return 'manter'
 }
+
+// ---------------------------------------------------------------------------
+// Saída × Retorno: as etapas do roteiro lado a lado
+// ---------------------------------------------------------------------------
+// Mesmo POP em várias etapas (saída da loja, chegada no evento, saída do evento,
+// chegada na loja): cada passo vira uma linha e cada etapa uma coluna. O passo é
+// casado pela `chave` (atravessa versões do POP); se as etapas usam POPs diferentes,
+// pelo título sem acento. O que mudou de uma coluna para a outra fica marcado.
+
+export interface PassoComparacao { chave: string; titulo: string; tipo: string; ordem: number; config?: { unidade?: string } | null }
+export interface RespostaComparacao { valor: Record<string, unknown>; fotos: string[]; fora_faixa?: boolean }
+export interface ColunaComparacao {
+  etapa: string
+  ordem: number
+  passos: PassoComparacao[]
+  /** respostas pela chave do passo */
+  respostas: Record<string, RespostaComparacao>
+}
+export interface CelulaComparacao {
+  texto: string
+  numero: number | null
+  fotos: string[]
+  /** diferença do número para a coluna anterior que tem número */
+  delta: number | null
+  /** mudou em relação à coluna anterior respondida */
+  mudou: boolean
+  /** pede atenção: check que era "sim" e virou "não", ou valor fora da faixa */
+  alerta: boolean
+}
+export interface LinhaComparacao {
+  chave: string
+  titulo: string
+  tipo: string
+  unidade: string
+  /** uma por coluna; null = o passo não existe naquela etapa */
+  celulas: (CelulaComparacao | null)[]
+  mudou: boolean
+  alerta: boolean
+}
+export interface Comparacao {
+  colunas: { etapa: string; ordem: number }[]
+  linhas: LinhaComparacao[]
+  mudancas: number
+  alertas: number
+}
+
+const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+
+function lerResposta(tipo: string, r: RespostaComparacao | undefined): { texto: string; numero: number | null; comparavel: string | null } {
+  const vazio = { texto: '', numero: null, comparavel: null }
+  if (!r) return vazio
+  const v = r.valor || {}
+  if (tipo === 'check') {
+    if (typeof v.sim !== 'boolean') return vazio
+    return { texto: v.sim ? 'Sim' : 'Não', numero: null, comparavel: v.sim ? 'sim' : 'nao' }
+  }
+  if (tipo === 'numero') {
+    const n = typeof v.numero === 'number' ? v.numero : Number(v.numero)
+    if (v.numero === undefined || v.numero === null || !Number.isFinite(n)) return vazio
+    return { texto: String(n).replace('.', ','), numero: n, comparavel: String(n) }
+  }
+  if (tipo === 'selecao' || tipo === 'texto') {
+    const t = String((tipo === 'selecao' ? v.opcao : v.texto) ?? '').trim()
+    return { texto: t, numero: null, comparavel: t ? semAcento(t) : null }
+  }
+  if (tipo === 'assinatura') {
+    const nome = String(v.nome ?? '').trim()
+    return { texto: nome ? `Assinado: ${nome}` : '', numero: null, comparavel: null }
+  }
+  if (tipo === 'foto') {
+    const n = (r.fotos || []).length
+    return { texto: n ? `${n} foto${n > 1 ? 's' : ''}` : '', numero: null, comparavel: null }
+  }
+  return vazio
+}
+
+/** Monta a tabela Saída × Retorno. Passos de instrução ficam fora (não têm resposta). */
+export function compararEtapas(entrada: ColunaComparacao[]): Comparacao {
+  const cols = [...entrada].sort((a, b) => a.ordem - b.ordem)
+  // Identidade da linha: a chave do passo quando ela aparece em outra coluna;
+  // senão tipo + título (POPs diferentes com o mesmo passo).
+  const chaves = cols.map((c) => new Set(c.passos.map((p) => p.chave)))
+  const idDoPasso = (ci: number, p: PassoComparacao) =>
+    chaves.some((s, i) => i !== ci && s.has(p.chave)) ? `k:${p.chave}` : `t:${p.tipo}:${semAcento(p.titulo)}`
+  const mapa = new Map<string, { titulo: string; tipo: string; unidade: string; porColuna: (PassoComparacao | null)[] }>()
+  cols.forEach((c, ci) => {
+    for (const p of [...c.passos].sort((a, b) => a.ordem - b.ordem)) {
+      if (p.tipo === 'instrucao') continue
+      const id = idDoPasso(ci, p)
+      let l = mapa.get(id)
+      if (!l) {
+        l = { titulo: p.titulo, tipo: p.tipo, unidade: p.config?.unidade || '', porColuna: cols.map(() => null) }
+        mapa.set(id, l)
+      }
+      if (!l.porColuna[ci]) l.porColuna[ci] = p
+    }
+  })
+
+  let mudancas = 0
+  let alertas = 0
+  const linhas: LinhaComparacao[] = [...mapa.entries()].map(([id, l]) => {
+    let ant: { comparavel: string | null; numero: number | null; sim: boolean | null } | null = null
+    let houveAntes = false
+    let mudou = false
+    let alerta = false
+    const celulas = l.porColuna.map((p, ci): CelulaComparacao | null => {
+      if (!p) return null
+      const r = cols[ci].respostas[p.chave]
+      const t = lerResposta(l.tipo, r)
+      const sim = l.tipo === 'check' && t.comparavel ? t.comparavel === 'sim' : null
+      let celMudou = false
+      let delta: number | null = null
+      let celAlerta = !!r?.fora_faixa
+      if (ant && t.comparavel !== null && ant.comparavel !== null && t.comparavel !== ant.comparavel) celMudou = true
+      // anotação que aparece numa etapa depois (ex.: "risco no paralama") também é mudança
+      if (l.tipo === 'texto' && t.comparavel !== null && houveAntes && !ant?.comparavel) celMudou = true
+      houveAntes = true
+      if (t.numero !== null && ant && ant.numero !== null) delta = Math.round((t.numero - ant.numero) * 100) / 100
+      if (sim === false && ant?.sim === true) celAlerta = true
+      if (r) ant = { comparavel: t.comparavel, numero: t.numero, sim }
+      if (celMudou) mudou = true
+      if (celAlerta) alerta = true
+      return { texto: t.texto, numero: t.numero, fotos: r?.fotos || [], delta, mudou: celMudou, alerta: celAlerta }
+    })
+    if (mudou) mudancas++
+    if (alerta) alertas++
+    return { chave: id, titulo: l.titulo, tipo: l.tipo, unidade: l.unidade, celulas, mudou, alerta }
+  })
+  return { colunas: cols.map((c) => ({ etapa: c.etapa, ordem: c.ordem })), linhas, mudancas, alertas }
+}

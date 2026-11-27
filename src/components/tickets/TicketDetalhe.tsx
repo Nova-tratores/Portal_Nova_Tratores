@@ -742,7 +742,8 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                     </span>
                   </span>
                 )}
-                {scPayload.pv_numero && <span>Pedido de venda: {scPayload.pv_numero}</span>}
+                {scPayload.pedido_maquina_id && <span>Pedido de venda: <a href={`/pedidos-maquinas?id=${scPayload.pedido_maquina_id}`} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, color: '#1d4ed8' }}>{scPayload.pedido_maquina_numero || `#${scPayload.pedido_maquina_id}`}</a></span>}
+                {scPayload.pv_numero && <span>Pedido de venda{scPayload.pedido_maquina_id ? ' (nº informado)' : ''}: {scPayload.pv_numero}</span>}
                 {scPayload.pedido_omie_numero && <span>Pedido de compra: <strong>{scPayload.pedido_omie_numero}</strong></span>}
                 {scPayload.pedido_fabrica_id && <span>Pedido fábrica: <a href={`/propostas?fab=${scPayload.pedido_fabrica_id}`} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, color: '#1d4ed8' }}>#{scPayload.pedido_fabrica_id}</a></span>}
                 {scPayload.prazo_compromisso && <span>Compromisso até {new Date(scPayload.prazo_compromisso + 'T12:00:00').toLocaleDateString('pt-BR')}</span>}
