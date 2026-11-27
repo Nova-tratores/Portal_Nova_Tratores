@@ -110,6 +110,14 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
     }
   }, [formData.tipo, formData.combustivel]);
 
+  // Trocou para abastecimento com uma carreta escolhida: limpa a placa.
+  useEffect(() => {
+    if (formData.tipo !== 'Veicular Abastecimento' || !formData.veiculo) return;
+    if (veiculos.find(v => String(v.IdPlaca) === String(formData.veiculo))?.semMotor) {
+      setFormData(p => ({ ...p, veiculo: '' }));
+    }
+  }, [formData.tipo, formData.veiculo, veiculos]);
+
   useEffect(() => {
     const fetchData = async () => {
       const [{ data: users }, { data: veic }, { data: ordens }] = await Promise.all([
@@ -119,7 +127,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
         // — requisições antigas e o lançamento no Omie não mudam nada.
         supabase
           .from('frota_veiculos')
-          .select('placa, modelo, supa_placa_id')
+          .select('placa, marca, modelo, supa_placa_id')
           .eq('tipo_registro', 'veiculo')
           .eq('ativo', true)
           .not('supa_placa_id', 'is', null)
@@ -131,6 +139,8 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
         setVeiculos(veic.map((v: any) => ({
           IdPlaca: v.supa_placa_id,
           NumPlaca: `${formatarPlaca(v.placa)}${v.modelo ? ` · ${v.modelo}` : ''}`,
+          // Carreta/reboque não tem motor: não aparece em "Veicular Abastecimento".
+          semMotor: /carret|reboque/i.test(`${v.marca || ''} ${v.modelo || ''}`),
         })));
       }
       if (ordens) setOrdensAbertas(ordens);
@@ -465,7 +475,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                   <label className={labelStyle}>Placa</label>
                   <select required value={formData.veiculo} onChange={e => setFormData({...formData, veiculo: e.target.value})} className={`${inputStyle}`}>
                     <option value="" className="bg-white">Selecione o veículo...</option>
-                    {veiculos.map(v => <option key={v.IdPlaca} value={v.IdPlaca} className="bg-white">{v.NumPlaca}</option>)}
+                    {veiculos.filter(v => !(formData.tipo === 'Veicular Abastecimento' && v.semMotor)).map(v => <option key={v.IdPlaca} value={v.IdPlaca} className="bg-white">{v.NumPlaca}</option>)}
                   </select>
                 </div>
                 <div>
