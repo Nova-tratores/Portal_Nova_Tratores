@@ -5,7 +5,7 @@
 // (1 un. cada, mesmo custo), com um projeto "MARCA MODELO SÉRIE" para cada.
 import { useCallback, useEffect, useState } from 'react';
 import { fetchAuth } from '@/lib/auth/client';
-import { descricaoDaMaquina, projetoDaMaquina } from '@/lib/estoque/separar-maquinas';
+import { descricaoBase, descricaoDaMaquina, projetoDaMaquina } from '@/lib/estoque/separar-maquinas';
 
 interface Pendente {
   idReceb: number; conta: string; numeroNfe: string; fornecedor: string; recebidoEm: string | null;
@@ -69,7 +69,15 @@ function JanelaSeparar({ alvo, onFechar, onFeito }: { alvo: Pendente; onFechar: 
 
   useEffect(() => {
     api(`/api/estoque/recebimentos/separar-maquinas?conta=${alvo.conta}&produto=${alvo.idProduto}`)
-      .then((j) => { setInfo(j); setMaqs((j.maquinas || []).map(() => ({ serie: '', descricao: '', projeto: '' }))); })
+      .then((j) => {
+        setInfo(j);
+        // Padrão: a 1ª é o produto da nota como está hoje (código e descrição do fornecedor, ou os
+        // que você criou no Dar entrada); as outras já vêm com a descrição da nota, sem a série.
+        const pr = j.produto || {};
+        setMaqs((j.maquinas || []).map((_: unknown, i: number) => (i === 0 && pr.codigo
+          ? { serie: String(pr.codigo), descricao: String(pr.descricao || ''), projeto: projetoDaMaquina(pr.marca, pr.modelo, String(pr.codigo)), descEditada: true }
+          : { serie: '', descricao: descricaoBase(pr.descricao || alvo.descricaoNota), projeto: '' })));
+      })
       .catch((e) => setErro(e.message));
   }, [alvo]);
 
@@ -83,7 +91,7 @@ function JanelaSeparar({ alvo, onFechar, onFeito }: { alvo: Pendente; onFechar: 
       if (k !== i) return m;
       const n = { ...m, [campo]: v };
       if (campo === 'serie') {
-        if (!m.descEditada) n.descricao = v.trim() ? descricaoDaMaquina(base, v) : '';
+        if (!m.descEditada) n.descricao = v.trim() ? descricaoDaMaquina(base, v) : descricaoBase(base);
         if (!m.projEditado) n.projeto = v.trim() ? projetoDaMaquina(marca, modelo, v) : '';
       }
       if (campo === 'descricao') n.descEditada = true;
@@ -93,7 +101,7 @@ function JanelaSeparar({ alvo, onFechar, onFeito }: { alvo: Pendente; onFechar: 
   }
   function quantidade(n: number) {
     setConferido(null); setErros([]);
-    setMaqs((ms) => (n > ms.length ? [...ms, ...Array.from({ length: n - ms.length }, () => ({ serie: '', descricao: '', projeto: '' }))] : ms.slice(0, n)));
+    setMaqs((ms) => (n > ms.length ? [...ms, ...Array.from({ length: n - ms.length }, () => ({ serie: '', descricao: descricaoBase(base), projeto: '' }))] : ms.slice(0, n)));
   }
 
   async function enviar(gravar: boolean) {
