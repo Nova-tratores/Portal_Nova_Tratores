@@ -9,6 +9,7 @@ import { logMarketing } from '@/lib/marketing/server';
 import { calcularROI } from '@/lib/marketing/roi';
 import { exigeResponsavel } from '@/lib/marketing/tipos';
 import { acessoDaCampanha, salvarResponsaveis } from '@/lib/marketing/acesso';
+import { gerarPostsDaCampanha } from '@/lib/marketing/robo/campanha';
 
 /** 25/11/2026: campanha privada sem acesso → 403 mudo (não diz nem o nome). */
 const SEM_ACESSO = () => NextResponse.json({ error: 'Campanha privada: você não tem acesso.', privada: true }, { status: 403 });
@@ -131,7 +132,10 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       detalhes: { campos: Object.keys(dados) },
     });
 
-    return NextResponse.json({ acao: data, responsaveis });
+    // 27/11/2026: mudou tipo, data ou status? o robô confere os posts da campanha (os já feitos não se repetem)
+    const posts = ['tipo', 'data_inicio', 'data_fim', 'status'].some((k) => k in dados) ? gerarPostsDaCampanha(data) : false;
+
+    return NextResponse.json({ acao: data, responsaveis, posts });
   } catch (e) {
     return erroResposta(e, 'PATCH /acoes/[id]');
   }

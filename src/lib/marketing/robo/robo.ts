@@ -13,7 +13,7 @@
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
 import { DATAS_AGRO, type DataAgro } from '../redes/datasAgro'
 import type { RedeId } from '../redes/redes'
-import { CUSTO_IDEIA_USD, TEMAS_DIA, ideiaParaData, ideiaParaDia, type Ideia } from './ideia'
+import { CUSTO_IDEIA_USD, ETAPAS_CAMPANHA, TEMAS_DIA, ideiaParaCampanha, ideiaParaData, ideiaParaDia, type CampanhaDoPost, type EtapaCampanha, type Ideia } from './ideia'
 import { CUSTO_CENA_USD, imagemPronta, montarCena } from './cena'
 import { PALETAS_EM_ORDEM, type Paleta } from './arte'
 import { gerarPecas, guardarCena, type Camadas } from './camadas'
@@ -40,7 +40,32 @@ const HORA = '09:00'
 const POR_VEZ = () => Math.max(1, Math.min(10, Number(process.env.MARKETING_ROBO_POR_DIA) || 3))
 export const MSG_SQL_ROBO = 'Robô não ativado: rode sql/marketing-robo.sql no projeto do portal (citrhumdkfivdzbmayde).'
 
-type Vaga = { chave: string; dia: string; tipo: 'data' | 'dia'; data?: DataAgro }
+type Vaga = { chave: string; dia: string; tipo: 'data' | 'dia' | 'campanha'; data?: DataAgro; acao?: CampanhaDoPost; etapa?: EtapaCampanha }
+
+/** Campanhas que geram posts (José, 27/11/2026): feira, ação de loja e campanha/promoção. Evento interno nunca. */
+export const TIPOS_COM_POST = ['feira', 'acao_loja', 'campanha'] as const
+
+/** Os 4 posts de cada campanha que começa nos próximos 30 dias: 7 dias antes, véspera, 1º dia e 1 dia depois do fim.
+ *  A chave leva o dia: se a data da campanha mudar, nasce o post da data nova (o da antiga fica para a equipe apagar). */
+async function vagasDeCampanhas(hoje: string, soAcao?: string): Promise<Vaga[]> {
+  let q = sb.from('mkt_acoes').select('id, nome, tipo, descricao, objetivo, data_inicio, data_fim, local_nome, cidade, uf')
+    .in('tipo', [...TIPOS_COM_POST]).not('status', 'in', '(cancelada,realizada)').is('deleted_at', null).not('data_inicio', 'is', null)
+  q = soAcao ? q.eq('id', soAcao) : q.lte('data_inicio', somar(hoje, DIAS_FRENTE)).gte('data_inicio', somar(hoje, -10))
+  const { data, error } = await q
+  if (error) { console.warn('[robo] campanhas:', error.message); return [] }
+  const vagas: Vaga[] = []
+  for (const a of (data || []) as CampanhaDoPost[]) {
+    const ini = a.data_inicio.slice(0, 10), fim = (a.data_fim || a.data_inicio).slice(0, 10)
+    const dias: Record<EtapaCampanha, string> = { antes7: somar(ini, -7), vespera: somar(ini, -1), abertura: ini, obrigado: somar(fim, 1) }
+    for (const etapa of Object.keys(ETAPAS_CAMPANHA) as EtapaCampanha[]) {
+      const dia = dias[etapa]
+      // campanha é marcada pela equipe: vale a partir de amanhã (não espera os 3 dias das datas comemorativas)
+      if (dia <= hoje || dia > somar(hoje, DIAS_FRENTE + 10)) continue
+      vagas.push({ chave: `campanha:${a.id}:${etapa}:${dia}`, dia, tipo: 'campanha', acao: a, etapa })
+    }
+  }
+  return vagas
+}
 type Foto = { id: string; url: string; etiquetas: string[]; usada_em: number; nota: number | null }
 
 const diaSP = (d: Date) => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
@@ -80,7 +105,7 @@ async function escolherFoto(ideia: Ideia, evitar: string[]): Promise<Foto | null
 }
 
 const notasDoRobo = (i: Ideia, vaga: Vaga) => [
-  `Criado pelo robô de posts (${vaga.tipo === 'data' ? `data: ${vaga.data?.nome}` : 'dia comum'}). Confira antes de aprovar.`,
+  `Criado pelo robô de posts (${vaga.tipo === 'data' ? `data: ${vaga.data?.nome}` : vaga.tipo === 'campanha' ? `campanha: ${vaga.acao?.nome}, ${ETAPAS_CAMPANHA[vaga.etapa!].nome}` : 'dia comum'}). Confira antes de aprovar.`,
   i.por_que && `Por que: ${i.por_que}`,
   i.confirmar.length ? `Conferir:\n${i.confirmar.map((c) => `- ${c}`).join('\n')}` : '',
   i.formato !== 'feed' ? `Formato sugerido: ${i.formato}.` : '',
@@ -91,7 +116,11 @@ const notasDoRobo = (i: Ideia, vaga: Vaga) => [
 async function fazerVaga(vaga: Vaga, ctx: { tecnicos: string[]; recentes: string[]; fotosRecentes: string[]; temaDia: string; visual: Visual }) {
   const ideia = vaga.tipo === 'data'
     ? await ideiaParaData(vaga.data!, { tecnicos: ctx.tecnicos, recentes: ctx.recentes })
-    : await ideiaParaDia(vaga.dia, ctx.temaDia, { tecnicos: ctx.tecnicos, recentes: ctx.recentes })
+    : vaga.tipo === 'campanha'
+      ? await ideiaParaCampanha(vaga.acao!, vaga.etapa!, vaga.dia, { tecnicos: ctx.tecnicos, recentes: ctx.recentes })
+      : await ideiaParaDia(vaga.dia, ctx.temaDia, { tecnicos: ctx.tecnicos, recentes: ctx.recentes })
+  // feira e ação de loja = "Evento"; campanha/promoção = "Promoção" (post de condição só sai depois de aprovado)
+  const etiqueta = vaga.tipo === 'data' ? 'data' : vaga.tipo === 'campanha' ? (vaga.acao!.tipo === 'campanha' ? 'promocao' : 'evento') : null
 
   const foto = await escolherFoto(ideia, ctx.fotosRecentes)
   if (!foto) throw new Error('O Banco de fotos não tem foto de trator etiquetada. Envie fotos de tratores em Conteúdo → Banco de fotos.')
@@ -99,7 +128,9 @@ async function fazerVaga(vaga: Vaga, ctx: { tecnicos: string[]; recentes: string
   // camadas (José, 26/11): a cena fica guardada à parte; texto, cor e posição podem ser editados no Marketing
   const camadas: Camadas = {
     cena: await guardarCena(await montarCena(base, ideia.cena)),
-    data: vaga.data ? { nome: vaga.data.nome.replace(/\s*\(.*\)$/, ''), dia: vaga.dia.slice(8, 10) + '/' + vaga.dia.slice(5, 7) } : null,
+    data: vaga.data ? { nome: vaga.data.nome.replace(/\s*\(.*\)$/, ''), dia: vaga.dia.slice(8, 10) + '/' + vaga.dia.slice(5, 7) }
+      // campanha: a linha de cima da arte mostra o dia em que ela começa + o nome
+      : vaga.acao ? { nome: vaga.acao.nome.slice(0, 40), dia: vaga.acao.data_inicio.slice(8, 10) + '/' + vaga.acao.data_inicio.slice(5, 7) } : null,
     titulo: ideia.arte_titulo, frase: ideia.arte_frase, destaque: ideia.arte_destaque || '',
     paleta: ctx.visual.paleta, posicao: ctx.visual.posicao, estilo: ctx.visual.estilo, foto_id: foto.id, cena_pedido: ideia.cena.slice(0, 1000),
   }
@@ -115,9 +146,9 @@ async function fazerVaga(vaga: Vaga, ctx: { tecnicos: string[]; recentes: string
     status: 'ideia', resultado: {}, notas: notasDoRobo(ideia, vaga),
     criado_por: 'Robô de posts', atualizado_por: 'Robô de posts',
   }
-  let r = await sb.from('site_posts').insert({ ...post, arte: camadas, etiqueta_tipo: vaga.tipo === 'data' ? 'data' : null }).select('id').single()
+  let r = await sb.from('site_posts').insert({ ...post, arte: camadas, etiqueta_tipo: etiqueta }).select('id').single()
   // SQL da Fase 4 (etiqueta_tipo) ou das camadas (arte) ainda não rodou: grava sem a coluna que falta
-  if (r.error && /etiqueta_tipo|arte/.test(r.error.message)) r = await sb.from('site_posts').insert(/arte/.test(r.error.message) ? { ...post, etiqueta_tipo: vaga.tipo === 'data' ? 'data' : null } : { ...post, arte: camadas }).select('id').single()
+  if (r.error && /etiqueta_tipo|arte/.test(r.error.message)) r = await sb.from('site_posts').insert(/arte/.test(r.error.message) ? { ...post, etiqueta_tipo: etiqueta } : { ...post, arte: camadas }).select('id').single()
   if (r.error && /etiqueta_tipo|arte/.test(r.error.message)) r = await sb.from('site_posts').insert(post).select('id').single()
   if (r.error) throw new Error(`criar o post: ${r.error.message}`)
 
@@ -125,14 +156,18 @@ async function fazerVaga(vaga: Vaga, ctx: { tecnicos: string[]; recentes: string
   return { postId: String(r.data.id), ideia, fotoId: foto.id }
 }
 
-/** Uma rodada do robô. `max` = quantas vagas no máximo (padrão MARKETING_ROBO_POR_DIA). */
-export async function rodarRobo(max = POR_VEZ()): Promise<{ resumo: string; pulado?: string; feitos: string[]; erros: string[] }> {
+/** Uma rodada do robô. `max` = quantas vagas no máximo (padrão MARKETING_ROBO_POR_DIA).
+ *  `soAcao`: só os posts daquela campanha (chamado logo depois de criar/editar a campanha). */
+export async function rodarRobo(max = POR_VEZ(), soAcao?: string): Promise<{ resumo: string; pulado?: string; feitos: string[]; erros: string[] }> {
   if (!process.env.ANTHROPIC_API_KEY) return { resumo: '', pulado: 'sem ANTHROPIC_API_KEY', feitos: [], erros: [] }
   if (!imagemPronta()) return { resumo: '', pulado: 'sem OPENAI_API_KEY', feitos: [], erros: [] }
 
   const hoje = diaSP(new Date())
-  const vagas = vagasDoPeriodo(hoje)
-  const ate = somar(hoje, DIAS_FRENTE)
+  const campanhas = await vagasDeCampanhas(hoje, soAcao)
+  const diasDeCampanha = new Set(campanhas.map((v) => v.dia))
+  // campanhas primeiro; num dia com post de campanha não entra o post de dia comum
+  const vagas = soAcao ? campanhas : [...campanhas, ...vagasDoPeriodo(hoje).filter((v) => v.tipo === 'data' || !diasDeCampanha.has(v.dia))]
+  const ate = somar(hoje, DIAS_FRENTE + 10)
 
   const { data: caderno, error } = await sb.from('mkt_robo').select('chave, status, tema, foto_id, dia, criado_em').order('criado_em', { ascending: false }).limit(500)
   if (error) throw new Error(/mkt_robo|does not exist|schema cache/i.test(error.message) ? MSG_SQL_ROBO : error.message)
@@ -142,7 +177,9 @@ export async function rodarRobo(max = POR_VEZ()): Promise<{ resumo: string; pula
   const { data: posts } = await sb.from('site_posts').select('titulo, quando').gte('quando', `${hoje}T00:00:00-03:00`).lte('quando', `${ate}T23:59:59-03:00`)
   const diasComPost = new Set(((posts || []) as { quando: string }[]).map((p) => diaSP(new Date(p.quando))))
 
-  const fila = vagas.filter((v) => !feitas.has(v.chave) && !diasComPost.has(v.dia)).slice(0, max)
+  // post de campanha sai mesmo se o dia já tem outro post; os demais só em dia vazio. Campanha não conta no limite do dia.
+  const pendentes = vagas.filter((v) => !feitas.has(v.chave) && (v.tipo === 'campanha' || !diasComPost.has(v.dia)))
+  const fila = [...pendentes.filter((v) => v.tipo === 'campanha').slice(0, 8), ...pendentes.filter((v) => v.tipo !== 'campanha').slice(0, max)]
   if (!fila.length) return { resumo: '', pulado: `calendário dos próximos ${DIAS_FRENTE} dias já preenchido`, feitos: [], erros: [] }
 
   // contexto para variar
@@ -162,12 +199,13 @@ export async function rodarRobo(max = POR_VEZ()): Promise<{ resumo: string; pula
     ctx.temaDia = TEMAS_DIA.find((t) => !usadosDia.some((u) => u.includes(t.split(' ')[0]))) || TEMAS_DIA[Math.floor(Math.random() * TEMAS_DIA.length)]
     try {
       const r = await fazerVaga(vaga, ctx)
-      await sb.from('mkt_robo').upsert({ chave: vaga.chave, dia: vaga.dia, tipo: vaga.tipo, tema: r.ideia.tema, post_id: r.postId, foto_id: r.fotoId, cena: r.ideia.cena.slice(0, 1000), status: 'feito', erro: null, custo_usd: CUSTO_IDEIA_USD + CUSTO_CENA_USD })
+      // mkt_robo.tipo só aceita 'data'/'dia' (check do SQL): campanha entra como 'data'; a chave "campanha:..." diferencia
+      await sb.from('mkt_robo').upsert({ chave: vaga.chave, dia: vaga.dia, tipo: vaga.tipo === 'dia' ? 'dia' : 'data', tema: r.ideia.tema, post_id: r.postId, foto_id: r.fotoId, cena: r.ideia.cena.slice(0, 1000), status: 'feito', erro: null, custo_usd: CUSTO_IDEIA_USD + CUSTO_CENA_USD })
       ctx.recentes.unshift(r.ideia.tema); ctx.fotosRecentes.unshift(r.fotoId); usadosDia.unshift(r.ideia.tema.toLowerCase())
       feitos.push(`${vaga.dia.slice(8)}/${vaga.dia.slice(5, 7)} ${r.ideia.arte_titulo}`)
     } catch (e) {
       const m = (e as Error).message.slice(0, 300)
-      await sb.from('mkt_robo').upsert({ chave: vaga.chave, dia: vaga.dia, tipo: vaga.tipo, status: 'erro', erro: m })
+      await sb.from('mkt_robo').upsert({ chave: vaga.chave, dia: vaga.dia, tipo: vaga.tipo === 'dia' ? 'dia' : 'data', status: 'erro', erro: m })
       erros.push(`${vaga.dia}: ${m}`)
       if (/Banco de fotos|ANTHROPIC|OPENAI|quota|billing|limit/i.test(m)) break   // problema geral: não adianta tentar as outras
     }

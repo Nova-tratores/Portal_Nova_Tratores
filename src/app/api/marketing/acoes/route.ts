@@ -8,6 +8,7 @@ import { logMarketing, nomeDoUsuario } from '@/lib/marketing/server';
 import { exigeResponsavel, type Acao } from '@/lib/marketing/tipos';
 import { grupoDaCampanha } from '@/lib/marketing/grupo-da-campanha';
 import { mascararLista, salvarResponsaveis } from '@/lib/marketing/acesso';
+import { gerarPostsDaCampanha } from '@/lib/marketing/robo/campanha';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -156,7 +157,10 @@ export async function POST(req: Request) {
     try { grupo = (await grupoDaCampanha({ id: data.id, nome: data.nome }, autor)).grupo; }
     catch (eg: any) { avisoGrupo = `A campanha foi criada, mas o grupo em Requisições não: ${eg?.message || eg}`; }
 
-    return NextResponse.json({ acao: data, grupo, aviso: avisoGrupo });
+    // 27/11/2026: feira / ação de loja / promoção já nasce com os 4 posts no calendário (robô, depois da resposta)
+    const posts = gerarPostsDaCampanha(data);
+
+    return NextResponse.json({ acao: data, grupo, aviso: avisoGrupo, posts });
   } catch (e) {
     return erroResposta(e, 'POST /acoes');
   }

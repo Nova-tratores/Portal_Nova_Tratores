@@ -4,6 +4,7 @@ import type { SubAba } from './SubAbas';
 export const ABAS_CONTEUDO: SubAba[] = [
   { label: 'Calendário', href: '/marketing/conteudo', icone: 'fa-solid fa-calendar-days' },
   { label: 'Banco de fotos', href: '/marketing/conteudo/fotos', icone: 'fa-solid fa-images' },   // 26/11/2026
+  { label: 'Concorrentes', href: '/marketing/conteudo/concorrentes', icone: 'fa-solid fa-binoculars' },   // 27/11/2026
   { label: 'Contas das redes', href: '/marketing/conteudo/contas', icone: 'fa-solid fa-link' },
   // Textos do site foi para Acessos → Site (engrenagem), 25/11/2026
 ];

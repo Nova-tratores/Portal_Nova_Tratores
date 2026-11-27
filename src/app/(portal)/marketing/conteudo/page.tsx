@@ -92,6 +92,7 @@ function statusDe(r: Pick<Rascunho, 'data' | 'redes' | 'midia' | 'resultado'>): 
 
 export default function CalendarioRedes() {
   const largo = useLargo(760);
+  const duasColunas = useLargo(1100);   // 27/11/2026: editor do post em 2 colunas (artes | texto e postar)
   const [posts, setPosts] = useState<Post[] | null>(null);
   const [ideias, setIdeias] = useState<Post[]>([]);
   const [contas, setContas] = useState<Conta[]>([]);
@@ -352,28 +353,56 @@ export default function CalendarioRedes() {
     const falta = faltas(p.redes, p.midia).length > 0;
     const arte = [p.midia?.feed, p.midia?.vertical, p.midia?.site, p.midia?.video].find(Boolean) || null;
     const arrasta = podeEditar && !!p.quando && !['publicado', 'parcial'].includes(p.status);
-    const lado = compacto ? 38 : 52;
-    return (
-      <button key={p.id} type="button" className="cal-chip np-sobe" draggable={arrasta}
-        onDragStart={(e) => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; setArrastando(p.id); }}
-        onDragEnd={() => { setArrastando(null); setAlvo(null); }}
-        onClick={(e) => { e.stopPropagation(); abrirPost(p); }} title={`${p.titulo} · ${s.nome}${arrasta ? ' · arraste para mudar o dia' : ''}`}
-        style={{ display: 'grid', gridTemplateColumns: `${lado}px minmax(0, 1fr)`, gap: 8, alignItems: 'center', width: '100%', textAlign: 'left', font: 'inherit', cursor: 'pointer',
-          padding: 4, paddingRight: 8, borderRadius: 10, minWidth: 0, color: T1, opacity: arrastando === p.id ? 0.4 : 1,
-          border: `1px solid color-mix(in srgb, ${s.cor} 35%, transparent)`, borderLeft: `3px solid ${s.cor}`, background: `color-mix(in srgb, ${s.cor} 7%, var(--surface))` }}>
-        <span style={{ width: lado, height: lado, borderRadius: 7, overflow: 'hidden', display: 'grid', placeItems: 'center', background: `color-mix(in srgb, ${s.cor} 14%, transparent)`, color: s.cor }}>
-          {arte && !ehVideo(arte)
-            // eslint-disable-next-line @next/next/no-img-element
-            ? <img src={arte} alt="" loading="lazy" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-            : ic(arte ? 'fa-film' : 'fa-image')}
-        </span>
+    const lado = 44;
+    const miniatura = (estilo: React.CSSProperties) => (
+      <span style={{ overflow: 'hidden', display: 'grid', placeItems: 'center', background: `color-mix(in srgb, ${s.cor} 14%, transparent)`, color: s.cor, ...estilo }}>
+        {arte && !ehVideo(arte)
+          // eslint-disable-next-line @next/next/no-img-element
+          ? <img src={arte} alt="" loading="lazy" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }} />
+          : <span style={{ display: 'grid', gap: 4, placeItems: 'center', fontSize: 12 }}>{ic(arte ? 'fa-film' : 'fa-image')}{!compacto && !arte && 'sem arte'}</span>}
+      </span>
+    );
+    // etiqueta da situação: o que falta manda (falta arte), senão a situação do post
+    const etiqueta = falta && !['publicado', 'parcial'].includes(p.status)
+      ? { cor: '#b45309', icone: 'fa-triangle-exclamation', nome: 'Falta arte' }
+      : { cor: s.cor, icone: s.icone, nome: s.nome };
+    const pilula = (
+      <span style={{ display: 'inline-flex', gap: 5, alignItems: 'center', fontSize: 11.5, fontWeight: 500, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
+        color: etiqueta.cor, background: `color-mix(in srgb, ${etiqueta.cor} 12%, transparent)` }}>{ic(etiqueta.icone)}{etiqueta.nome}</span>
+    );
+    const comum = {
+      type: 'button' as const, className: 'cal-chip np-sobe', draggable: arrasta,
+      onDragStart: (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', p.id); e.dataTransfer.effectAllowed = 'move'; setArrastando(p.id); },
+      onDragEnd: () => { setArrastando(null); setAlvo(null); },
+      onClick: (e: React.MouseEvent) => { e.stopPropagation(); abrirPost(p); },
+      title: `${p.titulo} · ${etiqueta.nome}${arrasta ? ' · arraste para mudar o dia' : ''}`,
+    };
+    const base: React.CSSProperties = { width: '100%', textAlign: 'left', font: 'inherit', cursor: 'pointer', minWidth: 0, color: T1, opacity: arrastando === p.id ? 0.4 : 1,
+      border: `1px solid color-mix(in srgb, ${etiqueta.cor} 30%, var(--border))`, background: 'var(--surface)', boxShadow: '0 1px 3px rgba(15, 23, 42, .06)' };
+    // mês (compacto): uma linha com a miniatura ao lado
+    if (compacto) return (
+      <button key={p.id} {...comum} style={{ ...base, display: 'grid', gridTemplateColumns: `${lado}px minmax(0, 1fr)`, gap: 8, alignItems: 'center', padding: 4, paddingRight: 8, borderRadius: 10, borderLeft: `3px solid ${etiqueta.cor}` }}>
+        {miniatura({ width: lado, height: lado, borderRadius: 7 })}
         <span style={{ display: 'grid', gap: 3, minWidth: 0 }}>
-          <span style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 11.5, color: s.cor, minWidth: 0 }}>
-            {ic(s.icone)}<span style={{ color: T2 }}>{p.quando ? horaDe(p.quando) : 'sem data'}</span>
-            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 2 }}>{p.redes.map((id) => <LogoRede key={id} id={id} tam={compacto ? 14 : 16} />)}</span>
+          <span style={{ display: 'flex', gap: 5, alignItems: 'center', fontSize: 11.5, color: etiqueta.cor, minWidth: 0 }}>
+            {ic(etiqueta.icone)}<span style={{ color: T2 }}>{p.quando ? horaDe(p.quando) : 'sem data'}</span>
+            <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 2 }}>{p.redes.map((id) => <LogoRede key={id} id={id} tam={14} />)}</span>
           </span>
-          <span style={{ fontSize: compacto ? 12.5 : 14, lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.titulo}</span>
-          {falta && <span style={{ fontSize: 11, color: '#b45309' }}>{ic('fa-triangle-exclamation')} falta arte</span>}
+          <span style={{ fontSize: 12.5, lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.titulo}</span>
+        </span>
+      </button>
+    );
+    // semana: cartão em pé, arte grande em cima
+    return (
+      <button key={p.id} {...comum} style={{ ...base, display: 'grid', gap: 0, padding: 0, borderRadius: 12, overflow: 'hidden' }}>
+        {miniatura({ width: '100%', height: 130 })}
+        <span style={{ display: 'grid', gap: 6, padding: '8px 10px 10px', minWidth: 0 }}>
+          <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            {pilula}
+            <span style={{ fontSize: 12.5, color: T2, marginLeft: 'auto' }}>{ic('fa-clock')} {p.quando ? horaDe(p.quando) : 'sem data'}</span>
+          </span>
+          <span style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.titulo}</span>
+          <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>{p.redes.map((id) => <LogoRede key={id} id={id} tam={18} />)}</span>
         </span>
       </button>
     );
@@ -527,6 +556,9 @@ export default function CalendarioRedes() {
         <Voltar para="Calendário" atual={r.id ? r.titulo || 'Post' : 'Novo post'} onClick={fechar}
           direita={<span style={{ fontSize: 12.5, padding: '4px 10px', borderRadius: 999, color: s.cor, background: `color-mix(in srgb, ${s.cor} 11%, transparent)` }}>{ic(s.icone)} {s.nome}</span>} />
 
+        {/* 27/11/2026 (José: "deixa as legendas do lado direito"): esquerda = arte; direita = texto, dia e postar */}
+        <div style={{ display: 'grid', gap: 14, alignItems: 'start', gridTemplateColumns: duasColunas ? 'minmax(0, 1.15fr) minmax(0, 1fr)' : 'minmax(0, 1fr)' }}>
+        <div style={{ display: 'grid', gap: 14, alignContent: 'start' }}>
         <Secao icone="fa-share-nodes" cor="#c13584" titulo="Onde vai sair" sub="Toque para ligar ou desligar cada rede. Pode ser uma só ou todas">
           <EscolherRedes so={SOCIAIS} valor={r.redes} onChange={(v) => setR({ ...r, redes: v })} />
         </Secao>
@@ -543,6 +575,64 @@ export default function CalendarioRedes() {
           <ArtesDasRedes semSite redes={r.redes} midia={r.midia} pasta="posts" onTroca={(a: Arte, u) => setR({ ...r, midia: { ...r.midia, [a]: u } })} />
         </Secao>
 
+        {/* Fase 4 (23/11/2026): etiquetas de seleção rápida — obrigatórias para o post sair; é com elas que
+            depois dá para ver "que tipo de post traz contato" */}
+        <Secao icone="fa-tags" cor="#0891b2" titulo="Etiquetas" sub="Obrigatórias para o post sair. Servem para descobrir que tipo de post traz cliente">
+          {([
+            ['Tipo do post', TIPOS_POST, r.etiqueta_tipo, (v: string) => setR({ ...r, etiqueta_tipo: v })],
+            ['Formato', FORMATOS_POST, r.formato, (v: string) => setR({ ...r, formato: v })],
+            ['Gancho (o começo do post)', GANCHOS, r.gancho, (v: string) => setR({ ...r, gancho: v })],
+          ] as const).map(([rot, ops, val, muda]) => (
+            <Campo key={rot} rotulo={rot}>
+              <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {ops.map((o) => (
+                  <button key={o.id} type="button" onClick={() => muda(o.id)}
+                    style={{ ...bt(val === o.id ? '#0891b2' : '#64748b', val === o.id), minHeight: 36, fontSize: 13 }}>{o.label}</button>
+                ))}
+              </span>
+            </Campo>
+          ))}
+          <div style={grade(220)}>
+            <Campo rotulo="Tem gente real? (cliente, técnico, operador)">
+              <span style={{ display: 'flex', gap: 6 }}>
+                {([[true, 'Sim'], [false, 'Não']] as const).map(([v, t]) => (
+                  <button key={t} type="button" onClick={() => setR({ ...r, gente_real: v })} style={{ ...bt(r.gente_real === v ? '#0891b2' : '#64748b', r.gente_real === v), minHeight: 36 }}>{t}</button>
+                ))}
+              </span>
+            </Campo>
+            <Campo rotulo="Máquina (opcional)" ajuda="Ex.: Mahindra 6075. Também vira o começo do código do post.">
+              <input style={campoNP} maxLength={120} value={r.maquina || ''} onChange={(e) => setR({ ...r, maquina: e.target.value })} />
+            </Campo>
+          </div>
+        </Secao>
+
+        {/* Fase 4.3: código do post + links que contam quem veio dele */}
+        {r.codigo && (
+          <Secao icone="fa-link" cor="#16a34a" titulo={`Código do post: ${r.codigo}${typeof r.contatos === "number" ? ` · ${r.contatos} ${r.contatos === 1 ? "contato" : "contatos"} pelo WhatsApp` : ""}`} sub="Use estes links no post: quem chamar por eles conta como contato deste post">
+            {(() => {
+              const zap = whats ? linkWhatsDoPost(whats, r.codigo!, r.titulo) : null;
+              const site = siteUrl ? linkSiteDoPost(siteUrl, r.redes[0] || 'instagram', r.codigo!) : null;
+              const linha = (rot: string, url: string | null, falta: string) => (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 13, color: T2, minWidth: 120 }}>{rot}</span>
+                  {url ? <>
+                    <code style={{ flex: '1 1 240px', fontSize: 12, padding: '6px 8px', borderRadius: 8, background: 'var(--surface-2, rgba(100,116,139,.08))', overflowWrap: 'anywhere' }}>{url}</code>
+                    <button type="button" style={bt('#16a34a')} onClick={() => navigator.clipboard.writeText(url).catch(() => {})}>{ic('fa-copy')}Copiar</button>
+                  </> : <span style={{ fontSize: 12.5, color: T3 }}>{falta}</span>}
+                </div>
+              );
+              return <div style={{ display: 'grid', gap: 8 }}>
+                {linha('WhatsApp', zap, 'Falta o WhatsApp da empresa em Textos do site.')}
+                {linha(`Site (${r.redes[0] ? REDE[r.redes[0]].nome : 'Instagram'})`, site, 'Endereço do site não configurado.')}
+                <span style={{ fontSize: 12, color: T3 }}>No texto do post: “Chama no WhatsApp e fala o código {r.codigo}”. O link do site leva a etiqueta do post para a tela Acessos.</span>
+              </div>;
+            })()}
+          </Secao>
+        )}
+
+        </div>
+
+        <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
         <Secao icone="fa-pen-to-square" titulo="Texto" sub="Do que é o post e o texto que vai junto da arte">
           <Campo rotulo="Do que é (aparece no calendário)" ajuda="Ex.: “Komander K60 pronta entrega”, “Dica de manutenção do 6075”.">
             <input style={campoNP} maxLength={120} value={r.titulo} onChange={(e) => setR({ ...r, titulo: e.target.value })} />
@@ -601,61 +691,6 @@ export default function CalendarioRedes() {
           </div>
         </Secao>
 
-        {/* Fase 4 (23/11/2026): etiquetas de seleção rápida — obrigatórias para o post sair; é com elas que
-            depois dá para ver "que tipo de post traz contato" */}
-        <Secao icone="fa-tags" cor="#0891b2" titulo="Etiquetas" sub="Obrigatórias para o post sair. Servem para descobrir que tipo de post traz cliente">
-          {([
-            ['Tipo do post', TIPOS_POST, r.etiqueta_tipo, (v: string) => setR({ ...r, etiqueta_tipo: v })],
-            ['Formato', FORMATOS_POST, r.formato, (v: string) => setR({ ...r, formato: v })],
-            ['Gancho (o começo do post)', GANCHOS, r.gancho, (v: string) => setR({ ...r, gancho: v })],
-          ] as const).map(([rot, ops, val, muda]) => (
-            <Campo key={rot} rotulo={rot}>
-              <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {ops.map((o) => (
-                  <button key={o.id} type="button" onClick={() => muda(o.id)}
-                    style={{ ...bt(val === o.id ? '#0891b2' : '#64748b', val === o.id), minHeight: 36, fontSize: 13 }}>{o.label}</button>
-                ))}
-              </span>
-            </Campo>
-          ))}
-          <div style={grade(220)}>
-            <Campo rotulo="Tem gente real? (cliente, técnico, operador)">
-              <span style={{ display: 'flex', gap: 6 }}>
-                {([[true, 'Sim'], [false, 'Não']] as const).map(([v, t]) => (
-                  <button key={t} type="button" onClick={() => setR({ ...r, gente_real: v })} style={{ ...bt(r.gente_real === v ? '#0891b2' : '#64748b', r.gente_real === v), minHeight: 36 }}>{t}</button>
-                ))}
-              </span>
-            </Campo>
-            <Campo rotulo="Máquina (opcional)" ajuda="Ex.: Mahindra 6075. Também vira o começo do código do post.">
-              <input style={campoNP} maxLength={120} value={r.maquina || ''} onChange={(e) => setR({ ...r, maquina: e.target.value })} />
-            </Campo>
-          </div>
-        </Secao>
-
-        {/* Fase 4.3: código do post + links que contam quem veio dele */}
-        {r.codigo && (
-          <Secao icone="fa-link" cor="#16a34a" titulo={`Código do post: ${r.codigo}${typeof r.contatos === "number" ? ` · ${r.contatos} ${r.contatos === 1 ? "contato" : "contatos"} pelo WhatsApp` : ""}`} sub="Use estes links no post: quem chamar por eles conta como contato deste post">
-            {(() => {
-              const zap = whats ? linkWhatsDoPost(whats, r.codigo!, r.titulo) : null;
-              const site = siteUrl ? linkSiteDoPost(siteUrl, r.redes[0] || 'instagram', r.codigo!) : null;
-              const linha = (rot: string, url: string | null, falta: string) => (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 13, color: T2, minWidth: 120 }}>{rot}</span>
-                  {url ? <>
-                    <code style={{ flex: '1 1 240px', fontSize: 12, padding: '6px 8px', borderRadius: 8, background: 'var(--surface-2, rgba(100,116,139,.08))', overflowWrap: 'anywhere' }}>{url}</code>
-                    <button type="button" style={bt('#16a34a')} onClick={() => navigator.clipboard.writeText(url).catch(() => {})}>{ic('fa-copy')}Copiar</button>
-                  </> : <span style={{ fontSize: 12.5, color: T3 }}>{falta}</span>}
-                </div>
-              );
-              return <div style={{ display: 'grid', gap: 8 }}>
-                {linha('WhatsApp', zap, 'Falta o WhatsApp da empresa em Textos do site.')}
-                {linha(`Site (${r.redes[0] ? REDE[r.redes[0]].nome : 'Instagram'})`, site, 'Endereço do site não configurado.')}
-                <span style={{ fontSize: 12, color: T3 }}>No texto do post: “Chama no WhatsApp e fala o código {r.codigo}”. O link do site leva a etiqueta do post para a tela Acessos.</span>
-              </div>;
-            })()}
-          </Secao>
-        )}
-
         {r.redes.length > 0 && (
           <Secao icone="fa-paper-plane" cor="#16a34a" titulo="Postar" sub="Por enquanto pelo celular em 1 toque. Instagram e Facebook vão sair sozinhos quando a conta for ligada">
             <div style={{ display: 'grid', gap: 8 }}>
@@ -679,35 +714,61 @@ export default function CalendarioRedes() {
                   <button type="button" style={bt('#0891b2')} onClick={() => navigator.clipboard.writeText(r.primeiro_comentario || '').catch(() => {})}>{ic('fa-copy')}Copiar comentário</button>
                 </div>
               )}
+              {/* 27/11/2026 (José: "melhora os botões de postar"): um cartão por rede, com 1 botão grande e o passo a passo */}
               {r.redes.map((id) => {
                 const rs = r.resultado[id];
+                const espera = r.etiqueta_tipo === 'promocao' && !r.aprovado_em;
                 // sem arte, ou post de preço ainda não aprovado: não dá para marcar que saiu
-                const semArte = f.some((x) => x.rede === id) || (r.etiqueta_tipo === 'promocao' && !r.aprovado_em);
-                const ligada = !!conta(id);
+                const semArte = f.some((x) => x.rede === id) || espera;
+                const sozinho = REDE[id].envio === 'automatico' && !!conta(id);
+                const cor = REDE[id].cor;
+                const quando = (iso?: string) => new Date(iso || '').toLocaleString('pt-BR', { timeZone: FUSO, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                const [rotulo, corRot] = rs?.ok ? ['Postado', '#16a34a'] : semArte ? [espera ? 'Espera aprovação' : 'Falta a arte', '#b45309'] : sozinho ? ['Sai sozinho', '#0284c7'] : ['Pronto para postar', cor];
                 return (
-                  <div key={id} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px', borderRadius: 12, border: '1px solid var(--border)', background: rs?.ok ? 'color-mix(in srgb, #16a34a 6%, var(--surface))' : 'var(--surface)' }}>
-                    <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', minWidth: 150 }}><IconeRede id={id} tam={18} />{REDE[id].nome}</span>
-                    <span style={{ fontSize: 12.5, color: rs?.ok ? '#16a34a' : semArte ? '#b45309' : T3, flex: '1 1 160px' }}>
-                      {rs?.ok ? `Postado ${rs.manual ? 'pelo celular' : 'sozinho'} em ${new Date(rs.em || '').toLocaleString('pt-BR', { timeZone: FUSO, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
-                        : semArte ? (r.etiqueta_tipo === 'promocao' && !r.aprovado_em ? 'Espera a aprovação' : 'Falta a arte desta rede') : REDE[id].envio === 'automatico' && ligada ? 'Sai sozinho no dia e hora marcados' : 'Pelo celular: toque em Postar, escolha o app e cole o texto'}
-                    </span>
-                    {!rs?.ok && !semArte && (
-                      <button type="button" style={bt(REDE[id].cor)} onClick={() => compartilhar(id)} title="Abre o compartilhar do celular com o arquivo; o texto já fica copiado">
-                        {ic('fa-share-from-square')}{copiado === id ? 'Texto copiado: postar' : 'Postar'}
-                      </button>
+                  <div key={id} style={{ display: 'grid', gap: 10, padding: '12px 14px', borderRadius: 14,
+                    border: `1px solid ${rs?.ok ? 'color-mix(in srgb, #16a34a 35%, var(--border))' : 'var(--border)'}`,
+                    background: rs?.ok ? 'color-mix(in srgb, #16a34a 6%, var(--surface))' : 'var(--surface)' }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <IconeRede id={id} tam={22} />
+                      <span style={{ fontSize: 15, fontWeight: 500, flex: 1, minWidth: 0 }}>{REDE[id].nome}</span>
+                      <span style={{ fontSize: 12, padding: '3px 10px', borderRadius: 999, color: corRot, background: `color-mix(in srgb, ${corRot} 11%, transparent)`, whiteSpace: 'nowrap' }}>{rotulo}</span>
+                    </div>
+                    {rs?.ok ? (
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 13, color: '#16a34a', flex: '1 1 180px' }}>{ic('fa-circle-check')} Saiu {rs.manual ? 'pelo celular' : 'sozinho'} em {quando(rs.em)}</span>
+                        {rs.link
+                          ? <a href={rs.link} target="_blank" rel="noreferrer" style={{ ...bt('#16a34a'), minHeight: 36 }}>{ic('fa-arrow-up-right-from-square')}Ver o post</a>
+                          : <span style={{ fontSize: 12, color: '#b45309' }}>sem link</span>}
+                        {podeEditar && <button type="button" style={{ ...bt('#64748b'), minHeight: 36 }} onClick={() => marcar(id, false)}>{ic('fa-rotate-left')}Desmarcar</button>}
+                      </div>
+                    ) : semArte ? (
+                      <span style={{ fontSize: 13, color: '#b45309' }}>
+                        {ic('fa-circle-exclamation')} {espera ? 'Post de preço: alguém precisa aprovar (logo acima) antes de postar.' : 'Falta a arte desta rede. Coloque na parte Artes.'}
+                      </span>
+                    ) : (
+                      <>
+                        <button type="button" onClick={() => compartilhar(id)} title="Copia o texto e abre o compartilhar do celular com a arte"
+                          style={{ ...bt(cor, true), minHeight: 48, fontSize: 15, width: '100%', justifyContent: 'center' }}>
+                          {ic(copiado === id ? 'fa-rotate-right' : 'fa-paper-plane')}{copiado === id ? `Abrir o ${REDE[id].nome} de novo` : `Postar no ${REDE[id].nome}`}
+                        </button>
+                        <span style={{ fontSize: 12.5, color: copiado === id ? '#16a34a' : T3, lineHeight: 1.45 }}>
+                          {copiado === id
+                            ? <>{ic('fa-check')} Texto copiado. No app, é só colar. Quando terminar, toque em <b style={{ fontWeight: 500 }}>Já postei</b>.</>
+                            : sozinho ? 'Sai sozinho no dia e hora marcados. Se quiser postar antes, use o botão.'
+                            : <>1. Toque no botão: o texto é copiado e o app abre com a arte. 2. Cole o texto e publique. 3. Volte e toque em <b style={{ fontWeight: 500 }}>Já postei</b>.</>}
+                        </span>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <button type="button" style={{ ...bt('#64748b'), minHeight: 36 }} onClick={() => { navigator.clipboard.writeText(textoDaRede(r, id)).then(() => setCopiado(id)).catch(() => {}); }}>{ic('fa-copy')}Copiar só o texto</button>
+                          {podeEditar && <button type="button" style={{ ...bt('#16a34a', linkPara === id), minHeight: 36 }} onClick={() => { setLinkPara(id); setLinkPost(''); }}>{ic('fa-check')}Já postei</button>}
+                        </div>
+                      </>
                     )}
-                    {podeEditar && (rs?.ok
-                      ? <>
-                          {rs.link ? <a href={rs.link} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: '#16a34a' }}>{ic('fa-arrow-up-right-from-square')}Ver o post</a> : <span style={{ fontSize: 12, color: '#b45309' }}>sem link</span>}
-                          <button type="button" style={bt('#64748b')} onClick={() => marcar(id, false)}>{ic('fa-rotate-left')}Desmarcar</button>
-                        </>
-                      : <button type="button" style={bt('#16a34a')} disabled={semArte} onClick={() => { setLinkPara(id); setLinkPost(''); }}>{ic('fa-check')}Já postei</button>)}
                     {/* Fase 3.1: pede o link do post (opcional, mas destacado) — sem ele o histórico manual vira dado morto */}
                     {linkPara === id && !rs?.ok && (
-                      <div style={{ flexBasis: '100%', display: 'grid', gap: 6, padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, #16a34a 7%, var(--surface))' }}>
+                      <div style={{ display: 'grid', gap: 6, padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, #16a34a 7%, var(--surface))' }}>
                         <span style={{ fontSize: 13 }}>Cole o <b style={{ fontWeight: 500 }}>link do post</b> no {REDE[id].nome}. Com ele, o portal puxa os números do post quando a conta for ligada.</span>
                         <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          <input autoFocus style={{ ...campoNP, flex: '1 1 260px' }} placeholder="https://www.instagram.com/p/…" value={linkPost} onChange={(e) => setLinkPost(e.target.value.trim())}
+                          <input autoFocus style={{ ...campoNP, flex: '1 1 220px' }} placeholder="https://www.instagram.com/p/…" value={linkPost} onChange={(e) => setLinkPost(e.target.value.trim())}
                             onKeyDown={(e) => { if (e.key === 'Enter') marcar(id, true, linkPost); }} />
                           <button type="button" style={bt('#16a34a', true)} disabled={!linkPost.startsWith('https://')} onClick={() => marcar(id, true, linkPost)}>Gravar com o link</button>
                           <button type="button" style={bt('#64748b')} onClick={() => marcar(id, true)}>Sem link</button>
@@ -720,12 +781,16 @@ export default function CalendarioRedes() {
             </div>
           </Secao>
         )}
+        </div>
+        </div>
 
-        <section style={{ ...cartaoNP, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* barra de baixo grudada no fim da tela: Gravar sempre à mão */}
+        <section style={{ ...cartaoNP, position: 'sticky', bottom: 10, zIndex: 5, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center',
+          boxShadow: '0 8px 28px rgba(15, 23, 42, .12)' }}>
           {erroForm && <span style={{ flexBasis: '100%', color: '#dc2626', fontSize: 13 }}>{ic('fa-circle-exclamation')} {erroForm}</span>}
-          {podeEditar && <button style={bt('#d97706', true)} disabled={salvando} onClick={() => salvar()}>{ic('fa-floppy-disk')}{salvando ? 'Gravando…' : r.id ? 'Gravar' : 'Pôr no calendário'}</button>}
-          <button style={bt('#64748b')} onClick={fechar}>Voltar sem gravar</button>
-          {podeEditar && r.id && <button style={{ ...bt('#dc2626'), marginLeft: 'auto' }} onClick={apagar}>{ic('fa-trash')}Apagar</button>}
+          {podeEditar && <button style={{ ...bt('#d97706', true), minHeight: 46, fontSize: 15, padding: '8px 22px' }} disabled={salvando} onClick={() => salvar()}>{ic('fa-floppy-disk')}{salvando ? 'Gravando…' : r.id ? 'Gravar' : 'Pôr no calendário'}</button>}
+          <button style={{ ...bt('#64748b'), minHeight: 46 }} onClick={fechar}>{ic('fa-arrow-left')}Voltar sem gravar</button>
+          {podeEditar && r.id && <button style={{ ...bt('#dc2626'), minHeight: 46, marginLeft: 'auto' }} onClick={apagar}>{ic('fa-trash')}Apagar</button>}
         </section>
       </div>
     );
@@ -790,35 +855,35 @@ export default function CalendarioRedes() {
 
           <section style={{ ...cartaoNP, display: 'grid', gap: 12 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ display: 'inline-flex', padding: 3, borderRadius: 10, border: '1px solid var(--border)', gap: 2 }}>
+              <span style={{ display: 'inline-flex', padding: 4, borderRadius: 12, border: '1px solid var(--border)', gap: 4, background: 'var(--surface)' }}>
                 {([[false, largo ? 'Semana' : 'Mês', largo ? 'fa-calendar-week' : 'fa-calendar'], [true, 'Ano todo', 'fa-calendar-days']] as const).map(([v, nome, icone]) => (
                   <button key={nome} type="button" onClick={() => ir({ ano: v })}
-                    style={{ font: 'inherit', fontSize: 13, padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', display: 'inline-flex', gap: 6, alignItems: 'center',
+                    style={{ font: 'inherit', fontSize: 14, fontWeight: 500, minHeight: 38, padding: '6px 16px', borderRadius: 9, border: 'none', cursor: 'pointer', display: 'inline-flex', gap: 7, alignItems: 'center',
                       background: rota.ano === v ? '#d97706' : 'transparent', color: rota.ano === v ? '#fefefe' : T2 }}>{ic(icone)}{nome}</button>
                 ))}
               </span>
               {rota.ano ? <span style={{ fontSize: 17 }}>Próximos 12 meses</span> : largo ? (
                 <>
-                  <button style={bt('#64748b')} onClick={() => irSemana(somaDias(semana, -7))} aria-label="Semana anterior">{ic('fa-chevron-left')}</button>
+                  <button style={bt('#64748b')} onClick={() => irSemana(somaDias(semana, -7))} title="Semana anterior">{ic('fa-chevron-left')}Anterior</button>
                   <span style={{ fontSize: 17, minWidth: 210, textAlign: 'center' }}>
                     {nomeDia(semana, { day: 'numeric', month: 'short' })} a {nomeDia(somaDias(semana, 6), { day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
-                  <button style={bt('#64748b')} onClick={() => irSemana(somaDias(semana, 7))} aria-label="Próxima semana">{ic('fa-chevron-right')}</button>
-                  {semana !== segundaDe(hoje()) && <button style={bt(AZUL)} onClick={() => irSemana(segundaDe(hoje()))}>Hoje</button>}
-                  <button style={bt('#d97706')} onClick={() => setMesAberto(true)}>{ic('fa-calendar')}Ver o mês</button>
+                  <button style={bt('#64748b')} onClick={() => irSemana(somaDias(semana, 7))} title="Próxima semana">Próxima{ic('fa-chevron-right')}</button>
+                  {semana !== segundaDe(hoje()) && <button style={bt(AZUL, true)} onClick={() => irSemana(segundaDe(hoje()))}>{ic('fa-location-crosshairs')}Voltar para hoje</button>}
+                  <button style={bt('#d97706')} onClick={() => setMesAberto(true)}>{ic('fa-calendar')}Ver o mês inteiro</button>
                 </>
               ) : (
                 <>
-                  <button style={bt('#64748b')} onClick={mesAnt} aria-label="Mês anterior">{ic('fa-chevron-left')}</button>
+                  <button style={bt('#64748b')} onClick={mesAnt} title="Mês anterior">{ic('fa-chevron-left')}Anterior</button>
                   <span style={{ fontSize: 17, minWidth: 170, textAlign: 'center', textTransform: 'capitalize' }}>{nomeMes(rota.mes)}</span>
-                  <button style={bt('#64748b')} onClick={mesProx} aria-label="Próximo mês">{ic('fa-chevron-right')}</button>
-                  {rota.mes !== hoje().slice(0, 7) && <button style={bt(AZUL)} onClick={() => ir({ mes: hoje().slice(0, 7) })}>Hoje</button>}
+                  <button style={bt('#64748b')} onClick={mesProx} title="Próximo mês">Próximo{ic('fa-chevron-right')}</button>
+                  {rota.mes !== hoje().slice(0, 7) && <button style={bt(AZUL, true)} onClick={() => ir({ mes: hoje().slice(0, 7) })}>{ic('fa-location-crosshairs')}Voltar para hoje</button>}
                 </>
               )}
-              <span style={{ marginLeft: 'auto', display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 12, color: T3 }}>
-                {(['ideia', 'pronto', 'publicado'] as StatusPost[]).map((k) => <span key={k} style={{ color: STATUS_POST[k].cor }}>{ic(STATUS_POST[k].icone)} {STATUS_POST[k].nome}</span>)}
+              <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 13, color: T3, alignItems: 'center' }}>
+                {(['ideia', 'pronto', 'publicado'] as StatusPost[]).map((k) => <span key={k} style={{ color: STATUS_POST[k].cor, padding: '4px 10px', borderRadius: 999, background: `color-mix(in srgb, ${STATUS_POST[k].cor} 10%, transparent)` }}>{ic(STATUS_POST[k].icone)} {STATUS_POST[k].nome}</span>)}
               </span>
-              {podeEditar && <button style={bt('#d97706', true)} onClick={() => novoPost(vazios[0] || '')}>{ic('fa-plus')}Novo post</button>}
+              {podeEditar && <button style={{ ...bt('#d97706', true), minHeight: 46, fontSize: 15, padding: '8px 20px' }} onClick={() => novoPost(vazios[0] || '')}>{ic('fa-plus')}Novo post</button>}
             </div>
             {!rota.ano && temporadasDoMes(rota.mes).length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -847,7 +912,7 @@ export default function CalendarioRedes() {
               <div onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Calendário do mês"
                 style={{ ...cartaoNP, width: 'min(1200px, 100%)', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', display: 'grid', gap: 12 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button style={bt('#64748b')} onClick={mesAnt} aria-label="Mês anterior">{ic('fa-chevron-left')}</button>
+                  <button style={bt('#64748b')} onClick={mesAnt} title="Mês anterior">{ic('fa-chevron-left')}Anterior</button>
                   <span style={{ fontSize: 17, minWidth: 170, textAlign: 'center', textTransform: 'capitalize' }}>{nomeMes(rota.mes)}</span>
                   <button style={bt('#64748b')} onClick={mesProx} aria-label="Próximo mês">{ic('fa-chevron-right')}</button>
                   <button style={{ ...bt('#64748b'), marginLeft: 'auto' }} onClick={fecharMes} aria-label="Fechar">{ic('fa-xmark')}Fechar</button>

@@ -115,6 +115,39 @@ export function ideiaParaData(data: DataAgro, c: Contexto = {}): Promise<Ideia> 
   ].filter(Boolean).join('\n'))
 }
 
+/** 27/11/2026 (José: "sempre que a gente criar uma campanha de feira que não seja interna, já tem que ir para o
+ *  calendário e gerar os posts automáticos"): os 4 momentos de cada campanha. */
+export const ETAPAS_CAMPANHA = {
+  antes7:   { nome: '7 dias antes', pedido: 'Post de anúncio, 7 dias antes: "vem aí". Convide a pessoa a marcar na agenda e a ir até lá.' },
+  vespera:  { nome: 'véspera',      pedido: 'Post da véspera: "é amanhã". Lembrete curto e animado, com o lugar e o horário se souber.' },
+  abertura: { nome: '1º dia',       pedido: 'Post do 1º dia: "começou, estamos lá". Chame para passar e conversar com a equipe da Nova.' },
+  obrigado: { nome: 'depois',       pedido: 'Post de agradecimento, 1 dia depois de terminar: obrigado a quem passou; convite para continuar a conversa pelo WhatsApp.' },
+} as const
+export type EtapaCampanha = keyof typeof ETAPAS_CAMPANHA
+export type CampanhaDoPost = {
+  id: string; nome: string; tipo: string; descricao: string | null; objetivo: string | null
+  data_inicio: string; data_fim: string | null; local_nome: string | null; cidade: string | null; uf: string | null
+}
+const TIPO_CAMPANHA: Record<string, string> = { feira: 'feira / exposição', acao_loja: 'ação na loja da Nova', campanha: 'campanha / promoção' }
+
+/** Ideia para um dos 4 posts de uma campanha (feira, ação de loja, promoção). */
+export function ideiaParaCampanha(a: CampanhaDoPost, etapa: EtapaCampanha, dia: string, c: Contexto = {}): Promise<Ideia> {
+  const br = (d: string) => d.slice(0, 10).split('-').reverse().join('/')
+  const lugar = [a.local_nome, [a.cidade, a.uf].filter(Boolean).join('/')].filter(Boolean).join(', ')
+  return pedir([
+    `Campanha da Nova: ${a.nome} (${TIPO_CAMPANHA[a.tipo] || a.tipo}).`,
+    `Quando: ${br(a.data_inicio)}${a.data_fim && a.data_fim.slice(0, 10) !== a.data_inicio.slice(0, 10) ? ` a ${br(a.data_fim)}` : ''}.${lugar ? ` Onde: ${lugar}.` : ''}`,
+    a.descricao ? `Sobre a campanha: ${a.descricao}` : '',
+    a.objetivo ? `Objetivo: ${a.objetivo}` : '',
+    `Este post sai em ${br(dia)}. ${ETAPAS_CAMPANHA[etapa].pedido}`,
+    'Use o nome da campanha no título da arte ou na frase. Não invente atração, brinde, preço nem horário: se precisar, use colchetes e liste em "confirmar".',
+    a.tipo === 'feira' ? 'A cena deve lembrar uma feira agropecuária (stand, bandeirolas, gente ao fundo desfocada, parque de exposições).' : '',
+    a.tipo === 'acao_loja' ? 'A cena deve lembrar a frente de uma loja de tratores enfeitada para um evento.' : '',
+    'Formato: feed.',
+    rodape(c),
+  ].filter(Boolean).join('\n'))
+}
+
 /** Ideia para um dia comum (seg/qua/sex), sem data especial. */
 export function ideiaParaDia(dia: string, temaSugerido: string, c: Contexto = {}): Promise<Ideia> {
   const sem = new Date(`${dia}T12:00:00-03:00`).toLocaleDateString('pt-BR', { weekday: 'long', timeZone: 'America/Sao_Paulo' })

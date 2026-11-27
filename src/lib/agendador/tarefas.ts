@@ -186,6 +186,13 @@ export const TAREFAS: Record<string, Tarefa> = {
     return r.pulado ? { pular: r.pulado } : { resumo: r.resumo };
   },
 
+  // Marketing (27/11/2026): radar dos concorrentes no Instagram — coleta todo dia; análise da IA uma vez por semana.
+  'marketing-rivais': async () => {
+    if (desligada('MARKETING_RIVAIS')) return { pular: 'desligado (MARKETING_RIVAIS=off)' };
+    const { rodarRadar } = await import('@/lib/marketing/rivais/rivais');
+    return { resumo: (await rodarRadar()).resumo };
+  },
+
   // Marketing (Fase 4.3, 23/11/2026): conversa que começou com o código de um post conta como contato dele.
   'marketing-contatos-posts': async () => {
     if (desligada('MARKETING_CONTATOS_POSTS')) return { pular: 'desligado (MARKETING_CONTATOS_POSTS=off)' };
