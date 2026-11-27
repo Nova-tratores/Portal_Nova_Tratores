@@ -4,7 +4,7 @@
 //      { acao: 'coletar' } (lê o Instagram agora) · { acao: 'analisar' } (IA escreve a análise agora, ~US$ 0,10)
 import { NextResponse } from 'next/server'
 import { guardarSite, sb } from '@/lib/marketing/redes/server'
-import { MSG_SQL_RIVAIS, analisarRivais, coletarRivais, faltaTabelaRivais, painelRivais } from '@/lib/marketing/rivais/rivais'
+import { MSG_SQL_RIVAIS, analisarRivais, coletarRivais, faltaTabelaRivais, nossaVersao, painelRivais } from '@/lib/marketing/rivais/rivais'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -46,6 +46,11 @@ export async function POST(req: Request) {
     if (b.acao === 'tipo') {
       const { error } = await sb.from('mkt_rivais').update({ tipo }).eq('username', username).neq('tipo', 'nos')
       return error ? erro(error.message) : NextResponse.json({ ok: true })
+    }
+    // "Fazer a nossa versão": vira ideia no calendário com o post deles anexado
+    if (b.acao === 'nossa_versao') {
+      if (!b.post) return erro('Falta o post de referência.', 400)
+      return NextResponse.json({ ok: true, postId: await nossaVersao(String(b.post), g.user.nome || 'Radar') })
     }
     if (b.acao === 'coletar') return NextResponse.json({ ok: true, ...(await coletarRivais()) })
     if (b.acao === 'analisar') return NextResponse.json({ ok: true, ...(await analisarRivais()) })

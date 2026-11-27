@@ -12,9 +12,11 @@ import { ABAS_CONTEUDO } from '@/components/marketing/redes/abasConteudo';
 import { ArtesDasRedes, EscolherRedes, IconeRede, LegendaRedes } from '@/components/marketing/redes/Artes';
 import { REDE, STATUS_POST, faltas, type Arte, type Midia, type RedeId, type StatusPost } from '@/lib/marketing/redes/redes';
 import { COR_PRIOR, NOME_PRIOR, DATAS_AGRO, datasDoDia, guiaDe, temporadasDoMes, type DataAgro } from '@/lib/marketing/redes/datasAgro';
-import { AZUL, Campo, Secao, T1, T2, T3, Voltar, bt, campoNP, cartaoNP, grade, ic } from '@/components/marketing/redes/np';
+import { ATENCAO, AZUL, BOM, Campo, MARCA, NEUTRO, SUP2, Secao, T1, T2, T3, Voltar, bt, campoNP, cartaoNP, grade, ic } from '@/components/marketing/redes/np';
 import { TIPOS_POST, FORMATOS_POST, GANCHOS, linkWhatsDoPost, linkSiteDoPost } from '@/lib/marketing/redes/etiquetas';
 import { LogoRede } from '@/components/marketing/redes/LogoRede';
+import CalendarioFaixas from '@/components/marketing/redes/CalendarioFaixas';
+import PreviaCelular from '@/components/marketing/redes/PreviaCelular';
 import EditarArte from '@/components/marketing/redes/EditarArte';
 import type { Camadas } from '@/lib/marketing/robo/paletas';
 
@@ -22,11 +24,11 @@ import type { Camadas } from '@/lib/marketing/robo/paletas';
 // dia vazio mostra "+ criar post" no mouse, o dia que recebe o post arrastado acende, "hoje" pulsa.
 const ESTILO_CAL = `
 .cal-dia { transition: background .15s ease, box-shadow .15s ease; }
-.cal-dia.cal-pode:hover { background: color-mix(in srgb, #d97706 6%, var(--portal-bg-secondary, #ffffff)) !important; }
+.cal-dia.cal-pode:hover { background: color-mix(in srgb, var(--nt-atencao, #B7791F) 6%, var(--portal-bg-secondary, #ffffff)) !important; }
 .cal-dia .cal-mais { opacity: 0; transition: opacity .15s ease; }
 .cal-dia:hover .cal-mais { opacity: 1; }
 @media (hover: none) { .cal-dia .cal-mais { opacity: .8; } }
-.cal-alvo { background: color-mix(in srgb, #16a34a 12%, var(--portal-bg-secondary, #ffffff)) !important; box-shadow: inset 0 0 0 2px #16a34a !important; }
+.cal-alvo { background: color-mix(in srgb, var(--nt-bom, #2E7D4F) 12%, var(--portal-bg-secondary, #ffffff)) !important; box-shadow: inset 0 0 0 2px var(--nt-bom, #2E7D4F) !important; }
 @keyframes calPulsa { 0%, 100% { box-shadow: 0 0 0 0 rgba(217,119,6,.45); } 50% { box-shadow: 0 0 0 6px rgba(217,119,6,0); } }
 .cal-hoje { animation: calPulsa 2s ease-in-out infinite; }
 .cal-chip[draggable="true"] { cursor: grab; }
@@ -328,7 +330,7 @@ export default function CalendarioRedes() {
       <div style={{ display: 'grid', gap: 8, paddingTop: 4 }}>
         {lista('Ideias para a Nova Tratores', g.ideias, 'fa-lightbulb')}
         {lista('O que as marcas fizeram', g.fizeram, 'fa-eye')}
-        {g.preparar && <span style={{ fontSize: 13, color: '#b45309' }}>{ic('fa-clipboard-list')} Preparar: {g.preparar}</span>}
+        {g.preparar && <span style={{ fontSize: 13, color: ATENCAO }}>{ic('fa-clipboard-list')} Preparar: {g.preparar}</span>}
       </div>
     );
   };
@@ -364,7 +366,7 @@ export default function CalendarioRedes() {
     );
     // etiqueta da situação: o que falta manda (falta arte), senão a situação do post
     const etiqueta = falta && !['publicado', 'parcial'].includes(p.status)
-      ? { cor: '#b45309', icone: 'fa-triangle-exclamation', nome: 'Falta arte' }
+      ? { cor: ATENCAO, icone: 'fa-triangle-exclamation', nome: 'Falta arte' }
       : { cor: s.cor, icone: s.icone, nome: s.nome };
     const pilula = (
       <span style={{ display: 'inline-flex', gap: 5, alignItems: 'center', fontSize: 11.5, fontWeight: 500, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
@@ -378,7 +380,7 @@ export default function CalendarioRedes() {
       title: `${p.titulo} · ${etiqueta.nome}${arrasta ? ' · arraste para mudar o dia' : ''}`,
     };
     const base: React.CSSProperties = { width: '100%', textAlign: 'left', font: 'inherit', cursor: 'pointer', minWidth: 0, color: T1, opacity: arrastando === p.id ? 0.4 : 1,
-      border: `1px solid color-mix(in srgb, ${etiqueta.cor} 30%, var(--border))`, background: 'var(--surface)', boxShadow: '0 1px 3px rgba(15, 23, 42, .06)' };
+      border: `1px solid color-mix(in srgb, ${etiqueta.cor} 30%, var(--border))`, background: 'var(--surface)', boxShadow: '0 1px 3px rgba(43, 29, 23, .06)' };
     // mês (compacto): uma linha com a miniatura ao lado
     if (compacto) return (
       <button key={p.id} {...comum} style={{ ...base, display: 'grid', gridTemplateColumns: `${lado}px minmax(0, 1fr)`, gap: 8, alignItems: 'center', padding: 4, paddingRight: 8, borderRadius: 10, borderLeft: `3px solid ${etiqueta.cor}` }}>
@@ -418,13 +420,13 @@ export default function CalendarioRedes() {
     const ultimo = dias.map((d) => d.startsWith(rota.mes)).lastIndexOf(true);
     const visiveis = seg ? dias : dias.slice(0, Math.ceil((ultimo + 1) / 7) * 7);
     // grade de calendário de parede: linhas finas entre os dias (o fundo do quadro aparece no vão de 1px)
-    const LINHA = 'color-mix(in srgb, var(--portal-text, #0f172a) 16%, transparent)';
+    const LINHA = 'color-mix(in srgb, var(--portal-text, var(--nt-texto, #2B1D17)) 16%, transparent)';
     const FUNDO = 'var(--portal-bg-secondary, #ffffff)';
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 1, background: LINHA, border: `1px solid ${LINHA}`, borderRadius: 14, overflow: 'hidden' }}>
-        {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => <span key={d} style={{ fontSize: 13, color: T2, padding: '8px 10px', background: 'color-mix(in srgb, var(--portal-text, #0f172a) 5%, var(--portal-bg, #f8fafc))' }}>{d}</span>)}
+        {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => <span key={d} style={{ fontSize: 13, color: T2, padding: '8px 10px', background: 'color-mix(in srgb, var(--portal-text, var(--nt-texto, #2B1D17)) 5%, var(--portal-bg, var(--nt-superficie-2, #F5EEE6)))' }}>{d}</span>)}
         {visiveis.map((d) => {
-          if (!seg && !d.startsWith(rota.mes)) return <div key={d} style={{ background: 'color-mix(in srgb, var(--portal-text, #0f172a) 3%, var(--portal-bg, #f8fafc))' }} />;
+          if (!seg && !d.startsWith(rota.mes)) return <div key={d} style={{ background: 'color-mix(in srgb, var(--portal-text, var(--nt-texto, #2B1D17)) 3%, var(--portal-bg, var(--nt-superficie-2, #F5EEE6)))' }} />;
           const lista = porDia.get(d) || [];
           const passado = d < h;
           const vazioFuturo = !lista.length && !passado && d <= prox30[29];
@@ -437,21 +439,21 @@ export default function CalendarioRedes() {
               onDragLeave={() => { if (alvo === d) setAlvo(null); }}
               onDrop={(e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/plain'); setAlvo(null); setArrastando(null); if (pode && id) mover(id, d); }}
               style={{ minHeight: seg ? 260 : 118, padding: '8px 10px', display: 'grid', alignContent: 'start', gap: 6, cursor: pode ? 'pointer' : 'default', minWidth: 0,
-                boxShadow: d === h ? 'inset 0 0 0 2px #d97706' : 'none',
-                background: passado ? 'color-mix(in srgb, var(--portal-text, #0f172a) 3%, var(--portal-bg, #f8fafc))' : fimDeSemana ? 'color-mix(in srgb, var(--portal-text, #0f172a) 1.5%, ' + FUNDO + ')' : FUNDO }}>
+                boxShadow: d === h ? 'inset 0 0 0 2px var(--nt-atencao, #B7791F)' : 'none',
+                background: passado ? 'color-mix(in srgb, var(--portal-text, var(--nt-texto, #2B1D17)) 3%, var(--portal-bg, var(--nt-superficie-2, #F5EEE6)))' : fimDeSemana ? 'color-mix(in srgb, var(--portal-text, var(--nt-texto, #2B1D17)) 1.5%, ' + FUNDO + ')' : FUNDO }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {d === h
-                  ? <span className="cal-hoje" style={{ minWidth: 28, height: 28, padding: '0 6px', borderRadius: 999, display: 'grid', placeItems: 'center', background: '#d97706', color: '#fefefe', fontSize: 14, fontWeight: 500 }}>{Number(d.slice(8))}</span>
+                  ? <span className="cal-hoje" style={{ minWidth: 28, height: 28, padding: '0 6px', borderRadius: 999, display: 'grid', placeItems: 'center', background: ATENCAO, color: '#FFFFFF', fontSize: 14, fontWeight: 500 }}>{Number(d.slice(8))}</span>
                   : <span style={{ fontSize: 15, fontWeight: 500, color: passado ? T3 : T1 }}>{Number(d.slice(8))}{seg && d.slice(8) === '01' ? ` ${nomeDia(d, { month: 'short' })}` : ''}</span>}
-                {d === h && <span style={{ fontSize: 12.5, color: '#d97706', fontWeight: 500 }}>hoje</span>}
-                {vazioFuturo && <span style={{ marginLeft: 'auto', width: 7, height: 7, borderRadius: 99, background: 'color-mix(in srgb, #d97706 55%, transparent)' }} title="Dia sem post" />}
+                {d === h && <span style={{ fontSize: 12.5, color: T1, fontWeight: 600 }}>hoje</span>}
+                {vazioFuturo && <span style={{ marginLeft: 'auto', width: 7, height: 7, borderRadius: 99, background: 'color-mix(in srgb, var(--nt-atencao, #B7791F) 55%, transparent)' }} title="Dia sem post" />}
               </span>
               <div style={{ display: 'grid', gap: 6, opacity: passado ? 0.75 : 1 }}>
                 {datasDoDia(d).map((x) => chipAgro(x, d, true))}
                 {lista.map((p) => chipPost(p, true))}
               </div>
               {pode && (
-                <span className="cal-mais" style={{ fontSize: 12.5, color: '#d97706', display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', padding: '6px 0', borderRadius: 8, border: '1px dashed color-mix(in srgb, #d97706 50%, transparent)' }}>
+                <span className="cal-mais" style={{ fontSize: 12.5, color: ATENCAO, display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', padding: '6px 0', borderRadius: 8, border: '1px dashed color-mix(in srgb, var(--nt-atencao, #B7791F) 50%, transparent)' }}>
                   {ic('fa-plus')}criar post
                 </span>
               )}
@@ -478,8 +480,8 @@ export default function CalendarioRedes() {
           return (
             <section key={m} onClick={() => { ir({ mes: m, ano: false }); setMesAberto(true); }} style={{ ...cartaoNP, display: 'grid', gap: 10, alignContent: 'start', cursor: 'pointer' }}>
               <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                <span style={{ fontSize: 16, textTransform: 'capitalize', color: m === h.slice(0, 7) ? '#d97706' : T1 }}>{nomeMes(m)}</span>
-                <span style={{ marginLeft: 'auto', fontSize: 12.5, color: nPosts ? '#16a34a' : T3 }}>{nPosts ? `${nPosts} post${nPosts > 1 ? 's' : ''}` : 'sem posts'}</span>
+                <span style={{ fontSize: 16, textTransform: 'capitalize', color: T1, fontWeight: m === h.slice(0, 7) ? 600 : 400 }}>{nomeMes(m)}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 12.5, color: nPosts ? BOM : T3 }}>{nPosts ? `${nPosts} post${nPosts > 1 ? 's' : ''}` : 'sem posts'}</span>
               </span>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
                 {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((x, i) => <span key={i} style={{ fontSize: 10.5, color: T3, textAlign: 'center' }}>{x}</span>)}
@@ -490,8 +492,8 @@ export default function CalendarioRedes() {
                   return (
                     <span key={d} title={[ag?.nome, tem ? 'tem post' : ''].filter(Boolean).join(' · ') || undefined}
                       style={{ fontSize: 11.5, textAlign: 'center', lineHeight: '22px', borderRadius: 999,
-                        background: tem ? '#16a34a' : 'transparent', color: tem ? '#fefefe' : d < h ? T3 : T1,
-                        boxShadow: ag ? `inset 0 0 0 2px ${COR_PRIOR[ag.prior]}` : d === h ? 'inset 0 0 0 1px #d97706' : 'none' }}>
+                        background: tem ? BOM : 'transparent', color: tem ? '#FFFFFF' : d < h ? T3 : T1,
+                        boxShadow: ag ? `inset 0 0 0 2px ${COR_PRIOR[ag.prior]}` : d === h ? 'inset 0 0 0 1px var(--nt-atencao, #B7791F)' : 'none' }}>
                       {Number(d.slice(8))}
                     </span>
                   );
@@ -502,7 +504,7 @@ export default function CalendarioRedes() {
                   {datas.map((x) => (
                     <span key={x.d + x.nome} style={{ display: 'flex', gap: 6, color: T2 }}>
                       <span style={{ color: COR_PRIOR[x.prior], minWidth: 22 }}>{x.d.slice(8)}</span>
-                      <span>{x.nome}{porDia.get(x.d)?.length ? <span style={{ color: '#16a34a' }}> {ic('fa-check')}</span> : ''}</span>
+                      <span>{x.nome}{porDia.get(x.d)?.length ? <span style={{ color: BOM }}> {ic('fa-check')}</span> : ''}</span>
                     </span>
                   ))}
                   {temp.map((t) => <span key={t.nome} style={{ color: COR_PRIOR[t.prior] }}>{ic('fa-seedling')} {t.nome}</span>)}
@@ -527,7 +529,7 @@ export default function CalendarioRedes() {
           if (!lista.length && !vazioFuturo && !agro.length) return null;
           return (
             <div key={d} style={{ display: 'grid', gridTemplateColumns: '54px 1fr', gap: 10, alignItems: 'start' }}>
-              <span style={{ display: 'grid', justifyItems: 'center', padding: '6px 0', borderRadius: 10, background: d === h ? '#d97706' : 'var(--surface)', color: d === h ? '#fefefe' : T1, border: '1px solid var(--border)' }}>
+              <span style={{ display: 'grid', justifyItems: 'center', padding: '6px 0', borderRadius: 10, background: d === h ? ATENCAO : 'var(--surface)', color: d === h ? '#FFFFFF' : T1, border: '1px solid var(--border)' }}>
                 <span style={{ fontSize: 18 }}>{Number(d.slice(8))}</span>
                 <span style={{ fontSize: 11, opacity: 0.8 }}>{nomeDia(d, { weekday: 'short' }).replace('.', '')}</span>
               </span>
@@ -536,7 +538,7 @@ export default function CalendarioRedes() {
                 {lista.map((p) => chipPost(p, false))}
                 {vazioFuturo && !agro.length && (
                   <button type="button" disabled={!podeEditar} onClick={() => novoPost(d)}
-                    style={{ ...bt('#d97706'), borderStyle: 'dashed', justifyContent: 'flex-start' }}>{ic('fa-plus')}Dia sem post: criar</button>
+                    style={{ ...bt(NEUTRO), borderStyle: 'dashed', justifyContent: 'flex-start' }}>{ic('fa-plus')}Dia sem post: criar</button>
                 )}
               </span>
             </div>
@@ -559,25 +561,33 @@ export default function CalendarioRedes() {
         {/* 27/11/2026 (José: "deixa as legendas do lado direito"): esquerda = arte; direita = texto, dia e postar */}
         <div style={{ display: 'grid', gap: 14, alignItems: 'start', gridTemplateColumns: duasColunas ? 'minmax(0, 1.15fr) minmax(0, 1fr)' : 'minmax(0, 1fr)' }}>
         <div style={{ display: 'grid', gap: 14, alignContent: 'start' }}>
-        <Secao icone="fa-share-nodes" cor="#c13584" titulo="Onde vai sair" sub="Toque para ligar ou desligar cada rede. Pode ser uma só ou todas">
+        {/* 27/11/2026: ideia criada pelo radar ("Fazer a nossa versão") traz o post do concorrente como referência */}
+        {(r.midia as Record<string, string | null | undefined>).referencia && (
+          <Secao icone="fa-binoculars" titulo="Post de referência" sub="O post do concorrente que inspirou esta ideia. Faça a versão da Nova (o texto e o link estão nas anotações)">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <a href={(r.notas.match(/https:\/\/www\.instagram\.com\/\S+/) || [])[0] || (r.midia as Record<string, string>).referencia} target="_blank" rel="noreferrer"><img src={(r.midia as Record<string, string>).referencia} alt="Post de referência" style={{ width: '100%', maxWidth: 320, borderRadius: 12, display: 'block', border: '1px solid var(--border)' }} /></a>
+          </Secao>
+        )}
+
+        <Secao icone="fa-share-nodes" titulo="Onde vai sair" sub="Toque para ligar ou desligar cada rede. Pode ser uma só ou todas">
           <EscolherRedes so={SOCIAIS} valor={r.redes} onChange={(v) => setR({ ...r, redes: v })} />
         </Secao>
 
         {/* 26/11/2026: post do robô vem em camadas (cena + texto + cor) e dá para editar aqui */}
         {r.id && r.arte?.cena && (
-          <Secao icone="fa-layer-group" cor="#d0102b" titulo="Editar arte" sub="Mude o texto, as cores ou a posição. A prévia aparece em 1 segundo, sem custo">
+          <Secao icone="fa-layer-group" titulo="Editar arte" sub="Mude o texto, as cores ou a posição. A prévia aparece em 1 segundo, sem custo">
             <EditarArte key={r.id} postId={r.id} arte={r.arte} atual={r.midia.feed || undefined} podeEditar={podeEditar}
               onSalvo={(pecas, arte) => { setR((x) => (x ? { ...x, midia: { ...x.midia, feed: pecas.feed, vertical: pecas.vertical, ...(pecas.video ? { video: pecas.video } : {}) }, arte } : x)); carregar(); }} />
           </Secao>
         )}
 
-        <Secao icone="fa-images" cor="#7c3aed" titulo="Artes" sub="Cada rede usa um tamanho. Os ícones mostram quem usa cada arte">
+        <Secao icone="fa-images" titulo="Artes" sub="Cada rede usa um tamanho. Os ícones mostram quem usa cada arte">
           <ArtesDasRedes semSite redes={r.redes} midia={r.midia} pasta="posts" onTroca={(a: Arte, u) => setR({ ...r, midia: { ...r.midia, [a]: u } })} />
         </Secao>
 
         {/* Fase 4 (23/11/2026): etiquetas de seleção rápida — obrigatórias para o post sair; é com elas que
             depois dá para ver "que tipo de post traz contato" */}
-        <Secao icone="fa-tags" cor="#0891b2" titulo="Etiquetas" sub="Obrigatórias para o post sair. Servem para descobrir que tipo de post traz cliente">
+        <Secao icone="fa-tags" titulo="Etiquetas" sub="Obrigatórias para o post sair. Servem para descobrir que tipo de post traz cliente">
           {([
             ['Tipo do post', TIPOS_POST, r.etiqueta_tipo, (v: string) => setR({ ...r, etiqueta_tipo: v })],
             ['Formato', FORMATOS_POST, r.formato, (v: string) => setR({ ...r, formato: v })],
@@ -587,7 +597,7 @@ export default function CalendarioRedes() {
               <span style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {ops.map((o) => (
                   <button key={o.id} type="button" onClick={() => muda(o.id)}
-                    style={{ ...bt(val === o.id ? '#0891b2' : '#64748b', val === o.id), minHeight: 36, fontSize: 13 }}>{o.label}</button>
+                    style={{ ...bt(val === o.id ? MARCA : NEUTRO, val === o.id), minHeight: 36, fontSize: 13 }}>{o.label}</button>
                 ))}
               </span>
             </Campo>
@@ -596,7 +606,7 @@ export default function CalendarioRedes() {
             <Campo rotulo="Tem gente real? (cliente, técnico, operador)">
               <span style={{ display: 'flex', gap: 6 }}>
                 {([[true, 'Sim'], [false, 'Não']] as const).map(([v, t]) => (
-                  <button key={t} type="button" onClick={() => setR({ ...r, gente_real: v })} style={{ ...bt(r.gente_real === v ? '#0891b2' : '#64748b', r.gente_real === v), minHeight: 36 }}>{t}</button>
+                  <button key={t} type="button" onClick={() => setR({ ...r, gente_real: v })} style={{ ...bt(r.gente_real === v ? MARCA : NEUTRO, r.gente_real === v), minHeight: 36 }}>{t}</button>
                 ))}
               </span>
             </Campo>
@@ -608,7 +618,7 @@ export default function CalendarioRedes() {
 
         {/* Fase 4.3: código do post + links que contam quem veio dele */}
         {r.codigo && (
-          <Secao icone="fa-link" cor="#16a34a" titulo={`Código do post: ${r.codigo}${typeof r.contatos === "number" ? ` · ${r.contatos} ${r.contatos === 1 ? "contato" : "contatos"} pelo WhatsApp` : ""}`} sub="Use estes links no post: quem chamar por eles conta como contato deste post">
+          <Secao icone="fa-link" cor="var(--nt-bom, #2E7D4F)" titulo={`Código do post: ${r.codigo}${typeof r.contatos === "number" ? ` · ${r.contatos} ${r.contatos === 1 ? "contato" : "contatos"} pelo WhatsApp` : ""}`} sub="Use estes links no post: quem chamar por eles conta como contato deste post">
             {(() => {
               const zap = whats ? linkWhatsDoPost(whats, r.codigo!, r.titulo) : null;
               const site = siteUrl ? linkSiteDoPost(siteUrl, r.redes[0] || 'instagram', r.codigo!) : null;
@@ -617,7 +627,7 @@ export default function CalendarioRedes() {
                   <span style={{ fontSize: 13, color: T2, minWidth: 120 }}>{rot}</span>
                   {url ? <>
                     <code style={{ flex: '1 1 240px', fontSize: 12, padding: '6px 8px', borderRadius: 8, background: 'var(--surface-2, rgba(100,116,139,.08))', overflowWrap: 'anywhere' }}>{url}</code>
-                    <button type="button" style={bt('#16a34a')} onClick={() => navigator.clipboard.writeText(url).catch(() => {})}>{ic('fa-copy')}Copiar</button>
+                    <button type="button" style={bt(BOM)} onClick={() => navigator.clipboard.writeText(url).catch(() => {})}>{ic('fa-copy')}Copiar</button>
                   </> : <span style={{ fontSize: 12.5, color: T3 }}>{falta}</span>}
                 </div>
               );
@@ -633,6 +643,12 @@ export default function CalendarioRedes() {
         </div>
 
         <div style={{ display: "grid", gap: 14, alignContent: "start" }}>
+        {/* 27/11/2026 (José: "antes de agendar, a pessoa vê o post no formato de feed do celular, não num formulário") */}
+        <Secao icone="fa-mobile-screen" cor="var(--nt-texto, #2B1D17)" titulo="Como vai aparecer" sub="O post como sai no celular. Muda na hora enquanto você escreve">
+          <PreviaCelular midia={r.midia} texto={textoDaRede(r, r.redes.includes("instagram") ? "instagram" : r.redes[0] || "instagram")} redes={r.redes}
+            nome={conta("instagram")?.nome || "novatratores"}
+            quando={r.data ? nomeDia(r.data, { day: "numeric", month: "long" }) : "Agora"} />
+        </Secao>
         <Secao icone="fa-pen-to-square" titulo="Texto" sub="Do que é o post e o texto que vai junto da arte">
           <Campo rotulo="Do que é (aparece no calendário)" ajuda="Ex.: “Komander K60 pronta entrega”, “Dica de manutenção do 6075”.">
             <input style={campoNP} maxLength={120} value={r.titulo} onChange={(e) => setR({ ...r, titulo: e.target.value })} />
@@ -646,7 +662,7 @@ export default function CalendarioRedes() {
               <span style={{ fontSize: 12.5, color: T3 }}>Ajustar o texto para uma rede:</span>
               {r.redes.map((id) => (
                 <button key={id} type="button" onClick={() => setAjustar(ajustar === id ? null : id)}
-                  style={{ ...bt(r.textos?.[id] ? REDE[id].cor : '#64748b', ajustar === id), minHeight: 32, fontSize: 12.5 }}>
+                  style={{ ...bt(r.textos?.[id] ? REDE[id].cor : NEUTRO, ajustar === id), minHeight: 32, fontSize: 12.5 }}>
                   <IconeRede id={id} tam={13} /> {REDE[id].nome}{r.textos?.[id] ? ' · ajustado' : ''}
                 </button>
               ))}
@@ -684,7 +700,7 @@ export default function CalendarioRedes() {
           <span style={{ fontSize: 12, color: T3 }}>Regra de ouro: mostrar gente real da região (cliente, técnico, operador). Sem material próprio, melhor não postar card genérico. Post de venda termina com o WhatsApp.</span>
         </Secao>
 
-        <Secao icone="fa-calendar-days" cor="#0284c7" titulo="Quando sai" sub="Sem data, fica guardado em Ideias">
+        <Secao icone="fa-calendar-days" titulo="Quando sai" sub="Sem data, fica guardado em Ideias">
           <div style={grade(180)}>
             <Campo rotulo="Dia"><input type="date" style={campoNP} value={r.data} onChange={(e) => setR({ ...r, data: e.target.value })} /></Campo>
             <Campo rotulo="Hora" ajuda="Melhores horários no agro: 7h, 12h e 19h."><input type="time" style={campoNP} value={r.hora} onChange={(e) => setR({ ...r, hora: e.target.value })} /></Campo>
@@ -692,26 +708,26 @@ export default function CalendarioRedes() {
         </Secao>
 
         {r.redes.length > 0 && (
-          <Secao icone="fa-paper-plane" cor="#16a34a" titulo="Postar" sub="Por enquanto pelo celular em 1 toque. Instagram e Facebook vão sair sozinhos quando a conta for ligada">
+          <Secao icone="fa-paper-plane" cor="var(--nt-bom, #2E7D4F)" titulo="Postar" sub="Por enquanto pelo celular em 1 toque. Instagram e Facebook vão sair sozinhos quando a conta for ligada">
             <div style={{ display: 'grid', gap: 8 }}>
               {/* Fase 3.5: post de preço/condição só sai depois de aprovado */}
               {r.etiqueta_tipo === 'promocao' && (
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '10px 12px', borderRadius: 12,
-                  background: r.aprovado_em ? 'color-mix(in srgb, #16a34a 8%, var(--surface))' : 'color-mix(in srgb, #d97706 10%, var(--surface))' }}>
+                  background: r.aprovado_em ? 'color-mix(in srgb, var(--nt-bom, #2E7D4F) 8%, var(--surface))' : 'color-mix(in srgb, var(--nt-atencao, #B7791F) 10%, var(--surface))' }}>
                   <span style={{ flex: '1 1 240px', fontSize: 13.5 }}>
                     {r.aprovado_em
                       ? <>{ic('fa-circle-check')} Aprovado por {r.aprovado_por} em {new Date(r.aprovado_em).toLocaleString('pt-BR', { timeZone: FUSO, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</>
                       : <>{ic('fa-hourglass-half')} <b style={{ fontWeight: 500 }}>Aguardando aprovação</b>: post de preço ou condição só sai depois de alguém aprovar.{!r.id && ' Grave o post primeiro.'}</>}
                   </span>
                   {podeAprovar && r.id && (r.aprovado_em
-                    ? <button type="button" style={bt('#64748b')} onClick={() => aprovar(false)}>Desfazer aprovação</button>
-                    : <button type="button" style={bt('#16a34a', true)} onClick={() => aprovar(true)}>{ic('fa-check')}Aprovar</button>)}
+                    ? <button type="button" style={bt(NEUTRO)} onClick={() => aprovar(false)}>Desfazer aprovação</button>
+                    : <button type="button" style={bt(BOM, true)} onClick={() => aprovar(true)}>{ic('fa-check')}Aprovar</button>)}
                 </div>
               )}
               {r.primeiro_comentario && (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 13 }}>
                   <span style={{ color: T2 }}>Depois de postar, cole o primeiro comentário:</span>
-                  <button type="button" style={bt('#0891b2')} onClick={() => navigator.clipboard.writeText(r.primeiro_comentario || '').catch(() => {})}>{ic('fa-copy')}Copiar comentário</button>
+                  <button type="button" style={bt(NEUTRO)} onClick={() => navigator.clipboard.writeText(r.primeiro_comentario || '').catch(() => {})}>{ic('fa-copy')}Copiar comentário</button>
                 </div>
               )}
               {/* 27/11/2026 (José: "melhora os botões de postar"): um cartão por rede, com 1 botão grande e o passo a passo */}
@@ -723,11 +739,11 @@ export default function CalendarioRedes() {
                 const sozinho = REDE[id].envio === 'automatico' && !!conta(id);
                 const cor = REDE[id].cor;
                 const quando = (iso?: string) => new Date(iso || '').toLocaleString('pt-BR', { timeZone: FUSO, day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-                const [rotulo, corRot] = rs?.ok ? ['Postado', '#16a34a'] : semArte ? [espera ? 'Espera aprovação' : 'Falta a arte', '#b45309'] : sozinho ? ['Sai sozinho', '#0284c7'] : ['Pronto para postar', cor];
+                const [rotulo, corRot] = rs?.ok ? ['Postado', BOM] : semArte ? [espera ? 'Espera aprovação' : 'Falta a arte', ATENCAO] : sozinho ? ['Sai sozinho', AZUL] : ['Pronto para postar', cor];
                 return (
                   <div key={id} style={{ display: 'grid', gap: 10, padding: '12px 14px', borderRadius: 14,
-                    border: `1px solid ${rs?.ok ? 'color-mix(in srgb, #16a34a 35%, var(--border))' : 'var(--border)'}`,
-                    background: rs?.ok ? 'color-mix(in srgb, #16a34a 6%, var(--surface))' : 'var(--surface)' }}>
+                    border: `1px solid ${rs?.ok ? 'color-mix(in srgb, var(--nt-bom, #2E7D4F) 35%, var(--border))' : 'var(--border)'}`,
+                    background: rs?.ok ? 'color-mix(in srgb, var(--nt-bom, #2E7D4F) 6%, var(--surface))' : 'var(--surface)' }}>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                       <IconeRede id={id} tam={22} />
                       <span style={{ fontSize: 15, fontWeight: 500, flex: 1, minWidth: 0 }}>{REDE[id].nome}</span>
@@ -735,14 +751,14 @@ export default function CalendarioRedes() {
                     </div>
                     {rs?.ok ? (
                       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 13, color: '#16a34a', flex: '1 1 180px' }}>{ic('fa-circle-check')} Saiu {rs.manual ? 'pelo celular' : 'sozinho'} em {quando(rs.em)}</span>
+                        <span style={{ fontSize: 13, color: BOM, flex: '1 1 180px' }}>{ic('fa-circle-check')} Saiu {rs.manual ? 'pelo celular' : 'sozinho'} em {quando(rs.em)}</span>
                         {rs.link
-                          ? <a href={rs.link} target="_blank" rel="noreferrer" style={{ ...bt('#16a34a'), minHeight: 36 }}>{ic('fa-arrow-up-right-from-square')}Ver o post</a>
-                          : <span style={{ fontSize: 12, color: '#b45309' }}>sem link</span>}
-                        {podeEditar && <button type="button" style={{ ...bt('#64748b'), minHeight: 36 }} onClick={() => marcar(id, false)}>{ic('fa-rotate-left')}Desmarcar</button>}
+                          ? <a href={rs.link} target="_blank" rel="noreferrer" style={{ ...bt(BOM), minHeight: 36 }}>{ic('fa-arrow-up-right-from-square')}Ver o post</a>
+                          : <span style={{ fontSize: 12, color: ATENCAO }}>sem link</span>}
+                        {podeEditar && <button type="button" style={{ ...bt(NEUTRO), minHeight: 36 }} onClick={() => marcar(id, false)}>{ic('fa-rotate-left')}Desmarcar</button>}
                       </div>
                     ) : semArte ? (
-                      <span style={{ fontSize: 13, color: '#b45309' }}>
+                      <span style={{ fontSize: 13, color: ATENCAO }}>
                         {ic('fa-circle-exclamation')} {espera ? 'Post de preço: alguém precisa aprovar (logo acima) antes de postar.' : 'Falta a arte desta rede. Coloque na parte Artes.'}
                       </span>
                     ) : (
@@ -751,27 +767,27 @@ export default function CalendarioRedes() {
                           style={{ ...bt(cor, true), minHeight: 48, fontSize: 15, width: '100%', justifyContent: 'center' }}>
                           {ic(copiado === id ? 'fa-rotate-right' : 'fa-paper-plane')}{copiado === id ? `Abrir o ${REDE[id].nome} de novo` : `Postar no ${REDE[id].nome}`}
                         </button>
-                        <span style={{ fontSize: 12.5, color: copiado === id ? '#16a34a' : T3, lineHeight: 1.45 }}>
+                        <span style={{ fontSize: 12.5, color: copiado === id ? BOM : T3, lineHeight: 1.45 }}>
                           {copiado === id
                             ? <>{ic('fa-check')} Texto copiado. No app, é só colar. Quando terminar, toque em <b style={{ fontWeight: 500 }}>Já postei</b>.</>
                             : sozinho ? 'Sai sozinho no dia e hora marcados. Se quiser postar antes, use o botão.'
                             : <>1. Toque no botão: o texto é copiado e o app abre com a arte. 2. Cole o texto e publique. 3. Volte e toque em <b style={{ fontWeight: 500 }}>Já postei</b>.</>}
                         </span>
                         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                          <button type="button" style={{ ...bt('#64748b'), minHeight: 36 }} onClick={() => { navigator.clipboard.writeText(textoDaRede(r, id)).then(() => setCopiado(id)).catch(() => {}); }}>{ic('fa-copy')}Copiar só o texto</button>
-                          {podeEditar && <button type="button" style={{ ...bt('#16a34a', linkPara === id), minHeight: 36 }} onClick={() => { setLinkPara(id); setLinkPost(''); }}>{ic('fa-check')}Já postei</button>}
+                          <button type="button" style={{ ...bt(NEUTRO), minHeight: 36 }} onClick={() => { navigator.clipboard.writeText(textoDaRede(r, id)).then(() => setCopiado(id)).catch(() => {}); }}>{ic('fa-copy')}Copiar só o texto</button>
+                          {podeEditar && <button type="button" style={{ ...bt(BOM, linkPara === id), minHeight: 36 }} onClick={() => { setLinkPara(id); setLinkPost(''); }}>{ic('fa-check')}Já postei</button>}
                         </div>
                       </>
                     )}
                     {/* Fase 3.1: pede o link do post (opcional, mas destacado) — sem ele o histórico manual vira dado morto */}
                     {linkPara === id && !rs?.ok && (
-                      <div style={{ display: 'grid', gap: 6, padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, #16a34a 7%, var(--surface))' }}>
+                      <div style={{ display: 'grid', gap: 6, padding: '10px 12px', borderRadius: 10, background: 'color-mix(in srgb, var(--nt-bom, #2E7D4F) 7%, var(--surface))' }}>
                         <span style={{ fontSize: 13 }}>Cole o <b style={{ fontWeight: 500 }}>link do post</b> no {REDE[id].nome}. Com ele, o portal puxa os números do post quando a conta for ligada.</span>
                         <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                           <input autoFocus style={{ ...campoNP, flex: '1 1 220px' }} placeholder="https://www.instagram.com/p/…" value={linkPost} onChange={(e) => setLinkPost(e.target.value.trim())}
                             onKeyDown={(e) => { if (e.key === 'Enter') marcar(id, true, linkPost); }} />
-                          <button type="button" style={bt('#16a34a', true)} disabled={!linkPost.startsWith('https://')} onClick={() => marcar(id, true, linkPost)}>Gravar com o link</button>
-                          <button type="button" style={bt('#64748b')} onClick={() => marcar(id, true)}>Sem link</button>
+                          <button type="button" style={bt(BOM, true)} disabled={!linkPost.startsWith('https://')} onClick={() => marcar(id, true, linkPost)}>Gravar com o link</button>
+                          <button type="button" style={bt(NEUTRO)} onClick={() => marcar(id, true)}>Sem link</button>
                         </span>
                       </div>
                     )}
@@ -786,11 +802,11 @@ export default function CalendarioRedes() {
 
         {/* barra de baixo grudada no fim da tela: Gravar sempre à mão */}
         <section style={{ ...cartaoNP, position: 'sticky', bottom: 10, zIndex: 5, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center',
-          boxShadow: '0 8px 28px rgba(15, 23, 42, .12)' }}>
-          {erroForm && <span style={{ flexBasis: '100%', color: '#dc2626', fontSize: 13 }}>{ic('fa-circle-exclamation')} {erroForm}</span>}
-          {podeEditar && <button style={{ ...bt('#d97706', true), minHeight: 46, fontSize: 15, padding: '8px 22px' }} disabled={salvando} onClick={() => salvar()}>{ic('fa-floppy-disk')}{salvando ? 'Gravando…' : r.id ? 'Gravar' : 'Pôr no calendário'}</button>}
-          <button style={{ ...bt('#64748b'), minHeight: 46 }} onClick={fechar}>{ic('fa-arrow-left')}Voltar sem gravar</button>
-          {podeEditar && r.id && <button style={{ ...bt('#dc2626'), minHeight: 46, marginLeft: 'auto' }} onClick={apagar}>{ic('fa-trash')}Apagar</button>}
+          boxShadow: '0 8px 28px rgba(43, 29, 23, .12)' }}>
+          {erroForm && <span style={{ flexBasis: '100%', color: MARCA, fontSize: 13 }}>{ic('fa-circle-exclamation')} {erroForm}</span>}
+          {podeEditar && <button style={{ ...bt(MARCA, true), minHeight: 46, fontSize: 15, padding: '8px 22px' }} disabled={salvando} onClick={() => salvar()}>{ic('fa-floppy-disk')}{salvando ? 'Gravando…' : r.id ? 'Gravar' : 'Pôr no calendário'}</button>}
+          <button style={{ ...bt(NEUTRO), minHeight: 46 }} onClick={fechar}>{ic('fa-arrow-left')}Voltar sem gravar</button>
+          {podeEditar && r.id && <button style={{ ...bt(MARCA), minHeight: 46, marginLeft: 'auto' }} onClick={apagar}>{ic('fa-trash')}Apagar</button>}
         </section>
       </div>
     );
@@ -835,10 +851,10 @@ export default function CalendarioRedes() {
           {/* resumo da semana em cartões (25/11/2026) */}
           {!rota.ano && posts && (
             <div style={grade(220)}>
-              {resumoCartao(0, 'fa-calendar-week', '#d97706', largo ? 'Esta semana' : 'Semana de hoje',
+              {resumoCartao(0, 'fa-calendar-week', NEUTRO, largo ? 'Esta semana' : 'Semana de hoje',
                 <>{postsSemana.length} post{postsSemana.length === 1 ? '' : 's'}</>,
                 postsSemana.length ? `${prontosSemana} pronto${prontosSemana === 1 ? '' : 's'} · ${postsSemana.length - prontosSemana} ainda em ideia` : 'Nenhum post marcado nesta semana')}
-              {resumoCartao(1, 'fa-calendar-xmark', vaziosSemana.length ? '#dc2626' : '#16a34a', 'Dias sem post',
+              {resumoCartao(1, 'fa-calendar-xmark', vaziosSemana.length ? MARCA : BOM, 'Dias sem post',
                 vaziosSemana.length ? <>{vaziosSemana.length} dia{vaziosSemana.length === 1 ? '' : 's'}</> : <>Nenhum {ic('fa-circle-check')}</>,
                 vaziosSemana.length ? `Próximo vazio: ${nomeDia(vaziosSemana[0], { weekday: 'long', day: '2-digit', month: '2-digit' })}` : 'Semana toda coberta',
                 podeEditar && vaziosSemana.length ? () => novoPost(vaziosSemana[0]) : undefined, 'Criar um post no próximo dia vazio')}
@@ -846,7 +862,7 @@ export default function CalendarioRedes() {
                 <>{proxAgro.nome}</>,
                 <><b style={{ fontWeight: 500, color: COR_PRIOR[proxAgro.prior] }}>{quandoFalta(proxAgro.d)}</b> ({nomeDia(proxAgro.d, { day: '2-digit', month: '2-digit' })}) · ainda sem post</>,
                 podeEditar ? () => novoPost(proxAgro.d, proxAgro) : undefined, 'Criar o post já com a ideia da data')}
-              {melhorDia && resumoCartao(3, 'fa-chart-line', '#7c3aed', 'Melhor dia para postar',
+              {melhorDia && resumoCartao(3, 'fa-chart-line', NEUTRO, 'Melhor dia para postar',
                 <>{melhorDia.nome}</>,
                 <>Em média {melhorDia.media.toLocaleString('pt-BR')} pessoas alcançadas nesse dia (números reais das redes)</>,
                 () => { window.location.href = '/marketing/acessos/todas'; }, 'Ver os números em Acessos')}
@@ -855,35 +871,35 @@ export default function CalendarioRedes() {
 
           <section style={{ ...cartaoNP, display: 'grid', gap: 12 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ display: 'inline-flex', padding: 4, borderRadius: 12, border: '1px solid var(--border)', gap: 4, background: 'var(--surface)' }}>
+              <span style={{ display: 'inline-flex', padding: 4, borderRadius: 999, gap: 4, background: SUP2 }}>
                 {([[false, largo ? 'Semana' : 'Mês', largo ? 'fa-calendar-week' : 'fa-calendar'], [true, 'Ano todo', 'fa-calendar-days']] as const).map(([v, nome, icone]) => (
                   <button key={nome} type="button" onClick={() => ir({ ano: v })}
                     style={{ font: 'inherit', fontSize: 14, fontWeight: 500, minHeight: 38, padding: '6px 16px', borderRadius: 9, border: 'none', cursor: 'pointer', display: 'inline-flex', gap: 7, alignItems: 'center',
-                      background: rota.ano === v ? '#d97706' : 'transparent', color: rota.ano === v ? '#fefefe' : T2 }}>{ic(icone)}{nome}</button>
+                      background: rota.ano === v ? 'var(--nt-superficie, #FFFFFF)' : 'transparent', color: rota.ano === v ? T1 : T2, boxShadow: rota.ano === v ? '0 1px 2px rgba(43,29,23,.08)' : 'none' }}>{ic(icone)}{nome}</button>
                 ))}
               </span>
               {rota.ano ? <span style={{ fontSize: 17 }}>Próximos 12 meses</span> : largo ? (
                 <>
-                  <button style={bt('#64748b')} onClick={() => irSemana(somaDias(semana, -7))} title="Semana anterior">{ic('fa-chevron-left')}Anterior</button>
+                  <button style={bt(NEUTRO)} onClick={() => irSemana(somaDias(semana, -7))} title="Semana anterior">{ic('fa-chevron-left')}Anterior</button>
                   <span style={{ fontSize: 17, minWidth: 210, textAlign: 'center' }}>
-                    {nomeDia(semana, { day: 'numeric', month: 'short' })} a {nomeDia(somaDias(semana, 6), { day: 'numeric', month: 'short', year: 'numeric' })}
+                    {nomeDia(semana, { day: 'numeric', month: 'short' })} a {nomeDia(somaDias(semana, 13), { day: 'numeric', month: 'short', year: 'numeric' })}
                   </span>
-                  <button style={bt('#64748b')} onClick={() => irSemana(somaDias(semana, 7))} title="Próxima semana">Próxima{ic('fa-chevron-right')}</button>
+                  <button style={bt(NEUTRO)} onClick={() => irSemana(somaDias(semana, 7))} title="Próxima semana">Próxima{ic('fa-chevron-right')}</button>
                   {semana !== segundaDe(hoje()) && <button style={bt(AZUL, true)} onClick={() => irSemana(segundaDe(hoje()))}>{ic('fa-location-crosshairs')}Voltar para hoje</button>}
-                  <button style={bt('#d97706')} onClick={() => setMesAberto(true)}>{ic('fa-calendar')}Ver o mês inteiro</button>
+                  <button style={bt(NEUTRO)} onClick={() => setMesAberto(true)}>{ic('fa-calendar')}Ver o mês inteiro</button>
                 </>
               ) : (
                 <>
-                  <button style={bt('#64748b')} onClick={mesAnt} title="Mês anterior">{ic('fa-chevron-left')}Anterior</button>
+                  <button style={bt(NEUTRO)} onClick={mesAnt} title="Mês anterior">{ic('fa-chevron-left')}Anterior</button>
                   <span style={{ fontSize: 17, minWidth: 170, textAlign: 'center', textTransform: 'capitalize' }}>{nomeMes(rota.mes)}</span>
-                  <button style={bt('#64748b')} onClick={mesProx} title="Próximo mês">Próximo{ic('fa-chevron-right')}</button>
+                  <button style={bt(NEUTRO)} onClick={mesProx} title="Próximo mês">Próximo{ic('fa-chevron-right')}</button>
                   {rota.mes !== hoje().slice(0, 7) && <button style={bt(AZUL, true)} onClick={() => ir({ mes: hoje().slice(0, 7) })}>{ic('fa-location-crosshairs')}Voltar para hoje</button>}
                 </>
               )}
               <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap', fontSize: 13, color: T3, alignItems: 'center' }}>
                 {(['ideia', 'pronto', 'publicado'] as StatusPost[]).map((k) => <span key={k} style={{ color: STATUS_POST[k].cor, padding: '4px 10px', borderRadius: 999, background: `color-mix(in srgb, ${STATUS_POST[k].cor} 10%, transparent)` }}>{ic(STATUS_POST[k].icone)} {STATUS_POST[k].nome}</span>)}
               </span>
-              {podeEditar && <button style={{ ...bt('#d97706', true), minHeight: 46, fontSize: 15, padding: '8px 20px' }} onClick={() => novoPost(vazios[0] || '')}>{ic('fa-plus')}Novo post</button>}
+              {podeEditar && <button style={{ ...bt(MARCA, true), minHeight: 46, fontSize: 15, padding: '8px 20px' }} onClick={() => novoPost(vazios[0] || '')}>{ic('fa-plus')}Novo post</button>}
             </div>
             {!rota.ano && temporadasDoMes(rota.mes).length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -894,13 +910,19 @@ export default function CalendarioRedes() {
                 ))}
               </div>
             )}
-            {posts === null ? <p>Carregando…</p> : rota.ano ? anoTodo() : largo ? grade7(semana) : agenda()}
-            {rota.ano && <span style={{ fontSize: 12, color: T3 }}><span style={{ color: '#16a34a' }}>●</span> dia com post · <span style={{ color: '#dc2626' }}>○</span> data obrigatória · <span style={{ color: '#2563eb' }}>○</span> data boa. Toque num mês para abrir.</span>}
+            {posts === null ? <p>Carregando…</p> : rota.ano ? anoTodo() : largo
+              // 27/11/2026 (José): calendário único em faixas (datas do agro, campanhas, promoções e posts), arrasta para mudar a data
+              ? <CalendarioFaixas inicio={semana} posts={posts} podeEditar={podeEditar}
+                  onAbrirPost={(id) => { const p = posts.find((x) => x.id === id); if (p) abrirPost(p); }}
+                  onNovoPost={(dia) => novoPost(dia)} onMoverPost={mover}
+                  onDataAgro={(dia, nome) => { if (podeEditar) novoPost(dia, DATAS_AGRO.find((x) => x.d === dia && x.nome === nome) || null); }} />
+              : agenda()}
+            {rota.ano && <span style={{ fontSize: 12, color: T3 }}><span style={{ color: BOM }}>●</span> dia com post · <span style={{ color: MARCA }}>○</span> data obrigatória · <span style={{ color: AZUL }}>○</span> data boa. Toque num mês para abrir.</span>}
             {!rota.ano && largo && podeEditar && (
               <span style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12.5, color: T2 }}>
                 <span>{ic('fa-hand-pointer')} Toque num dia para criar um post</span>
                 <span>{ic('fa-up-down-left-right')} Arraste um post para mudar o dia</span>
-                <span style={{ color: '#dc2626' }}>{ic('fa-wheat-awn')} Data do agro: tocar cria o post já com a ideia</span>
+                <span style={{ color: MARCA }}>{ic('fa-wheat-awn')} Data do agro: tocar cria o post já com a ideia</span>
               </span>
             )}
           </section>
@@ -908,21 +930,21 @@ export default function CalendarioRedes() {
           {/* O mês inteiro, num modal por cima da semana */}
           {mesAberto && largo && !rota.ano && (
             <div onClick={fecharMes} onKeyDown={(e) => e.key === 'Escape' && fecharMes()} tabIndex={-1}
-              style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15, 23, 42, .45)', display: 'grid', placeItems: 'center', padding: 16 }}>
+              style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(43, 29, 23, .45)', display: 'grid', placeItems: 'center', padding: 16 }}>
               <div onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Calendário do mês"
                 style={{ ...cartaoNP, width: 'min(1200px, 100%)', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', display: 'grid', gap: 12 }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button style={bt('#64748b')} onClick={mesAnt} title="Mês anterior">{ic('fa-chevron-left')}Anterior</button>
+                  <button style={bt(NEUTRO)} onClick={mesAnt} title="Mês anterior">{ic('fa-chevron-left')}Anterior</button>
                   <span style={{ fontSize: 17, minWidth: 170, textAlign: 'center', textTransform: 'capitalize' }}>{nomeMes(rota.mes)}</span>
-                  <button style={bt('#64748b')} onClick={mesProx} aria-label="Próximo mês">{ic('fa-chevron-right')}</button>
-                  <button style={{ ...bt('#64748b'), marginLeft: 'auto' }} onClick={fecharMes} aria-label="Fechar">{ic('fa-xmark')}Fechar</button>
+                  <button style={bt(NEUTRO)} onClick={mesProx} aria-label="Próximo mês">{ic('fa-chevron-right')}</button>
+                  <button style={{ ...bt(NEUTRO), marginLeft: 'auto' }} onClick={fecharMes} aria-label="Fechar">{ic('fa-xmark')}Fechar</button>
                 </div>
                 {grade7()}
               </div>
             </div>
           )}
 
-          <Secao icone="fa-wheat-awn" cor="#dc2626" titulo={proximasAgro.length ? `${proximasAgro.filter((x) => !porDia.get(x.d)?.length).length} das ${proximasAgro.length} datas do agro dos próximos 60 dias ainda sem post` : 'Nenhuma data importante nos próximos 60 dias'}
+          <Secao icone="fa-wheat-awn" cor="var(--nt-marca, #D7262C)" titulo={proximasAgro.length ? `${proximasAgro.filter((x) => !porDia.get(x.d)?.length).length} das ${proximasAgro.length} datas do agro dos próximos 60 dias ainda sem post` : 'Nenhuma data importante nos próximos 60 dias'}
             sub="Obrigatórias: planejar 2 a 3 semanas antes, de preferência com vídeo ou foto própria">
             {/* 25/11/2026: cada data vira um cartão com contagem regressiva, lado a lado */}
             <div style={grade(260)}>
@@ -933,10 +955,10 @@ export default function CalendarioRedes() {
                 return (
                   <div key={x.d + x.nome} className="np-entra np-sobe"
                     style={{ ...cartaoNP, display: 'grid', gap: 10, alignContent: 'start', animationDelay: `${Math.min(i, 8) * 60}ms`,
-                      borderColor: `color-mix(in srgb, ${cor} ${tem.length ? 20 : 40}%, transparent)`, borderTop: `4px solid ${tem.length ? '#16a34a' : cor}` }}>
+                      borderColor: `color-mix(in srgb, ${cor} ${tem.length ? 20 : 40}%, transparent)`, borderTop: `4px solid ${tem.length ? BOM : cor}` }}>
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                      <span style={{ width: 62, height: 62, flex: 'none', borderRadius: 16, display: 'grid', placeItems: 'center', alignContent: 'center', color: '#fefefe',
-                        background: tem.length ? '#16a34a' : `linear-gradient(145deg, ${cor}, color-mix(in srgb, ${cor} 70%, #000))` }}>
+                      <span style={{ width: 62, height: 62, flex: 'none', borderRadius: 16, display: 'grid', placeItems: 'center', alignContent: 'center', color: '#FFFFFF',
+                        background: tem.length ? BOM : `linear-gradient(145deg, ${cor}, color-mix(in srgb, ${cor} 70%, #000))` }}>
                         <span style={{ fontSize: faltam > 0 ? 22 : 15, fontWeight: 600, lineHeight: 1 }}>{faltam > 0 ? faltam : 'hoje'}</span>
                         {faltam > 0 && <span style={{ fontSize: 10.5, opacity: 0.9 }}>{faltam === 1 ? 'dia' : 'dias'}</span>}
                       </span>
@@ -947,8 +969,8 @@ export default function CalendarioRedes() {
                         </span>
                         <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 999, color: cor, background: `color-mix(in srgb, ${cor} 12%, transparent)` }}>{NOME_PRIOR[x.prior]}</span>
-                          {x.confirmar && <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 999, color: '#b45309', background: 'color-mix(in srgb, #b45309 12%, transparent)' }}>confirmar a data</span>}
-                          {tem.length > 0 && <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 999, color: '#16a34a', background: 'color-mix(in srgb, #16a34a 12%, transparent)' }}>{ic('fa-check')} tem post</span>}
+                          {x.confirmar && <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 999, color: ATENCAO, background: 'color-mix(in srgb, var(--nt-atencao, #B7791F) 12%, transparent)' }}>confirmar a data</span>}
+                          {tem.length > 0 && <span style={{ fontSize: 11.5, padding: '2px 8px', borderRadius: 999, color: BOM, background: 'color-mix(in srgb, var(--nt-bom, #2E7D4F) 12%, transparent)' }}>{ic('fa-check')} tem post</span>}
                         </span>
                       </span>
                     </div>
@@ -967,11 +989,11 @@ export default function CalendarioRedes() {
             </div>
           </Secao>
 
-          <Secao icone="fa-lightbulb" cor="#64748b" titulo={`Ideias sem data (${ideias.length})`} sub="Posts guardados para quando faltar assunto. Abra e escolha o dia">
+          <Secao icone="fa-lightbulb" cor="var(--nt-texto-2, #6B5547)" titulo={`Ideias sem data (${ideias.length})`} sub="Posts guardados para quando faltar assunto. Abra e escolha o dia">
             {ideias.length ? (
               <div style={grade(240)}>{ideias.map((p) => chipPost(p, false))}</div>
             ) : <span style={{ fontSize: 13, color: T3 }}>Nenhuma ideia guardada. Em “Novo post”, deixe o dia em branco para guardar aqui.</span>}
-            {podeEditar && <button style={{ ...bt('#64748b'), width: 'fit-content' }} onClick={() => novoPost('')}>{ic('fa-plus')}Guardar uma ideia</button>}
+            {podeEditar && <button style={{ ...bt(NEUTRO), width: 'fit-content' }} onClick={() => novoPost('')}>{ic('fa-plus')}Guardar uma ideia</button>}
           </Secao>
         </>
       )}

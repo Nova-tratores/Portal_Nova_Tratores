@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // =============================================================================
 // Radar dos concorrentes no Instagram (27/11/2026). José: "preciso de uma engine ou robô inteligente para fazer
 // métricas com o que eles postam e comparar com o nosso" · "a constância, quantidade de post por mês, feed e stories,
@@ -122,7 +123,7 @@ export type Metricas = {
   porMes: { mes: string; feed: number; carrossel: number; reels: number; total: number; stories: number | null }[]
   posts30: number; porSemana: number
   /** % das últimas 12 semanas com pelo menos 1 post */
-  constancia: number; diasEntrePosts: number | null; maiorPausa: number | null; diasSemPostar: number | null
+  constancia: number; semanas: number[]; diasEntrePosts: number | null; maiorPausa: number | null; diasSemPostar: number | null
   mix: { foto: number; carrossel: number; reels: number }   // % dos posts dos últimos 90 dias
   mediaCurtidas: number | null; mediaComentarios: number | null
   /** (curtidas + comentários) ÷ seguidores, por post, em % */
@@ -155,8 +156,9 @@ export function calcular(r: Rival, posts: PostRival[], historico: { dia: string;
   }
 
   // constância: semanas (últimas 12) com post; intervalo médio e maior pausa (90 dias)
-  let semanasCom = 0
-  for (let w = 0; w < 12; w++) if (ps.some((p) => { const t = agora - new Date(p.quando).getTime(); return t >= w * 7 * 864e5 && t < (w + 1) * 7 * 864e5 })) semanasCom++
+  // posts em cada uma das últimas 12 semanas (da mais antiga para a atual) — a tira de quadradinhos da tela
+  const semanas = Array.from({ length: 12 }, (_, i) => { const w = 11 - i; return ps.filter((p) => { const t = agora - new Date(p.quando).getTime(); return t >= w * 7 * 864e5 && t < (w + 1) * 7 * 864e5 }).length })
+  const semanasCom = semanas.filter((x) => x > 0).length
   const intervalos: number[] = []
   for (let i = 0; i + 1 < p90.length; i++) intervalos.push((new Date(p90[i].quando).getTime() - new Date(p90[i + 1].quando).getTime()) / 864e5)
 
@@ -185,7 +187,7 @@ export function calcular(r: Rival, posts: PostRival[], historico: { dia: string;
     username: r.username, nome: r.nome, tipo: r.tipo, foto: r.foto, erro: r.erro, coletado_em: r.coletado_em,
     seguidores: r.seguidores, cresc7: segDe(7), cresc30: segDe(30),
     porMes, posts30: p30.length, porSemana: Math.round((p90.length / (90 / 7)) * 10) / 10,
-    constancia: Math.round((semanasCom / 12) * 100),
+    constancia: Math.round((semanasCom / 12) * 100), semanas,
     diasEntrePosts: intervalos.length ? Math.round(media(intervalos)! * 10) / 10 : null,
     maiorPausa: intervalos.length ? Math.round(Math.max(...intervalos)) : null,
     diasSemPostar: ps[0] ? Math.floor((agora - new Date(ps[0].quando).getTime()) / 864e5) : null,
@@ -217,24 +219,27 @@ export async function painelRivais() {
 }
 
 // ---------------------------------------------------------------------------- análise da IA
+/** 27/11/2026 (José: "muito massivo, preciso de algo mais dinâmico"): cada item vem curto, com o número em destaque,
+ *  para virar cartão na tela. Os campos antigos (resumo longo, o_que, nova_comparada) ficam opcionais: análises velhas ainda abrem. */
 export type Analise = {
+  manchete?: string
   resumo: string
-  destaques: { quem: string; o_que: string }[]
-  o_que_funciona: string[]
-  nova_comparada: string
+  destaques: { quem: string; titulo?: string; numero?: string; o_que: string; link?: string }[]
+  o_que_funciona: (string | { titulo: string; numero: string; detalhe: string })[]
+  nova_comparada?: string
+  nova?: { forte: string; forte_numero: string; fraco: string; fraco_numero: string; recado: string }
   ideias_para_nova: { ideia: string; por_que: string }[]
 }
-const MOLDE = {
-  type: 'object', additionalProperties: false,
-  required: ['resumo', 'destaques', 'o_que_funciona', 'nova_comparada', 'ideias_para_nova'],
-  properties: {
-    resumo: { type: 'string' },
-    destaques: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['quem', 'o_que'], properties: { quem: { type: 'string' }, o_que: { type: 'string' } } } },
-    o_que_funciona: { type: 'array', items: { type: 'string' } },
-    nova_comparada: { type: 'string' },
-    ideias_para_nova: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['ideia', 'por_que'], properties: { ideia: { type: 'string' }, por_que: { type: 'string' } } } },
-  },
-} as const
+const obj = (campos: Record<string, unknown>) => ({ type: 'object', additionalProperties: false, required: Object.keys(campos), properties: campos })
+const S = { type: 'string' }
+const MOLDE = obj({
+  manchete: S,
+  resumo: S,
+  destaques: { type: 'array', items: obj({ quem: S, titulo: S, numero: S, o_que: S, link: S }) },
+  o_que_funciona: { type: 'array', items: obj({ titulo: S, numero: S, detalhe: S }) },
+  nova: obj({ forte: S, forte_numero: S, fraco: S, fraco_numero: S, recado: S }),
+  ideias_para_nova: { type: 'array', items: obj({ ideia: S, por_que: S }) },
+})
 
 const segundaDe = (d: Date) => { const x = new Date(`${diaSP(d)}T12:00:00-03:00`); x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7)); return x.toISOString().slice(0, 10) }
 
@@ -252,7 +257,7 @@ export async function analisarRivais(): Promise<{ resumo: string }> {
     `média por post (30 dias): ${m.mediaCurtidas} curtidas, ${m.mediaComentarios} comentários; engajamento ${m.engajamento}% dos seguidores`,
     `engajamento médio por tipo: ${m.engajamentoPorTipo.map((t) => `${t.tipo} ${t.media} (${t.n} posts)`).join(', ')}`,
     `melhor dia: ${m.melhorDia ?? '?'}; melhor hora: ${m.melhorHora ?? '?'}`,
-    `posts que mais deram resultado:\n${m.top.slice(0, 4).map((p) => `  - ${p.quando.slice(0, 10)} ${p.tipo} ${p.curtidas}♥ ${p.comentarios}💬: ${(p.legenda || '').replace(/\s+/g, ' ').slice(0, 300)}`).join('\n')}`,
+    `posts que mais deram resultado:\n${m.top.slice(0, 4).map((p) => `  - ${p.quando.slice(0, 10)} ${p.tipo} ${p.curtidas}♥ ${p.comentarios}💬: ${(p.legenda || '').replace(/\s+/g, ' ').slice(0, 300)} (link: ${p.link || ''})`).join('\n')}`,
   ].join('\n')
 
   const ia = new Anthropic()
@@ -263,11 +268,13 @@ export async function analisarRivais(): Promise<{ resumo: string }> {
     system: `Você é analista de marketing digital da Nova Tratores, concessionária Mahindra em Piraju/SP (interior, produtor rural pequeno e médio).
 Recebe as métricas públicas do Instagram dos concorrentes (marcas de tratores e revendas) e da própria Nova.
 Escreva em português do Brasil, frases curtas e diretas, para um dono de empresa que não é do marketing. Sem jargão (se usar "engajamento", explique uma vez: curtidas e comentários por seguidor).
-- resumo: 3 a 5 frases sobre o que aconteceu no último mês entre os concorrentes.
-- destaques: 3 a 6 itens, um por concorrente que fez algo que vale olhar (campanha, lançamento, formato que bombou), citando números.
+Vai virar CARTÕES numa tela: seja curto. Cada "titulo" até 7 palavras; cada "numero" é o dado em destaque, curto (ex.: "5.588 curtidas", "20× a média", "100% das semanas"); "detalhe"/"o_que" até 25 palavras.
+- manchete: UMA frase de até 18 palavras, o mais importante do mês.
+- resumo: 2 a 3 frases.
+- destaques: 3 a 6, um por concorrente que fez algo que vale olhar (campanha, lançamento, formato que bombou). "quem" = nome do concorrente como nos dados. "link" = o link do post citado, copiado exatamente dos dados, ou "" se não for um post.
 - o_que_funciona: 3 a 5 padrões que deram mais resultado (formato, assunto, dia, frequência).
-- nova_comparada: 2 a 4 frases comparando a Nova com eles, com números, honesto. Lembre que marcas nacionais têm muito mais seguidores: compare taxa e constância, não tamanho.
-- ideias_para_nova: 3 a 5 ideias práticas que a Nova consegue fazer com celular e a equipe dela, cada uma com o porquê.
+- nova: o ponto forte e o ponto fraco da Nova comparada a eles (marcas nacionais têm muito mais seguidores: compare taxa e constância, não tamanho), cada um com seu número; recado = 1 frase do que fazer primeiro.
+- ideias_para_nova: 3 a 5 ideias práticas que a Nova consegue fazer com celular e a equipe dela. ideia até 12 palavras; por_que até 20.
 Não invente número que não está nos dados.`,
     messages: [{ role: 'user', content: comDados.map(linha).join('\n\n') }],
   })
@@ -292,3 +299,45 @@ export async function rodarRadar(): Promise<{ resumo: string }> {
   }
   return { resumo: `${c.resumo}${c.erros.length ? ` · erros: ${c.erros.join(' | ')}` : ''}${extra}` }
 }
+
+// ---------------------------------------------------------------------------- "Fazer a nossa versão"
+/** 27/11/2026 (José): botão no mural do radar. Cria uma IDEIA no calendário (sem data) com o post do concorrente
+ *  anexado como referência: a imagem é copiada para o nosso armazenamento (o link do Instagram vence em dias) e
+ *  vai em midia.referencia; o texto, o link e os números vão nas anotações. Devolve o id do post novo. */
+export async function nossaVersao(postId: string, por: string): Promise<string> {
+  const { data: p, error } = await sb.from('mkt_rivais_posts').select('*').eq('id', postId).maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!p) throw new Error('Post de referência não encontrado.')
+  const ref = p as PostRival
+  const { data: quem } = await sb.from('mkt_rivais').select('nome').eq('username', ref.username).maybeSingle()
+  const nome = (quem as { nome?: string } | null)?.nome || `@${ref.username}`
+
+  let imagem: string | null = null
+  if (ref.imagem) {
+    try {
+      const r = await fetch(ref.imagem, { signal: AbortSignal.timeout(20_000) })
+      if (r.ok) {
+        const caminho = `referencias/${ref.username}-${ref.id}.jpg`
+        const { error: e } = await sb.storage.from('site-produtos').upload(caminho, Buffer.from(await r.arrayBuffer()), { contentType: r.headers.get('content-type') || 'image/jpeg', upsert: true })
+        if (!e) imagem = sb.storage.from('site-produtos').getPublicUrl(caminho).data.publicUrl
+      }
+    } catch { /* sem imagem: segue com o link */ }
+  }
+  const tipo = ref.tipo === 'REELS' || ref.tipo === 'VIDEO' ? 'reels' : ref.tipo === 'CARROSSEL' ? 'carrossel' : 'feed'
+  const dia = new Date(ref.quando).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+  const notas = [
+    `NOSSA VERSÃO de um post de ${nome} (${dia}, ${ref.tipo?.toLowerCase() || 'post'}): ${n(ref.curtidas)} curtidas, ${n(ref.comentarios)} comentários.`,
+    ref.link ? `Ver o original: ${ref.link}` : '',
+    ref.legenda ? `Texto deles: ${ref.legenda.replace(/\s+/g, ' ').slice(0, 450)}` : '',
+    'Fazer do jeito da Nova: com trator Mahindra, gente da região e o nosso WhatsApp.',
+  ].filter(Boolean).join('\n\n').slice(0, 1000)
+  const titulo = `Nossa versão: ${(ref.legenda || nome).replace(/\s+/g, ' ').replace(/#\S+/g, '').trim().slice(0, 80)}`
+  const post = { titulo: titulo.slice(0, 120), legenda: '', redes: ['instagram', 'facebook', 'tiktok', 'youtube'], formato: tipo, midia: imagem ? { referencia: imagem } : {},
+    quando: null, status: 'ideia', resultado: {}, notas, criado_por: por, atualizado_por: por }
+  let r = await sb.from('site_posts').insert(post).select('id').single()
+  // formato 'carrossel' fora da lista do banco: grava como feed
+  if (r.error && /formato/.test(r.error.message)) r = await sb.from('site_posts').insert({ ...post, formato: 'feed' }).select('id').single()
+  if (r.error) throw new Error(`criar a ideia: ${r.error.message}`)
+  return String(r.data.id)
+}
+const n = (x: number | null | undefined) => (x == null ? '?' : x.toLocaleString('pt-BR'))
