@@ -927,9 +927,11 @@ export async function alterarRecebimentoCabec(conta: Conta, args: AlterarCabecAr
   }
   if (observacoes != null) param.observacoes = { cObs: String(observacoes) };
   if (parcelasEditar && Array.isArray(parcelasEditar.lista) && parcelasEditar.lista.length > 0) {
+    const cCodParcela = String(parcelasEditar.cCodParcela || '999');
     param.parcelasEditar = {
-      cCodParcela: String(parcelasEditar.cCodParcela || '999'),
-      nQtdParcela: Number(parcelasEditar.nQtdParcela) || parcelasEditar.lista.length,
+      cCodParcela,
+      // a Omie recusa nQtdParcela quando cCodParcela ≠ '999' (caso do CT-e 2739769, à vista '000')
+      ...(cCodParcela === '999' ? { nQtdParcela: Number(parcelasEditar.nQtdParcela) || parcelasEditar.lista.length } : {}),
       parcelasListaEditar: parcelasEditar.lista.map((p) => ({
         dVencimento: String(p.dVencimento),
         nSequencia: Number(p.nSequencia),

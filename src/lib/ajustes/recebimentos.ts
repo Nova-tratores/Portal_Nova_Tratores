@@ -13,11 +13,12 @@ import { supabase } from './supabase';
 import * as cache from './cache';
 import { getConfig } from './config';
 import { analisarRecebimentosPendentes } from './analise';
-import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto, listarRecebimentos, formatarCfopEntrada, consultarObservacaoReceb, omieRequest } from './omie';
+import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto, listarRecebimentos, formatarCfopEntrada, consultarObservacaoReceb, omieRequest, consultarRecebimentoFinanceiro } from './omie';
 import { payloadProdutoProprio, validarLista, normalizarCodigo, codigoIntegracao, type ProdutoProprio } from './produto-proprio-recebimento';
 import type { AlterarCabecArgs } from './omie';
 import { hoje, addDias, fmtBR, parseAnyDate } from './dates';
 import { agruparCorrecoes, ehCte } from './recebimento-regras';
+import { notaDaCargaPorFrete, conferirFrete } from './frete-vinculo-server';
 import { aplicarPrecosVenda, type PrecoPedido, type PrecoResultado } from '@/lib/estoque/preco-venda-entrada-server';
 
 // Janela "grande" fixa: pendentes desde 01/11/2022 ate hoje (pedido do usuario).
@@ -229,6 +230,35 @@ export async function enriquecerResponsaveis(conta: Conta, recebimentos: any[]):
       r.responsavelUserId = padrao ? padrao.userId : null;
       r.responsavelNome = padrao ? padrao.nome : null;
       r.responsavelAutomatico = !!(padrao && padrao.userId);
+    }
+  }
+
+  // Frete (CT-e) sem responsável escolhido à mão herda o da NOTA DE PRODUTO da carga
+  // (decisão 27/11/2026): a ligada na aba Frete, senão a única candidata do remetente.
+  const fretes = recebimentos.filter((r) => ehCte(r.chaveNFe) && !manual[Number(r.idReceb)]?.userId);
+  if (fretes.length) {
+    const nfDe = await notaDaCargaPorFrete(low, fretes.map((r) => ({
+      idReceb: Number(r.idReceb), remetenteCnpj: r.remetenteCnpj ?? null, chave: r.chaveNFe ?? null,
+      emissao: r.dataEmissao ?? r.emissao ?? null,
+    })));
+    const nfIds = [...new Set(nfDe.values())];
+    if (nfIds.length) {
+      const { data } = await supabase.from('recebimento_meta').select('id_receb,tipo,responsavel_user_id,responsavel')
+        .eq('conta_omie', low).in('id_receb', nfIds);
+      const meta = new Map(((data || []) as any[]).map((m) => [Number(m.id_receb), m]));
+      for (const r of fretes) {
+        const nf = nfDe.get(Number(r.idReceb));
+        if (!nf) continue;
+        const m = meta.get(nf);
+        const resp = m?.responsavel_user_id
+          ? { userId: m.responsavel_user_id, nome: m.responsavel || null }
+          : mapaTipo[m?.tipo || 'pecas'] || mapaTipo.pecas || null;
+        if (!resp?.userId) continue;
+        r.responsavelUserId = resp.userId;
+        r.responsavelNome = resp.nome;
+        r.responsavelAutomatico = true;
+        r.notaDaCarga = nf;
+      }
     }
   }
 }
@@ -614,6 +644,10 @@ export interface DarEntradaArgs {
   numeroNFe?: string | null;
   /** CT-e: CFOP de entrada do cabeçalho (padrão CFOP_CTE_PADRAO). */
   cfopCte?: string | null;
+  /** CT-e: notas de produto da carga (idReceb) escolhidas na janela; sem elas vale o que está salvo. */
+  freteNfes?: number[] | null;
+  /** CT-e sem nota de produto no portal: o motivo (mín. 5 letras). */
+  freteSemNota?: string | null;
 }
 
 /** CFOP de entrada que a equipe usa nos CT-e (frete) recebidos. */
@@ -811,16 +845,41 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
   // cabeçalho. 1.350 é o que a equipe usa (45 de 48 CT-e recebidos à mão, NOVA e CASTRO,
   // de SP e de fora — lido em 26/11/2026). Falhar aqui = parar: sem ele o concluir é recusado.
   const cfopCte = ehCte(chaveNFe) ? (b.cfopCte || CFOP_CTE_PADRAO) : null;
+  // CT-e só entra DEPOIS da nota de produto da carga, e com data de registro ≥ a dela
+  // (a Omie soma o frete no custo pela data de registro; antes da NF, com estoque zerado, some).
+  let infoAdicionaisFinal = b.infoAdicionais ?? null;
+  let freteTrava: any = null;
+  if (cfopCte) {
+    if (idReceb == null) throw new Error('CT-e: informe o idReceb');
+    freteTrava = await conferirFrete(conta, Number(idReceb), {
+      nfes: b.freteNfes ?? null, semNotaMotivo: b.freteSemNota ?? null,
+      dRegistroCte: b.infoAdicionais?.dRegistro || null,
+      autor: { nome: b.userNome ?? b.criadoPor ?? null, id: b.userId ?? null },
+    });
+    if (!freteTrava.ok) throw new Error(freteTrava.erro);
+    if (freteTrava.ajustada) {
+      // infoAdicionais é tudo-ou-nada: categoria + conta + data. Sem elas na janela, usa as do CT-e.
+      let base = infoAdicionaisFinal;
+      if (!base?.cCategCompra || !base?.nIdConta) {
+        const fin = await consultarRecebimentoFinanceiro(conta, idReceb);
+        base = { ...(base || {}), cCategCompra: base?.cCategCompra || fin.categoria || '', nIdConta: base?.nIdConta || fin.nIdConta || 0, dRegistro: '' } as any;
+      }
+      if (!base?.cCategCompra || !base?.nIdConta) {
+        throw new Error(`A data de registro do frete precisa ser ${freteTrava.dRegistro} (a da nota da carga), e a Omie só aceita trocar a data junto com categoria e conta corrente: preencha as duas em "Financeiro / Classificação".`);
+      }
+      infoAdicionaisFinal = { ...(base as any), dRegistro: freteTrava.dRegistro };
+    }
+  }
   if (cfopCte) {
     await alterarRecebimentoCabec(conta, { idReceb, chaveNFe, cteCfopEntrada: cfopCte });
   }
 
   let cabecAlterado: any = null;
-  if (b.infoAdicionais || observacoesFinal != null || b.parcelas) {
+  if (infoAdicionaisFinal || observacoesFinal != null || b.parcelas) {
     try {
       cabecAlterado = await alterarRecebimentoCabec(conta, {
         idReceb, chaveNFe,
-        infoAdicionais: b.infoAdicionais ?? null,
+        infoAdicionais: infoAdicionaisFinal,
         observacoes: observacoesFinal ?? null,
         parcelasEditar: b.parcelas ?? null,
       });
@@ -828,6 +887,10 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
       // nao aborta a entrada por causa dos campos financeiros; propaga aviso no retorno
       cabecAlterado = { ok: false, erro: e?.message || String(e) };
     }
+  }
+  // frete: a data de registro ajustada é a trava — sem ela, não conclui
+  if (freteTrava?.ajustada && cabecAlterado?.ok === false) {
+    throw new Error(`Não deu para mudar a data de registro do frete para ${freteTrava.dRegistro} (a da nota da carga): ${cabecAlterado.erro}`);
   }
 
   const r = await concluirRecebimento(conta, { idReceb, chaveNFe });
@@ -898,5 +961,5 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
     resultado: { idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados: associados.length, cabec: cabecAlterado },
   });
 
-  return { ok: true, idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados, cabec: cabecAlterado, precos, precosErro, produtosCriados };
+  return { ok: true, idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados, cabec: cabecAlterado, precos, precosErro, produtosCriados, frete: freteTrava ? { dRegistro: freteTrava.dRegistro, ajustada: freteTrava.ajustada, notas: freteTrava.ligadas.map((n: any) => n.numero || n.idReceb) } : null };
 }

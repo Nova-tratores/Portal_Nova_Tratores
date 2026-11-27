@@ -19,6 +19,8 @@ import { descricaoSugerida, validarLista } from '@/lib/ajustes/produto-proprio-r
 import SepararMaquinas from '@/components/estoque/SepararMaquinas';
 import ModalRetornoGarantia from '@/components/garantias/ModalRetornoGarantia';
 import { fatorDoTipo, sugerirPreco } from '@/lib/estoque/preco-venda-entrada';
+import { FretesDaNotaAba, NotaDaCarga, type FreteItem, type EscolhaCte } from '@/components/estoque/FreteDaNota';
+import FretesForaDoCusto from '@/components/estoque/FretesForaDoCusto';
 
 // nota revertida com pagamentos guardados para relançar (recebimento_reversoes)
 interface ReversaoPendente { id: string; idReceb: number; numeroNfe: string | null; fornecedor: string | null; status: string; criadoEm: string; quem: string | null; aRelancar: number; valorARelancar: number }
@@ -244,6 +246,7 @@ export default function RecebimentosPage() {
 
   // aba: Pendentes (espelho, Faturada) · Concluídos (espelho, Recebida) · Entradas feitas (log do portal)
   const [aba, setAba] = useState<'pendentes' | 'concluidos' | 'entradas'>('pendentes');
+  const [abrirFretes, setAbrirFretes] = useState(false); // ?fretes=1 (link do sino da varredura)
   const [dados, setDados] = useState<{ recebimentos: Recebimento[]; atualizadoEm: string | null; reversoes: ReversaoPendente[] } | null>(null);
   const [reabrirAlvo, setReabrirAlvo] = useState<Recebimento | null>(null);
   // devolução em garantia (remessa de retorno 5.949/6.949 da nota da fábrica)
@@ -297,6 +300,7 @@ export default function RecebimentosPage() {
       const idade = sp.get('idade');
       if (idade === 'esquecidas') setIdadeFiltro('esquecida');
       else if (idade === 'antigas') setIdadeFiltro('antiga');
+      if (sp.get('fretes') === '1') setAbrirFretes(true);
     } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -590,6 +594,8 @@ export default function RecebimentosPage() {
           )}
 
           <SepararMaquinas onAviso={(msg, tipo) => (tipo === 'ok' ? setAviso(msg) : setErro(msg))} />
+
+          <FretesForaDoCusto key={`${conta}-${abrirFretes}`} conta={conta} abrir={abrirFretes} />
 
           {aba === 'pendentes' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
@@ -1370,6 +1376,11 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
 
   // 2a fase: correcao do CMC distorcido por garantia
   const [fase, setFase] = useState<'entrada' | 'correcao'>('entrada');
+  // aba "Frete (CT-e)" da nota de produto + "Nota da carga" do CT-e (27/11/2026)
+  const [abaModal, setAbaModal] = useState<'nota' | 'frete'>('nota');
+  const [fretesMarcados, setFretesMarcados] = useState<FreteItem[]>([]);
+  const [qtdFretes, setQtdFretes] = useState<number | null>(null);
+  const [escolhaCte, setEscolhaCte] = useState<EscolhaCte>({ nfes: [], semNota: '' });
   // itens associados a um produto existente que baixaram o CMC entram na correcao
   // junto com os de garantia (o backend projeta o impacto ANTES de concluir).
   const [riscosExtra, setRiscosExtra] = useState<ItemReceb[]>([]);
@@ -1513,6 +1524,10 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
   };
 
   const confirmar = async () => {
+    if (r.cte && !escolhaCte.nfes.length && escolhaCte.semNota.trim().length < 5) {
+      alert('Diga de qual nota de produto é este frete (bloco "Nota da carga"), ou marque "Este frete não tem nota de produto" e explique o motivo.');
+      return;
+    }
     // valida os itens marcados p/ associar (produto obrigatorio)
     const errosMeus = validarLista((r.itens || []).flatMap((it, i) => (acaoDe(it, i) === 'meu_codigo'
       ? [{ codigo: meus[i]?.codigo || '', descricao: meus[i]?.descricao || '', rotulo: `"${it.descricaoProduto || it.codigoProdutoInt || i + 1}"` }] : [])));
@@ -1578,6 +1593,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
       + (meusTxt ? `\n\nProdutos que o portal vai CRIAR na Omie (sem controle de lote) e ligar à nota:${meusTxt}` : '')
       + (ignTxt ? `\n\n${ignTxt} item(ns) serao IGNORADOS.` : '')
       + (precosVenda.length ? `\n\n${precosVenda.length} preço(s) de venda serão atualizados na Omie (só se subirem).` : '')
+      + (!r.cte && fretesMarcados.length ? `\n\nDepois da nota, o portal dá entrada também no(s) frete(s): ${fretesMarcados.map((f) => 'CT-e ' + semZerosEsq(String(f.numero || ''))).join(', ')}.` : '')
       + '\n\nContinuar?',
     )) return;
     setEnviando(true);
@@ -1591,6 +1607,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
           infoAdicionais, observacoes: observacoesPayload, parcelas: parcelasPayload,
           criadoPor, userId, userNome, tipo: r.tipo, numeroNFe: r.numeroNFe,
           precosVenda,
+          ...(r.cte ? { freteNfes: escolhaCte.nfes, freteSemNota: escolhaCte.semNota || null } : {}),
         }),
       });
       const d = await resp.json();
@@ -1626,7 +1643,28 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
             + '\n\nAjuste pelo produto ou direto na Omie.');
         }
         if (cabecFalhou) alert('A entrada foi processada, mas os campos financeiros (categoria/conta/data/parcelas) NÃO gravaram: ' + (d.cabec.erro || 'erro') + '\n\nAjuste direto na Omie se necessário.');
-        onConcluido(recKey(r), { tipo: 'ok', texto: `✔ entrada processada${d.ajustado ? ' (com ajustes)' : ''}${precosGravados ? ` · ${precosGravados} preço(s) de venda atualizado(s)` : ''}${cabecFalhou ? ' · ⚠ financeiro não gravou' : ''}${d.descStatus ? ' · ' + d.descStatus : ''}` });
+        const freteTxt = d.frete?.ajustada ? ` · data de registro do frete ajustada para ${d.frete.dRegistro} (a da nota da carga)` : '';
+        onConcluido(recKey(r), { tipo: 'ok', texto: `✔ entrada processada${d.ajustado ? ' (com ajustes)' : ''}${precosGravados ? ` · ${precosGravados} preço(s) de venda atualizado(s)` : ''}${cabecFalhou ? ' · ⚠ financeiro não gravou' : ''}${freteTxt}${d.descStatus ? ' · ' + d.descStatus : ''}` });
+        // fretes (CT-e) marcados na aba da nota: entram agora, depois dela
+        if (!r.cte && fretesMarcados.length) {
+          const linhas: string[] = [];
+          for (const f of fretesMarcados) {
+            const nome = `CT-e ${semZerosEsq(String(f.numero || ''))}`;
+            setStatusModal(`dando entrada no frete ${nome}...`);
+            try {
+              const rf = await fetch('/api/ajustes/dar-entrada-recebimento', {
+                method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+                body: JSON.stringify({ conta, idReceb: f.idReceb, chaveNFe: f.chave, itens: [], freteNfes: [Number(r.idReceb)], criadoPor, userId, userNome, tipo: 'frete', numeroNFe: f.numero }),
+              });
+              const df = await rf.json();
+              if (df.ok) {
+                linhas.push(`✔ ${nome}${df.frete?.ajustada ? ` (data de registro ${df.frete.dRegistro})` : ''}`);
+                onConcluido(String(f.idReceb), { tipo: 'ok', texto: `✔ frete recebido junto da NF ${semZerosEsq(String(r.numeroNFe || ''))}` });
+              } else linhas.push(`✖ ${nome}: ${df.erro || 'falhou'}`);
+            } catch (ef) { linhas.push(`✖ ${nome}: ${(ef as Error).message}`); }
+          }
+          alert('Fretes desta carga:\n' + linhas.join('\n'));
+        }
         if (riscosBase.length + extras.length > 0) {
           // mantem o modal aberto p/ corrigir o CMC que acabou de baixar
           setEnviando(false);
@@ -1701,7 +1739,26 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
           </span>
         </div>
         <div style={{ padding: 18, overflowY: 'auto', fontSize: '.82rem' }}>
-          {fase === 'entrada' && (<>
+          {fase === 'entrada' && !r.cte && r.idReceb != null && (
+            <div role="tablist" style={{ display: 'flex', gap: 4, borderBottom: '1px solid #e2e8f0', marginBottom: 12, overflowX: 'auto' }}>
+              {([['nota', 'Nota fiscal'], ['frete', `Frete (CT-e)${qtdFretes ? ` · ${qtdFretes}` : ''}`]] as const).map(([v, rot]) => (
+                <button key={v} role="tab" aria-selected={abaModal === v} onClick={() => setAbaModal(v)} style={{
+                  minHeight: 40, padding: '6px 14px', fontSize: '.8rem', fontWeight: abaModal === v ? 700 : 500, cursor: 'pointer', whiteSpace: 'nowrap',
+                  background: 'transparent', color: abaModal === v ? '#1d4ed8' : '#475569',
+                  border: 'none', borderBottom: abaModal === v ? '3px solid #1d4ed8' : '3px solid transparent',
+                }}>
+                  {rot}
+                  {v === 'frete' && fretesMarcados.length > 0 && <span style={{ marginLeft: 6, fontSize: '.66rem', background: '#1d4ed8', color: '#fff', borderRadius: 9, padding: '1px 6px' }}>{fretesMarcados.length} entra junto</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          {fase === 'entrada' && !r.cte && r.idReceb != null && (
+            <div style={{ display: abaModal === 'frete' ? 'block' : 'none' }}>
+              <FretesDaNotaAba conta={conta} idReceb={Number(r.idReceb)} onMarcados={setFretesMarcados} onContagem={setQtdFretes} />
+            </div>
+          )}
+          {fase === 'entrada' && (abaModal === 'nota' || r.cte) && (<>
           <div style={{ fontSize: '.74rem', color: '#475569', marginBottom: 12 }}>
             Natureza: <b>{r.naturezaOperacao || '-'}</b> · etapa {r.etapa || '?'} · total {fmtBRL(r.valorNFe)}. Concluir essa NF processa ela no Omie (igual processar la).
           </div>
@@ -1779,6 +1836,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
             </div>
           </div>
 
+          {r.cte && r.idReceb != null && <NotaDaCarga conta={conta} idReceb={Number(r.idReceb)} valor={escolhaCte} onChange={setEscolhaCte} />}
           {r.cte && (
             <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', borderRadius: 8, padding: '8px 12px', marginBottom: 10, fontSize: '.78rem' }}>
               CT-e (frete) não tem itens: o portal manda o <b>CFOP de entrada 1.350</b> no cabeçalho, o mesmo que a equipe usa nos fretes recebidos.

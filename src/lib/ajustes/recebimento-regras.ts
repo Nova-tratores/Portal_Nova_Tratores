@@ -173,14 +173,15 @@ export function cnpjEmitenteDaChave(chave: unknown): string | null {
  * emitente da chave (a transportadora) e guarda o remetente em `remetente`.
  * `nomePorCnpj` = razão social do cadastro Omie pelo CNPJ formatado.
  */
-export function aplicarTransportadora<T extends RecebNorm>(rec: T, nomePorCnpj: Map<string, string>): T & { cte: boolean; remetente: string | null } {
-  if (!ehCte(rec.chaveNFe)) return { ...rec, cte: false, remetente: null };
+export function aplicarTransportadora<T extends RecebNorm>(rec: T, nomePorCnpj: Map<string, string>): T & { cte: boolean; remetente: string | null; remetenteCnpj: string | null } {
+  if (!ehCte(rec.chaveNFe)) return { ...rec, cte: false, remetente: null, remetenteCnpj: null };
   const cnpj = cnpjEmitenteDaChave(rec.chaveNFe);
   const nome = (cnpj && nomePorCnpj.get(cnpj)) || null;
   return {
     ...rec,
     cte: true,
     remetente: rec.fornecedorNome,
+    remetenteCnpj: rec.fornecedorCnpjCpf,  // = fornecedor da nota de produto da carga
     fornecedorNome: nome || (cnpj ? `Transportadora ${cnpj}` : rec.fornecedorNome),
     fornecedorCnpjCpf: cnpj || rec.fornecedorCnpjCpf,
   };

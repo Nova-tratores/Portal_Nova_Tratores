@@ -678,6 +678,12 @@ export const TAREFAS: Record<string, Tarefa> = {
     return vigiarRecebimentosEsquecidos();
   },
 
+  'fretes-custo-varredura': async () => {
+    if (desligada('FRETES_CUSTO')) return { pular: 'desligado (FRETES_CUSTO=off)' };
+    const { varrerFretesForaDoCusto } = await import('@/lib/estoque/fretes-custo-server');
+    return varrerFretesForaDoCusto();
+  },
+
   'requisicoes-lembretes': async () => {
     if (desligada('REQ_LEMBRETES')) return { pular: 'desligado (REQ_LEMBRETES=off)' };
     const { vigiarRequisicoes } = await import('@/lib/requisicoes/lembretes-server');
