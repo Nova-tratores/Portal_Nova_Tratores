@@ -127,7 +127,15 @@ export async function lerCompleto(id: number | string) {
       .eq('id', pedido.proposta_id).maybeSingle();
     proposta = (r.data as Record<string, unknown>) || { id: pedido.proposta_id, removida: true };
   }
+  // Solicitações de Compras que apontam este pedido (a compra da máquina).
+  const scsR = await supabaseAdmin.from('tickets')
+    .select('id, numero, sc_etapa, payload')
+    .eq('tipo', 'compras').eq('payload->>pedido_maquina_id', String(pedido.id))
+    .order('created_at', { ascending: false });
+  const solicitacoes = ((scsR.data || []) as { id: string; numero: number; sc_etapa: string; payload: Record<string, unknown> | null }[])
+    .map((t) => ({ id: t.id, numero: t.numero, sc_etapa: t.sc_etapa, pc: (t.payload?.pedido_omie_numero as string) || null }));
   return {
+    solicitacoes,
     pedido,
     itens: (ok(itens) || []) as (ItemPedidoMaquina & { id: number })[],
     parcelas: ((ok(parcelas) || []) as ParcelaPedidoMaquina[]).map((p) => ({ ...p, valor: Number(p.valor), percentual: Number(p.percentual) })),

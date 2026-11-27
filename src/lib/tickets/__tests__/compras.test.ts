@@ -4,6 +4,7 @@ import {
   pessoaDoPapel, pessoasDoPapel, pessoasComPapel, podeExecutar, proximoResponsavel,
   validarNovaSC, margemPrevista, agruparModelos, rotuloModelo, motivosDoDestino, SC_MOTIVOS,
   idPedidoFabrica, faseFabricaAposPC, scDoPedidoFabrica, PEDIDO_FABRICA_STATUS_PC,
+  fasePedidoMaquinaAposPC, ordenarPedidosMaquina,
   type ConfigCompras, type ScEtapa, type ScAcao,
 } from '../compras'
 import { STATUS_FINAIS } from '../constantes'
@@ -342,5 +343,49 @@ describe('SC aberta a partir do pedido fábrica', () => {
   it('sem cliente (ou ESTOQUE) vira compra para estoque', () => {
     expect(scDoPedidoFabrica({ id: 1, cliente: '', modelo: 'X' }).destino).toBe('estoque')
     expect(scDoPedidoFabrica({ id: 1, cliente: 'estoque', modelo: 'X' })).toMatchObject({ destino: 'estoque', cliente: '', quantidade: 1, custo: null })
+  })
+})
+
+describe('SC ↔ Pedido de Máquinas (PVM)', () => {
+  const base = {
+    produto: 'Trator MAHINDRA 6075', quantidade_solicitada: '1', destino: 'cliente',
+    cliente_destino: 'Fazenda Boa Vista', confianca: 'quente', motivo: 'venda_fechada',
+  }
+  it('venda fechada aceita o PVM no lugar do nº digitado', () => {
+    const r = validarNovaSC({ ...base, pedido_maquina_id: 12, pedido_maquina_numero: 'PVM-0012' })
+    expect('dados' in r && r.dados.payload.pedido_maquina_id).toBe(12)
+    expect('dados' in r && r.dados.payload.pedido_maquina_numero).toBe('PVM-0012')
+  })
+  it('venda fechada sem PVM e sem nº é recusada', () => {
+    const r = validarNovaSC(base)
+    expect('erro' in r && r.erro).toMatch(/pedido de venda/)
+  })
+  it('venda fechada só com o nº digitado continua valendo', () => {
+    expect('dados' in validarNovaSC({ ...base, pv_numero: '4521' })).toBe(true)
+  })
+  it('PVM inválido é recusado; compra para estoque ignora o PVM', () => {
+    expect('erro' in validarNovaSC({ ...base, pedido_maquina_id: 'abc' })).toBe(true)
+    const r = validarNovaSC({ ...base, destino: 'estoque', motivo: 'reposicao_estoque', pedido_maquina_id: 12 })
+    expect('dados' in r && r.dados.payload.pedido_maquina_id).toBeUndefined()
+  })
+  it('PC emitido: só avança quem está antes de Aguardando máquina', () => {
+    expect(fasePedidoMaquinaAposPC('em_montagem')).toBe('aguardando_maquina')
+    expect(fasePedidoMaquinaAposPC('aguardando_credito')).toBe('aguardando_maquina')
+    expect(fasePedidoMaquinaAposPC('aguardando_maquina')).toBeNull()
+    expect(fasePedidoMaquinaAposPC('enviado_omie')).toBeNull()
+    expect(fasePedidoMaquinaAposPC('cancelado')).toBeNull()
+  })
+  it('ordena: os da proposta primeiro, sem cancelados; único sugerido vira automático', () => {
+    const lista = [
+      { id: 1, id_pedido: 'PVM-0001', status: 'em_montagem', proposta_id: 50, criado_em: '2026-11-01' },
+      { id: 2, id_pedido: 'PVM-0002', status: 'em_montagem', proposta_id: 77, criado_em: '2026-11-20' },
+      { id: 3, id_pedido: 'PVM-0003', status: 'cancelado', proposta_id: 77, criado_em: '2026-11-21' },
+      { id: 4, id_pedido: 'PVM-0004', status: 'aguardando_credito', proposta_id: null, criado_em: '2026-11-25' },
+    ]
+    const r = ordenarPedidosMaquina(lista, 77)
+    expect(r.pedidos.map((p) => p.id)).toEqual([2, 4, 1])
+    expect(r.pedidos[0].sugerido).toBe(true)
+    expect(r.auto?.id).toBe(2)
+    expect(ordenarPedidosMaquina(lista, null).auto).toBeNull()
   })
 })

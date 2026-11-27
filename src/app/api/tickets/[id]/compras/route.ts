@@ -19,7 +19,7 @@ import {
 import type { EventoTipo } from '@/lib/tickets/constantes'
 import {
   SC_TRANSICOES, SC_ETAPA_INFO, proximoResponsavel, podeExecutarAuth, pessoasDoPapel,
-  faseFabricaAposPC, type PayloadSC, type ScAcao, type ScEtapa,
+  faseFabricaAposPC, fasePedidoMaquinaAposPC, type PayloadSC, type ScAcao, type ScEtapa,
 } from '@/lib/tickets/compras'
 import { avaliarBloqueio, carregarConfigCompras } from '@/lib/tickets/compras-server'
 import { avisarAutorizacao } from '@/lib/autorizacoes/avisar'
@@ -155,6 +155,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .update({ status: nova }).eq('id', payload.pedido_fabrica_id).eq('status', fab!.status)
       if (errFab) console.error('[compras] pedido fábrica não avançou:', errFab.message)
     }
+  }
+
+  // PC emitido → o pedido de VENDA da máquina (PVM) vai para "Aguardando máquina"
+  // (só se ainda estava em montagem/crédito; o trigger grava o histórico da fase).
+  if (acao === 'emitir_pc' && payload.pedido_maquina_id) {
+    try {
+      const { data: pvm } = await supabaseAdmin.from('pedidos_maquinas')
+        .select('id, status').eq('id', payload.pedido_maquina_id).maybeSingle()
+      const nova = fasePedidoMaquinaAposPC(pvm?.status)
+      if (pvm && nova) {
+        const { data: mudou, error: errPvm } = await supabaseAdmin.from('pedidos_maquinas')
+          .update({ status: nova, atualizado_em: new Date().toISOString() })
+          .eq('id', pvm.id).eq('status', pvm.status).select('id')
+        if (errPvm) console.error('[compras] pedido de máquina não avançou:', errPvm.message)
+        else if (mudou?.length) {
+          await supabaseAdmin.from('pedidos_maquinas_logs').insert({
+            pedido_id: pvm.id, usuario: autor,
+            acao: `Fase: → Aguardando máquina (PC ${payload.pedido_omie_numero} emitido na SC #${ticket.numero})`,
+            detalhes: { origem: 'sc', ticket_id: id, de: pvm.status, para: nova },
+          })
+        }
+      }
+    } catch (e) { console.error('[compras] pedido de máquina:', (e as Error).message) }
   }
 
   // O novo ator entra como participante; o vendedor (solicitante) nunca sai.

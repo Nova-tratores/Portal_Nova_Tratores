@@ -14,6 +14,7 @@ import {
 } from '@/lib/pedidos-maquinas/regras';
 import { gerarParcelas, numeroBR, somarDiasISO, MEIOS } from '@/lib/propostas/pagamento';
 import { brl } from '@/lib/pedidos-maquinas/lista';
+import { SC_ETAPA_INFO, type ScEtapa } from '@/lib/tickets/compras';
 import ModalImportarProposta from './ModalImportarProposta';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -25,6 +26,7 @@ interface Dados {
   logs: { id: number; acao: string; usuario: string | null; criado_em: string }[];
   vendedor: { id: number; nome: string } | null;
   proposta: Record<string, any> | null;
+  solicitacoes?: { id: string; numero: number; sc_etapa: string; pc: string | null }[];
 }
 interface Listas {
   categorias: { codigo: string; descricao: string }[];
@@ -160,6 +162,24 @@ export default function PedidoDrawer({ id, onFechar, onMudou }: { id: string | n
               </div>
             )}
           </section>
+
+          {/* Compra da máquina: Solicitação de Compras ligada a este pedido */}
+          {(d.solicitacoes?.length ?? 0) > 0 && (
+            <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div className="pm-sec-tit">Compra da máquina</div>
+              {d.solicitacoes!.map((sc) => {
+                const etapa = SC_ETAPA_INFO[sc.sc_etapa as ScEtapa];
+                return (
+                  <div key={sc.id} className="pm-card" style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <b style={{ color: '#dc2626' }}>SC #{sc.numero}</b>
+                    <span className="pm-selo" style={{ background: '#f1f5f9', color: '#475569' }}>{etapa?.label || sc.sc_etapa}</span>
+                    {sc.pc && <span style={{ fontSize: 13.5 }}>PC nº {sc.pc}</span>}
+                    <a className="pm-btn" style={{ marginLeft: 'auto' }} href={`/tickets/${sc.id}`} target="_blank" rel="noreferrer"><ExternalLink size={15} /> Abrir</a>
+                  </div>
+                );
+              })}
+            </section>
+          )}
 
           {/* 2. Cliente e vendedor */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

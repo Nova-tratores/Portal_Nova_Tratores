@@ -3,13 +3,14 @@
 // preenche os campos estruturados; a bola vai direto para a Diretoria.
 // O motivo + complemento viram a origem do ticket, imutável depois de criada.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { X, ShoppingCart, Search, Users, Warehouse, Factory } from 'lucide-react'
+import { X, ShoppingCart, Search, Users, Warehouse, Factory, Tractor, RefreshCw, ExternalLink } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { supabase } from '@/lib/supabase'
 import {
   SC_CONFIANCA_INFO, SC_DESTINO_LABEL, motivosDoDestino, validarNovaSC, margemPrevista, rotuloModelo, scDoPedidoFabrica,
-  type ModeloOpcao, type ProdutoLinha, type ScConfianca, type ScDestino,
+  type ModeloOpcao, type ProdutoLinha, type ScConfianca, type ScDestino, type PedidoMaquinaOpcao,
 } from '@/lib/tickets/compras'
+import { faseInfo } from '@/lib/pedidos-maquinas/regras'
 
 interface Props {
   onFechar: () => void
@@ -49,6 +50,7 @@ export default function FormSC({ onFechar, onCriado, pedidoFabricaId }: Props) {
   const [destino, setDestino] = useState<ScDestino>('cliente')
   const [clienteDestino, setClienteDestino] = useState('')
   const [pvNumero, setPvNumero] = useState('')
+  const [pvm, setPvm] = useState<PedidoMaquinaOpcao | null>(null) // pedido de VENDA da máquina
   const [confianca, setConfianca] = useState<ScConfianca | ''>('')
   const [motivo, setMotivo] = useState('')
   const [descricao, setDescricao] = useState('')
@@ -129,6 +131,57 @@ export default function FormSC({ onFechar, onCriado, pedidoFabricaId }: Props) {
   const margem = margemPrevista(custoAlvo ? Number(custoAlvo) : null, precoVenda ? Number(precoVenda) : null)
   const totalCompra = custoAlvo && Number(quantidade) > 0 ? Number(custoAlvo) * Number(quantidade) : null
 
+  // Pedidos de Máquinas (PVM) para escolher: os da proposta ligada ao pedido
+  // fábrica vêm primeiro; um só = já entra escolhido.
+  type OpcaoPvm = PedidoMaquinaOpcao & { sugerido?: boolean }
+  const [buscaPvm, setBuscaPvm] = useState('')
+  const [pvms, setPvms] = useState<OpcaoPvm[]>([])
+  const [pvmPropostaId, setPvmPropostaId] = useState<number | null>(null)
+  const [pvmCarregando, setPvmCarregando] = useState(false)
+  const [pvmSemTabela, setPvmSemTabela] = useState(false)
+  const [recarregarPvm, setRecarregarPvm] = useState(0)
+  const pvmAutoFeito = useRef(false)
+  const pvmPedido = useRef(0)
+  useEffect(() => {
+    if (destino !== 'cliente') return
+    const n = ++pvmPedido.current
+    const timer = setTimeout(async () => {
+      setPvmCarregando(true)
+      try {
+        const qs = new URLSearchParams()
+        if (buscaPvm.trim()) qs.set('q', buscaPvm.trim())
+        if (pedidoFabricaId) qs.set('pedido_fabrica_id', String(pedidoFabricaId))
+        const res = await fetch(`/api/tickets/compras/pedidos-maquinas?${qs}`, { headers: await authHeaders() })
+        const json = await res.json()
+        if (n !== pvmPedido.current) return
+        setPvms(res.ok ? json.pedidos || [] : [])
+        setPvmPropostaId(json.propostaId ?? null)
+        setPvmSemTabela(!!json.semTabela)
+        if (res.ok && json.auto && !pvmAutoFeito.current) {
+          pvmAutoFeito.current = true
+          setPvm(json.auto)
+          setMotivo((m) => m || 'venda_fechada')
+          setConfianca((c) => c || 'quente')
+        }
+      } catch {
+        if (n === pvmPedido.current) setPvms([])
+      } finally {
+        if (n === pvmPedido.current) setPvmCarregando(false)
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [buscaPvm, destino, pedidoFabricaId, recarregarPvm])
+
+  const escolherPvm = (p: PedidoMaquinaOpcao | null) => {
+    setPvm(p)
+    if (p) {
+      if (!clienteDestino.trim() && p.cliente) setClienteDestino(String(p.cliente))
+      if (!motivo) setMotivo('venda_fechada')
+      if (!confianca) setConfianca('quente')
+    }
+  }
+  const linkGerarPvm = pvmPropostaId ? `/pedidos-maquinas?proposta=${pvmPropostaId}` : '/pedidos-maquinas'
+
   const criar = async () => {
     setErro('')
     const corpo = {
@@ -137,6 +190,7 @@ export default function FormSC({ onFechar, onCriado, pedidoFabricaId }: Props) {
       quantidade_solicitada: quantidade,
       preco_alvo: custoAlvo, preco_venda_previsto: precoVenda,
       destino, cliente_destino: clienteDestino, pv_numero: pvNumero, confianca,
+      ...(destino === 'cliente' && pvm ? { pedido_maquina_id: pvm.id, pedido_maquina_numero: pvm.id_pedido } : {}),
       motivo, descricao,
       ...(pedidoFabricaId ? { pedido_fabrica_id: pedidoFabricaId } : {}),
     }
@@ -196,7 +250,7 @@ export default function FormSC({ onFechar, onCriado, pedidoFabricaId }: Props) {
         {pedidoFabricaId && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 8, marginBottom: 14, fontSize: 12.5, fontWeight: 600, background: 'rgba(29,78,216,.08)', color: '#1d4ed8' }}>
             <Factory size={15} style={{ flexShrink: 0 }} />
-            <span>Aberta a partir do pedido fábrica {fabInfo || `#${pedidoFabricaId}`}. Quando o PC for emitido, o pedido passa para &quot;Pedido Feito / Aguardando Maq&quot;.</span>
+            <span>Aberta a partir do pedido fábrica {fabInfo || `#${pedidoFabricaId}`}. Quando o PC for emitido, o pedido passa para &quot;Pedido Feito / Aguardando Maq&quot; (e o pedido de máquina ligado, para &quot;Aguardando máquina&quot;).</span>
           </div>
         )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -296,17 +350,79 @@ export default function FormSC({ onFechar, onCriado, pedidoFabricaId }: Props) {
 
           {destino === 'cliente' && (
             <>
-              <div className="ct-sc-grid2" style={{ display: 'grid', gridTemplateColumns: '1fr 170px', gap: 12 }}>
-                <div>
-                  <label style={rotuloStyle}>Cliente destino *</label>
-                  <input value={clienteDestino} onChange={(e) => setClienteDestino(e.target.value)} maxLength={160}
-                    placeholder="Cliente vinculado à compra" style={campoStyle} />
-                </div>
-                <div>
-                  <label style={rotuloStyle}>Nº do pedido de venda{motivo === 'venda_fechada' ? ' *' : ''}</label>
-                  <input value={pvNumero} onChange={(e) => setPvNumero(e.target.value)} maxLength={40}
-                    placeholder={motivo === 'venda_fechada' ? 'Obrigatório' : 'Se já houver'} style={campoStyle} />
-                </div>
+              <div>
+                <label style={rotuloStyle}>Cliente destino *</label>
+                <input value={clienteDestino} onChange={(e) => setClienteDestino(e.target.value)} maxLength={160}
+                  placeholder="Cliente vinculado à compra" style={campoStyle} />
+              </div>
+
+              {/* Pedido de VENDA da máquina: escolher o PVM (o nº digitado fica de reserva) */}
+              <div>
+                <label style={rotuloStyle}>Pedido de venda (Pedido de Máquinas){motivo === 'venda_fechada' ? ' *' : ''}</label>
+                {pvm ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '9px 12px', borderRadius: 8, border: '1.5px solid #16a34a', background: 'rgba(22,163,74,.07)' }}>
+                    <Tractor size={16} color="#16a34a" style={{ flexShrink: 0 }} />
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, overflowWrap: 'anywhere', color: 'var(--portal-text, #111)' }}>
+                      <strong>{pvm.id_pedido}</strong> · {pvm.cliente || 'sem cliente'} · {faseInfo(pvm.status).rotulo}
+                      {pvm.valor_total != null && Number(pvm.valor_total) > 0 ? ` · ${moeda(Number(pvm.valor_total))}` : ''}
+                    </span>
+                    <a href={`/pedidos-maquinas?id=${pvm.id}`} target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize: 12.5, fontWeight: 700, color: '#1d4ed8', display: 'inline-flex', alignItems: 'center', gap: 4, minHeight: 32 }}>
+                      Abrir <ExternalLink size={12} />
+                    </a>
+                    <button type="button" onClick={() => escolherPvm(null)}
+                      style={{ border: '1px solid var(--portal-border, #e5e7eb)', background: 'var(--portal-bg, #fff)', borderRadius: 7, padding: '6px 12px', cursor: 'pointer', fontSize: 12.5, minHeight: 36, color: 'var(--portal-text-secondary, #555)' }}>
+                      Trocar
+                    </button>
+                  </div>
+                ) : pvmSemTabela ? (
+                  <div style={dicaStyle}>O módulo Pedido de Máquinas ainda não está ativo. Informe o nº do pedido abaixo.</div>
+                ) : (
+                  <div style={{ border: '1px solid var(--portal-border, #e5e7eb)', borderRadius: 8, overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', gap: 6, padding: 6, borderBottom: '1px solid var(--portal-border, #e5e7eb)' }}>
+                      <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                        <Search size={14} style={{ position: 'absolute', left: 10, top: 12, color: 'var(--portal-text-muted, #999)' }} />
+                        <input value={buscaPvm} onChange={(e) => setBuscaPvm(e.target.value)} maxLength={60}
+                          placeholder="Cliente ou nº do PVM" style={{ ...campoStyle, paddingLeft: 30 }} />
+                      </div>
+                      <button type="button" title="Atualizar a lista (depois de gerar o pedido)" aria-label="Atualizar a lista"
+                        onClick={() => setRecarregarPvm((n) => n + 1)}
+                        style={{ width: 40, minHeight: 40, flexShrink: 0, borderRadius: 8, border: '1px solid var(--portal-border, #e5e7eb)', background: 'var(--portal-bg, #fff)', cursor: 'pointer', color: 'var(--portal-text-secondary, #555)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <RefreshCw size={14} />
+                      </button>
+                    </div>
+                    <div style={{ maxHeight: 190, overflowY: 'auto' }}>
+                      {pvms.map((p) => (
+                        <button key={p.id} type="button" onClick={() => escolherPvm(p)} style={{ ...opcaoStyle, minHeight: 40, borderBottom: '1px solid var(--portal-border, #f0f0f0)' }}>
+                          <strong>{p.id_pedido}</strong> · {p.cliente || 'sem cliente'}
+                          <span style={{ color: 'var(--portal-text-muted, #999)' }}> · {faseInfo(p.status).rotulo}{p.valor_total != null && Number(p.valor_total) > 0 ? ` · ${moeda(Number(p.valor_total))}` : ''}</span>
+                          {p.sugerido && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, padding: '1px 7px', borderRadius: 999, background: 'rgba(29,78,216,.1)', color: '#1d4ed8' }}>DA PROPOSTA</span>}
+                        </button>
+                      ))}
+                      {pvms.length === 0 && (
+                        <div style={{ padding: 12, fontSize: 12.5, color: 'var(--portal-text-muted, #888)' }}>
+                          {pvmCarregando ? 'Buscando...' : 'Nenhum pedido de máquina encontrado.'}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '8px 10px', borderTop: '1px solid var(--portal-border, #e5e7eb)', background: 'var(--portal-bg, #f9fafb)' }}>
+                      <a href={linkGerarPvm} target="_blank" rel="noopener noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#dc2626', minHeight: 32 }}>
+                        <Tractor size={14} /> Gerar pedido de máquina{pvmPropostaId ? ` da proposta #${pvmPropostaId}` : ''}
+                      </a>
+                      <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted, #888)' }}>abre em outra aba; depois clique em atualizar</span>
+                    </div>
+                  </div>
+                )}
+                {!pvm && (
+                  <div style={{ marginTop: 8 }}>
+                    <input value={pvNumero} onChange={(e) => setPvNumero(e.target.value)} maxLength={40}
+                      placeholder="Ou o nº do pedido de venda feito fora do portal" style={campoStyle} />
+                    {motivo === 'venda_fechada' && !pvNumero.trim() && (
+                      <div style={{ ...dicaStyle, color: '#d97706', fontWeight: 600 }}>Venda fechada precisa do pedido de venda: escolha o PVM acima ou informe o nº.</div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div>

@@ -311,6 +311,16 @@ async function criarSC(auth: Autenticado, body: Record<string, unknown>) {
     if (outra) return NextResponse.json({ error: `O pedido fábrica #${payload.pedido_fabrica_id} já tem a Solicitação de Compras #${outra.numero}.` }, { status: 409 })
   }
 
+  // Pedido de venda da máquina (PVM): precisa existir e não estar cancelado.
+  // O número gravado é o do banco, nunca o que veio do navegador.
+  if (payload.pedido_maquina_id) {
+    const { data: pvm } = await supabaseAdmin.from('pedidos_maquinas')
+      .select('id, id_pedido, status').eq('id', payload.pedido_maquina_id).maybeSingle()
+    if (!pvm) return NextResponse.json({ error: `Pedido de máquina #${payload.pedido_maquina_id} não encontrado` }, { status: 400 })
+    if (pvm.status === 'cancelado') return NextResponse.json({ error: `O pedido ${pvm.id_pedido} está cancelado` }, { status: 400 })
+    payload.pedido_maquina_numero = pvm.id_pedido
+  }
+
   const { data: criado, error } = await supabaseAdmin
     .from('tickets')
     .insert({
