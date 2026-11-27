@@ -38,6 +38,13 @@ export interface ItemResumo {
   /** Só com { detalhes: true }: quem pediu (null = a própria pessoa) e o quadro. */
   pedidoPor?: string | null
   quadro?: { nome: string; cor: string } | null
+  /** Só com { detalhes: true }: o que foi pedido (até 400 letras) e quando o pedido foi criado. */
+  descricao?: string
+  criadoEm?: string
+  /** Quem faz contestou (motivo pronto); a tarefa continua na fila até tirarem a marca. */
+  contestada?: { motivo: string; em: string } | null
+  /** Chegou com prazo em que a pessoa já estava ocupada todos os dias: "urgente · você decide". */
+  semEspaco?: boolean
 }
 export interface ResumoFila {
   /** O que a fila põe para HOJE, na ordem (objetivo do dia). */
@@ -101,7 +108,7 @@ export function feriadosDoAno(hoje: string): Set<string> {
 }
 
 type Tk = { id: string; numero: number; titulo: string; prazo: string | null; payload: unknown; responsavel_id: string; aceite?: string | null; visibilidade: string; solicitante_id: string
-  status: string; quadro_id: string | null; updated_at: string; created_at: string; aceite_em?: string | null; categoria?: string | null }
+  status: string; quadro_id: string | null; updated_at: string; created_at: string; aceite_em?: string | null; categoria?: string | null; descricao?: string | null }
 
 /** Resumo da fila de cada pessoa pedida (quem não tem nada volta com a fila vazia). */
 export async function resumoDasFilas(userIds: string[], opc: { detalhes?: boolean; semBola?: boolean } = {}): Promise<Map<string, ResumoFila>> {
@@ -113,18 +120,18 @@ export async function resumoDasFilas(userIds: string[], opc: { detalhes?: boolea
   // Lentidão (26/11/2026): medianas, tickets e plano vão juntos (antes as medianas iam primeiro, sozinhas).
   const [med, tks, plano] = await Promise.all([
     medianasPorCategoria().catch(() => new Map<string, Mediana>()),
-    supabaseAdmin.from('tickets').select('id, numero, titulo, prazo, payload, responsavel_id, aceite, aceite_em, visibilidade, solicitante_id, status, quadro_id, updated_at, created_at, categoria')
+    supabaseAdmin.from('tickets').select('id, numero, titulo, prazo, payload, responsavel_id, aceite, aceite_em, visibilidade, solicitante_id, status, quadro_id, updated_at, created_at, categoria' + (opc.detalhes ? ', descricao' : ''))
       .in('responsavel_id', userIds).not('tipo', 'in', '(compras,reuniao)').not('status', 'in', FORA).limit(3000),
     supabaseAdmin.from('tickets_plano').select('ticket_id, posicao, user_id').in('user_id', userIds),
   ])
   // Bola parada: só o que está com quem faz (aceito e não esperando terceiro).
-  const comBola = ((tks.data || []) as Tk[]).filter((t) => t.aceite !== 'pendente' && !t.status.startsWith('aguardando'))
+  const comBola = ((tks.data || []) as unknown as Tk[]).filter((t) => t.aceite !== 'pendente' && !t.status.startsWith('aguardando'))
   const comBolaIds = new Set(opc.semBola ? [] : comBola.map((t) => t.id))
   const porPessoa = new Map<string, Tk[]>()
-  for (const t of (tks.data || []) as Tk[]) porPessoa.set(t.responsavel_id, [...(porPessoa.get(t.responsavel_id) || []), t])
+  for (const t of (tks.data || []) as unknown as Tk[]) porPessoa.set(t.responsavel_id, [...(porPessoa.get(t.responsavel_id) || []), t])
   // "De quem é": nome de quem pediu e o quadro (só quando pedem detalhes — a carga da Equipe não precisa).
   const nomes = new Map<string, string>(), quadros = new Map<string, { nome: string; cor: string }>()
-  const lista = (tks.data || []) as Tk[]
+  const lista = (tks.data || []) as unknown as Tk[]
   const uids = opc.detalhes ? [...new Set(lista.map((t) => t.solicitante_id))] : []
   const qids = opc.detalhes ? [...new Set(lista.map((t) => t.quadro_id).filter((x): x is string => !!x))] : []
   // Eventos da bola parada e nomes/quadros também vão juntos (antes: um depois do outro).
@@ -146,8 +153,9 @@ export async function resumoDasFilas(userIds: string[], opc: { detalhes?: boolea
   for (const uid of userIds) {
     const todos = porPessoa.get(uid) || []
     const aceitar = todos.filter((t) => t.aceite === 'pendente').length
-    // Pedido ainda não aceito não é trabalho da fila (fica em "Chegou pra você").
-    const lista = todos.filter((t) => t.aceite !== 'pendente')
+    // Sem etapa de aceitar (José, 26/11/2026): tudo o que chegou já é fila, inclusive os pedidos
+    // antigos que ainda estavam "pendente". Não dá para fazer = contestar.
+    const lista = todos
     const porId = new Map(lista.map((t) => [t.id, t]))
     const itens = ordenarFila(lista.map((t) => comSugestao(itemDoTicket(t, CAPACIDADE_PADRAO, feriados), t.categoria, med)), posDe.get(uid) || new Map())
     const aloc = new Map<string, { id: string; horas: number }[]>()
@@ -168,7 +176,10 @@ export async function resumoDasFilas(userIds: string[], opc: { detalhes?: boolea
           return dias >= limite ? { dias, limite } : null
         })(),
         parado: Math.max(0, Math.floor((agoraMs - Date.parse(t.updated_at)) / 86400000)),
-        ...(opc.detalhes ? { pedidoPor: t.solicitante_id === uid ? null : nomes.get(t.solicitante_id) || 'Alguém', quadro: t.quadro_id ? quadros.get(t.quadro_id) || null : null } : {}) }
+        ...(opc.detalhes ? { pedidoPor: t.solicitante_id === uid ? null : nomes.get(t.solicitante_id) || 'Alguém', quadro: t.quadro_id ? quadros.get(t.quadro_id) || null : null,
+          descricao: (t.descricao || '').slice(0, 400), criadoEm: t.created_at } : {}),
+        contestada: ((t.payload || {}) as { contestacao?: { motivo: string; em: string } }).contestacao || null,
+        semEspaco: !!((t.payload || {}) as { sem_espaco?: boolean }).sem_espaco }
     }
     const hojeL: ItemResumo[] = [], semana: ItemResumo[] = [], listaDepois: ItemResumo[] = []
     for (const i of comFim) {

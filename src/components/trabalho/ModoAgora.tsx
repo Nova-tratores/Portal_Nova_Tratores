@@ -23,6 +23,8 @@ export interface Agora { rodando: { ticket_id: string; inicio: string; antes?: n
 
 const br = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 const nf = (h: number) => String(Math.round(h * 10) / 10).replace('.', ',')
+/** Dias desde o prazo até hoje (mín. 1). */
+const diasAtraso = (prazo: string) => Math.max(1, Math.round((Date.now() - Date.parse(prazo + 'T12:00:00')) / 86400000))
 const relogio = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` }
 
 /** Erro com o que o servidor mandou (o 409 do limite traz os pedidos em andamento). */
@@ -115,17 +117,22 @@ export default function ModoAgora({ itens, agora, onMudou, onAbrir, compacto }: 
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
         <span className="mf-ic" style={{ ['--c' as string]: cor, width: compacto ? 40 : 52, height: compacto ? 40 : 52, borderRadius: 14 }}>{rodando ? <Timer size={compacto ? 18 : 24} /> : <Play size={compacto ? 18 : 24} />}</span>
         <span style={{ flex: '1 1 300px', minWidth: 0 }}>
-          <span style={{ display: 'block', fontSize: 12.5, color: cor }}>{rodando ? 'Fazendo agora' : 'Agora é a vez de'}</span>
-          <button className="mf-tit" style={{ fontSize: compacto ? 16 : 20, whiteSpace: 'normal' }} onClick={() => onAbrir(item.id)}>#{item.numero} {item.titulo}</button>
-          <span className="mf-info" style={{ marginTop: 6 }}>
-            <span>{item.pedidoPor ? `pedido de ${item.pedidoPor.split(' ')[0]}` : 'você mesmo'}</span>
-            {item.quadro && <span style={{ ['--c' as string]: item.quadro.cor }}><i className="mf-dot" /> {item.quadro.nome}</span>}
-            <span>{gasto > 0 ? `${nf(gasto)} h feitas de ${nf(item.horas)} h` : `${nf(item.horas)} h${item.horas > 4.5 ? ` · uns ${Math.ceil(item.horas / 4.5)} dias` : ''}`}</span>
-          </span>
-          <span style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-            {item.atrasado && item.prazo ? <SeloAtrasado tamanho={12.5}>atrasado desde {br(item.prazo)}</SeloAtrasado>
-              : item.prazo ? <span className="mf-quando"><Clock3 size={13} style={{ verticalAlign: -2 }} /> prazo {br(item.prazo)}</span> : null}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12.5, color: cor }}>{rodando ? 'Fazendo agora' : 'Agora é a vez de'}</span>
             {item.urgente && <SeloUrgente tamanho={12} />}
+          </span>
+          <button className="mf-tit" style={{ fontSize: compacto ? 17 : 22, fontWeight: 600, whiteSpace: 'normal', marginTop: 2 }} onClick={() => onAbrir(item.id)} title="Abrir o pedido">#{item.numero} {item.titulo}</button>
+          {/* Fatos com rótulo (José, 26/11/2026: "melhora pra ficar mais claro"). */}
+          <span className="ma-fatos">
+            <span><small>Pedido por</small>{item.pedidoPor ? item.pedidoPor.split(' ')[0] : 'você mesmo'}</span>
+            <span><small>Prazo</small>
+              {item.atrasado && item.prazo ? <SeloAtrasado tamanho={12.5}>{br(item.prazo)} · {diasAtraso(item.prazo)} {diasAtraso(item.prazo) === 1 ? 'dia' : 'dias'} atrasado</SeloAtrasado>
+                : item.prazo ? <>{br(item.prazo)}</> : <>sem prazo</>}
+            </span>
+            <span><small>{gasto > 0 ? 'Feito até agora' : 'Quanto leva'}</small>
+              {gasto > 0 ? `${nf(gasto)} h de ${nf(item.horas)} h` : `${nf(item.horas)} h${item.horas > 4.5 ? ` (uns ${Math.ceil(item.horas / 4.5)} dias)` : ''}`}
+            </span>
+            {item.quadro && <span style={{ ['--c' as string]: item.quadro.cor }}><small>Quadro</small><span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><i className="mf-dot" /> {item.quadro.nome}</span></span>}
           </span>
         </span>
         {rodando && <span style={{ fontSize: compacto ? 20 : 28, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: cor }} aria-live="off">{relogio(decorrido)}</span>}
@@ -155,7 +162,7 @@ export default function ModoAgora({ itens, agora, onMudou, onAbrir, compacto }: 
           <button className="mf-btn peq" style={{ alignSelf: 'flex-start' }} onClick={() => setPausarQual(null)}>Deixar como está</button>
         </div>
       )}
-      {agora?.semTabela && <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>Cronômetro desligado: falta rodar sql/fila-tempo.sql no Supabase. Começar e Concluir funcionam.</div>}
+      {agora?.semTabela && <div style={{ marginTop: 14, padding: '6px 10px', borderRadius: 10, background: 'var(--portal-bg-secondary,#f8fafc)', fontSize: 12, color: 'var(--portal-text-muted,#64748b)', display: 'flex', alignItems: 'center', gap: 6 }}><Clock3 size={13} /> Cronômetro desligado (falta rodar sql/fila-tempo.sql). Começar e Concluir funcionam.</div>}
       {erro && <div style={{ marginTop: 8, fontSize: 13, color: 'var(--cor-atrasado-texto)' }}>{erro}</div>}
     </section>
     </>

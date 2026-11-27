@@ -6,6 +6,7 @@
 // pessoa vê SÓ NÚMEROS (horas, datas, atrasado) — nunca títulos, nem para admin. Na própria fila,
 // os títulos aparecem.
 import { NextRequest, NextResponse } from 'next/server'
+import { papelDe } from '@/lib/organograma/papeis'
 import { autenticar } from '@/lib/auth/server'
 import { temModuloTickets } from '@/lib/tickets/server'
 import { carregarDiretorio } from '@/lib/agenda/server'
@@ -25,6 +26,11 @@ export async function GET(req: NextRequest) {
     const dir = await carregarDiretorio()
     const sp = req.nextUrl.searchParams
     const so = sp.get('user')
+    // "Minha equipe" (a carga de TODOS) só para líder de setor (pelo cargo, organograma) e dev
+    // (José, 27/11/2026). A carga de UMA pessoa (?user=, o "Novo ticket" usa) continua para todos.
+    if (!so && !auth.isDev && !(await papelDe(auth.userId).catch(() => ({ lider: false }))).lider) {
+      return NextResponse.json({ error: 'A equipe é só para líderes de setor.' }, { status: 403 })
+    }
     const comItens = !!so && sp.get('itens') === '1'
     const pessoas = dir.pessoas.filter((p) => !so || p.id === so)
     const [filas, abertos] = await Promise.all([

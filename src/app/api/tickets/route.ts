@@ -1,7 +1,7 @@
 // Tickets — listagem por visão + criação.
 // GET  /api/tickets?visao=fila|pedidos|acompanhando|gerencial[&encerrados=1]
 // POST /api/tickets  { titulo, descricao, responsavel_id, categoria?, prazo?, terceiro_envolvido?, visibilidade?, anexos? }
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import {
@@ -20,6 +20,7 @@ import { contagemPassos } from '@/lib/trabalho/tarefas-server'
 import { planoDeHoras } from '@/lib/trabalho/estimativa'
 import { CAPACIDADE_PADRAO } from '@/lib/trabalho/fila'
 import { colocarNoFimDaFila, avisarEmpurrados } from '@/lib/trabalho/fila-server'
+import { quadroPadraoDe } from '@/lib/tickets/quadro-padrao'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -189,6 +190,7 @@ export async function POST(req: NextRequest) {
   if (!responsavelId) return NextResponse.json({ error: 'Escolha o responsável' }, { status: 400 })
   // Prazo: no mínimo 1 dia de folga. Só "muito urgente" fura a fila (hoje).
   const urgente = body.urgente === true
+  const semEspaco = body.sem_espaco === true && !urgente && responsavelId !== auth.userId
   if (prazo && prazo < dataMinima(hojeSP(), urgente)) {
     return NextResponse.json({ error: urgente ? 'O prazo não pode ser no passado.' : 'Deixe pelo menos 1 dia de prazo. Se for para hoje, marque "Muito urgente".' }, { status: 400 })
   }
@@ -224,35 +226,51 @@ export async function POST(req: NextRequest) {
     solicitante_id: auth.userId,
     responsavel_id: responsavelId,
     // payload.inicio = 1º dia do trabalho (o Cronograma mostra do início ao prazo)
-    ...(urgente || inicioTrabalho || tempo ? { payload: { ...(urgente ? { urgente: true } : {}), ...(inicioTrabalho ? { inicio: inicioTrabalho } : {}), ...(tempo ? { dias: tempo.dias, horas_dia: tempo.horasDia } : {}) } } : {}),
+    // sem_espaco (José, 26/11/2026): quem pediu escolheu um prazo em que a pessoa já está ocupada
+    // todos os dias. Vai marcado "urgente · você decide": NÃO fura a fila sozinho; quem recebe decide.
+    ...(urgente || inicioTrabalho || tempo || semEspaco ? { payload: { ...(urgente ? { urgente: true } : {}), ...(semEspaco ? { sem_espaco: true } : {}), ...(inicioTrabalho ? { inicio: inicioTrabalho } : {}), ...(tempo ? { dias: tempo.dias, horas_dia: tempo.horasDia } : {}) } } : {}),
     ...noQuadro,
   }
-  // Quem recebe confirma (Central de Trabalho). Sem a coluna, cria como antes.
+  // Rapidez (José, 26/11/2026: "na hora de criar tá demorando muito"): antes eram ~10 idas ao banco,
+  // uma depois da outra, antes de responder. Agora só o essencial vai antes da resposta (gravar o
+  // pedido, participantes, histórico e a posição na fila, tudo JUNTO); o quadro padrão, os anexos,
+  // os avisos e o "furou a fila" rodam DEPOIS da resposta (after, do Next).
   let { data: criado, error } = await supabaseAdmin.from('tickets')
-    .insert({ ...linha, aceite: responsavelId === auth.userId ? 'ok' : 'pendente' }).select('*').single()
+    .insert({ ...linha, ...noQuadro, aceite: 'ok', aceite_em: new Date().toISOString() }).select('*').single()
   if (error?.code === '42703') ({ data: criado, error } = await supabaseAdmin.from('tickets').insert(linha).select('*').single())
   if (error || !criado) return NextResponse.json({ error: error?.message || 'Falha ao criar' }, { status: 500 })
 
   const ticket = criado as Ticket
-  await garantirParticipante(ticket.id, auth.userId, null)
-  await garantirParticipante(ticket.id, responsavelId, auth.userId)
-  await registrarEvento(ticket.id, auth.userId, 'criacao', { titulo, responsavel_id: responsavelId })
-  for (const a of anexos) {
-    await registrarEvento(ticket.id, auth.userId, 'anexo', a)
-  }
-  await notificarTicket(
-    ticket, [responsavelId], auth.userId,
-    `Novo ticket #${ticket.numero}: ${titulo}`,
-    responsavelId === auth.userId ? 'Você é o responsável por este ticket.' : 'Você é o responsável. Confirme se consegue fazer.',
-  )
+  await Promise.all([
+    garantirParticipante(ticket.id, auth.userId, null),
+    garantirParticipante(ticket.id, responsavelId, auth.userId),
+    registrarEvento(ticket.id, auth.userId, 'criacao', { titulo, responsavel_id: responsavelId }),
+    // Pedido vai para o FIM da fila de quem faz (24/11/2026) — não fura a fila pelo prazo.
+    colocarNoFimDaFila(responsavelId, ticket.id).catch(() => { /* segue: fica na ordem por prazo */ }),
+  ])
 
-  // Pedido vai para o FIM da fila de quem faz (24/11/2026) — não fura a fila pelo prazo.
-  // Urgente continua no topo. Falhou: fica na ordem por prazo, como antes.
-  try { await colocarNoFimDaFila(responsavelId, ticket.id) } catch { /* segue */ }
-  // Urgente fura a fila (melhorias 3.1): quem pediu os pedidos que ficaram para depois é avisado.
-  if (urgente && responsavelId !== auth.userId) {
-    try { await avisarEmpurrados(responsavelId, ticket.id, auth.userId, resp.nome || '') } catch { /* segue */ }
-  }
+  after(async () => {
+    // Sem quadro escolhido: vai para o quadro padrão de quem faz (a regra que o "Aceitar" usava).
+    if (!noQuadro.quadro_id && responsavelId !== auth.userId) {
+      try {
+        const qid = await quadroPadraoDe({ ...auth, userId: responsavelId })
+        const qc = await carregarQuadro(qid)
+        if (qc) await supabaseAdmin.from('tickets').update({ quadro_id: qid, quadro_coluna_id: colunaDoTicket(null, qc.colunas) }).eq('id', ticket.id)
+      } catch { /* fica sem quadro */ }
+    }
+    for (const a of anexos) await registrarEvento(ticket.id, auth.userId, 'anexo', a)
+    await notificarTicket(
+      ticket, [responsavelId], auth.userId,
+      `Novo ticket #${ticket.numero}: ${titulo}`,
+      responsavelId === auth.userId ? 'Você é o responsável por este ticket.'
+        : semEspaco ? `URGENTE: você já tem tarefas todos os dias até o prazo (${prazo ? prazo.split('-').reverse().join('/') : ''}). Decida na sua fila se põe na frente de alguma.`
+        : 'Já está na sua fila. Se não der para fazer, conteste com o motivo.',
+    ).catch(() => { /* aviso é melhor-esforço */ })
+    // Urgente fura a fila (melhorias 3.1): quem pediu os pedidos que ficaram para depois é avisado.
+    if (urgente && responsavelId !== auth.userId) {
+      try { await avisarEmpurrados(responsavelId, ticket.id, auth.userId, resp.nome || '') } catch { /* segue */ }
+    }
+  })
 
   // Já entra no cronograma do quadro, na data escolhida (agenda do responsável).
   let avisoCronograma = ''

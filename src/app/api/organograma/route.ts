@@ -7,6 +7,7 @@ import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
 import { criaCiclo } from '@/lib/organograma/arvore';
 import { gravarVinculo, lerAcessos, lerOrganograma, lerVinculos, telasParaMarcar } from '@/lib/organograma/server';
+import { esquecerPapeis } from '@/lib/organograma/papeis';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,7 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: 'Essa pessoa já está acima de quem você escolheu como chefe — escolha outra.' }, { status: 409 });
     }
     await gravarVinculo(novo, auth.userId);
+    esquecerPapeis(); // cargo mudou: a Administração e as telas por cargo releem
 
     const { data: eu } = await supabaseAdmin.from('financeiro_usu').select('nome').eq('id', auth.userId).maybeSingle();
     await registrarAuditLog({

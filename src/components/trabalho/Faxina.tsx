@@ -13,7 +13,7 @@ import { Zap, CalendarClock, Undo2, CircleX, SkipForward, Check, ArrowLeft } fro
 import { authHeaders } from '@/lib/auth/client'
 import { ESTILO_FILA, COR } from './estiloFila'
 
-interface Item { id: string; numero: number; titulo: string; prazo: string | null; status: string; responsavel_id: string; solicitante_id: string; responsavel: string; solicitante: string; parado: number; vencido: number }
+interface Item { id: string; numero: number; titulo: string; prazo: string | null; status: string; responsavel_id: string; solicitante_id: string; responsavel: string; solicitante: string; parado: number; vencido: number; descricao?: string; criado?: string }
 
 const br = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
 const hojeISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
@@ -30,7 +30,8 @@ async function post(url: string, corpo: Record<string, unknown>) {
 
 type Modo = null | 'data' | 'devolver' | 'cancelar'
 
-export default function Faxina() {
+/** onFechar: aberta numa janela (modal) por cima da fila — os "voltar" viram "fechar". */
+export default function Faxina({ onFechar }: { onFechar?: () => void } = {}) {
   const [itens, setItens] = useState<Item[] | null>(null)
   const [eu, setEu] = useState('')
   const [admin, setAdmin] = useState(false)
@@ -120,7 +121,9 @@ export default function Faxina() {
     <div className="mf" style={{ maxWidth: 900, margin: '0 auto' }}>
       <style>{ESTILO_FILA}</style>
       <div className="mf-topo">
-        <Link href="/fila" className="mf-btn"><ArrowLeft size={15} /> Minha fila</Link>
+        {onFechar
+          ? <button className="mf-btn" onClick={onFechar}><ArrowLeft size={15} /> Fechar</button>
+          : <Link href="/fila" className="mf-btn"><ArrowLeft size={15} /> Minha fila</Link>}
         <div className="mf-titulo"><h1>Faxina dos parados</h1><span>Um de cada vez: decida e passe para o próximo. Atalhos: F · D · V · C · →</span></div>
       </div>
 
@@ -131,7 +134,9 @@ export default function Faxina() {
           <span className="mf-ic" style={{ ['--c' as string]: COR.ok, margin: '0 auto 10px', width: 52, height: 52 }}><Check size={26} /></span>
           <h2 style={{ margin: '0 0 6px', fontWeight: 500 }}>Faxina feita</h2>
           <div style={{ color: 'var(--portal-text-secondary,#475569)' }}>Você resolveu {feitos} de {total}. {total - feitos > 0 && `${total - feitos} ficaram para depois.`}</div>
-          <div style={{ marginTop: 14 }}><Link href="/fila" className="mf-btn cheio" style={{ ['--c' as string]: COR.acao }}>Voltar para a Minha fila</Link></div>
+          <div style={{ marginTop: 14 }}>{onFechar
+            ? <button className="mf-btn cheio" style={{ ['--c' as string]: COR.acao }} onClick={onFechar}>Voltar para a fila</button>
+            : <Link href="/fila" className="mf-btn cheio" style={{ ['--c' as string]: COR.acao }}>Voltar para a Minha fila</Link>}</div>
         </div>
       ) : (
         <>
@@ -142,13 +147,25 @@ export default function Faxina() {
           </div>
 
           <section className="mf-card mf-anim" key={item.id} style={{ padding: '22px 24px' }}>
-            <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#64748b)' }}>
-              {souQuemFaz && souQuemPediu ? 'Você criou para você' : souQuemFaz ? `Você faz · pedido de ${primeiro(item.solicitante)}` : `Você pediu · com ${primeiro(item.responsavel)}`}
+            <Link href={`/tickets/${item.id}`} target="_blank" title="Abrir o pedido em outra aba" style={{ display: 'block', fontSize: 23, fontWeight: 700, color: 'var(--portal-text,#0f172a)', textDecoration: 'none', margin: '0 0 12px' }}>#{item.numero} {item.titulo}</Link>
+            {/* O que foi pedido + quem/quando (José: "dá pra ver nada"). Letras escuras. */}
+            <div style={{ padding: '12px 14px', borderRadius: 12, background: 'var(--portal-bg-secondary,#f8fafc)', border: '1px solid var(--portal-border,#e2e8f0)', marginBottom: 14 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text-secondary,#334155)', marginBottom: 4 }}>O que foi pedido</div>
+              <div style={{ fontSize: 15.5, lineHeight: 1.5, color: 'var(--portal-text,#0f172a)', whiteSpace: 'pre-wrap' }}>{item.descricao || 'Sem descrição.'}</div>
             </div>
-            <Link href={`/tickets/${item.id}`} target="_blank" style={{ display: 'block', fontSize: 22, fontWeight: 500, color: 'var(--portal-text,#0f172a)', textDecoration: 'none', margin: '4px 0 10px' }}>#{item.numero} {item.titulo}</Link>
-            <div className="mf-info" style={{ marginBottom: 18 }}>
-              <span style={{ color: COR.atencao }}>parado há {item.parado} dias</span>
-              {item.prazo && <span style={{ color: item.vencido ? 'var(--cor-atrasado-texto)' : undefined }}>prazo {br(item.prazo)}{item.vencido ? ` (vencido há ${item.vencido} dias)` : ''}</span>}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10, marginBottom: 18 }}>
+              {([
+                ['Pediu', souQuemPediu ? 'Você' : primeiro(item.solicitante), undefined],
+                ['Faz', souQuemFaz ? 'Você' : primeiro(item.responsavel), undefined],
+                ['Criado em', item.criado ? br(item.criado.slice(0, 10)) : '—', undefined],
+                ['Prazo', item.prazo ? `${br(item.prazo)}${item.vencido ? ` · vencido há ${item.vencido} dias` : ''}` : 'sem prazo', item.vencido ? '#b91c1c' : undefined],
+                ['Sem mexer há', `${item.parado} ${item.parado === 1 ? 'dia' : 'dias'}`, '#b45309'],
+              ] as [string, string, string | undefined][]).map(([r, v, c]) => (
+                <div key={r}>
+                  <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary,#475569)' }}>{r}</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: c || 'var(--portal-text,#0f172a)' }}>{v}</div>
+                </div>
+              ))}
             </div>
 
             {modo === null && (

@@ -10,7 +10,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Ticket as TicketIcon, GanttChartSquare, X, ListTodo,
-  ArrowRight, Users, Lock, Calendar, Lightbulb, CalendarClock, MapPin, CalendarDays, ListOrdered,
+  ArrowRight, Users, Lock, Calendar, Lightbulb, CalendarClock, MapPin, CalendarDays, ListOrdered, Send, ShoppingCart,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -24,6 +24,19 @@ export default function CentralNav() {
   const pathname = usePathname() || ''
   const { userProfile } = useAuth()
   const { isDev } = usePermissoes(userProfile?.id)
+  // "Minha equipe" só para líder de setor (pelo cargo, organograma) e dev (José, 27/11/2026).
+  const [veEquipe, setVeEquipe] = useState(false)
+  useEffect(() => {
+    if (!userProfile?.id) return
+    let vivo = true
+    ;(async () => {
+      try {
+        const r = await fetch('/api/eu/papel', { headers: await authHeaders(), cache: 'no-store' })
+        if (r.ok && vivo) setVeEquipe(!!((await r.json()) as { veEquipe?: boolean }).veEquipe)
+      } catch { /* sem resposta: a aba não aparece */ }
+    })()
+    return () => { vivo = false }
+  }, [userProfile?.id])
   const [ajuda, setAjuda] = useState(false)
   const [novoTicket, setNovoTicket] = useState(false)
   const [preenchido, setPreenchido] = useState<{ titulo: string; descricao: string } | null>(null)
@@ -82,13 +95,18 @@ export default function CentralNav() {
   // Lista/Kanban/Gantt/Calendário são um seletor DENTRO de Todos. Agenda tem a vista Salas ao lado.
   const naAgenda = pathname.startsWith('/agenda') || pathname.startsWith('/salas')
   const naEquipe = pathname.startsWith('/fila/equipe')
+  const naEsperando = pathname.startsWith('/fila/esperando')
   const abas = [
     // Minha fila: o item da vez, os próximos, o que chegou. O número = pedidos parados (Faxina).
-    { href: '/fila', label: 'Minha fila', icone: <ListOrdered size={15} />, ativo: pathname.startsWith('/fila') && !naEquipe, n: parados },
+    { href: '/fila', label: 'Minha fila', icone: <ListOrdered size={15} />, ativo: pathname.startsWith('/fila') && !naEquipe && !naEsperando, n: parados },
+    // Esperando: o que EU pedi para os outros (saiu da coluna da Minha fila, 26/11/2026).
+    { href: '/fila/esperando', label: 'Esperando', icone: <Send size={15} />, ativo: naEsperando },
     // Equipe: a carga de cada pessoa, só números.
-    { href: '/fila/equipe', label: 'Equipe', icone: <Users size={15} />, ativo: naEquipe },
+    ...(veEquipe || isDev ? [{ href: '/fila/equipe', label: 'Minha equipe', icone: <Users size={15} />, ativo: naEquipe }] : []),
     // Todos os pedidos (lista, kanban, Gantt, calendário) + Visão geral e quadros por link.
-    { href: '/cronograma', label: 'Todos', icone: <GanttChartSquare size={15} />, ativo: pathname.startsWith('/cronograma') || pathname.startsWith('/tickets') },
+    { href: '/cronograma', label: 'Todos', icone: <GanttChartSquare size={15} />, ativo: pathname.startsWith('/cronograma') || (pathname.startsWith('/tickets') && !pathname.startsWith('/tickets/compras')) },
+    // Compras (José, 26/11/2026): o kanban das Solicitações de Compra já existia, mas tinha ficado sem aba.
+    { href: '/tickets/compras', label: 'Compras', icone: <ShoppingCart size={15} />, ativo: pathname.startsWith('/tickets/compras') },
     // Agenda coletiva (todos por setor + reuniões, prazos, técnicos) com a vista Salas.
     { href: '/agenda', label: 'Agenda', icone: <CalendarDays size={15} />, ativo: naAgenda },
     // Reuniões (pauta + ata): mesma permissão da Central.

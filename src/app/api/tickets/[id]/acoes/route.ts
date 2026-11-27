@@ -244,6 +244,82 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return erro('Decisão inválida')
   }
 
+  // ----------------------------------------------------------- contestar
+  // José, 26/11/2026: o pedido cai direto na fila; quem recebeu CONTESTA com um motivo pronto e
+  // quem pediu recebe no WhatsApp (NovaZap/Chatwoot). A tarefa FICA na fila, marcada "contestada"
+  // (payload.contestacao), até alguém tirar a marca.
+  //   { acao:'contestar', motivo, detalhe? }                 → marca + avisa
+  //   { acao:'contestar_whats', celular }                    → cadastra o celular de quem pediu (se não tinha) e manda de novo
+  //   { acao:'contestacao_limpar' }                          → tira a marca (quem faz ou quem pediu)
+  if (acao === 'contestar' || acao === 'contestar_whats') {
+    if (!souResponsavel) return erro('Só quem recebeu a tarefa pode contestar.', 403)
+    if (encerrado) return erro('Ticket encerrado.')
+    const atual = ((ticket.payload || {}) as Record<string, unknown>).contestacao as { motivo: string; detalhe?: string } | undefined
+    let motivo = String(body.motivo || '').trim().slice(0, 120)
+    let detalhe = String(body.detalhe || '').trim().slice(0, 500)
+    if (acao === 'contestar') {
+      if (!motivo) return erro('Escolha o motivo.')
+      const contestacao = { motivo, ...(detalhe ? { detalhe } : {}), em: new Date().toISOString(), por: auth.userId }
+      const { error } = await supabaseAdmin.from('tickets').update({ payload: { ...((ticket.payload || {}) as Record<string, unknown>), contestacao } }).eq('id', id)
+      if (error) return erro(error.message, 500)
+      await registrarEvento(id, auth.userId, 'comentario', { texto: `Contestou a tarefa: ${motivo}${detalhe ? ` — ${detalhe}` : ''}` })
+      await notificarTicket(ticket, [ticket.solicitante_id], auth.userId,
+        `${await nomeDe(auth.userId)} contestou o ticket #${ticket.numero}`, `${motivo}${detalhe ? ` — ${detalhe}` : ''}`)
+    } else {
+      if (!atual) return erro('Esta tarefa não está contestada.')
+      motivo = atual.motivo; detalhe = atual.detalhe || ''
+      const { normalizarCelular } = await import('@/lib/reunioes/convite')
+      const cel = normalizarCelular(body.celular)
+      if (!cel) return erro('Celular inválido. Use DDD + número, ex.: 14 99999-9999.')
+      // Só grava se a pessoa ainda não tem celular (não sobrescreve o cadastro de ninguém).
+      const { data: s } = await supabaseAdmin.from('financeiro_usu').select('celular').eq('id', ticket.solicitante_id).maybeSingle()
+      if (!s?.celular) {
+        const { error } = await supabaseAdmin.from('financeiro_usu').update({ celular: cel }).eq('id', ticket.solicitante_id)
+        if (error) return erro('Não deu para guardar o celular: ' + error.message, 500)
+      }
+    }
+    // WhatsApp para quem pediu.
+    const { data: sol } = await supabaseAdmin.from('financeiro_usu').select('nome, celular').eq('id', ticket.solicitante_id).maybeSingle()
+    const quem = await nomeDe(auth.userId)
+    const texto = `*Contestação de tarefa*\n\n${quem} contestou o pedido *#${ticket.numero} ${ticket.titulo}*.\n\nMotivo: *${motivo}*${detalhe ? `\n${detalhe}` : ''}\n\nResponda pelo Portal, na conversa do pedido.`
+    const { avisarPeloChatwoot, motivoTxt } = await import('@/lib/chatwoot/avisar-pessoa')
+    const r = await avisarPeloChatwoot(sol?.celular, sol?.nome || '', texto)
+    return NextResponse.json({
+      ok: true,
+      whats: r.ok ? 'enviado' : r.motivo === 'sem_celular' ? 'sem_celular' : 'falhou',
+      ...(r.ok ? {} : { aviso: motivoTxt(r) }),
+      pediu: sol?.nome || null,
+    })
+  }
+  // ------------------------------------------------- sem espaço: decidir
+  // Pedido que chegou com prazo em que quem faz já está ocupado todos os dias (payload.sem_espaco).
+  // Quem faz decide: { acao:'sem_espaco_decidir', frente: true } → topo da fila; false → fica onde está.
+  if (acao === 'sem_espaco_decidir') {
+    if (!souResponsavel) return erro('Só quem faz decide.', 403)
+    const p = { ...((ticket.payload || {}) as Record<string, unknown>) }
+    delete p.sem_espaco
+    const { error } = await supabaseAdmin.from('tickets').update({ payload: p }).eq('id', id)
+    if (error) return erro(error.message, 500)
+    const frente = body.frente === true
+    if (frente) await colocarNoTopoDaFila(auth.userId, id)
+    const autor = await nomeDe(auth.userId)
+    await registrarEvento(id, auth.userId, 'comentario', { texto: frente ? 'Pôs este pedido na frente da fila.' : 'Manteve este pedido na ordem da fila (não cabe antes do prazo).' })
+    await notificarTicket(ticket, [ticket.solicitante_id], auth.userId,
+      `${autor} ${frente ? 'pôs na frente' : 'manteve na ordem'} o ticket #${ticket.numero}`,
+      frente ? 'Vai ser o próximo da fila.' : 'Não dá para antecipar: a entrega deve passar do prazo.')
+    return NextResponse.json({ ok: true })
+  }
+  if (acao === 'contestacao_limpar') {
+    if (!souResponsavel && !souSolicitante) return erro('Só quem faz ou quem pediu.', 403)
+    const p = { ...((ticket.payload || {}) as Record<string, unknown>) }
+    if (!p.contestacao) return NextResponse.json({ ok: true })
+    delete p.contestacao
+    const { error } = await supabaseAdmin.from('tickets').update({ payload: p }).eq('id', id)
+    if (error) return erro(error.message, 500)
+    await registrarEvento(id, auth.userId, 'comentario', { texto: 'Contestação resolvida.' })
+    return NextResponse.json({ ok: true })
+  }
+
   // --------------------------------------------------------------- status
   if (acao === 'status') {
     if (ticket.tipo === 'compras') return erro('Solicitação de Compras segue o trilho de aprovação — use as ações da SC.')

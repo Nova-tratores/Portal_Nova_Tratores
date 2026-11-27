@@ -163,3 +163,31 @@ export async function listarDocumentosRH(funcionarioId: string): Promise<Documen
     return [];
   }
 }
+
+/**
+ * Grava SETOR (departamento) e CARGO de um funcionário no RH — José, 27/11/2026: "centralizar essas
+ * informações de modo que apareçam assim no RH". A Administração é o lugar de editar; daqui o RH
+ * acompanha. Acha o funcionário ativo pelo e-mail e, sem e-mail igual, pelo nome (sem acento/caixa),
+ * a mesma regra do organograma. Só mexe nesses dois campos. Devolve o que aconteceu.
+ */
+export async function gravarSetorCargoRH(
+  pessoa: { email?: string | null; nome?: string | null },
+  campos: { departamento: string | null; cargo: string | null },
+): Promise<'atualizado' | 'nao_encontrado' | 'sem_rh' | 'igual'> {
+  const db = rh();
+  if (!db) return 'sem_rh';
+  const todos = await listarFuncionariosRH();
+  const sa = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  const ativos = todos.filter((f) => !f.data_demissao && sa(f.status || '') !== 'demitido');
+  const email = (pessoa.email || '').trim().toLowerCase();
+  const f = (email && ativos.find((x) => (x.email || '').trim().toLowerCase() === email))
+    || (pessoa.nome ? ativos.find((x) => sa(x.nome) === sa(pessoa.nome!)) : undefined);
+  if (!f) return 'nao_encontrado';
+  // Vazio na Administração NÃO apaga o que o RH tem: só preenche ou troca.
+  const novo = { departamento: campos.departamento ?? f.departamento ?? null, cargo: campos.cargo ?? f.cargo ?? null };
+  if ((f.departamento || null) === novo.departamento && (f.cargo || null) === novo.cargo) return 'igual';
+  const { error } = await db.from('rh_funcionarios').update(novo).eq('id', f.id);
+  if (error) throw new Error('RH: ' + error.message);
+  cacheLista = null; // a próxima leitura já vem com o novo
+  return 'atualizado';
+}

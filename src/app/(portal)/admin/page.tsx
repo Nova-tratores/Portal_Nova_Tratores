@@ -1,8 +1,10 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Fragment } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { supabase } from '@/lib/supabase'
+import { authHeaders } from '@/lib/auth/client'
+import type { PapelOrg } from '@/lib/organograma/papeis'
 import { useRouter } from 'next/navigation'
 import {
   Users, Check, X, Search, ChevronDown, ChevronUp, ChevronRight, ArrowLeft,
@@ -22,6 +24,7 @@ import CelularModal, { celularBonito } from '@/components/admin/CelularModal'
 import AvisosTratorilson from '@/components/admin/AvisosTratorilson'
 import NotificacoesAdmin from '@/components/admin/NotificacoesAdmin'
 import BuscaModulo from '@/components/admin/BuscaModulo'
+import ConferirRH from '@/components/admin/ConferirRH'
 import { MODULOS_ADMIN as MODULOS, MODULO_ADMINISTRACAO, MODULO_FICHA_CADASTRAL, MODULOS_SO_ADMIN } from '@/lib/permissoes/modulos-admin'
 
 
@@ -70,6 +73,9 @@ export default function AdminPage() {
   const router = useRouter()
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [permissoes, setPermissoes] = useState<Record<string, Permissao>>({})
+  // userId → cargo/setor/líder do organograma (só leitura aqui; muda-se no organograma).
+  const [papeis, setPapeis] = useState<Record<string, PapelOrg>>({})
+  const [conferirRH, setConferirRH] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
   // aviso de tarefas órfãs ao desativar um usuário (oferece reatribuição)
@@ -171,6 +177,13 @@ export default function AdminPage() {
 
     setLoading(false)
     if (isAdmin) carregarVendedores()
+    // Cargo e setor vindos do organograma (José, 27/11/2026): "Larissa · Gerente · Pós-vendas".
+    if (isAdmin) {
+      try {
+        const r = await fetch('/api/organograma/papeis', { headers: await authHeaders() })
+        if (r.ok) setPapeis(((await r.json()) as { papeis?: Record<string, PapelOrg> }).papeis || {})
+      } catch { /* sem organograma: só não mostra */ }
+    }
   }
 
   const carregarVendedores = async () => {
@@ -254,11 +267,30 @@ export default function AdminPage() {
     else salvar(userId, { is_admin: false, is_dev: false })
   }
 
+  // Setor e cargo num lugar só (José, 27/11/2026): depois de gravar aqui, copia para o organograma
+  // e o RH (/api/admin/setor-cargo). syncMsg mostra o que aconteceu ao lado do setor.
+  const [syncMsg, setSyncMsg] = useState<Record<string, string>>({})
+  const sincronizar = async (userId: string, cargo?: string | null) => {
+    setSyncMsg((m) => ({ ...m, [userId]: 'salvando…' }))
+    try {
+      const r = await fetch('/api/admin/setor-cargo', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify(cargo !== undefined ? { userId, cargo } : { userId }) })
+      const j = await r.json().catch(() => ({})) as { error?: string; rh?: string; setor?: string | null; cargo?: string | null; erroRh?: string }
+      if (!r.ok) { setSyncMsg((m) => ({ ...m, [userId]: j.error || 'não sincronizou' })); return }
+      setPapeis((p) => ({ ...p, [userId]: { setor: j.setor ?? null, cargo: j.cargo ?? null, lider: /\b(gerente|lider|líder|supervisor|coordenador|diretor|encarregad|chefe|gestor)/i.test(j.cargo || '') } }))
+      setSyncMsg((m) => ({ ...m, [userId]: j.rh === 'atualizado' || j.rh === 'igual' ? 'igual no RH' : j.rh === 'nao_encontrado' ? 'não está no RH' : j.rh === 'erro' ? `RH: ${j.erroRh || 'erro'}` : '' }))
+    } catch { setSyncMsg((m) => ({ ...m, [userId]: 'sem conexão' })) }
+  }
+  const salvarESincronizar = async (userId: string, updates: Partial<Permissao>) => {
+    await salvar(userId, updates)
+    await sincronizar(userId)
+  }
+
   const setCategoria = (userId: string, cat: string) => {
     // a função de outro setor (ex.: Garantista ao virar Peças) deixa de valer
     const mods = permissoes[userId]?.modulos_permitidos || []
     const limpos = limparFuncoesDeOutrosSetores(mods, cat)
-    salvar(userId, limpos.length !== mods.length ? { categoria: cat, modulos_permitidos: limpos } : { categoria: cat })
+    void salvarESincronizar(userId, limpos.length !== mods.length ? { categoria: cat, modulos_permitidos: limpos } : { categoria: cat })
   }
 
   const setMecanicoRole = (userId: string, role: string) => {
@@ -388,7 +420,9 @@ export default function AdminPage() {
   const matchBusca = (u: Usuario) =>
     u.nome.toLowerCase().includes(search.toLowerCase()) ||
     u.funcao?.toLowerCase().includes(search.toLowerCase()) ||
-    u.email?.toLowerCase().includes(search.toLowerCase())
+    u.email?.toLowerCase().includes(search.toLowerCase()) ||
+    (papeis[u.id]?.cargo || '').toLowerCase().includes(search.toLowerCase()) ||
+    (papeis[u.id]?.setor || '').toLowerCase().includes(search.toLowerCase())
   // ativo === false é inativo; true/undefined = ativo (antes de rodar o SQL todos são ativos)
   const passaPapel = (u: Usuario) => {
     const p = permissoes[u.id]
@@ -404,6 +438,8 @@ export default function AdminPage() {
   }
   const filteredUsuarios = usuarios.filter(u => u.ativo !== false && matchBusca(u) && passaPapel(u))
   const inativosFiltrados = usuarios.filter(u => u.ativo === false && matchBusca(u))
+  const setorOrd = (u: Usuario) => papeis[u.id]?.setor || permissoes[u.id]?.categoria || '￿'
+  const porSetor = [...filteredUsuarios].sort((a, b) => setorOrd(a).localeCompare(setorOrd(b), 'pt-BR') || a.nome.localeCompare(b.nome, 'pt-BR'))
 
   if (loadingPerm || loading) {
     return (
@@ -429,7 +465,7 @@ export default function AdminPage() {
         .adm-av { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0; display: grid; place-items: center; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fefefe; font-size: 15px }
         .adm-av img { width: 100%; height: 100%; object-fit: cover } .adm-av.admin { box-shadow: 0 0 0 2px var(--portal-bg-card), 0 0 0 4px #f59e0b } .adm-av.dev { box-shadow: 0 0 0 2px var(--portal-bg-card), 0 0 0 4px #0f172a }
         .adm-quem { display: grid; min-width: 0 } .adm-quem b { font-size: 14.5px; font-weight: 500; color: var(--portal-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-        .adm-quem em { font-style: normal; font-size: 11.5px; color: #94a3b8; font-weight: 400 } .adm-quem small { font-size: 12.5px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+        .adm-quem em { font-style: normal; font-size: 11.5px; color: #94a3b8; font-weight: 400 } .adm-quem small { font-size: 12.5px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap } .adm-cargo { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #1d4ed8 } .adm-lider { font-style: normal; font-size: 11px; font-weight: 700; padding: 1px 7px; margin-left: 8px; border-radius: 999px; background: #dbeafe; color: #1e40af; vertical-align: 1px } .adm-sync { font-size: 12px; color: #475569; white-space: nowrap } .adm-grupo { display: flex; align-items: baseline; gap: 10px; padding: 18px 16px 8px; font-size: 15px; font-weight: 700; color: #0f172a; border-top: 1px solid #e2e8f0; background: #f8fafc } .adm-grupo span { font-size: 13px; font-weight: 500; color: #475569 } .adm-cargo i { font-style: normal; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: #dbeafe; color: #1e40af }
         .adm-pessoa:hover .adm-quem b { color: #dc2626 }
         .adm-setor { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0 }
         .adm-sel { appearance: none; -webkit-appearance: none; border: 1px solid transparent; background: var(--portal-bg-secondary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center; border-radius: 999px; padding: 6px 28px 6px 12px; font-family: inherit; font-size: 12.5px; color: var(--portal-text); cursor: pointer; outline: none; max-width: 100% }
@@ -507,6 +543,8 @@ export default function AdminPage() {
           <ChevronDown size={15} style={{ transform: verResumo ? 'rotate(180deg)' : undefined, transition: 'transform .2s' }} />{verResumo ? 'Esconder resumo' : 'Ver resumo'}
         </button>
         <BuscaModulo modulos={MODULOS} usuarios={usuarios} permissoes={permissoes} onVerUsuario={(nome) => { setFiltroPapel(null); setSearch(nome) }} />
+        {/* Setor e cargo iguais na Administração, organograma e RH (José, 27/11/2026) */}
+        {isAdmin && <button type="button" className="adm-resumo-bt" onClick={() => setConferirRH(true)} title="Comparar setor e cargo daqui com o RH e deixar iguais">Conferir com o RH</button>}
         {/* criar usuário é só para Dev (José, 09/11/2026) — a rota também barra */}
         {isDev && <button
           onClick={() => { setShowNovoUsuario(true); setCriarErro('') }}
@@ -704,7 +742,7 @@ export default function AdminPage() {
         </div>
 
         {/* Table Rows */}
-        {filteredUsuarios.map((user) => {
+        {porSetor.map((user, k) => {
           const perm = permissoes[user.id]
           const isSaving = saving === user.id
           const isMe = user.id === userProfile?.id
@@ -715,15 +753,20 @@ export default function AdminPage() {
           const devLock = !isDev && nivelAtual === 'dev'
           const ehVendedor = !!vendedores[user.id]?.ativo
 
+          // Separado por setor (José, 27/11/2026): cabeçalho quando o setor muda.
+          const setorDe = (u: Usuario) => papeis[u.id]?.setor || permissoes[u.id]?.categoria || 'Sem setor'
+          const novoGrupo = k === 0 || setorDe(porSetor[k - 1]) !== setorDe(user)
           return (
-            <div key={user.id} className="adm-item" style={{ opacity: isSaving ? 0.6 : 1 }}>
+            <Fragment key={user.id}>
+            {novoGrupo && <div className="adm-grupo">{setorDe(user)}<span>{porSetor.filter((u) => setorDe(u) === setorDe(user)).length} pessoas</span></div>}
+            <div className="adm-item" style={{ opacity: isSaving ? 0.6 : 1 }}>
             <div className="adm-linha">
               <button type="button" className="adm-pessoa" onClick={() => toggleExpandirUsuario(user.id)} title="Abrir ficha e permissões">
                 <span className={`adm-av ${nivelAtual}`}>
                   {user.avatar_url ? <img src={user.avatar_url} alt="" /> : user.nome.charAt(0)}
                 </span>
                 <span className="adm-quem">
-                  <b>{user.nome}{isMe && <em> (você)</em>}</b>
+                  <b>{user.nome}{isMe && <em> (você)</em>}{papeis[user.id]?.lider && <i className="adm-lider" title={`Líder pelo cargo: ${papeis[user.id].cargo}`}>líder</i>}</b>
                   <small>{user.email || user.funcao || ''}{user.celular ? ` · ${celularBonito(user.celular)}` : ''}</small>
                 </span>
               </button>
@@ -756,12 +799,20 @@ export default function AdminPage() {
                   <select className={`adm-sel fn ${funcaoNoSetor(modulos, perm?.categoria) ? 'tem' : ''}`}
                     value={funcaoNoSetor(modulos, perm?.categoria)?.chave || ''}
                     disabled={(gestorAcessos && isMe) || (restrito && !gestorAcessos)}
-                    onChange={(e) => salvar(user.id, { modulos_permitidos: trocarFuncaoSetor(modulos, perm!.categoria, e.target.value || null) })}
+                    onChange={(e) => void salvarESincronizar(user.id, { modulos_permitidos: trocarFuncaoSetor(modulos, perm!.categoria, e.target.value || null) })}
                     title={`Função no ${setorComFuncao(perm?.categoria)!.nome}`}>
                     <option value="">sem função</option>
                     {setorComFuncao(perm?.categoria)!.funcoes.map((fn) => <option key={fn.chave} value={fn.chave}>{fn.rot}</option>)}
                   </select>
                 )}
+                {/* Setor sem lista de funções (Financeiro, T.I.): cargo escrito à mão, vai para o organograma e o RH. */}
+                {perm?.categoria && !setorComFuncao(perm.categoria) && (
+                  <input className="adm-sel fn" key={`${user.id}:${papeis[user.id]?.cargo || ''}`} defaultValue={papeis[user.id]?.cargo || ''} placeholder="Cargo"
+                    disabled={restrito} maxLength={80} title="Cargo (vai para o organograma e o RH)"
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v !== (papeis[user.id]?.cargo || '')) void sincronizar(user.id, v || null) }}
+                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }} style={{ width: 150 }} />
+                )}
+                {syncMsg[user.id] && <small className="adm-sync">{syncMsg[user.id]}</small>}
               </div>
 
               {/* Apps: só o que a pessoa tem (sem contar módulos) */}
@@ -817,6 +868,7 @@ export default function AdminPage() {
                 />
             )}
             </div>
+            </Fragment>
           )
         })}
 
@@ -826,6 +878,8 @@ export default function AdminPage() {
           </div>
         )}
       </div>
+
+      {conferirRH && <ConferirRH onFechar={() => setConferirRH(false)} onAplicado={() => { void carregar() }} />}
 
       {/* ===== Seção: Usuários Inativos ===== */}
       {isAdmin && inativosFiltrados.length > 0 && (

@@ -42,7 +42,7 @@ export default function TicketModal({ id, onFechar, onMudou, zIndex = 900 }: Pro
       {/* Celular: janela quase em tela cheia (menos margem e menos acolchoado). */}
       <style>{`@media (max-width: 600px){.ct-tm-fundo{padding:8px 6px !important}.ct-tm-caixa{padding:10px !important;border-radius:12px !important}}`}</style>
       <div className="ct-tm-caixa"
-        style={{ minWidth: 0, width: '100%', maxWidth: 1080, background: 'var(--portal-bg,#f6f6f6)', borderRadius: 16, padding: 16, boxShadow: '0 24px 70px rgba(0,0,0,.35)' }}>
+        style={{ minWidth: 0, width: '100%', maxWidth: 1320, background: 'var(--portal-bg,#f6f6f6)', borderRadius: 16, padding: 16, boxShadow: '0 24px 70px rgba(0,0,0,.35)' }}>
         <TicketDetalhe id={id} onFechar={onFechar} onMudou={onMudou} />
       </div>
     </div>

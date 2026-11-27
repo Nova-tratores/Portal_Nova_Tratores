@@ -17,7 +17,7 @@ import {
   ArrowLeft, Send, Users, CalendarDays, Tag, Building2, Lock, Globe,
   ArrowRightLeft, BellRing, Plus, X, MessageSquare, CircleDot, PenLine, Paperclip,
   CheckCircle2, RotateCcw, Ban, Clock, Link2, Unlink, ShoppingCart, Package, ExternalLink, LayoutGrid, GanttChart,
-  Infinity as InfinityIcon, History,
+  Infinity as InfinityIcon, History, Play,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -31,7 +31,6 @@ import {
 import StatusBadge from '@/components/tickets/StatusBadge'
 import UserSelect from '@/components/tickets/UserSelect'
 import CardVinculos from '@/components/tickets/CardVinculos'
-import TarefasDoTicket from '@/components/tickets/TarefasDoTicket'
 import type { TicketVinculoEnriquecido } from '@/lib/tickets/vinculos'
 import { SC_ETAPA_INFO, SC_CONFIANCA_INFO, margemPrevista, type PayloadSC, type ScEtapa } from '@/lib/tickets/compras'
 import PainelCompras from '@/components/tickets/compras/PainelCompras'
@@ -43,6 +42,7 @@ import EstimarTempo from '@/components/trabalho/EstimarTempo'
  *  escolher. true = volta a etiqueta, o aviso "escolha um quadro" e o Trocar/Escolher. */
 const MOSTRAR_QUADRO = false
 import { ESTILO_FILA } from '@/components/trabalho/estiloFila'
+import { cacheBruto } from './cacheTicket'
 
 const fmtData = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("pt-BR")
 const fmtQuando = (d: string) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -73,7 +73,7 @@ const ROTULO_STATUS_ACAO: Partial<Record<TicketStatus, { rotulo: string; icone: 
   em_andamento: { rotulo: 'Em andamento', icone: <RotateCcw size={15} /> },
   aguardando_terceiro: { rotulo: 'Aguardando terceiro', icone: <Clock size={15} /> },
   aguardando_interno: { rotulo: 'Aguardando interno', icone: <Clock size={15} /> },
-  resolvido: { rotulo: 'Marcar resolvido', icone: <CheckCircle2 size={15} />, destaque: true },
+  resolvido: { rotulo: 'Concluir', icone: <CheckCircle2 size={15} />, destaque: true },
   fechado: { rotulo: 'Confirmar e fechar', icone: <CheckCircle2 size={15} />, destaque: true },
   cancelado: { rotulo: 'Cancelar ticket', icone: <Ban size={15} /> },
 }
@@ -91,6 +91,24 @@ interface Dados {
 
 // Último carregamento de cada ticket: reabrir a janela é instantâneo.
 const cache = new Map<string, Dados>()
+/** Monta os dados a partir da resposta da API (também usado com o que a fila pré-carregou). */
+function dadosDe(json: Record<string, unknown>): Dados {
+  return {
+    ticket: json.ticket as Ticket, eventos: (json.eventos || []) as TicketEvento[], participantes: (json.participantes || []) as TicketParticipante[],
+    usuarios: (json.usuarios || {}) as Dados['usuarios'], vinculos: (json.vinculos || []) as Dados['vinculos'], quadro: (json.quadro || null) as Dados['quadro'],
+    etapa: (json.etapa || null) as Dados['etapa'], projetoQuadro: (json.projetoQuadro || null) as Dados['projetoQuadro'],
+  }
+}
+/** O que já está na memória: o que esta janela carregou antes ou o que a fila pré-carregou. */
+function daMemoria(id: string): Dados | null {
+  const c = cache.get(id)
+  if (c) return c
+  const b = cacheBruto.get(id)
+  if (!b) return null
+  const d = dadosDe(b.json)
+  cache.set(id, d)
+  return d
+}
 
 interface Props {
   id: string
@@ -108,7 +126,7 @@ function Avatar({ u, tamanho = 28 }: { u?: UsuarioMin; tamanho?: number }) {
   }
   return (
     <span style={{ width: tamanho, height: tamanho, borderRadius: '50%', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: tamanho * .38, fontWeight: 800, background: 'rgba(220,38,38,.1)', color: '#b91c1c' }}>{ini}</span>
+      fontSize: tamanho * .38, fontWeight: 800, background: 'rgba(37,99,235,.1)', color: '#1d4ed8' }}>{ini}</span>
   )
 }
 
@@ -118,7 +136,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   const { isAdmin } = usePermissoes(userProfile?.id)
   const isMobile = useIsMobile()
 
-  const inicial = cache.get(id) || null
+  const inicial = daMemoria(id)
   const [dados, setDados] = useState<Dados | null>(inicial)
   const [carregando, setCarregando] = useState(!inicial)
   const [erro, setErro] = useState('')
@@ -186,12 +204,9 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
         else setErro(json.error || 'Falha ao carregar')
         return
       }
-      const novo: Dados = {
-        ticket: json.ticket, eventos: json.eventos || [], participantes: json.participantes || [],
-        usuarios: json.usuarios || {}, vinculos: json.vinculos || [], quadro: json.quadro || null,
-        etapa: json.etapa || null, projetoQuadro: json.projetoQuadro || null,
-      }
+      const novo = dadosDe(json)
       cache.set(id, novo)
+      cacheBruto.set(id, { json, em: Date.now() })
       setDados(novo)
       setErro('')
       ultimaCarga.current = Date.now()
@@ -210,7 +225,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
     tmrRecarga.current = setTimeout(() => carregar(true), 250)
   }, [carregar])
 
-  useEffect(() => { if (userProfile) carregar(!!cache.get(id)) }, [carregar, userProfile, id])
+  useEffect(() => { if (userProfile) carregar(!!daMemoria(id)) }, [carregar, userProfile, id])
 
   // Timeline ao vivo: evento novo neste ticket → recarrega (ignora o eco da
   // própria ação, que já recarregou). Foco da janela só se faz tempo.
@@ -382,6 +397,8 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   const continuo = !ticket.prazo
   // Planejamento guardado no payload (Fila/Cronograma): 1º dia, dias e horas/dia.
   const plano = (ticket.payload || {}) as { inicio?: string | null; dias?: number; horas_dia?: number }
+  // Quando começou = 1ª vez que a situação foi para "em andamento" (histórico).
+  const comecouEm = eventos.find((e) => e.tipo === 'status' && e.payload?.para === 'em_andamento')?.created_at || null
   const rotuloCampo: React.CSSProperties = { fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }
   const campoEdit: React.CSSProperties = {
     display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 3, padding: '7px 10px', borderRadius: 8, fontSize: 13,
@@ -392,9 +409,9 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
     background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#e5e7eb)',
     borderRadius: 12, padding: 16,
   }
+  // Títulos dos cartões sem caixa alta e sem negrito pesado (26/11/2026: "confusa pra caramba").
   const tituloCartao: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: 'var(--portal-text-secondary,#555)',
-    textTransform: 'uppercase', letterSpacing: .4,
+    display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600, color: 'var(--portal-text,#0f172a)',
   }
   const botaoAcao = (destaque?: boolean): React.CSSProperties => ({
     display: 'flex', alignItems: 'center', gap: 6, padding: destaque ? '9px 16px' : '8px 13px', borderRadius: 9,
@@ -409,14 +426,14 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
     border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text-secondary,#555)',
   }
   const fato = (rotulo: string, conteudo: React.ReactNode, cor?: string) => (
-    <div style={{ minWidth: 0, padding: '9px 12px', borderRadius: 10, background: 'var(--portal-bg,#f8f9fa)', border: '1px solid var(--portal-border,#eee)' }}>
-      <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: .5, textTransform: 'uppercase', color: 'var(--portal-text-muted,#999)', marginBottom: 4 }}>{rotulo}</div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 700, color: cor || 'var(--portal-text,#111)', minWidth: 0 }}>{conteudo}</div>
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text-secondary,#475569)', marginBottom: 4 }}>{rotulo}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 600, color: cor || 'var(--portal-text,#0f172a)', minWidth: 0 }}>{conteudo}</div>
     </div>
   )
 
   return (
-    <div style={{ padding: onFechar ? 0 : isMobile ? '14px 12px' : 20, maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ padding: onFechar ? 0 : isMobile ? '14px 12px' : 20, maxWidth: 1320, margin: '0 auto' }}>
       {!onFechar && (
         <button onClick={() => router.push(ehSC ? '/tickets/compras' : '/tickets/quadros')}
           style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>
@@ -424,8 +441,18 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
         </button>
       )}
 
+      {/* Layout (José, 26/11/2026: "você olha para tudo menos o que foi pedido; a conversa fica do
+          lado direito do pedido"): à esquerda o PEDIDO em destaque (+ detalhes embaixo), à direita a
+          CONVERSA na altura toda. Grid com áreas: cab | conv / lado | conv. No celular, um embaixo do outro. */}
+      <div className="td-grade" style={{
+        display: 'grid', gap: 14, alignItems: 'start',
+        gridTemplateColumns: isMobile ? 'minmax(0,1fr)' : 'minmax(0,1.15fr) minmax(340px,1fr)',
+        gridTemplateAreas: isMobile ? '"cab" "conv" "lado"' : '"cab conv" "lado conv"',
+        gridTemplateRows: isMobile ? undefined : 'auto 1fr',
+      }}>
+      <style>{`@keyframes tdEntra{from{opacity:0;transform:translateY(6px)}}.td-grade>*{animation:tdEntra .35s cubic-bezier(.2,.8,.2,1) both}.td-grade>*:nth-child(3){animation-delay:60ms}.td-grade>*:nth-child(4){animation-delay:120ms}.td-pulsa{animation:tdPulsa 1.8s ease-in-out infinite}@keyframes tdPulsa{0%,100%{box-shadow:0 0 0 0 rgba(5,150,105,.55)}50%{box-shadow:0 0 0 8px rgba(5,150,105,0)}}@media (prefers-reduced-motion:reduce){.td-grade>*,.td-pulsa{animation:none}}`}</style>
       {/* ── 1. O que é e em que pé está ── */}
-      <div style={{ ...cartao, marginBottom: 14 }}>
+      <div style={{ ...cartao, gridArea: 'cab', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)' }}>
             {ehSC ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ShoppingCart size={11} /> SC #{ticket.numero}</span> : <>#{ticket.numero}</>}
@@ -433,14 +460,14 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           {ticket.origem_reuniao_id && (
             <a href={`/reunioes/${ticket.origem_reuniao_id}`} title="Abrir a reunião onde esta ação nasceu"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, fontSize: 12, fontWeight: 700, textDecoration: 'none', color: '#4f46e5', background: 'rgba(79,70,229,.1)', border: '1px solid rgba(79,70,229,.3)' }}>
-              📋 Nascida na reunião{(ticket.payload as { reuniao_titulo?: string })?.reuniao_titulo ? `: ${(ticket.payload as { reuniao_titulo?: string }).reuniao_titulo}` : ''}
+              Nascida na reunião{(ticket.payload as { reuniao_titulo?: string })?.reuniao_titulo ? `: ${(ticket.payload as { reuniao_titulo?: string }).reuniao_titulo}` : ''}
             </a>
           )}
           {(ticket.tipo === 'pop' || ticket.tipo === 'pop_revisao') && (
             <a href={ticket.tipo === 'pop' ? `/pops/executar/${ticket.id}` : `/pops/${String((ticket.payload as { pop_id?: string }).pop_id || '')}?versao=${String((ticket.payload as { versao_id?: string }).versao_id || '')}`}
               title={ticket.tipo === 'pop' ? 'Abrir a execução passo a passo' : 'Abrir a versão para aprovar'}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, fontSize: 12, fontWeight: 700, textDecoration: 'none', color: '#0f766e', background: 'rgba(15,118,110,.1)', border: '1px solid rgba(15,118,110,.3)' }}>
-              📋 {ticket.tipo === 'pop' ? 'Abrir execução do POP' : 'Revisão de POP — abrir'}
+              {ticket.tipo === 'pop' ? 'Abrir execução do POP' : 'Revisão de POP — abrir'}
             </a>
           )}
           {MOSTRAR_QUADRO && quadro && (
@@ -449,16 +476,15 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
               <span style={{ width: 8, height: 8, borderRadius: 2, background: quadro.cor }} /> {quadro.nome}
             </a>
           )}
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--portal-text-muted,#999)' }}>
-            {ticket.visibilidade === 'privado' ? <><Lock size={11} /> privado</> : <><Globe size={11} /> visível a todos</>}
-          </span>
+          {/* "visível a todos" saiu daqui: já está em Detalhes (era repetido). */}
           <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             {scInfo
               ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 11px', borderRadius: 999, fontSize: 13, fontWeight: 700, color: scInfo.cor, background: scInfo.fundo, whiteSpace: 'nowrap' }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: scInfo.cor }} /> {scInfo.label}
                 </span>
               : <StatusBadge status={ticket.status} tamanho={13} />}
-            {onFechar && (
+            {/* No computador o X fica no canto da conversa (lado direito); no celular, aqui. */}
+            {onFechar && isMobile && (
               <>
                 <a href={`/tickets/${id}`} target="_blank" rel="noopener" title="Abrir em página própria" aria-label="Abrir em página própria"
                   style={{ display: 'flex', padding: isMobile ? 9 : 6, borderRadius: 8, color: 'var(--portal-text-muted,#888)', border: '1px solid var(--portal-border,#e5e7eb)' }}>
@@ -472,18 +498,37 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             )}
           </span>
         </div>
-        <h1 style={{ fontSize: 21, fontWeight: 800, color: 'var(--portal-text,#111)', margin: '0 0 12px', lineHeight: 1.25 }}>{ticket.titulo}</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--portal-text,#0f172a)', margin: '2px 0 12px', lineHeight: 1.25, letterSpacing: '-.01em' }}>{ticket.titulo}</h1>
 
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
-          {fato('Quem faz', <><Avatar u={usuarios[ticket.responsavel_id]} tamanho={22} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nome(ticket.responsavel_id)}</span></>)}
-          {fato('Pedido por', <><Avatar u={usuarios[ticket.solicitante_id]} tamanho={22} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nome(ticket.solicitante_id)}</span></>)}
+        {/* O motivo do pedido fica logo abaixo do título (José, 26/11/2026: "fica lá embaixo"). */}
+        {ticket.descricao && (
+          // O pedido é o centro da janela: texto grande, escuro, com quem pediu e quando.
+          <div style={{ marginBottom: 14, padding: '18px 20px', borderRadius: 14, background: 'var(--portal-surface,#fff)', border: '2px solid #2563eb', boxShadow: '0 14px 30px -24px rgba(37,99,235,.8)' }}>
+            <div style={{ display: 'inline-block', fontSize: 12.5, fontWeight: 700, color: '#fff', background: '#2563eb', padding: '2px 10px', borderRadius: 999, marginBottom: 10 }}>Objetivo</div>
+            <div style={{ fontSize: 18, fontWeight: 500, lineHeight: 1.55, color: 'var(--portal-text,#0f172a)', whiteSpace: 'pre-wrap' }}>{ticket.descricao}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: 'var(--portal-text-secondary,#475569)' }}>
+              <Avatar u={usuarios[ticket.solicitante_id]} tamanho={22} />
+              <span><b style={{ fontWeight: 600, color: 'var(--portal-text,#0f172a)' }}>{nome(ticket.solicitante_id)}</b> · {new Date(ticket.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          </div>
+        )}
+
+        {/* Uma linha de fatos, sem caixas (antes: 5 cartões, um quebrava sozinho). "Pedido por" saiu:
+            já aparece no quadro do pedido. */}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, minmax(0, 1fr))', gap: '10px 16px', padding: '4px 2px' }}>
+          {fato('Quem faz', <><Avatar u={usuarios[ticket.responsavel_id]} tamanho={22} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nome(ticket.responsavel_id).split(' ')[0]}</span></>)}
           {fato('Prazo',
             continuo
-              ? <><InfinityIcon size={15} /> Contínuo (dias úteis)</>
+              ? <><InfinityIcon size={15} /> Contínuo</>
               : <><CalendarDays size={14} /> {fmtData(ticket.prazo!)}{vencido && ' · vencido'}</>,
             vencido ? 'var(--cor-atrasado-texto)' : continuo ? '#0369a1' : undefined)}
-          {fato('Movimento',
-            <><Clock size={14} /> {dias === 0 ? 'hoje' : `${dias} dia${dias > 1 ? 's' : ''} parado`}</>,
+          {fato('Começou',
+            comecouEm
+              ? <><Play size={14} /> {new Date(comecouEm).toLocaleDateString('pt-BR')}</>
+              : <><Play size={14} /> ainda não{plano.inicio ? ` · previsto ${fmtData(plano.inicio)}` : ''}</>,
+            comecouEm ? '#059669' : 'var(--portal-text-muted,#999)')}
+          {fato('Última mexida',
+            <><Clock size={14} /> {dias === 0 ? 'hoje' : `há ${dias} dia${dias > 1 ? 's' : ''}`}</>,
             dias >= 5 && !encerrado ? '#dc2626' : undefined)}
         </div>
 
@@ -512,20 +557,43 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
         {/* ── 2. Próximo passo ── */}
         {(statusBotoes.length > 0 || podeCutucar || podeCancelar) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--portal-border,#f0f0f0)' }}>
-            {statusBotoes.map((s) => {
-              const cfg = ROTULO_STATUS_ACAO[s]!
-              const voltando = ticket.status === 'resolvido' || encerrado
-              const rotulo = s === 'em_andamento' && ticket.status === 'resolvido' && souSolicitante && !souResponsavel
-                ? 'Contestar (reabrir)'
-                : s === 'em_andamento' ? (encerrado ? 'Reabrir' : ticket.status === 'aberto' ? 'Começar' : 'Voltar para em andamento')
-                : s === 'aberto' && encerrado ? 'Reabrir'
-                : voltando && s.startsWith('aguardando') ? `Voltar: ${cfg.rotulo.toLowerCase()}` : cfg.rotulo
+            {(() => {
+              // UM botão principal (o 1º da lista, que já vem com o destaque na frente); o resto
+              // num menu "Mudar situação" (26/11/2026: 4 botões iguais confundiam).
+              const rotuloDe = (s: TicketStatus) => {
+                const cfg = ROTULO_STATUS_ACAO[s]!
+                const voltando = ticket.status === 'resolvido' || encerrado
+                return s === 'em_andamento' && ticket.status === 'resolvido' && souSolicitante && !souResponsavel
+                  ? 'Contestar (reabrir)'
+                  : s === 'em_andamento' ? (encerrado ? 'Reabrir' : ticket.status === 'aberto' ? 'Começar' : 'Voltar para em andamento')
+                  : s === 'aberto' && encerrado ? 'Reabrir'
+                  : voltando && s.startsWith('aguardando') ? `Voltar: ${cfg.rotulo.toLowerCase()}` : cfg.rotulo
+              }
+              const [principal, ...resto] = statusBotoes
               return (
-                <button key={s} disabled={agindo} style={botaoAcao(cfg.destaque)} onClick={() => mudarStatus(s)}>
-                  {cfg.icone} {rotulo}
-                </button>
+                <>
+                  {principal && (
+                    <button disabled={agindo} className={principal === 'resolvido' || principal === 'fechado' ? 'td-pulsa' : undefined} style={{ ...botaoAcao(true), padding: '11px 22px', fontSize: 15 }} onClick={() => mudarStatus(principal)}>
+                      {ROTULO_STATUS_ACAO[principal]!.icone} {rotuloDe(principal)}
+                    </button>
+                  )}
+                  {resto.length > 0 && (
+                    <details className="td-menu" style={{ position: 'relative' }}>
+                      <summary style={{ ...botaoAcao(), listStyle: 'none', userSelect: 'none' }}>Mudar situação ▾</summary>
+                      <div style={{ position: 'absolute', zIndex: 20, top: 'calc(100% + 6px)', left: 0, minWidth: 230, padding: 6, borderRadius: 12, background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#e2e8f0)', boxShadow: '0 16px 40px -16px rgba(15,23,42,.45)' }}>
+                        {resto.map((s) => (
+                          <button key={s} disabled={agindo} onClick={(e) => { (e.currentTarget.closest('details') as HTMLDetailsElement | null)?.removeAttribute('open'); mudarStatus(s) }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 10px', borderRadius: 8, border: 'none', background: 'transparent', fontSize: 14, fontWeight: 500, color: 'var(--portal-text,#0f172a)', cursor: 'pointer', textAlign: 'left' }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary,#f1f5f9)' }} onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}>
+                            {ROTULO_STATUS_ACAO[s]!.icone} {rotuloDe(s)}
+                          </button>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </>
               )
-            })}
+            })()}
             {podeCutucar && (
               <button disabled={agindo} style={{ ...botaoAcao(), color: '#b45309', borderColor: 'rgba(217,119,6,.45)' }}
                 onClick={() => acao({ acao: 'pedir_atualizacao' })}
@@ -535,9 +603,9 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             )}
             {podeCancelar && (
               <button disabled={agindo}
-                style={{ ...botaoAcao(), marginLeft: 'auto', border: 'none', background: 'transparent', color: '#dc2626', fontWeight: 600 }}
+                style={{ ...botaoAcao(), marginLeft: 'auto', border: '1.5px solid #fca5a5', background: 'var(--portal-surface,#fff)', color: '#b91c1c', fontWeight: 600, padding: '10px 16px', fontSize: 14 }}
                 onClick={() => { if (window.confirm('Cancelar este ticket? Essa ação encerra a demanda.')) mudarStatus('cancelado') }}>
-                <Ban size={14} /> Cancelar ticket
+                <Ban size={15} /> Cancelar
               </button>
             )}
           </div>
@@ -551,44 +619,45 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0, 1fr) 300px', gap: 14, alignItems: 'start' }}>
-        {/* ── 3. Pedido · tarefas · conversa ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
-          <div style={cartao}>
-            <div style={{ ...tituloCartao, marginBottom: 8 }}>O que foi pedido</div>
-            <div style={{ fontSize: 14, lineHeight: 1.55, color: 'var(--portal-text,#111)', whiteSpace: 'pre-wrap' }}>{ticket.descricao}</div>
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--portal-text-muted,#999)' }}>
-              {nome(ticket.solicitante_id)} · {new Date(ticket.created_at).toLocaleString('pt-BR')}
-            </div>
-          </div>
-
-          {!ehSC && (
-            // A caixa verde das tarefas já tem moldura própria (e margem de 14 em cima).
-            <div style={{ marginTop: -14 }}>
-              <TarefasDoTicket ticketId={ticket.id} responsavelId={ticket.responsavel_id} encerrado={encerrado} onMudou={() => { recarregarLogo(); onMudou?.() }} />
-            </div>
-          )}
-
-          <div style={cartao}>
+      {/* (display: contents) as duas colunas antigas viram áreas do grid de cima. */}
+      <div style={{ display: 'contents' }}>
+        {/* ── 3. Conversa (à direita, presa na tela ao rolar) ── */}
+        <div style={{ gridArea: 'conv', display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0, position: isMobile ? undefined : 'sticky', top: 0 }}>
+          {/* Checklist saiu da janela (José, 26/11/2026: "remove esse checklist"). Os passos já
+              criados continuam no banco (portal_tarefas); só não aparecem mais aqui. */}
+          <div style={{ ...cartao, display: 'flex', flexDirection: 'column', maxHeight: isMobile ? undefined : 'calc(100vh - 64px)', minHeight: isMobile ? undefined : 420 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
               <span style={tituloCartao}>{verTudo ? 'Conversa e histórico' : 'Conversa'}</span>
               <div role="group" aria-label="O que mostrar" style={{ marginLeft: 'auto', display: 'flex', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', overflow: 'hidden' }}>
-                {([[false, 'Conversa', <MessageSquare key="c" size={13} />], [true, `Tudo${nHistorico ? ` (+${nHistorico})` : ''}`, <History key="h" size={13} />]] as [boolean, string, React.ReactNode][]).map(([v, rot, ic]) => (
+                {([[false, 'Conversa', <MessageSquare key="c" size={13} />], [true, `Histórico${nHistorico ? ` (${nHistorico})` : ''}`, <History key="h" size={13} />]] as [boolean, string, React.ReactNode][]).map(([v, rot, ic]) => (
                   <button key={rot} aria-pressed={verTudo === v} onClick={() => trocarVerTudo(v)}
                     style={{ display: 'flex', alignItems: 'center', gap: 5, padding: isMobile ? '9px 12px' : '5px 10px', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                      background: verTudo === v ? 'rgba(220,38,38,.1)' : 'transparent', color: verTudo === v ? '#dc2626' : 'var(--portal-text-muted,#777)' }}>
+                      background: verTudo === v ? 'rgba(37,99,235,.1)' : 'transparent', color: verTudo === v ? '#2563eb' : 'var(--portal-text-muted,#777)' }}>
                     {ic} {rot}
                   </button>
                 ))}
               </div>
+              {/* Fechar no canto de cima da janela (a conversa ocupa o lado direito). */}
+              {onFechar && !isMobile && (
+                <>
+                  <a href={`/tickets/${id}`} target="_blank" rel="noopener" title="Abrir em página própria" aria-label="Abrir em página própria"
+                    style={{ display: 'flex', padding: 7, borderRadius: 8, color: 'var(--portal-text-secondary,#475569)', border: '1px solid var(--portal-border,#e5e7eb)' }}>
+                    <ExternalLink size={15} />
+                  </a>
+                  <button onClick={onFechar} aria-label="Fechar" title="Fechar (Esc)"
+                    style={{ display: 'flex', padding: 7, borderRadius: 8, cursor: 'pointer', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#0f172a)' }}>
+                    <X size={16} />
+                  </button>
+                </>
+              )}
             </div>
 
             {eventosVisiveis.length === 0 ? (
               <div style={{ padding: '14px 0', fontSize: 13, color: 'var(--portal-text-muted,#999)', textAlign: 'center' }}>
-                Ninguém escreveu ainda.{!verTudo && nHistorico > 0 && <> <button onClick={() => trocarVerTudo(true)} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: '#dc2626', fontWeight: 700, fontSize: 13 }}>Ver o histórico</button></>}
+                Ninguém escreveu ainda.{!verTudo && nHistorico > 0 && <> <button onClick={() => trocarVerTudo(true)} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: '#2563eb', fontWeight: 700, fontSize: 13 }}>Ver o histórico</button></>}
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minHeight: 0, overflowY: isMobile ? undefined : 'auto', paddingRight: 4 }}>
                 {eventosVisiveis.map((e) => <LinhaEvento key={e.id} e={e} uid={uid} nome={nome} usuarios={usuarios} />)}
               </div>
             )}
@@ -631,7 +700,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                   onClick={enviarComentario}
                   style={{
                     alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
-                    borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700,
+                    borderRadius: 10, border: 'none', background: '#2563eb', color: '#fff', fontWeight: 700,
                     fontSize: 13, cursor: 'pointer', opacity: !comentario.trim() ? .5 : 1,
                   }}>
                   <Send size={14} /> Enviar
@@ -646,8 +715,8 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           </div>
         </div>
 
-        {/* ── 4. Lateral: bloco · detalhes · pessoas · requisições ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }}>
+        {/* ── 4. Detalhes · pessoas · requisições — embaixo do pedido, lado a lado ── */}
+        <div style={{ gridArea: 'lado', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, alignItems: 'start', minWidth: 0 }}>
           {ehSC && (
             <div style={cartao}>
               <div style={{ ...tituloCartao, marginBottom: 10 }}><ShoppingCart size={13} /> Dados da compra</div>
@@ -686,8 +755,9 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             </div>
           )}
 
-          {/* Quem vê (antes "Bloco/Quadro" — o quadro saiu da tela em 24/11/2026; fica a privacidade) */}
-          {!ehSC && (
+          {/* Quem vê (antes "Bloco/Quadro" — o quadro saiu da tela em 24/11/2026; fica a privacidade).
+              26/11/2026: a privacidade virou uma linha em Detalhes; este cartão só aparece com cronograma/quadro. */}
+          {!ehSC && (MOSTRAR_QUADRO || etapa || projetoQuadro) && (
             <div style={cartao}>
               <div style={{ ...tituloCartao, marginBottom: 10 }}>{ticket.visibilidade === 'privado' ? <Lock size={13} /> : <Globe size={13} />} Quem vê</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -774,18 +844,18 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
               )}
             </div>
             {!editando ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 9, fontSize: 13, color: 'var(--portal-text-secondary,#555)' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                  <CalendarDays size={13} style={{ opacity: .6 }} />
-                  {ticket.prazo
-                    ? <span style={{ color: vencido ? 'var(--cor-atrasado-texto)' : undefined, fontWeight: vencido ? 700 : undefined }}>
-                        Prazo {fmtData(ticket.prazo)}{vencido ? ' (vencido)' : ''}
-                      </span>
-                    : 'Sem prazo — contínuo'}
-                </span>
-                {plano.inicio && (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                    <CalendarDays size={13} style={{ opacity: .6 }} /> Começa {fmtData(plano.inicio)}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 14, color: 'var(--portal-text,#0f172a)' }}>
+                {/* Prazo e "começa" já estão no topo (quadrinhos); aqui fica só o que não aparece lá. */}
+                {!ehSC && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                    {ticket.visibilidade === 'privado' ? <Lock size={13} style={{ opacity: .6 }} /> : <Globe size={13} style={{ opacity: .6 }} />}
+                    {ticket.visibilidade === 'privado' ? 'Privado (só os envolvidos)' : 'Visível para todos'}
+                    {podeVisibilidade && (
+                      <button disabled={agindo} style={botaoMini}
+                        onClick={() => acao({ acao: 'visibilidade', para: ticket.visibilidade === 'privado' ? 'publico' : 'privado' })}>
+                        {ticket.visibilidade === 'privado' ? 'tornar visível' : 'tornar privado'}
+                      </button>
+                    )}
                   </span>
                 )}
                 {/* Tempo do trabalho (24/11/2026): total em horas, fácil de ler, e "mudar"/"Estimar" abre o escolhedor */}
@@ -854,7 +924,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                       if (editHoras) corpo.horas_dia = Number(editHoras.replace(',', '.'))
                       acao(corpo, () => setEditando(false))
                     }}
-                    style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                    style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
                     Salvar
                   </button>
                   <button onClick={() => setEditando(false)}
@@ -902,7 +972,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                     <Avatar u={usuarios[p.user_id]} tamanho={24} />
                     <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {nome(p.user_id)}
-                      {papel && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: papel === 'faz' ? '#dc2626' : 'var(--portal-text-muted,#999)' }}>{papel}</span>}
+                      {papel && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 700, color: papel === 'faz' ? '#2563eb' : 'var(--portal-text-muted,#999)' }}>{papel}</span>}
                     </span>
                     {podeRemover && (
                       <button
@@ -954,6 +1024,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           />
         </div>
       </div>
+      </div>{/* fim td-grade */}
 
       {/* Modal transferência (ADR-003: direta, sem aceite, com evento visível) */}
       {modalTransferir && (
@@ -962,7 +1033,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           <div onClick={(e) => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 420, background: 'var(--portal-surface,#fff)', borderRadius: 14, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, margin: '0 0 6px', color: 'var(--portal-text,#111)' }}>
-              <ArrowRightLeft size={16} color="#dc2626" /> Passar para outra pessoa
+              <ArrowRightLeft size={16} color="#2563eb" /> Passar para outra pessoa
             </h3>
             <p style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)', margin: '0 0 14px' }}>
               Passa na hora (sem aceite). {nome(ticket.responsavel_id)} continua acompanhando o ticket.
@@ -976,7 +1047,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
               </button>
               <button disabled={!novoResponsavel || agindo}
                 onClick={() => acao({ acao: 'transferir', para: novoResponsavel }, () => setModalTransferir(false))}
-                style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: !novoResponsavel || agindo ? .5 : 1 }}>
+                style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#2563eb', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: !novoResponsavel || agindo ? .5 : 1 }}>
                 Passar
               </button>
             </div>
@@ -990,7 +1061,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           <div onClick={(e) => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 420, maxHeight: '80vh', overflowY: 'auto', background: 'var(--portal-surface,#fff)', borderRadius: 14, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, margin: '0 0 6px', color: 'var(--portal-text,#111)' }}>
-              <LayoutGrid size={16} color="#dc2626" /> {quadro ? 'Trocar de quadro' : 'Pôr num quadro'}
+              <LayoutGrid size={16} color="#2563eb" /> {quadro ? 'Trocar de quadro' : 'Pôr num quadro'}
             </h3>
             <p style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)', margin: '0 0 14px' }}>
               A situação do ticket não muda.
@@ -1162,7 +1233,7 @@ function LinhaEvento({ e, uid, nome, usuarios }: {
           </div>
           <div style={{
             padding: '9px 12px', borderRadius: 10, fontSize: 14, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            background: meu ? 'rgba(220,38,38,.06)' : 'var(--portal-bg,#f9fafb)',
+            background: meu ? 'rgba(37,99,235,.06)' : 'var(--portal-bg,#f9fafb)',
             border: '1px solid var(--portal-border,#eee)', color: 'var(--portal-text,#111)',
           }}>
             {String(e.payload.texto || '')}

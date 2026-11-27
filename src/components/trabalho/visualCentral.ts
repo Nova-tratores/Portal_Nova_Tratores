@@ -27,16 +27,17 @@ ${PESADO},
 /* 5. campos com cantos 10 */
 .ct-vn input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), .ct-vn select, .ct-vn textarea { border-radius: 10px }
 
+/* Azul (José, 26/11/2026: "deixa tudo azul também") — antes vermelho #dc2626. */
 /* barra da Central: abas estilo Chrome, sem o nome do módulo ao lado (docs/padrao-telas.md) */
-.ct-nav { background: color-mix(in srgb, #dc2626 4%, var(--portal-bg, #f6f6f6)) !important; border-bottom: 1px solid var(--portal-border, #e5e7eb) !important; padding-top: 8px !important; align-items: flex-end !important }
+.ct-nav { background: color-mix(in srgb, #2563eb 4%, var(--portal-bg, #f6f6f6)) !important; border-bottom: 1px solid var(--portal-border, #e5e7eb) !important; padding-top: 8px !important; align-items: flex-end !important }
 .ct-nav-abas { gap: 2px !important; align-items: flex-end !important }
 .ct-aba { display: flex; align-items: center; gap: 8px; padding: 9px 16px 10px; margin-bottom: -1px; border: 1px solid transparent; border-bottom: 0;
   border-radius: 12px 12px 0 0; font-size: 14px; font-weight: 400; color: var(--portal-text-secondary, #475569); text-decoration: none; white-space: nowrap;
   transition: background .15s, color .15s }
-.ct-aba:hover { background: color-mix(in srgb, #dc2626 6%, transparent); color: var(--portal-text, #0f172a) }
-.ct-aba .ct-aba-ic { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; color: #dc2626; background: color-mix(in srgb, #dc2626 9%, transparent) }
+.ct-aba:hover { background: color-mix(in srgb, #2563eb 6%, transparent); color: var(--portal-text, #0f172a) }
+.ct-aba .ct-aba-ic { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; color: #2563eb; background: color-mix(in srgb, #2563eb 9%, transparent) }
 .ct-aba.on { background: var(--portal-surface, #fefefe); border-color: var(--portal-border, #e5e7eb); color: var(--portal-text, #0f172a); font-weight: 500 }
-.ct-aba.on .ct-aba-ic { background: #dc2626; color: #fefefe }
-.ct-aba .ct-aba-n { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #dc2626; color: #fefefe }
+.ct-aba.on .ct-aba-ic { background: #2563eb; color: #fefefe }
+.ct-aba .ct-aba-n { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: #2563eb; color: #fefefe }
 .ct-nav-acoes { align-self: center }
 `

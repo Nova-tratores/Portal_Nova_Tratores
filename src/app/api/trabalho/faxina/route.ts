@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   const contar = req.nextUrl.searchParams.get('contar') === '1'
   // contar=1 (barra e Minha fila, 26/11/2026): só a contagem, sem trazer as linhas (máximo 200, como antes).
   let q = supabaseAdmin.from('tickets')
-    .select('id, numero, titulo, prazo, status, responsavel_id, solicitante_id, ultima_atividade_em, created_at', contar ? { count: 'exact', head: true } : undefined)
+    .select('id, numero, titulo, descricao, prazo, status, responsavel_id, solicitante_id, ultima_atividade_em, created_at', contar ? { count: 'exact', head: true } : undefined)
     .or(`responsavel_id.eq.${auth.userId},solicitante_id.eq.${auth.userId}`)
     .not('tipo', 'in', '(compras,reuniao,pop_revisao)')
     .not('status', 'in', '(resolvido,fechado,cancelado)')
@@ -48,6 +48,8 @@ export async function GET(req: NextRequest) {
     eu: auth.userId, admin: auth.isAdmin,
     itens: lista.map((t) => ({
       id: t.id, numero: t.numero, titulo: t.titulo, prazo: t.prazo, status: t.status,
+      // "Dá pra ver nada" (José, 26/11/2026): a Faxina mostra o que foi pedido e quando.
+      descricao: String(t.descricao || '').slice(0, 600), criado: t.created_at,
       responsavel_id: t.responsavel_id, solicitante_id: t.solicitante_id,
       responsavel: nome.get(t.responsavel_id as string) || '—', solicitante: nome.get(t.solicitante_id as string) || '—',
       parado: dias(String(t.ultima_atividade_em || t.created_at), new Date().toISOString()),
