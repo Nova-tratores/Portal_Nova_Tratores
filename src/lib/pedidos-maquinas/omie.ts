@@ -146,7 +146,7 @@ async function atualizarNaOmieSemPausa(id: number | string, usuario: string) {
   const { ped } = await achar(pedido);
   if (Number(ped.cabecalho?.etapa || 0) >= ETAPA_FATURADO) throw new ErroPedido(409, 'Na Omie o pedido já está na etapa de faturamento.');
   const det = planoItensOmie(payload.det as DetPortal[], (ped.det || []) as DetOmie[], pedido.id_pedido, Date.now().toString(36));
-  const cab = { ...(payload.cabecalho as Record<string, unknown>), codigo_pedido: ped.cabecalho?.codigo_pedido };
+  const cab: Record<string, unknown> = { ...(payload.cabecalho as Record<string, unknown>), codigo_pedido: ped.cabecalho?.codigo_pedido };
   delete cab.codigo_pedido_integracao; delete cab.etapa; delete cab.quantidade_itens;
   const r = await omieNaConta<Record<string, unknown>>(acc, '/produtos/pedido/', 'AlterarPedidoVenda', { ...payload, cabecalho: cab, det });
   if (statusOmieErro(r)) throw new ErroPedido(422, `A Omie recusou a atualização: ${descricaoOmie(r)}`);
@@ -155,7 +155,7 @@ async function atualizarNaOmieSemPausa(id: number | string, usuario: string) {
   const diverge = relido ? divergenciaItens(itens.map((i) => ({ codigo_produto: i.codigo_produto ? Number(i.codigo_produto) : null, qtde: Number(i.qtde) })), (relido.det || []) as DetOmie[]) : [];
   await log(pedido.id, `Pedido atualizado na Omie (nº ${pedido.pedido_omie})${diverge.length ? ' — ainda diferente: ' + diverge.join(' ') : ''}`, usuario, { avisos, itens: det.map((d) => (d as { produto?: unknown; ide?: unknown })) });
   if (diverge.length) throw new ErroPedido(409, `A Omie aceitou, mas o pedido lá continua diferente. ${diverge.join(' ')}`);
-  return { ok: true, numero: pedido.pedido_omie, avisos };
+  return { numero: pedido.pedido_omie, avisos };
 }
 export const atualizarNaOmie = (id: number | string, usuario: string) =>
   comRobosPausados('atualizar pedido de máquina na Omie', () => atualizarNaOmieSemPausa(id, usuario));
