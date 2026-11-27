@@ -273,3 +273,40 @@ export function palavrasDaBusca(q: string, max = 6): string[] {
   }
   return [...vistas].slice(0, max);
 }
+
+// ---------------------------------------------------------------------------
+// "Atualizar na Omie": pedido já enviado e alterado no portal (ex.: trocar o produto
+// por outro sem controle de lote). O AlterarPedidoVenda MANTÉM item que não vai no
+// det, então o que saiu do portal vai com acao_item "E". Casamento pelo codigo_produto.
+export interface DetPortal { ide?: Record<string, unknown>; produto: { codigo_produto: number; quantidade: number; [k: string]: unknown }; [k: string]: unknown }
+export interface DetOmie { ide?: { codigo_item?: number; codigo_item_integracao?: string }; produto?: { codigo_produto?: number; quantidade?: number; valor_unitario?: number } }
+
+export function planoItensOmie(portal: DetPortal[], omie: DetOmie[], idPedido: string, sufixo: string): Record<string, unknown>[] {
+  const usados = new Set<number>();
+  const det: Record<string, unknown>[] = portal.map((x, i) => {
+    const k = omie.findIndex((o, j) => !usados.has(j) && Number(o.produto?.codigo_produto) === Number(x.produto.codigo_produto) && o.ide?.codigo_item);
+    if (k >= 0) {
+      usados.add(k);
+      const o = omie[k];
+      return { ...x, ide: { codigo_item: o.ide!.codigo_item, ...(o.ide!.codigo_item_integracao ? { codigo_item_integracao: o.ide!.codigo_item_integracao } : {}) } };
+    }
+    return { ...x, ide: { codigo_item_integracao: `${idPedido}-${sufixo}-${i + 1}` } };
+  });
+  omie.forEach((o, j) => {
+    if (usados.has(j) || !o.ide?.codigo_item) return;
+    det.push({
+      ide: { codigo_item: o.ide.codigo_item, ...(o.ide.codigo_item_integracao ? { codigo_item_integracao: o.ide.codigo_item_integracao } : {}), acao_item: 'E' },
+      produto: { codigo_produto: Number(o.produto?.codigo_produto), quantidade: Number(o.produto?.quantidade) || 0, valor_unitario: Number(o.produto?.valor_unitario) || 0 },
+    });
+  });
+  return det;
+}
+
+/** Produtos/quantidades diferentes entre o portal e a Omie (vazio = iguais). */
+export function divergenciaItens(portal: { codigo_produto: number | null; qtde: number; descricao?: string }[], omie: DetOmie[]): string[] {
+  const chave = (c: unknown, q: unknown) => `${Number(c) || 0}x${Number(q) || 0}`;
+  const a = portal.map((i) => chave(i.codigo_produto, i.qtde)).sort();
+  const b = omie.map((o) => chave(o.produto?.codigo_produto, o.produto?.quantidade)).sort();
+  if (a.join() === b.join()) return [];
+  return [`No portal: ${a.join(', ') || 'nenhum'} · na Omie: ${b.join(', ') || 'nenhum'} (código do produto × quantidade).`];
+}

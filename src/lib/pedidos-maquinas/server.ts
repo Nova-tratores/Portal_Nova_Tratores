@@ -193,7 +193,8 @@ export async function gravarParcelas(pedidoId: number, parcelas: ParcelaPedidoMa
 export function exigirEditavel(p: PedidoMaquina) {
   if (p.status === 'faturado') throw new ErroPedido(409, 'Pedido faturado não pode ser alterado.');
   if (p.status === 'cancelado') throw new ErroPedido(409, 'Pedido cancelado não pode ser alterado.');
-  if (p.pedido_omie) throw new ErroPedido(409, `Pedido já está na Omie (nº ${p.pedido_omie}). Para mudar, cancele e faça outro.`);
+  if (p.faturado_omie_em) throw new ErroPedido(409, 'Pedido faturado não pode ser alterado.');
+  // Já na Omie: dá para mudar no portal e depois "Atualizar na Omie" (AlterarPedidoVenda).
 }
 
 export function normalizarParcelasCorpo(lista: unknown): ParcelaPedidoMaquina[] {

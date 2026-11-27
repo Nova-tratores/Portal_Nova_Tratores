@@ -100,6 +100,7 @@ export async function PATCH(req: Request) {
     const soInterno = ['observacao', 'previsao_faturamento'];
     const campos = CAMPOS_EDITAVEIS.filter((k) => b[k] !== undefined);
     if (campos.some((k) => !soInterno.includes(k))) exigirEditavel(p);
+    if (p.pedido_omie && campos.includes('empresa')) throw new ErroPedido(409, 'O pedido já está na Omie desta empresa: não dá para trocar a empresa.');
     else if (p.status === 'cancelado') throw new ErroPedido(409, 'Pedido cancelado.');
 
     const patch: Record<string, unknown> = {};

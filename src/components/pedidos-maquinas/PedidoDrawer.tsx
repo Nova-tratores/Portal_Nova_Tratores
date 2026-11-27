@@ -72,7 +72,7 @@ export default function PedidoDrawer({ id, onFechar, onMudou }: { id: string | n
   const p = d?.pedido;
   const enviado = !!p?.pedido_omie;
   const encerrado = p?.status === 'faturado' || p?.status === 'cancelado';
-  const podeEditar = pode(M, 'editar') && !enviado && !encerrado;
+  const podeEditar = pode(M, 'editar') && !encerrado; // já na Omie: muda aqui e clica em "Atualizar na Omie"
 
   const acao = async (rotulo: string, fn: () => Promise<unknown>, ok?: string) => {
     setOcupado(rotulo); setErro(''); setMsg('');
@@ -196,7 +196,7 @@ export default function PedidoDrawer({ id, onFechar, onMudou }: { id: string | n
               </div>
               <div className="pm-campo">
                 <span className="pm-lbl">Empresa</span>
-                <select className="pm-input" disabled={!podeEditar || d.itens.length > 0} title={d.itens.length ? 'Tire os itens para trocar a empresa' : ''} value={p.empresa} onChange={(e) => salvarCampo('empresa', e.target.value)}>
+                <select className="pm-input" disabled={!podeEditar || enviado || d.itens.length > 0} title={enviado ? 'O pedido já está na Omie desta empresa' : d.itens.length ? 'Tire os itens para trocar a empresa' : ''} value={p.empresa} onChange={(e) => salvarCampo('empresa', e.target.value)}>
                   <option>Nova Tratores</option>
                   <option>Castro Peças</option>
                 </select>
@@ -629,6 +629,14 @@ function AcoesOmie({ p, pode, ocupado, acao, setErro }: { p: Pedido; pode: (m: s
             </button>
           </>
         )}
+        {enviado && !p.faturado_omie_em && p.status !== 'cancelado' && pode(M, 'enviar_omie') && (
+          <button className="pm-btn azul" disabled={!!ocupado} title="Mudou algo depois de enviar (produto, quantidade, preço, parcelas, cliente…)? Isto deixa o pedido da Omie igual ao portal."
+            onClick={() => confirm(`Deixar o pedido ${p.pedido_omie} da Omie igual ao portal?
+
+Produto que saiu do portal é tirado do pedido na Omie.`) && acao('atualizar', () => api('/api/pedidos-maquinas/omie', 'POST', { id: p.id, acao: 'atualizar' }), 'Pedido atualizado na Omie.')}>
+            <Send size={15} /> {ocupado === 'atualizar' ? 'Atualizando…' : 'Atualizar na Omie'}
+          </button>
+        )}
         {enviado && !p.faturado_omie_em && p.status !== 'cancelado' && pode(M, 'faturar') && (
           <button className="pm-btn ok" onClick={verFaturar}><Receipt size={15} /> Faturar (NF-e)</button>
         )}
@@ -639,6 +647,12 @@ function AcoesOmie({ p, pode, ocupado, acao, setErro }: { p: Pedido; pode: (m: s
           }}><Ban size={15} /> Cancelar pedido</button>
         )}
       </div>
+
+      {enviado && !p.faturado_omie_em && p.status !== 'cancelado' && (
+        <div style={{ fontSize: 12.5, color: 'var(--text-light)' }}>
+          O pedido já está na Omie. Se mudar algo aqui (ex.: trocar a máquina), clique em <b>Atualizar na Omie</b> antes de faturar.
+        </div>
+      )}
 
       {previa && (
         <div className="pm-card" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

@@ -16,7 +16,8 @@ import {
 import { statusOmieErro, descricaoOmie } from '@/lib/ppv/omie-status';
 import { hojeSaoPaulo } from '@/lib/pagamento/parcelas';
 import { T, ErroPedido, lerCompleto, log, type PedidoMaquina } from './server';
-import { parcelasParaOmie, validarParaOmie, totalItens, referenciaPedido, CONTA_PADRAO } from './regras';
+import { parcelasParaOmie, validarParaOmie, totalItens, referenciaPedido, CONTA_PADRAO, planoItensOmie, divergenciaItens, type DetPortal, type DetOmie } from './regras';
+import { comRobosPausados } from '@/lib/omie/porta';
 
 const ETAPA_FATURADO = 60;
 const PORTAL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://portal.novatratores.com').replace(/\/$/, '');
@@ -136,13 +137,38 @@ async function achar(pedido: PedidoMaquina): Promise<{ acc: OmieAccount; ped: Om
   return { acc, ped };
 }
 
+/** Pedido já na Omie e alterado no portal: deixa o pedido da Omie igual (AlterarPedidoVenda). */
+async function atualizarNaOmieSemPausa(id: number | string, usuario: string) {
+  const { acc, payload, avisos, pedido } = await montarPayload(id);
+  if (!pedido.pedido_omie) throw new ErroPedido(409, 'O pedido ainda não foi enviado à Omie.');
+  if (pedido.faturado_omie_em || pedido.status === 'faturado') throw new ErroPedido(409, 'Pedido faturado não pode ser alterado.');
+  if (pedido.status === 'cancelado') throw new ErroPedido(409, 'Pedido cancelado.');
+  const { ped } = await achar(pedido);
+  if (Number(ped.cabecalho?.etapa || 0) >= ETAPA_FATURADO) throw new ErroPedido(409, 'Na Omie o pedido já está na etapa de faturamento.');
+  const det = planoItensOmie(payload.det as DetPortal[], (ped.det || []) as DetOmie[], pedido.id_pedido, Date.now().toString(36));
+  const cab = { ...(payload.cabecalho as Record<string, unknown>), codigo_pedido: ped.cabecalho?.codigo_pedido };
+  delete cab.codigo_pedido_integracao; delete cab.etapa; delete cab.quantidade_itens;
+  const r = await omieNaConta<Record<string, unknown>>(acc, '/produtos/pedido/', 'AlterarPedidoVenda', { ...payload, cabecalho: cab, det });
+  if (statusOmieErro(r)) throw new ErroPedido(422, `A Omie recusou a atualização: ${descricaoOmie(r)}`);
+  const relido = await consultarPedidoOmie({ codigo_pedido: ped.cabecalho?.codigo_pedido }, acc).catch(() => null);
+  const { itens } = await lerCompleto(id);
+  const diverge = relido ? divergenciaItens(itens.map((i) => ({ codigo_produto: i.codigo_produto ? Number(i.codigo_produto) : null, qtde: Number(i.qtde) })), (relido.det || []) as DetOmie[]) : [];
+  await log(pedido.id, `Pedido atualizado na Omie (nº ${pedido.pedido_omie})${diverge.length ? ' — ainda diferente: ' + diverge.join(' ') : ''}`, usuario, { avisos, itens: det.map((d) => (d as { produto?: unknown; ide?: unknown })) });
+  if (diverge.length) throw new ErroPedido(409, `A Omie aceitou, mas o pedido lá continua diferente. ${diverge.join(' ')}`);
+  return { ok: true, numero: pedido.pedido_omie, avisos };
+}
+export const atualizarNaOmie = (id: number | string, usuario: string) =>
+  comRobosPausados('atualizar pedido de máquina na Omie', () => atualizarNaOmieSemPausa(id, usuario));
+
 export async function simularFaturamento(id: number | string) {
   const { pedido, itens } = await lerCompleto(id);
   if (!pedido.pedido_omie) throw new ErroPedido(409, 'Envie o pedido à Omie antes de faturar.');
   const { acc, ped } = await achar(pedido);
   const totalOmie = Number(ped.total_pedido?.valor_total_pedido || 0);
   const totalPortal = totalItens(itens);
+  const divergeItens = divergenciaItens(itens.map((i) => ({ codigo_produto: i.codigo_produto ? Number(i.codigo_produto) : null, qtde: Number(i.qtde) })), (ped.det || []) as DetOmie[]);
   return {
+    ...(divergeItens.length ? { bloqueio: `Os produtos do pedido na Omie estão diferentes do portal. Clique em "Atualizar na Omie" antes de faturar. ${divergeItens.join(' ')}` } : {}),
     empresa: acc.name,
     numero: ped.cabecalho?.numero_pedido,
     etapa: ped.cabecalho?.etapa,
@@ -171,6 +197,11 @@ export async function faturarPedidoMaquina(id: number | string, usuario: string)
   try {
     const { acc, ped } = await achar(pedido);
     const nCodPed = Number(ped.cabecalho?.codigo_pedido);
+    if (Number(ped.cabecalho?.etapa || 0) < ETAPA_FATURADO) {
+      const { itens } = await lerCompleto(id);
+      const dif = divergenciaItens(itens.map((i) => ({ codigo_produto: i.codigo_produto ? Number(i.codigo_produto) : null, qtde: Number(i.qtde) })), (ped.det || []) as DetOmie[]);
+      if (dif.length) throw new ErroPedido(409, `Os produtos do pedido na Omie estão diferentes do portal. Clique em "Atualizar na Omie" antes de faturar. ${dif.join(' ')}`);
+    }
     const marcar = async (nf?: string) => {
       await supabaseAdmin.from(T.pedidos).update({
         faturado_omie_em: new Date().toISOString(), faturado_por: usuario, status: 'faturado', faturando_desde: null,
