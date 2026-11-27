@@ -15,6 +15,7 @@ import { faixaParada, DIAS_ESQUECIDA, DIAS_ANTIGA } from '@/lib/estoque/recebime
 import ProdutoPrecoModal from '@/components/estoque/ProdutoPrecoModal';
 import ModalReabrir from '@/components/estoque/ModalReabrir';
 import ModalRelancar from '@/components/estoque/ModalRelancar';
+import { descricaoSugerida, validarLista } from '@/lib/ajustes/produto-proprio-recebimento';
 import SepararMaquinas from '@/components/estoque/SepararMaquinas';
 import ModalRetornoGarantia from '@/components/garantias/ModalRetornoGarantia';
 import { fatorDoTipo, sugerirPreco } from '@/lib/estoque/preco-venda-entrada';
@@ -31,6 +32,7 @@ interface ItemReceb {
   nSequencia: number | string | null;
   cfop?: string | null;
   ncm?: string | null;
+  unidade?: string | null;
   cfopEntrada?: string | null;
   cfopEntradaSugerido?: string | null;
   codigoProdutoInt?: string | null;
@@ -84,7 +86,8 @@ interface ResultadoCard { tipo: 'ok' | 'erro'; texto: string }
 // autocomplete de produto (/api/ajustes/movimentacao/buscar-produto)
 interface ProdutoSugestao { codigoProduto: number; codigo: string; descricao: string; estoque: number | null }
 // o que fazer com um item que o Omie traz como "produto novo"
-type AcaoItem = 'novo' | 'associar' | 'ignorar';
+type AcaoItem = 'novo' | 'associar' | 'ignorar' | 'meu_codigo';
+interface MeuProduto { codigo: string; descricao: string; codigoFamilia: string }
 // retorno de /api/ajustes/dar-entrada-recebimento p/ itens associados (impacto no CMC)
 interface AssociadoInfo {
   nSequencia: number | string; idProduto: number; descricaoProduto?: string | null;
@@ -1344,6 +1347,26 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
   // acao por item: para produto NOVO o usuario escolhe novo/associar/ignorar; para produto
   // EXISTENTE o padrao e' 'novo' (=EDITAR) mas tambem pode ser 'ignorar' (checkbox).
   const acaoDe = (_it: ItemReceb, i: number): AcaoItem => acoes[i] || 'novo';
+  // "Criar com meu código": o portal cria o produto (código/descrição escolhidos, sem lote) e associa
+  const [meus, setMeus] = useState<Record<number, MeuProduto>>({});
+  const [familias, setFamilias] = useState<{ codigo_familia: number; nome: string }[]>([]);
+  const usaMeuCodigo = Object.values(acoes).includes('meu_codigo');
+  useEffect(() => {
+    if (!usaMeuCodigo || familias.length) return;
+    let cancel = false;
+    (async () => {
+      try {
+        const d = await fetch(`/api/estoque/recebimentos/separar-maquinas?familias=1&conta=${encodeURIComponent(conta)}`, { headers: await authHeaders() }).then((x) => x.json());
+        if (!cancel) setFamilias((d.familias || []) as { codigo_familia: number; nome: string }[]);
+      } catch { /* sem lista: segue sem família */ }
+    })();
+    return () => { cancel = true; };
+  }, [usaMeuCodigo, familias.length, conta]);
+  const escolherMeuCodigo = (it: ItemReceb, i: number) => {
+    setAcoes((s) => ({ ...s, [i]: 'meu_codigo' }));
+    setAssoc((s) => ({ ...s, [i]: null }));
+    setMeus((s) => (s[i] ? s : { ...s, [i]: { codigo: '', descricao: descricaoSugerida(it.descricaoProduto), codigoFamilia: '' } }));
+  };
 
   // 2a fase: correcao do CMC distorcido por garantia
   const [fase, setFase] = useState<'entrada' | 'correcao'>('entrada');
@@ -1491,6 +1514,9 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
 
   const confirmar = async () => {
     // valida os itens marcados p/ associar (produto obrigatorio)
+    const errosMeus = validarLista((r.itens || []).flatMap((it, i) => (acaoDe(it, i) === 'meu_codigo'
+      ? [{ codigo: meus[i]?.codigo || '', descricao: meus[i]?.descricao || '', rotulo: `"${it.descricaoProduto || it.codigoProdutoInt || i + 1}"` }] : [])));
+    if (errosMeus.length) { alert(errosMeus.join('\n')); return; }
     const semProduto = (r.itens || []).findIndex((it, i) => it.criarNovo && acaoDe(it, i) === 'associar' && !assoc[i]);
     if (semProduto >= 0) {
       alert(`Escolha o produto para associar no item "${(r.itens || [])[semProduto].descricaoProduto || (r.itens || [])[semProduto].codigoProdutoInt || semProduto + 1}" (ou volte para "criar novo").`);
@@ -1513,6 +1539,10 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
         qtde: p ? it.qtde : undefined,
         precoUnit: p ? it.precoUnit : undefined,
         descricaoProduto: p ? `${p.codigo} — ${p.descricao}` : undefined,
+        ...(acao === 'meu_codigo' && meus[i] ? {
+          criarProduto: { codigo: meus[i].codigo, descricao: meus[i].descricao, codigoFamilia: Number(meus[i].codigoFamilia) || null },
+          unidade: it.unidade || undefined, qtde: it.qtde, precoUnit: it.precoUnit,
+        } : {}),
       };
     });
     // Fase 3: financeiro/classificacao (cabecalho). infoAdicionais e' all-or-nothing.
@@ -1532,6 +1562,9 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
     const assocTxt = (r.itens || [])
       .map((it, i) => (it.criarNovo && acaoDe(it, i) === 'associar' && assoc[i] ? `\n  · "${it.descricaoProduto || it.codigoProdutoInt}" → ${assoc[i]!.codigo} ${assoc[i]!.descricao}` : ''))
       .join('');
+    const meusTxt = (r.itens || [])
+      .map((it, i) => (acaoDe(it, i) === 'meu_codigo' && meus[i] ? `\n  · "${it.descricaoProduto || it.codigoProdutoInt}" → NOVO ${meus[i].codigo.trim().toUpperCase()} ${meus[i].descricao.trim()}` : ''))
+      .join('');
     const ignTxt = (r.itens || []).filter((it, i) => acaoDe(it, i) === 'ignorar').length;
     const precosVenda = fatorPreco ? (r.itens || []).flatMap((it, i) => {
       const pr = precos[i];
@@ -1542,6 +1575,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
     if (!confirm(
       `Confirmar entrada da NF ${r.numeroNFe || '?'}?\n\nIsso PROCESSA a NF no Omie${naoFin ? ', SEM gerar contas a pagar' : ''}${naoMov ? ', SEM movimentar estoque' : ''}.`
       + (assocTxt ? `\n\nItens que serao ASSOCIADOS a produtos existentes (so' da p/ desfazer revertendo o recebimento):${assocTxt}` : '')
+      + (meusTxt ? `\n\nProdutos que o portal vai CRIAR na Omie (sem controle de lote) e ligar à nota:${meusTxt}` : '')
       + (ignTxt ? `\n\n${ignTxt} item(ns) serao IGNORADOS.` : '')
       + (precosVenda.length ? `\n\n${precosVenda.length} preço(s) de venda serão atualizados na Omie (só se subirem).` : '')
       + '\n\nContinuar?',
@@ -1784,6 +1818,13 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
                           ignorar
                         </label>
                       )}
+                      {!it.criarNovo && !ignorado && acao !== 'meu_codigo' && (
+                        <button type="button" onClick={() => escolherMeuCodigo(it, i)}
+                          title="Cria na Omie um produto novo com o código e a descrição que você escolher (sem controle de lote) e liga esta linha a ele"
+                          style={{ marginLeft: 8, fontSize: '.62rem', color: '#7c3aed', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', padding: '6px 0' }}>
+                          usar outro código
+                        </button>
+                      )}
                     </td>
                     <td style={{ ...mTd, fontFamily: 'monospace' }}>{it.cfop || ''}</td>
                     <td style={{ ...mTd, fontFamily: 'monospace', color: '#64748b' }}>{it.cfopEntrada || '(ao processar)'}</td>
@@ -1797,18 +1838,51 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
                     <td style={{ ...mTd, textAlign: 'right' }}>{fmtSaldo(it.qtde)}</td>
                     <td style={{ ...mTd, textAlign: 'right' }}>{fmtBRL(it.precoUnit)}</td>
                   </tr>
-                  {it.criarNovo && (
+                  {(it.criarNovo || acao === 'meu_codigo') && (
                     <tr>
-                      <td colSpan={6} style={{ ...mTd, background: '#fffbeb', paddingTop: 6, paddingBottom: 6 }}>
+                      <td colSpan={6} style={{ ...mTd, background: acao === 'meu_codigo' ? '#f5f3ff' : '#fffbeb', paddingTop: 6, paddingBottom: 6 }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                          {it.criarNovo ? (<>
                           <span style={{ fontSize: '.65rem', color: '#92400e', textTransform: 'uppercase', letterSpacing: '.4px' }}>este item nao existe no cadastro:</span>
-                          {([['novo', 'Criar produto novo'], ['associar', 'Associar a um existente'], ['ignorar', 'Ignorar item']] as [AcaoItem, string][]).map(([v, label]) => (
-                            <label key={v} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.72rem', cursor: 'pointer' }}>
+                          {([['novo', 'Criar produto novo (código do fornecedor)'], ['meu_codigo', 'Criar com meu código'], ['associar', 'Associar a um existente'], ['ignorar', 'Ignorar item']] as [AcaoItem, string][]).map(([v, label]) => (
+                            <label key={v} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.72rem', cursor: 'pointer', minHeight: 32 }}>
                               <input type="radio" name={`acao-${i}`} checked={acao === v}
-                                onChange={() => { setAcoes((s) => ({ ...s, [i]: v })); if (v !== 'associar') setAssoc((s) => ({ ...s, [i]: null })); }} />
+                                onChange={() => { if (v === 'meu_codigo') { escolherMeuCodigo(it, i); return; } setAcoes((s) => ({ ...s, [i]: v })); if (v !== 'associar') setAssoc((s) => ({ ...s, [i]: null })); }} />
                               {label}
                             </label>
                           ))}
+                          </>) : (
+                            <span style={{ fontSize: '.65rem', color: '#6d28d9', textTransform: 'uppercase', letterSpacing: '.4px' }}>
+                              trocar o produto desta linha por um novo
+                              <button type="button" onClick={() => setAcoes((s) => ({ ...s, [i]: 'novo' }))} style={{ marginLeft: 8, fontSize: '.62rem', textTransform: 'none', background: 'none', border: 'none', color: '#64748b', textDecoration: 'underline', cursor: 'pointer', padding: '6px 0' }}>voltar ao produto atual</button>
+                            </span>
+                          )}
+                          {acao === 'meu_codigo' && (
+                            <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap', width: '100%', alignItems: 'flex-end' }}>
+                              <label style={{ display: 'grid', gap: 2, fontSize: '.62rem', color: '#6d28d9' }}>Código (série/chassi)
+                                <input value={meus[i]?.codigo || ''} maxLength={60} placeholder="ex.: 13787/26"
+                                  onChange={(e) => { const v = e.target.value; setMeus((s) => ({ ...s, [i]: { ...(s[i] || { descricao: '', codigoFamilia: '' }), codigo: v } })); }}
+                                  style={{ border: '1px solid #c4b5fd', borderRadius: 4, padding: '6px 8px', width: 150, fontFamily: 'monospace', fontSize: '.78rem', minHeight: 34 }} />
+                              </label>
+                              <label style={{ display: 'grid', gap: 2, fontSize: '.62rem', color: '#6d28d9', flex: '1 1 260px' }}>Descrição
+                                <input value={meus[i]?.descricao || ''} maxLength={120}
+                                  onChange={(e) => { const v = e.target.value; setMeus((s) => ({ ...s, [i]: { ...(s[i] || { codigo: '', codigoFamilia: '' }), descricao: v } })); }}
+                                  style={{ border: '1px solid #c4b5fd', borderRadius: 4, padding: '6px 8px', fontSize: '.78rem', minHeight: 34 }} />
+                              </label>
+                              <label style={{ display: 'grid', gap: 2, fontSize: '.62rem', color: '#6d28d9' }}>Família
+                                <select value={meus[i]?.codigoFamilia || ''}
+                                  onChange={(e) => { const v = e.target.value; setMeus((s) => ({ ...s, [i]: { ...(s[i] || { codigo: '', descricao: '' }), codigoFamilia: v } })); }}
+                                  style={{ border: '1px solid #c4b5fd', borderRadius: 4, padding: '6px 8px', fontSize: '.78rem', minHeight: 34, maxWidth: 220 }}>
+                                  <option value="">(sem família)</option>
+                                  {familias.map((f) => <option key={f.codigo_familia} value={f.codigo_familia}>{f.nome}</option>)}
+                                </select>
+                              </label>
+                              <span style={{ fontSize: '.62rem', color: '#64748b', flexBasis: '100%' }}>
+                                O portal cria o produto na Omie <b>sem controle de lote</b> e liga esta linha a ele.
+                                {Number(it.qtde) > 1 && <> São {fmtSaldo(it.qtde)} unidades: com uma família de máquina, depois da entrada a faixa roxa <b>Máquinas a separar</b> cria as outras.</>}
+                              </span>
+                            </span>
+                          )}
                           {acao === 'associar' && (
                             <BuscaProduto
                               conta={conta}

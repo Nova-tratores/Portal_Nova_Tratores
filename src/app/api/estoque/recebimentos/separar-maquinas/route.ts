@@ -1,10 +1,13 @@
 // Separar máquinas recebidas em lote (1 produto por série/chassi).
 // GET  ?pendentes=1                      -> linhas de notas recebidas ainda juntas
+// GET  ?familias=1&conta=NOVA            -> famílias (p/ "criar com meu código" no Dar entrada)
 // GET  ?conta=NOVA&produto=<id>          -> prévia (produto + estoque ao vivo na Omie)
 // POST {conta, idProduto, maquinas[], gravar, idReceb?, numeroNfe?, seq?} -> confere (gravar=false) ou separa
 import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { ACESSO_RECEBIMENTOS } from '@/lib/ajustes/recebimentos-espelho';
 import { listarPendentes, previa, separar, ErroSeparar } from '@/lib/estoque/separar-maquinas-server';
+import { listarFamilias } from '@/lib/ajustes/familias';
+import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,6 +26,7 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     if (url.searchParams.get('pendentes')) return Response.json({ pendentes: await listarPendentes() });
+    if (url.searchParams.get('familias')) return Response.json({ familias: await listarFamilias(parseConta((url.searchParams.get('conta') || '').toUpperCase()) || CONTA_DEFAULT) });
     const produto = Number(url.searchParams.get('produto'));
     if (!produto) return Response.json({ error: 'Informe o produto.' }, { status: 400 });
     return Response.json(await previa(url.searchParams.get('conta') || 'NOVA', produto));
