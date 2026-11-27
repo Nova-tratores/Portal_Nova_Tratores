@@ -681,11 +681,16 @@ Produto que saiu do portal é tirado do pedido na Omie.`) && acao('atualizar', (
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button className="pm-btn" onClick={() => setFat(null)}>Voltar</button>
               <button className="pm-btn ok" disabled={!!fat.bloqueio || !!ocupado} onClick={async () => {
+                // erro fica DENTRO da janela (antes aparecia atrás dela e parecia "carregando sem fim")
+                let falha = '';
                 await acao('faturar', async () => {
-                  const r = await api('/api/pedidos-maquinas/faturar', 'POST', { id: p.id });
-                  if (r.pendente) throw new Error(r.erro);
+                  try {
+                    const r = await api('/api/pedidos-maquinas/faturar', 'POST', { id: p.id });
+                    if (r.pendente) throw new Error(r.erro);
+                  } catch (e) { falha = (e as Error).message; throw e; }
                 }, 'Faturamento enviado. A NF-e aparece quando a SEFAZ autorizar.');
-                setFat(null);
+                if (falha) setFat((f: any) => (f ? { ...f, bloqueio: falha } : f)); // eslint-disable-line @typescript-eslint/no-explicit-any
+                else setFat(null);
               }}><Receipt size={15} /> {ocupado === 'faturar' ? 'Faturando…' : 'Confirmar e faturar'}</button>
             </div>
           </div>

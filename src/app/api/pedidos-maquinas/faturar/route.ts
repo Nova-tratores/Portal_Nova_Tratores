@@ -25,7 +25,8 @@ export async function GET(req: Request) {
   try {
     const bloqueio = await bloqueioDoFaturamento(req);
     const previa = await simularFaturamento(new URL(req.url).searchParams.get('id') || '');
-    return Response.json({ ...previa, bloqueio });
+    // o bloqueio da prévia (Omie diferente do portal) não pode ser apagado pelo liga/desliga
+    return Response.json({ ...previa, bloqueio: bloqueio || (previa as { bloqueio?: string }).bloqueio || null });
   } catch (e) {
     return respostaErro(e, 'faturar simular');
   }

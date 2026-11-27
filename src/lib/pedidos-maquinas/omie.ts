@@ -28,10 +28,11 @@ function contaDoPedido(p: PedidoMaquina): OmieAccount {
 }
 
 /** Payload do IncluirPedido — exportado para a prévia ("Simular") mostrar o que vai. */
-export async function montarPayload(id: number | string): Promise<{ acc: OmieAccount; payload: Record<string, unknown>; avisos: string[]; pedido: PedidoMaquina }> {
+export async function montarPayload(id: number | string, opts: { atualizar?: boolean } = {}): Promise<{ acc: OmieAccount; payload: Record<string, unknown>; avisos: string[]; pedido: PedidoMaquina }> {
   const { pedido, itens, parcelas, vendedor } = await lerCompleto(id);
   const hoje = hojeSaoPaulo();
-  const erros = validarParaOmie({ ...pedido, itens, parcelas }, hoje);
+  // Atualizar um pedido já enviado: a validação é a mesma, menos o "já está na Omie".
+  const erros = validarParaOmie({ ...pedido, ...(opts.atualizar ? { pedido_omie: null } : {}), itens, parcelas }, hoje);
   if (!pedido.categoria_pedido) erros.push('Escolha a categoria do pedido (aba Omie).');
   if (erros.length) throw new ErroPedido(422, erros.join(' '), { erros });
 
@@ -139,7 +140,7 @@ async function achar(pedido: PedidoMaquina): Promise<{ acc: OmieAccount; ped: Om
 
 /** Pedido já na Omie e alterado no portal: deixa o pedido da Omie igual (AlterarPedidoVenda). */
 async function atualizarNaOmieSemPausa(id: number | string, usuario: string) {
-  const { acc, payload, avisos, pedido } = await montarPayload(id);
+  const { acc, payload, avisos, pedido } = await montarPayload(id, { atualizar: true });
   if (!pedido.pedido_omie) throw new ErroPedido(409, 'O pedido ainda não foi enviado à Omie.');
   if (pedido.faturado_omie_em || pedido.status === 'faturado') throw new ErroPedido(409, 'Pedido faturado não pode ser alterado.');
   if (pedido.status === 'cancelado') throw new ErroPedido(409, 'Pedido cancelado.');
