@@ -154,7 +154,7 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
                     </div>
                     {showProp && (
                       <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-zinc-200 z-[100] max-h-[240px] overflow-y-auto rounded-xl shadow-xl">
-                        {listaProp.filter(p => { const t = buscaProp.toLowerCase(); return !buscaProp || (p.Cliente || '').toLowerCase().includes(t) || (p.Modelo || '').toLowerCase().includes(t) || (p.Marca || '').toLowerCase().includes(t) || String(p.id).includes(t) }).slice(0, 50).map(p => (
+                        {listaProp.filter(p => { const t = buscaProp.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase(); return !buscaProp || (p.Cliente || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(t) || (p.Modelo || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(t) || (p.Marca || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(t) || String(p.id).includes(t) }).slice(0, 50).map(p => (
                           <div key={p.id} className="px-3 py-2.5 cursor-pointer border-b border-zinc-100 hover:bg-red-50 text-sm" onClick={() => vincularProposta(p)}>
                             <span className="font-bold text-zinc-700">#{p.id}</span> <span className="text-zinc-800">{p.Cliente || 'sem nome'}</span>
                             <div className="text-[11px] text-zinc-500">{p.Marca} {p.Modelo} · {p.status}</div>

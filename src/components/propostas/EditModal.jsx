@@ -633,7 +633,7 @@ export default function EditModal({ proposal, onClose, soPdf = false, onPdf = nu
                   </div>
                   {showPed && (
                     <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-zinc-200 z-[100] max-h-[240px] overflow-y-auto rounded-xl shadow-xl">
-                      {listaPedidos.filter(p => { const t = buscaPed.toLowerCase(); return !buscaPed || (p.cliente || '').toLowerCase().includes(t) || (p.modelo || '').toLowerCase().includes(t) || (p.marca || '').toLowerCase().includes(t) || String(p.id).includes(t) }).slice(0, 50).map(p => (
+                      {listaPedidos.filter(p => { const t = buscaPed.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase(); return !buscaPed || (p.cliente || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(t) || (p.modelo || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(t) || (p.marca || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(t) || String(p.id).includes(t) }).slice(0, 50).map(p => (
                         <div key={p.id} className="px-3 py-2.5 cursor-pointer border-b border-zinc-100 hover:bg-red-50 text-sm" onClick={() => vincularPedido(p)}>
                           <span className="font-bold text-zinc-700">#{p.id}</span> <span className="text-zinc-800">{p.cliente || 'sem cliente'}</span>
                           <div className="text-[11px] text-zinc-500">{p.marca} {p.modelo} · {p.status}</div>

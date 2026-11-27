@@ -5,6 +5,7 @@ import { supabaseFetch } from "@/lib/ppv/supabase";
 import { TBL_CLIENTES } from "@/lib/ppv/constants";
 import { buscaTermoSchema } from "@/lib/ppv/schemas";
 import type { ClienteBusca } from "@/lib/ppv/types";
+import { padraoSemAcento, casaSemAcento } from "@/lib/ppv/busca-cliente";
 
 // Busca de cliente usada em muitas telas (PPV, Orçamentos, catálogo/carrinho,
 // Financeiro — chamado de NF e envio de boleto —, a página da etiqueta da peça
@@ -25,11 +26,26 @@ export async function GET(req: NextRequest) {
   const resultados: ClienteBusca[] = [];
 
   try {
-    const res = await supabaseFetch<Record<string, unknown>[]>(
-      // inativo=not.is.true → esconde os inativos do Omie, mas mantém os que ainda
-      // não têm o flag (null) — pra não sumir com ninguém antes do 1º re-sync.
-      `${TBL_CLIENTES}?or=(nome_fantasia.ilike.*${query}*,razao_social.ilike.*${query}*,cnpj_cpf.ilike.*${query}*)&inativo=not.is.true&select=*&limit=50`
-    );
+    // inativo=not.is.true → esconde os inativos do Omie, mas mantém os que ainda
+    // não têm o flag (null) — pra não sumir com ninguém antes do 1º re-sync.
+    const filtro = (q: string) =>
+      `${TBL_CLIENTES}?or=(nome_fantasia.ilike.*${q}*,razao_social.ilike.*${q}*,cnpj_cpf.ilike.*${q}*)&inativo=not.is.true&select=*`;
+    // 2ª consulta para cadastro COM acento ("João" quando se digita "Joao"):
+    // letra que pode ter acento vira "_" no ilike e o JS confere sem acento.
+    const curinga = padraoSemAcento(termoSemAcento);
+    const [diretos, comAcento] = await Promise.all([
+      supabaseFetch<Record<string, unknown>[]>(`${filtro(query)}&limit=50`),
+      curinga
+        ? supabaseFetch<Record<string, unknown>[]>(`${filtro(encodeURIComponent(curinga))}&limit=300`).catch(() => [])
+        : Promise.resolve([] as Record<string, unknown>[]),
+    ]);
+    const vistos = new Set<unknown>();
+    const res = [...diretos, ...comAcento.filter((r) => casaSemAcento(r, termoSemAcento))].filter((r) => {
+      const k = r.id ?? `${r.cnpj_cpf}|${r.razao_social}|${r.nome_fantasia}`;
+      if (vistos.has(k)) return false;
+      vistos.add(k);
+      return true;
+    }).slice(0, 50);
     res.forEach((row) => {
       const partes = [
         String(row.endereco || "").trim(),

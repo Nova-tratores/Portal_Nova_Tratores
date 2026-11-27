@@ -85,7 +85,7 @@ export default function AutopropelidoEditModal({ onClose }) {
             {showDropdown && !selecionado && (
               <div className="absolute top-[75px] left-0 right-0 bg-white border-2 border-zinc-300 z-[100] max-h-[250px] overflow-y-auto rounded-xl shadow-xl">
                 {lista
-                  .filter(t => { const termo = busca.toLowerCase(); return !busca || (t.marca || "").toLowerCase().includes(termo) || (t.modelo || "").toLowerCase().includes(termo) })
+                  .filter(t => { const termo = busca.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase(); return !busca || (t.marca || "").normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(termo) || (t.modelo || "").normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(termo) })
                   .slice(0, 40)
                   .map(t => (
                     <div key={t.id} className="p-3 cursor-pointer border-b border-zinc-100 text-zinc-800 font-semibold text-[13px] hover:bg-red-50" onClick={() => handleSelecionar(t)}>

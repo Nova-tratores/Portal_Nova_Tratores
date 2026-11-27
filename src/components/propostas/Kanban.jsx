@@ -165,21 +165,21 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
   }
 
   const filtradas = useMemo(() => {
-    const q = busca.trim().toLowerCase()
+    const q = busca.trim().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
     return cards.filter(c => {
       const campos = [
         c.Cliente, c.Marca, c.Modelo, `${c.Marca || ''} ${c.Modelo || ''}`, c.Cidade,
         String(c.id), formatBRL(c.Valor_Total), String(c.Valor_Total ?? ''),
         c.status, statusLabel(c.status), c.vendedor_nome,
       ]
-      const matchBusca = !q || campos.some(v => (v || '').toString().toLowerCase().includes(q))
+      const matchBusca = !q || campos.some(v => (v || '').toString().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(q))
       const matchStatus = !filtroStatus || c.status === filtroStatus
       const matchFab = !soFab || c.fabrica_pedido_id != null   // FAB real (pedido de fábrica existe)
       // Filtro por coluna (AND entre colunas). Valor aceita também o número cru ("15000" acha "15.000,00").
       const matchCols = Object.entries(filtrosCol).every(([k, v]) => {
-        const q2 = (v || '').trim().toLowerCase()
+        const q2 = (v || '').trim().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
         if (!q2) return true
-        const alvo = colTexto(c, k).toLowerCase() + (k === 'valor' ? ` ${String(c.Valor_Total ?? '').toLowerCase()}` : '')
+        const alvo = colTexto(c, k).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase() + (k === 'valor' ? ` ${String(c.Valor_Total ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()}` : '')
         return alvo.includes(q2)
       })
       return matchBusca && matchStatus && matchFab && matchCols

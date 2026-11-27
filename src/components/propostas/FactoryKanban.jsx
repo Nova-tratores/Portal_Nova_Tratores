@@ -101,13 +101,13 @@ export default function FactoryKanban({ onCardClick }) {
 
   const filtradas = useMemo(() => {
     return orders.filter(o => {
-      const matchBusca = !busca || (o.cliente || '').toLowerCase().includes(busca.toLowerCase()) || (o.modelo || '').toLowerCase().includes(busca.toLowerCase()) || String(o.id).includes(busca)
+      const matchBusca = !busca || (o.cliente || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(busca.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()) || (o.modelo || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().includes(busca.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()) || String(o.id).includes(busca)
       const matchFase = !filtroFase || o.status === filtroFase
       // Filtro por coluna (AND). Custo aceita também o número cru.
       const matchCols = Object.entries(filtrosCol).every(([k, v]) => {
-        const q = (v || '').trim().toLowerCase()
+        const q = (v || '').trim().normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
         if (!q) return true
-        const alvo = colTexto(o, k).toLowerCase() + (k === 'custo' ? ` ${String(o.custo ?? '').toLowerCase()}` : '')
+        const alvo = colTexto(o, k).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase() + (k === 'custo' ? ` ${String(o.custo ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()}` : '')
         return alvo.includes(q)
       })
       return matchBusca && matchFase && matchCols
