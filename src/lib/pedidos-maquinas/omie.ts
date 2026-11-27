@@ -16,7 +16,7 @@ import {
 import { statusOmieErro, descricaoOmie } from '@/lib/ppv/omie-status';
 import { hojeSaoPaulo } from '@/lib/pagamento/parcelas';
 import { T, ErroPedido, lerCompleto, log, type PedidoMaquina } from './server';
-import { parcelasParaOmie, validarParaOmie, totalItens, referenciaPedido, CONTA_PADRAO, planoItensOmie, divergenciaItens, type DetPortal, type DetOmie } from './regras';
+import { parcelasParaOmie, validarParaOmie, totalItens, referenciaPedido, CONTA_PADRAO, planoItensOmie, divergenciaItens, cfopVenda, type DetPortal, type DetOmie } from './regras';
 import { comRobosPausados } from '@/lib/omie/porta';
 
 const ETAPA_FATURADO = 60;
@@ -146,7 +146,12 @@ async function atualizarNaOmieSemPausa(id: number | string, usuario: string) {
   if (pedido.status === 'cancelado') throw new ErroPedido(409, 'Pedido cancelado.');
   const { ped } = await achar(pedido);
   if (Number(ped.cabecalho?.etapa || 0) >= ETAPA_FATURADO) throw new ErroPedido(409, 'Na Omie o pedido já está na etapa de faturamento.');
-  const det = planoItensOmie(payload.det as DetPortal[], (ped.det || []) as DetOmie[], pedido.id_pedido, Date.now().toString(36));
+  let uf = '';
+  try {
+    const c = await omieNaConta<{ estado?: string }>(acc, '/geral/clientes/', 'ConsultarCliente', { codigo_cliente_omie: Number((payload.cabecalho as { codigo_cliente: number }).codigo_cliente) });
+    uf = String(c?.estado || '');
+  } catch { /* sem a UF: SP (a loja) */ }
+  const det = planoItensOmie(payload.det as DetPortal[], (ped.det || []) as DetOmie[], pedido.id_pedido, Date.now().toString(36), cfopVenda(uf));
   const cab: Record<string, unknown> = { ...(payload.cabecalho as Record<string, unknown>), codigo_pedido: ped.cabecalho?.codigo_pedido };
   delete cab.codigo_pedido_integracao; delete cab.etapa; delete cab.quantidade_itens;
   const r = await omieNaConta<Record<string, unknown>>(acc, '/produtos/pedido/', 'AlterarPedidoVenda', { ...payload, cabecalho: cab, det });

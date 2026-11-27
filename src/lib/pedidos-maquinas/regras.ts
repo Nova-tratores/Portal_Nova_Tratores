@@ -279,18 +279,31 @@ export function palavrasDaBusca(q: string, max = 6): string[] {
 // por outro sem controle de lote). O AlterarPedidoVenda MANTÉM item que não vai no
 // det, então o que saiu do portal vai com acao_item "E". Casamento pelo codigo_produto.
 export interface DetPortal { ide?: Record<string, unknown>; produto: { codigo_produto: number; quantidade: number; [k: string]: unknown }; [k: string]: unknown }
-export interface DetOmie { ide?: { codigo_item?: number; codigo_item_integracao?: string }; produto?: { codigo_produto?: number; quantidade?: number; valor_unitario?: number } }
+export interface DetOmie { ide?: { codigo_item?: number; codigo_item_integracao?: string }; produto?: { codigo_produto?: number; quantidade?: number; valor_unitario?: number; cfop?: string } }
 
-export function planoItensOmie(portal: DetPortal[], omie: DetOmie[], idPedido: string, sufixo: string): Record<string, unknown>[] {
+/** CFOP de venda pela UF do cliente (o que a Omie põe nos pedidos de máquina: 5.102 em SP, 6.102 fora). */
+export function cfopVenda(ufCliente: unknown, ufEmpresa = 'SP'): string {
+  const uf = String(ufCliente ?? '').trim().toUpperCase();
+  return !uf || uf === ufEmpresa ? '5.102' : '6.102';
+}
+
+/** Item que entra pela ALTERAÇÃO do pedido fica sem CFOP (a Omie só calcula na inclusão):
+ *  vai o CFOP do próprio item na Omie, senão o de um item que sai, senão `cfopPadrao`. */
+export function planoItensOmie(portal: DetPortal[], omie: DetOmie[], idPedido: string, sufixo: string, cfopPadrao = ''): Record<string, unknown>[] {
   const usados = new Set<number>();
+  const cfopDaOmie = omie.map((o) => String(o.produto?.cfop || '').trim()).find(Boolean) || '';
+  const comCfop = (x: DetPortal, cfop: string) => {
+    const c = cfop || cfopDaOmie || cfopPadrao;
+    return c ? { ...x.produto, cfop: c } : x.produto;
+  };
   const det: Record<string, unknown>[] = portal.map((x, i) => {
     const k = omie.findIndex((o, j) => !usados.has(j) && Number(o.produto?.codigo_produto) === Number(x.produto.codigo_produto) && o.ide?.codigo_item);
     if (k >= 0) {
       usados.add(k);
       const o = omie[k];
-      return { ...x, ide: { codigo_item: o.ide!.codigo_item, ...(o.ide!.codigo_item_integracao ? { codigo_item_integracao: o.ide!.codigo_item_integracao } : {}) } };
+      return { ...x, produto: comCfop(x, String(o.produto?.cfop || '').trim()), ide: { codigo_item: o.ide!.codigo_item, ...(o.ide!.codigo_item_integracao ? { codigo_item_integracao: o.ide!.codigo_item_integracao } : {}) } };
     }
-    return { ...x, ide: { codigo_item_integracao: `${idPedido}-${sufixo}-${i + 1}` } };
+    return { ...x, produto: comCfop(x, ''), ide: { codigo_item_integracao: `${idPedido}-${sufixo}-${i + 1}` } };
   });
   omie.forEach((o, j) => {
     if (usados.has(j) || !o.ide?.codigo_item) return;
