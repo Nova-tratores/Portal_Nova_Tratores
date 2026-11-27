@@ -6,7 +6,9 @@
 // prova = 2 perguntas por artigo. Nota mínima 70 %, prazo 15 dias. Público VAZIO: atribuição
 // MANUAL só para o Mariano (mariano.novatratores@gmail.com). Nasce rascunho; --ativar ativa,
 // atribui e avisa no sino. Idempotente pelo título.
-// 27/11/2026: + etapa Pedidos Fabrica (2ª) e 2 perguntas; rodar de novo acrescenta só as perguntas que faltam.
+// 27/11/2026: + etapa Pedidos Fabrica e 2 perguntas; rodar de novo acrescenta só as perguntas que faltam.
+// 27/11/2026 (tarde): + artigo de visão geral como 1ª etapa, ordem da operação real (SC antes do pedido de
+// máquinas; pagar fornecedor no fim) e 4 perguntas de visão geral.
 import { createClient } from "@supabase/supabase-js";
 
 const MARIANO = { id: "3c9d4cc0-3771-4b04-adf1-2b9a2f93ceaa", nome: "Mariano Ramos Do Val" };
@@ -14,22 +16,27 @@ const JOSE = { id: "2e388084-1295-4727-8743-4d4c29d54dd9", nome: "José Ortiz" }
 const TITULO = "Venda de máquina: da proposta ao caixa";
 const PRAZO_DIAS = 15;
 const SLUGS = [
+  "venda-maquina-caminho-completo",
   "propostas-criar-acompanhar-e-gerar-o-pdf",
   "propostas-pedidos-fabrica",
-  "remessas-demonstracao-de-maquina",
+  "tickets-solicitacao-de-compras",
   "pedidos-maquinas-do-pedido-a-nota-fiscal",
+  "remessas-demonstracao-de-maquina",
   "financeiro-baixar-contas-dar-baixa-na-omie",
   "financeiro-correcao-de-contas-corrigir-lancamento-na-omie",
   "financeiro-boletos-de-fornecedor-boleto-agrupado",
-  "tickets-solicitacao-de-compras",
 ];
 
 const S = {
-  proposta: SLUGS[0], fabrica: SLUGS[1], remessa: SLUGS[2], pvm: SLUGS[3],
-  baixar: SLUGS[4], correcao: SLUGS[5], boleto: SLUGS[6], sc: SLUGS[7],
+  mapa: SLUGS[0], proposta: SLUGS[1], fabrica: SLUGS[2], sc: SLUGS[3], pvm: SLUGS[4],
+  remessa: SLUGS[5], baixar: SLUGS[6], correcao: SLUGS[7], boleto: SLUGS[8],
 };
 
 const PERGUNTAS: { slug: string; enunciado: string; opcoes: string[]; correta: number; explicacao: string }[] = [
+  { slug: S.mapa, enunciado: "Qual é a diferença entre o pedido fábrica e o pedido de máquina (PVM)?", opcoes: ["São o mesmo pedido em telas diferentes", "O pedido fábrica é o que a Nova compra da fábrica; o PVM é o que a Nova vende ao cliente e vira a NF-e", "O PVM é a cotação da fábrica e o pedido fábrica é a nota", "O pedido fábrica só existe para máquina usada"], correta: 1, explicacao: "Comprar e vender são dois pedidos: o pedido fábrica (aba Pedidos Fabrica) é a compra; o PVM (aba Pedidos de Máquinas) é a venda, que vai para a Omie." },
+  { slug: S.mapa, enunciado: "Sem máquina no estoque, qual é a ordem certa?", opcoes: ["PVM na Omie → SC → pedido fábrica → proposta", "Proposta → pedido fábrica (custo) → SC aprovada e PC emitido → máquina chega → chassi no PVM e envio à Omie", "SC → proposta → PVM faturado → pedido fábrica", "Pedido fábrica → PVM faturado → proposta"], correta: 1, explicacao: "Primeiro se oferece (proposta) e se cota (pedido fábrica); a compra só acontece com a SC aprovada e o PC emitido; a venda vai para a Omie depois que o chassi existe." },
+  { slug: S.mapa, enunciado: "O Comprador emitiu o PC na SC. O que muda sozinho?", opcoes: ["Nada", "O pedido fábrica vai para \"Pedido Feito / Aguardando Maq\" e o PVM ligado vai para \"Aguardando máquina\"", "O PVM é enviado para a Omie", "A proposta vira vendida"], correta: 1, explicacao: "A emissão do PC conclui a SC e move as duas pontas que ainda não tinham andado. Nada vai para a Omie e a proposta não muda." },
+  { slug: S.mapa, enunciado: "Quem compra a máquina na Omie e onde isso fica registrado no portal?", opcoes: ["O vendedor, na proposta", "O Comprador, que digita o nº do Pedido de Compra na SC", "O Financeiro, no Caixa", "O portal compra sozinho ao aprovar a SC"], correta: 1, explicacao: "O portal não cria o PC: o Comprador compra na Omie e informa o nº na SC, que conclui." },
   { slug: S.proposta, enunciado: "Onde se muda a fase de uma proposta (Enviar proposta → Aguardando cliente → …)?", opcoes: ["Dentro da janela de edição da proposta", "Pelo seletor \"Alterar\" na lista ou pelo seletor do cartão no kanban", "Só o administrador muda", "Pelo botão Imprimir PDF"], correta: 1, explicacao: "A janela de edição não tem seletor de fase. A fase muda na lista (coluna Alterar) ou no cartão do kanban." },
   { slug: S.proposta, enunciado: "O PDF da proposta não saiu com \"Vendedor X sem nome de carimbo\". O que fazer?", opcoes: ["Imprimir de novo", "Cadastrar o carimbo do vendedor em Gestão de Vendas › Ajustes por Venda › Vendedores › Carimbos", "Trocar o cliente", "Apagar a proposta"], correta: 1, explicacao: "O PDF exige vendedor com carimbo (ou imagem de assinatura). O cadastro fica em Gestão de Vendas › Ajustes por Venda › Vendedores › Carimbos." },
   { slug: S.fabrica, enunciado: "Em Pedidos Fabrica, de onde vem o custo-alvo da Solicitação de Compras aberta pelo botão \"ABRIR SOLICITAÇÃO DE COMPRA\"?", opcoes: ["Do preço de venda da proposta", "Do campo Custo (R$) do pedido fábrica, que deve estar preenchido e salvo antes", "Da tabela da Omie", "É sempre digitado na SC"], correta: 1, explicacao: "A SC vem preenchida com máquina, quantidade, cliente e o Custo do pedido fábrica. Sem o custo salvo, a SC nasce sem custo-alvo." },

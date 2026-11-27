@@ -19,10 +19,11 @@ import { TICKETS } from "./tickets";
 import { FINANCEIRO_CAIXA } from "./financeiro-caixa";
 import { FINANCEIRO_LANCAR } from "./financeiro-lancar";
 import { PROPOSTAS_FABRICA } from "./propostas-fabrica";
+import { OPERACAO } from "./operacao";
 
 // 26/11 tarde: + Começando/Hoje, Vencidos, Lançar conta e Recibos (trilha da Elizabete, Financeiro).
 // 27/11: + Pedidos Fabrica e Resumo/Lixeira; SC e Pedido de Máquinas com a ligação SC ↔ PVM.
-export const ARTIGOS: ArtigoSeed[] = [...PROPOSTAS, ...PROPOSTAS_FABRICA, ...REMESSAS, ...FINANCEIRO, ...TICKETS, ...FINANCEIRO_CAIXA, ...FINANCEIRO_LANCAR];
+export const ARTIGOS: ArtigoSeed[] = [...OPERACAO, ...PROPOSTAS, ...PROPOSTAS_FABRICA, ...REMESSAS, ...FINANCEIRO, ...TICKETS, ...FINANCEIRO_CAIXA, ...FINANCEIRO_LANCAR];
 
 const AUTOR = "Nova Tratores";
 

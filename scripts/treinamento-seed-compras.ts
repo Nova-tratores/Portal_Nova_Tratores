@@ -2,7 +2,7 @@
 //
 //   npx tsx --env-file=.env.local scripts/treinamento-seed-compras.ts [--ativar]
 //
-// Etapas = artigo da SC + artigo do Pedido Fábrica (contexto). Só entram artigos PUBLICADOS: rodar de
+// Etapas = visão geral da venda de máquina + Pedido Fábrica (contexto) + SC. Só entram artigos PUBLICADOS: rodar de
 // novo depois de publicar acrescenta a etapa e as perguntas que faltavam (idempotente pelo título).
 // Quem faz = as pessoas do trilho lidas de tickets_compras_config (Diretoria 1 e 2, Financeiro,
 // Comprador); atribuição MANUAL, público vazio. Nota mínima 70 %, prazo 15 dias.
@@ -12,11 +12,17 @@ import { createClient } from "@supabase/supabase-js";
 const TITULO = "Solicitação de Compras: quem aprova";
 const PRAZO_DIAS = 15;
 const JOSE = { id: "2e388084-1295-4727-8743-4d4c29d54dd9", nome: "José Ortiz" };
+const MAPA = "venda-maquina-caminho-completo";
 const SC = "tickets-solicitacao-de-compras";
 const FAB = "propostas-pedidos-fabrica";
-const SLUGS = [SC, FAB];
+// Ordem da operação: o mapa, o pedido fábrica (de onde a SC nasce) e a SC.
+const SLUGS = [MAPA, FAB, SC];
+const S = { mapa: MAPA };
 
 const PERGUNTAS: { slug: string; enunciado: string; opcoes: string[]; correta: number; explicacao: string }[] = [
+  { slug: S.mapa, enunciado: "Qual é a diferença entre o pedido fábrica e o pedido de máquina (PVM)?", opcoes: ["São o mesmo pedido em telas diferentes", "O pedido fábrica é o que a Nova compra da fábrica; o PVM é o que a Nova vende ao cliente e vira a NF-e", "O PVM é a cotação da fábrica e o pedido fábrica é a nota", "O pedido fábrica só existe para máquina usada"], correta: 1, explicacao: "Comprar e vender são dois pedidos: o pedido fábrica (aba Pedidos Fabrica) é a compra; o PVM (aba Pedidos de Máquinas) é a venda, que vai para a Omie." },
+  { slug: S.mapa, enunciado: "Sem máquina no estoque, qual é a ordem certa?", opcoes: ["PVM na Omie → SC → pedido fábrica → proposta", "Proposta → pedido fábrica (custo) → SC aprovada e PC emitido → máquina chega → chassi no PVM e envio à Omie", "SC → proposta → PVM faturado → pedido fábrica", "Pedido fábrica → PVM faturado → proposta"], correta: 1, explicacao: "Primeiro se oferece (proposta) e se cota (pedido fábrica); a compra só acontece com a SC aprovada e o PC emitido; a venda vai para a Omie depois que o chassi existe." },
+  { slug: S.mapa, enunciado: "O Comprador emitiu o PC na SC. O que muda sozinho?", opcoes: ["Nada", "O pedido fábrica vai para \"Pedido Feito / Aguardando Maq\" e o PVM ligado vai para \"Aguardando máquina\"", "O PVM é enviado para a Omie", "A proposta vira vendida"], correta: 1, explicacao: "A emissão do PC conclui a SC e move as duas pontas que ainda não tinham andado. Nada vai para a Omie e a proposta não muda." },
   { slug: SC, enunciado: "A SC acabou de ser aberta. Com quem está a bola e o que ela decide?", opcoes: ["Com o Financeiro, que aprova o pagamento", "Com a Diretoria, que define a quantidade aprovada e o valor unitário (com justificativa) ou devolve ao vendedor", "Com o Comprador, que já pode emitir o PC", "Com o vendedor, que precisa confirmar"], correta: 1, explicacao: "Toda SC nasce na Diretoria. É ela que define Quantidade aprovada, Valor unitário e Justificativa — só aí o valor total da SC passa a existir — ou devolve ao vendedor com o motivo." },
   { slug: SC, enunciado: "As duas pessoas da Diretoria (1ª e 2ª) recebem a SC. Quem pode decidir?", opcoes: ["Só a 1ª pessoa", "Qualquer uma das duas; a 1ª fica com a bola e a 2ª é avisada e decide igual", "As duas precisam aprovar", "Só o admin"], correta: 1, explicacao: "As duas decidem. A bola fica com a 1ª pessoa, a 2ª entra como participante e é avisada (sino, e-mail e WhatsApp)." },
   { slug: SC, enunciado: "No Financeiro, o que é obrigatório para aprovar e mandar ao Comprador?", opcoes: ["Só clicar em Aprovar", "O Parecer por escrito; o Prazo de compromisso (liquidação) é opcional", "O nº do Pedido de Compra", "Anexar o boleto"], correta: 1, explicacao: "\"Aprovar\" ou \"Aprovar com ressalva\" exige o Parecer. O prazo de compromisso é opcional e aparece para o Comprador como \"Compromisso até {data}\"." },
@@ -58,8 +64,13 @@ async function main() {
   }
 
   // Perguntas: só as dos artigos publicados, e só as que ainda não existem (pelo enunciado).
-  const { data: ja } = await sb.from("lms_perguntas").select("enunciado, ordem").eq("trilha_id", t.id);
-  const existentes = new Set((ja || []).map((p) => p.enunciado as string));
+  const { data: ja } = await sb.from("lms_perguntas").select("id, enunciado").eq("trilha_id", t.id);
+  const porEnunciado = new Map((ja || []).map((p) => [p.enunciado as string, p.id as string]));
+  const existentes = new Set(porEnunciado.keys());
+  for (let i = 0; i < PERGUNTAS.length; i++) {
+    const id = porEnunciado.get(PERGUNTAS[i].enunciado);
+    if (id) await sb.from("lms_perguntas").update({ ordem: i + 1 }).eq("id", id);
+  }
   const novas = PERGUNTAS.map((p, i) => ({ ...p, ordem: i + 1 })).filter((p) => publicados.has(p.slug) && !existentes.has(p.enunciado));
   if (novas.length) {
     const { error } = await sb.from("lms_perguntas").insert(novas.map((p) => ({ trilha_id: t.id, artigo_id: publicados.get(p.slug)!, ordem: p.ordem, enunciado: p.enunciado, opcoes: p.opcoes, correta: p.correta, explicacao: p.explicacao })));
