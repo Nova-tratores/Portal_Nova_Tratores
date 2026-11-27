@@ -418,7 +418,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const notifBtnRef = useRef<HTMLButtonElement>(null)
   const pathname = usePathname()
   // Telas da Central de Trabalho: a barra dela fica no layout (não pisca ao trocar de aba).
-  const naCentral = /^\/(fila|tickets|cronograma|agenda|salas|reunioes|ideias|tarefas)(\/|$)/.test(pathname || '')
+  // /central/... = endereços novos da Central (27/11/2026); os antigos continuam na lista (redirecionam).
+  const naCentral = /^\/(central|fila|tickets|cronograma|agenda|salas|reunioes|ideias|tarefas)(\/|$)/.test(pathname || '')
   const temCentral = temAcesso('tickets') || temAcesso('tarefas') || temAcesso('cronograma')
   const [avisosPendentes, setAvisosPendentes] = useState<{ id: string; titulo: string; conteudo: string; prioridade: string; criado_por_nome: string }[]>([])
   const [confirmando, setConfirmando] = useState(false)
