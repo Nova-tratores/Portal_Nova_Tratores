@@ -4,10 +4,12 @@
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { camposDoStatus, carregarTicket, notificarTicket, registrarEvento } from '@/lib/tickets/server'
 import { refExecucaoDaOS } from './regras'
-import { rpc } from './server'
+import { BUCKET_EXECUCAO, rpc, urlsAssinadas } from './server'
+import type { Autenticado } from '@/lib/auth/server'
+import { mascararLista } from '@/lib/marketing/acesso'
 import {
-  etapaPeloTicket, prazoDaEtapa, proximaEtapa, roteiroTerminou,
-  type EtapaOS, type RoteiroEntrada, type RoteiroOS, type StatusRoteiroOS,
+  compararEtapas, etapaPeloTicket, prazoDaEtapa, proximaEtapa, roteiroTerminou,
+  type ColunaComparacao, type Comparacao, type EtapaOS, type RespostaComparacao, type RoteiroEntrada, type RoteiroOS, type StatusRoteiroOS,
 } from './roteiros'
 
 export class ErroRoteiro extends Error {
@@ -304,6 +306,82 @@ export async function osDe(p: { etapaId?: string; roteiroOsId?: string }): Promi
   if (!rid) return null
   const { data } = await supabaseAdmin.from('pops_os_roteiros').select('os_id').eq('id', rid).maybeSingle()
   return (data?.os_id as string) || null
+}
+
+// ---------------------------------------------------------------------------
+// Saída × Retorno
+// ---------------------------------------------------------------------------
+/**
+ * Etapas do roteiro que já têm execução, lado a lado (mesmo passo numa linha).
+ * Fotos vêm com URL assinada (bucket privado). Só leitura.
+ */
+export async function compararRoteiro(osRoteiroId: string): Promise<Comparacao & { fotos: Record<string, string> }> {
+  const etapas = (await etapasDe([osRoteiroId])).filter((e) => !!e.ticket_id)
+  const tickets = etapas.map((e) => e.ticket_id as string)
+  if (!tickets.length) return { ...compararEtapas([]), fotos: {} }
+  const { data: execs, error } = await supabaseAdmin.from('pops_execucoes').select('ticket_id, versao_id').in('ticket_id', tickets)
+  if (error) throw error
+  const versoes = [...new Set((execs || []).map((x) => x.versao_id as string))]
+  const [{ data: passos, error: e1 }, { data: resps, error: e2 }] = await Promise.all([
+    supabaseAdmin.from('pops_passos').select('id, versao_id, chave, titulo, tipo, ordem, config').in('versao_id', versoes),
+    supabaseAdmin.from('pops_execucao_respostas').select('ticket_id, passo_id, valor, fotos, fora_faixa').in('ticket_id', tickets),
+  ])
+  if (e1) throw e1
+  if (e2) throw e2
+  const versaoDo = new Map((execs || []).map((x) => [x.ticket_id as string, x.versao_id as string]))
+  const chaveDoPasso = new Map((passos || []).map((p) => [p.id as string, p.chave as string]))
+  const colunas: ColunaComparacao[] = etapas.map((e) => {
+    const v = versaoDo.get(e.ticket_id as string)
+    const respostas: Record<string, RespostaComparacao> = {}
+    for (const r of (resps || []).filter((x) => x.ticket_id === e.ticket_id)) {
+      const k = chaveDoPasso.get(r.passo_id as string)
+      if (k) respostas[k] = { valor: (r.valor || {}) as Record<string, unknown>, fotos: (r.fotos || []) as string[], fora_faixa: !!r.fora_faixa }
+    }
+    return {
+      etapa: e.nome, ordem: e.ordem, respostas,
+      passos: (passos || []).filter((p) => p.versao_id === v).map((p) => ({
+        chave: p.chave as string, titulo: p.titulo as string, tipo: p.tipo as string, ordem: p.ordem as number,
+        config: (p.config || {}) as { unidade?: string },
+      })),
+    }
+  })
+  const comp = compararEtapas(colunas)
+  const caminhos = comp.linhas.flatMap((l) => l.celulas.flatMap((c) => c?.fotos || [])).slice(0, 120)
+  return { ...comp, fotos: await urlsAssinadas(BUCKET_EXECUCAO, caminhos) }
+}
+
+// ---------------------------------------------------------------------------
+// Evento do Marketing (opcional) ligado ao roteiro
+// ---------------------------------------------------------------------------
+export interface EventoMkt { id: string; nome: string; data_inicio: string | null; data_fim: string | null; cidade: string | null; status: string }
+type EventoRow = EventoMkt & { visibilidade?: string | null; responsavel_id?: string | null }
+
+/** Ações do Marketing de 60 dias atrás em diante (as privadas só para quem pode ver). */
+export async function eventosParaOS(auth: Autenticado): Promise<EventoMkt[]> {
+  const desde = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10)
+  const ler = (cols: string) => supabaseAdmin.from('mkt_acoes').select(cols)
+    .is('deleted_at', null).neq('status', 'cancelada').or(`data_fim.gte.${desde},data_inicio.gte.${desde},data_inicio.is.null`)
+    .order('data_inicio', { ascending: true, nullsFirst: false }).limit(80)
+  let q = await ler('id, nome, data_inicio, data_fim, cidade, status, visibilidade, responsavel_id')
+  if (q.error && /visibilidade/.test(q.error.message)) q = await ler('id, nome, data_inicio, data_fim, cidade, status, responsavel_id')
+  if (q.error) { console.error('[roteiros] eventos do marketing:', q.error.message); return [] }
+  const { visiveis } = await mascararLista(auth, (q.data || []) as unknown as EventoRow[])
+  return visiveis.map(({ id, nome, data_inicio, data_fim, cidade, status }) => ({ id, nome, data_inicio, data_fim, cidade, status }))
+}
+
+/** Nome e datas dos eventos ligados (para o cartão do roteiro na OS). */
+export async function eventosPorId(ids: (string | null)[]): Promise<Record<string, EventoMkt>> {
+  const unicos = [...new Set(ids.filter(Boolean))] as string[]
+  if (!unicos.length) return {}
+  const { data, error } = await supabaseAdmin.from('mkt_acoes').select('id, nome, data_inicio, data_fim, cidade, status').in('id', unicos)
+  if (error) { console.error('[roteiros] eventos ligados:', error.message); return {} }
+  return Object.fromEntries((data || []).map((e) => [e.id as string, e as EventoMkt]))
+}
+
+/** Trocar (ou tirar) o evento ligado a um roteiro da OS. */
+export async function ligarEvento(osRoteiroId: string, mktAcaoId: string | null) {
+  const { error } = await supabaseAdmin.from('pops_os_roteiros').update({ mkt_acao_id: mktAcaoId }).eq('id', osRoteiroId)
+  if (error) throw error
 }
 
 export type { RoteiroOS }

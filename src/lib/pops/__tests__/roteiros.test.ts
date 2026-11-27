@@ -1,8 +1,61 @@
 import { describe, expect, it } from 'vitest'
 import {
   etapaPeloTicket, mensagemAvisoConclusao, pendentesAoConcluirOS, prazoDaEtapa, proximaEtapa, roteiroTerminou,
-  situacaoRoteiro, validarRoteiro, type EtapaOS, type StatusEtapa,
+  compararEtapas, situacaoRoteiro, validarRoteiro, type ColunaComparacao, type EtapaOS, type RespostaComparacao, type StatusEtapa,
 } from '../roteiros'
+
+describe('compararEtapas (Saída × Retorno)', () => {
+  const passos = [
+    { chave: 'k0', titulo: 'Leia antes', tipo: 'instrucao', ordem: 1 },
+    { chave: 'k1', titulo: 'Horímetro', tipo: 'numero', ordem: 2, config: { unidade: 'h' } },
+    { chave: 'k2', titulo: 'Nível de combustível', tipo: 'selecao', ordem: 3 },
+    { chave: 'k3', titulo: 'Pneus sem corte?', tipo: 'check', ordem: 4 },
+    { chave: 'k4', titulo: 'Avarias', tipo: 'texto', ordem: 5 },
+    { chave: 'k5', titulo: 'Fotos dos quatro lados', tipo: 'foto', ordem: 6 },
+  ]
+  const col = (ordem: number, etapa: string, r: Record<string, RespostaComparacao>): ColunaComparacao => ({ etapa, ordem, passos, respostas: r })
+
+  it('mostra o que mudou entre a saída e a volta', () => {
+    const c = compararEtapas([
+      col(4, 'Chegada na loja', {
+        k1: { valor: { numero: 1262 }, fotos: [] }, k2: { valor: { opcao: '1/4' }, fotos: [] },
+        k3: { valor: { sim: false }, fotos: [] }, k4: { valor: { texto: 'Risco no paralama' }, fotos: [] },
+        k5: { valor: {}, fotos: ['a.jpg', 'b.jpg'] },
+      }),
+      col(1, 'Saída da loja', {
+        k1: { valor: { numero: 1250 }, fotos: [] }, k2: { valor: { opcao: 'Cheio' }, fotos: [] },
+        k3: { valor: { sim: true }, fotos: [] }, k5: { valor: {}, fotos: ['c.jpg'] },
+      }),
+    ])
+    expect(c.colunas.map((x) => x.etapa)).toEqual(['Saída da loja', 'Chegada na loja'])
+    expect(c.linhas.map((l) => l.titulo)).toEqual(['Horímetro', 'Nível de combustível', 'Pneus sem corte?', 'Avarias', 'Fotos dos quatro lados'])
+    const [hor, comb, pneu, avaria, fotos] = c.linhas
+    expect(hor.celulas[1]?.delta).toBe(12)
+    expect(hor.mudou).toBe(true)
+    expect(comb.celulas[1]).toMatchObject({ texto: '1/4', mudou: true })
+    expect(pneu.alerta).toBe(true)
+    expect(avaria.celulas[1]?.mudou).toBe(true)
+    expect(fotos.mudou).toBe(false)
+    expect(fotos.celulas[1]?.fotos).toHaveLength(2)
+    expect(c.mudancas).toBe(4)
+    expect(c.alertas).toBe(1)
+  })
+
+  it('etapa ainda sem resposta não conta como mudança', () => {
+    const c = compararEtapas([col(1, 'Saída', { k1: { valor: { numero: 10 }, fotos: [] } }), col(2, 'Chegada', {})])
+    expect(c.mudancas).toBe(0)
+    expect(c.linhas[0].celulas[1]).toMatchObject({ texto: '', delta: null })
+  })
+
+  it('POPs diferentes casam pelo título', () => {
+    const outro = passos.map((p) => ({ ...p, chave: `x${p.chave}` }))
+    const c = compararEtapas([
+      col(1, 'Saída', { k1: { valor: { numero: 5 }, fotos: [] } }),
+      { etapa: 'Chegada', ordem: 2, passos: outro, respostas: { xk1: { valor: { numero: 7 }, fotos: [] } } },
+    ])
+    expect(c.linhas.find((l) => l.titulo === 'Horímetro')?.celulas[1]?.delta).toBe(2)
+  })
+})
 
 const U = '11111111-1111-4111-8111-111111111111'
 const P = '22222222-2222-4222-8222-222222222222'
