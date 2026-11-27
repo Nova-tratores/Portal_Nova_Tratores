@@ -904,9 +904,12 @@ export interface AlterarCabecArgs {
   infoAdicionais?: { cCategCompra: string; nIdConta: number; dRegistro: string; nIdProjeto?: number | null; nIdComprador?: number | null } | null;
   observacoes?: string | null;
   parcelasEditar?: { cCodParcela: string; nQtdParcela: number; lista: Array<{ dVencimento: string; nSequencia: number; pParcela: number; vParcela: number }> } | null;
+  /** CT-e: CFOP de entrada do CABEÇALHO (o CT-e não tem itens). Sem ele a Omie
+   *  recusa concluir: "O CFOP de entrada deve ser preenchido para que possa receber este CT-e". */
+  cteCfopEntrada?: string | null;
 }
 export async function alterarRecebimentoCabec(conta: Conta, args: AlterarCabecArgs): Promise<{ ok: boolean; skipped?: boolean; raw?: any }> {
-  const { idReceb, chaveNFe, infoAdicionais, observacoes, parcelasEditar } = args;
+  const { idReceb, chaveNFe, infoAdicionais, observacoes, parcelasEditar, cteCfopEntrada } = args;
   if (idReceb == null && chaveNFe == null) throw new Error('informe idReceb ou chaveNFe');
   const ide: Record<string, any> = {};
   if (idReceb != null) ide.nIdReceb = Number(idReceb) || idReceb;
@@ -934,8 +937,10 @@ export async function alterarRecebimentoCabec(conta: Conta, args: AlterarCabecAr
       })),
     };
   }
+  // mesmo formato que o ConsultarRecebimento devolve num CT-e recebido: cteCfopEntrada.cCFOPEntrada
+  if (cteCfopEntrada) param.cteCfopEntrada = { cCFOPEntrada: formatarCfopEntrada(cteCfopEntrada) };
   // nada de cabecalho p/ alterar -> no-op (evita chamada Omie desnecessaria)
-  if (!param.infoAdicionais && !param.observacoes && !param.parcelasEditar) return { ok: true, skipped: true };
+  if (!param.infoAdicionais && !param.observacoes && !param.parcelasEditar && !param.cteCfopEntrada) return { ok: true, skipped: true };
   const raw = await omieRequest('/produtos/recebimentonfe/', 'AlterarRecebimento', param, conta);
   if (raw && (raw as any).faultstring) throw new Error((raw as any).faultstring);
   return { ok: true, raw };

@@ -14,10 +14,13 @@ import { PROPOSTAS } from "./propostas";
 import { REMESSAS } from "./remessas";
 import { FINANCEIRO } from "./financeiro";
 import { TICKETS } from "./tickets";
+import { FINANCEIRO_CAIXA } from "./financeiro-caixa";
+import { FINANCEIRO_LANCAR } from "./financeiro-lancar";
 
-export const ARTIGOS: ArtigoSeed[] = [...PROPOSTAS, ...REMESSAS, ...FINANCEIRO, ...TICKETS];
+// 26/11 tarde: + Começando/Hoje, Vencidos, Lançar conta e Recibos (trilha da Elizabete, Financeiro).
+export const ARTIGOS: ArtigoSeed[] = [...PROPOSTAS, ...REMESSAS, ...FINANCEIRO, ...TICKETS, ...FINANCEIRO_CAIXA, ...FINANCEIRO_LANCAR];
 
-const AUTOR = "Claude (material do Mariano, a pedido de José, 26/11/2026)";
+const AUTOR = "Nova Tratores";
 
 async function main() {
   const sobrescrever = process.argv.includes("--sobrescrever");

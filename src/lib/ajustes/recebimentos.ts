@@ -16,7 +16,7 @@ import { analisarRecebimentosPendentes } from './analise';
 import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto, listarRecebimentos, formatarCfopEntrada, consultarObservacaoReceb } from './omie';
 import type { AlterarCabecArgs } from './omie';
 import { hoje, addDias, fmtBR, parseAnyDate } from './dates';
-import { agruparCorrecoes } from './recebimento-regras';
+import { agruparCorrecoes, ehCte } from './recebimento-regras';
 import { aplicarPrecosVenda, type PrecoPedido, type PrecoResultado } from '@/lib/estoque/preco-venda-entrada-server';
 
 // Janela "grande" fixa: pendentes desde 01/11/2022 ate hoje (pedido do usuario).
@@ -608,7 +608,12 @@ export interface DarEntradaArgs {
   /** preço de venda escolhido na janela (máquina ×1,20, peça ×2); grava só se subir */
   precosVenda?: PrecoPedido[] | null;
   numeroNFe?: string | null;
+  /** CT-e: CFOP de entrada do cabeçalho (padrão CFOP_CTE_PADRAO). */
+  cfopCte?: string | null;
 }
+
+/** CFOP de entrada que a equipe usa nos CT-e (frete) recebidos. */
+export const CFOP_CTE_PADRAO = '1.350';
 
 /**
  * Passe 1 do "dar entrada": liga itens que viriam como PRODUTO NOVO a produtos ja
@@ -734,6 +739,14 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
   // passe 3: campos de CABECALHO (categoria/conta/data, observacoes, parcelas) numa
   // chamada SEPARADA (validado: AlterarRecebimento aceita infoAdicionais/observacoes/
   // parcelasEditar sem itensRecebimentoEditar). infoAdicionais e' all-or-nothing.
+  // CT-e (frete, chave modelo 57): não tem itens; a Omie exige o CFOP de entrada no
+  // cabeçalho. 1.350 é o que a equipe usa (45 de 48 CT-e recebidos à mão, NOVA e CASTRO,
+  // de SP e de fora — lido em 26/11/2026). Falhar aqui = parar: sem ele o concluir é recusado.
+  const cfopCte = ehCte(chaveNFe) ? (b.cfopCte || CFOP_CTE_PADRAO) : null;
+  if (cfopCte) {
+    await alterarRecebimentoCabec(conta, { idReceb, chaveNFe, cteCfopEntrada: cfopCte });
+  }
+
   let cabecAlterado: any = null;
   if (b.infoAdicionais || observacoesFinal != null || b.parcelas) {
     try {
