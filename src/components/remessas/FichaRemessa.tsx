@@ -1,7 +1,9 @@
 'use client';
 // Ficha da remessa: dados, NF-e, itens (ao vivo na Omie), o que o portal emitiu, ações e histórico.
 import { useCallback, useEffect, useState } from 'react';
-import { X, FileText, RefreshCcw, Undo2, BadgeDollarSign, CalendarClock, Send, UserCheck, Link2 } from 'lucide-react';
+import { X, FileText, RefreshCcw, Undo2, BadgeDollarSign, CalendarClock, Send, UserCheck, Link2, Handshake } from 'lucide-react';
+import VendaNoCliente from './VendaNoCliente';
+import { ETAPAS_VENDA, type EtapaVenda } from '@/lib/remessas/venda-cliente';
 import { fetchAuth } from '@/lib/auth/client';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -17,6 +19,7 @@ interface Ficha {
   omieErro: string | null; voltas: Array<{ numero: string; data: string; cfop: string; destinatario: string; total: number }>;
   itens: Array<{ nCodProd: number; descricao: string | null; qtd: number; valorUnit: number; cfop: string; cst: string | null; origem: string | null }>;
   dadosAdic: string | null; migracaoFaltando: boolean;
+  vendaCliente: { etapa: EtapaVenda; erro: string | null; proposta_id: number; user_nome: string | null; pedido: { id_pedido: string; status: string } | null } | null;
 }
 const brl = (n: number) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const quando = (s: string) => new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
@@ -29,7 +32,7 @@ export default function FichaRemessa({ chave, onFechar, onMudou, onAbrir }: { ch
   const [erro, setErro] = useState('');
   const [msg, setMsg] = useState('');
   const [ocupado, setOcupado] = useState('');
-  const [painel, setPainel] = useState<'' | 'renovar' | 'volta' | 'venda' | 'prazo'>('');
+  const [painel, setPainel] = useState<'' | 'renovar' | 'volta' | 'venda' | 'prazo' | 'cliente'>('');
   const [prazo, setPrazo] = useState('');
   const [pedido, setPedido] = useState('');
   const [obs, setObs] = useState('');
@@ -69,6 +72,8 @@ export default function FichaRemessa({ chave, onFechar, onMudou, onAbrir }: { ch
   const aberta = l ? SITUACOES[l.situacao].aberta : false;
   const pendentes = (f?.emissoes || []).filter((e) => e.status === 'criada' || e.status === 'falhou');
   const podeEmitirNF = pode('remessas', 'emitir') || pode('remessas', 'renovar') || pode('remessas', 'devolver');
+  const podeVenderCliente = pode('remessas', 'emitir') && pode('pedidos-maquinas', 'faturar');
+  const vc = f?.vendaCliente || null;
 
   return (
     <div className="rm-modal-fundo" onClick={(e) => { if (e.target === e.currentTarget) onFechar(); }}>
@@ -139,12 +144,28 @@ export default function FichaRemessa({ chave, onFechar, onMudou, onAbrir }: { ch
               </div>
             )}
 
-            {ehDemo && aberta && (
+            {vc && (
+              <div className="rm-card" style={{ display: 'flex', flexDirection: 'column', gap: 10, borderColor: vc.etapa === 'concluida' ? '#5eead4' : '#fcd34d' }}>
+                <div className="rm-sec">Venda no cliente (a máquina ficou com ele)</div>
+                <div style={{ fontSize: 13.5 }}>
+                  {ETAPAS_VENDA[vc.etapa].rotulo} · proposta #{vc.proposta_id}{vc.user_nome ? ` · por ${vc.user_nome}` : ''}
+                  {vc.pedido && <> · pedido <a href={`/propostas?aba=pedidos&pvm=${encodeURIComponent(vc.pedido.id_pedido)}`} style={{ color: 'var(--mx-fg-violet, #7c3aed)', fontWeight: 700 }}>{vc.pedido.id_pedido}</a></>}
+                  {vc.erro && vc.etapa !== 'concluida' && <div style={{ fontSize: 12.5, color: 'var(--mx-fg-red, #dc2626)', marginTop: 4 }}>{vc.erro}</div>}
+                </div>
+                {vc.etapa !== 'concluida' && podeVenderCliente && painel !== 'cliente' && (
+                  <button className="rm-btn pri" style={{ alignSelf: 'flex-start' }} onClick={() => setPainel('cliente')}><Handshake size={15} /> Continuar</button>
+                )}
+                {painel === 'cliente' && <VendaNoCliente conta={l.conta} idRemessa={l.idRemessa} onFeito={() => { carregar(); onMudou(); }} onFechar={() => setPainel('')} />}
+              </div>
+            )}
+
+            {ehDemo && aberta && !vc && (
               <div className="rm-card" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <div className="rm-sec">O que fazer com esta demonstração</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {pode('remessas', 'renovar') && <button className="rm-btn pri" onClick={() => { setPainel('renovar'); setPrazo(somarDias(hojeISO(), PRAZO_PADRAO_DIAS)); }}><RefreshCcw size={15} /> Renovar</button>}
                   {pode('remessas', 'devolver') && <button className="rm-btn ok" onClick={() => setPainel('volta')}><Undo2 size={15} /> Registrar a volta</button>}
+                  {podeVenderCliente && f.nf && <button className="rm-btn pri" onClick={() => setPainel('cliente')}><Handshake size={15} /> Vendeu — fica com o cliente</button>}
                   {pode('remessas', 'acompanhar') && <button className="rm-btn" onClick={() => setPainel('venda')}><BadgeDollarSign size={15} /> Virou venda</button>}
                   {pode('remessas', 'acompanhar') && <button className="rm-btn" onClick={() => { setPainel('prazo'); setPrazo(l.prazoAte || ''); }}><CalendarClock size={15} /> Mudar o prazo</button>}
                   {pode('remessas', 'acompanhar') && f.controle?.responsavel_id !== userProfile?.id && (
@@ -168,9 +189,10 @@ export default function FichaRemessa({ chave, onFechar, onMudou, onAbrir }: { ch
                     </div>
                   </Painel>
                 )}
+                {painel === 'cliente' && <VendaNoCliente conta={l.conta} idRemessa={l.idRemessa} onFeito={() => { carregar(); onMudou(); }} onFechar={() => setPainel('')} />}
                 {painel === 'venda' && (
                   <Painel>
-                    <div style={{ fontSize: 13.5 }}>O cliente comprou a máquina. Informe o pedido de venda (opcional). A remessa sai da lista de demonstrações.</div>
+                    <div style={{ fontSize: 13.5 }}>Só marca: o cliente comprou e a venda foi feita por fora. Informe o pedido de venda (opcional). A remessa sai da lista de demonstrações.{podeVenderCliente ? ' Para o portal emitir a volta e montar o pedido, use “Vendeu — fica com o cliente”.' : ''}</div>
                     <div className="rm-grade">
                       <div className="rm-campo"><span className="rm-lbl">Pedido de venda / PVM</span><input className="rm-input" value={pedido} onChange={(e) => setPedido(e.target.value)} /></div>
                       <div className="rm-campo"><span className="rm-lbl">Observação</span><input className="rm-input" value={obs} onChange={(e) => setObs(e.target.value)} /></div>

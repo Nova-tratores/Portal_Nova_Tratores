@@ -13,7 +13,8 @@ import { supabase } from './supabase';
 import * as cache from './cache';
 import { getConfig } from './config';
 import { analisarRecebimentosPendentes } from './analise';
-import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto, listarRecebimentos, formatarCfopEntrada, consultarObservacaoReceb } from './omie';
+import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto, listarRecebimentos, formatarCfopEntrada, consultarObservacaoReceb, omieRequest } from './omie';
+import { payloadProdutoProprio, validarLista, normalizarCodigo, codigoIntegracao, type ProdutoProprio } from './produto-proprio-recebimento';
 import type { AlterarCabecArgs } from './omie';
 import { hoje, addDias, fmtBR, parseAnyDate } from './dates';
 import { agruparCorrecoes, ehCte } from './recebimento-regras';
@@ -592,6 +593,9 @@ export interface DarEntradaArgs {
     qtde?: number | null;
     precoUnit?: number | null;
     descricaoProduto?: string | null;
+    /** "Criar com meu código": o portal cria o produto (sem lote) e associa a linha a ele. */
+    criarProduto?: ProdutoProprio | null;
+    unidade?: string | null;
   }>;
   naoGerarFinanceiro?: boolean;
   naoGerarMovEstoque?: boolean;
@@ -674,6 +678,66 @@ async function associarProdutosExistentes(
   return { resposta, associados };
 }
 
+export interface ProdutoCriadoInfo { nSequencia: number | string; idProduto: number; codigo: string; descricao: string; codigoFamilia: number | null; qtde: number | null; reaproveitado: boolean }
+
+const msgOmie = (e: any) => String(e?.faultstring || e?.message || e);
+
+/**
+ * Passe 0 do "dar entrada": itens com `criarProduto` ganham o produto criado PELO PORTAL
+ * (código e descrição escolhidos, sem controle de lote) e viram associação (passe 1).
+ * Reexecutar acha o mesmo produto pelo código de integração RCB-<idReceb>-<seq>.
+ * Se a entrada falhar depois, o produto fica cadastrado (a próxima tentativa o reaproveita).
+ */
+async function criarProdutosProprios(
+  conta: Conta,
+  idReceb: number | string | null,
+  itens: NonNullable<DarEntradaArgs['itens']>,
+): Promise<ProdutoCriadoInfo[]> {
+  const erros = validarLista(itens.map((it) => ({ ...(it.criarProduto as ProdutoProprio), rotulo: `Item ${it.nSequencia}` })));
+  if (erros.length) throw new Error(erros.join(' '));
+  if (idReceb == null) throw new Error('criar produto com meu código exige o id do recebimento');
+  const criados: ProdutoCriadoInfo[] = [];
+  for (const it of itens) {
+    const cp = it.criarProduto as ProdutoProprio;
+    const codigo = normalizarCodigo(cp.codigo);
+    const integ = codigoIntegracao(idReceb, it.nSequencia);
+    // o código já existe? só serve se for o produto desta mesma linha (reexecução)
+    let existente: any = null;
+    try { existente = await omieRequest('/geral/produtos/', 'ConsultarProduto', { codigo }, conta); }
+    catch (e) { if (!/n[aã]o (cadastrad|encontrad)|n[aã]o existe/i.test(msgOmie(e))) throw e; }
+    let id = 0;
+    let reaproveitado = false;
+    if (existente && Number(existente.codigo_produto) > 0) {
+      if (String(existente.codigo_produto_integracao || '') !== integ) {
+        throw new Error(`Já existe na Omie um produto com o código ${codigo} (${existente.descricao || ''}). Use outro código ou "Associar a um existente".`);
+      }
+      id = Number(existente.codigo_produto);
+      reaproveitado = true;
+    } else {
+      const payload = payloadProdutoProprio({ ...cp, idReceb, nSequencia: it.nSequencia, unidade: it.unidade, ncm: it.ncm });
+      try {
+        const r = await omieRequest('/geral/produtos/', 'IncluirProduto', payload, conta);
+        id = Number(r?.codigo_produto) || 0;
+      } catch (e) {
+        if (!/j[aá] (cadastrad|existe)|duplicad/i.test(msgOmie(e))) throw new Error(`A Omie recusou criar o produto ${codigo}: ${msgOmie(e)}`);
+      }
+      if (!id) {
+        const r = await omieRequest('/geral/produtos/', 'ConsultarProduto', { codigo_produto_integracao: integ }, conta);
+        id = Number(r?.codigo_produto) || 0;
+        reaproveitado = true;
+      }
+      if (!id) throw new Error(`o produto ${codigo} não foi criado na Omie`);
+    }
+    it.associarIdProduto = id;
+    it.descricaoProduto = `${codigo} — ${cp.descricao}`;
+    criados.push({
+      nSequencia: it.nSequencia, idProduto: id, codigo, descricao: String(cp.descricao).trim(),
+      codigoFamilia: Number(cp.codigoFamilia) > 0 ? Number(cp.codigoFamilia) : null, qtde: Number(it.qtde) || null, reaproveitado,
+    });
+  }
+  return criados;
+}
+
 /**
  * Dá entrada (conclui) um recebimento de NF-e. SEMPRE chama AlterarRecebimento
  * quando há itens (para forçar nosso set de "custo de estoque"), depois ConcluirRecebimento.
@@ -691,6 +755,10 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
   const custoEstoque = montarCustoEstoque();
   const codCategoria = b.codCategoria != null ? String(b.codCategoria) : null;
   const codDepartamento = b.codDepartamento != null ? String(b.codDepartamento) : null;
+
+  // passe 0: "criar com meu código" -> cria o produto (sem lote) e vira associação
+  const aCriar = itensIn.filter((it) => it.criarProduto && String(it.cAcao || '').toUpperCase() !== 'IGNORAR');
+  const produtosCriados = aCriar.length ? await criarProdutosProprios(conta, idReceb, aCriar) : [];
 
   // passe 1: associacoes (item "produto novo" -> produto ja cadastrado)
   const aAssociar = itensIn.filter((it) => Number(it.associarIdProduto) > 0);
@@ -787,6 +855,7 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
         naoGerarMovEstoque: b.naoGerarMovEstoque,
         cfops: itensIn.map((i) => ({ s: i.nSequencia, c: i.cfopEntrada })),
         associacoes: aAssociar.map((i) => ({ s: i.nSequencia, idProduto: i.associarIdProduto })),
+        produtosCriados,
         respAssociar,
         respAlterar: alterado,
         respConcluir: r.rawResponse,
@@ -824,9 +893,10 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
       })),
       precosVenda: precos.length ? precos : undefined,
       precosErro: precosErro || undefined,
+      produtosCriados: produtosCriados.length ? produtosCriados : undefined,
     },
     resultado: { idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados: associados.length, cabec: cabecAlterado },
   });
 
-  return { ok: true, idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados, cabec: cabecAlterado, precos, precosErro };
+  return { ok: true, idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados, cabec: cabecAlterado, precos, precosErro, produtosCriados };
 }

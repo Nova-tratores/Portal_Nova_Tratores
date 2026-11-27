@@ -631,6 +631,7 @@ export function normalizarRecebimento(rec: any): any {
       codigoProdutoInt: ca.cCodigoProduto ?? null,
       descricaoProduto: ca.cDescricaoProduto ?? null,
       ncm: ca.cNCM ?? null,
+      unidade: ca.cUnidadeNfe ?? aj.cUnidade ?? null,
       idProduto: idProduto > 0 ? idProduto : null,
       criarNovo: ca.cAdicionarNovo === 'S',
       associarExistente: ca.cAssociarExistente === 'S',
