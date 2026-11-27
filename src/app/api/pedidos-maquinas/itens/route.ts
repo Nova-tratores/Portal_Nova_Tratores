@@ -25,7 +25,9 @@ export async function GET(req: Request) {
     const conta = /castro/i.test(url.searchParams.get('empresa') || '') ? 'castro' : 'nova';
     let qb = supabaseAdmin.from('produtos').select(COLS)
       .eq('inativo', false).eq('conta_omie', conta)
-      .not('familia_nome', 'ilike', '*peça*').not('familia_nome', 'ilike', '*peca*')
+      
+      // sem família também entra (produto criado no Dar entrada sem família: 13787/26, 27/11/2026)
+      .or('familia_nome.is.null,and(familia_nome.not.ilike.*peça*,familia_nome.not.ilike.*peca*)')
       .order('estoque', { ascending: false }).limit(40);
     // Palavra por palavra (E entre elas): "SEMBRA 400" acha "SEMBRA-400-II" da nota da fábrica.
     const palavras = palavrasDaBusca(q);
